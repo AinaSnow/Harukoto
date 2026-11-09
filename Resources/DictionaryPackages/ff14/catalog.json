@@ -3,11 +3,1935 @@
   "package": {
     "format": 1,
     "id": "harukoto-ff14",
-    "name": "FF14 日语术语",
-    "version": "0.1.0-draft",
-    "source": "待逐条核对国服名、日服正式名称、读音和来源",
-    "license": "待审核使用依据；当前无词条，不构成可发行词库",
-    "words": "words.txt"
+    "name": "FF14 职业与物品术语",
+    "version": "0.1.1",
+    "source": "国服／日服／英文官方职业指南；读音辅以 FF14 Online Wiki 与コトバンク；缩写对照 XIVAPI ClassJob。核对日期 2026-11-09；适用 7.56 职业名称。；另按中／日／英 Completion CSV 行 ID、Group、Key 对齐 10 个物品相关定型文术语，固定来源提交见逐条记录。",
+    "license": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。",
+    "words": "ff14-words.txt"
   },
-  "entries": []
+  "entries": [
+    {
+      "id": "job-paladin",
+      "category": "job",
+      "zh_cn": "骑士",
+      "ja": "ナイト",
+      "kana": "ないと",
+      "english": [
+        "Paladin"
+      ],
+      "aliases": [
+        "PLD"
+      ],
+      "triggers": {
+        "pinyin": [
+          "qishi"
+        ],
+        "english": [
+          "Paladin",
+          "PLD"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：骑士；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：ナイト，路径 paladin。"
+        },
+        {
+          "role": "kana",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/paladin/",
+          "accessed": "2026-11-09",
+          "note": "官方职业名本身为片假名；逐字转为平假名，不推测汉字读音。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Paladin。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Paladin / PLD；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-warrior",
+      "category": "job",
+      "zh_cn": "战士",
+      "ja": "戦士",
+      "kana": "せんし",
+      "english": [
+        "Warrior"
+      ],
+      "aliases": [
+        "WAR"
+      ],
+      "triggers": {
+        "pinyin": [
+          "zhanshi"
+        ],
+        "english": [
+          "Warrior",
+          "WAR"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：战士；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：戦士，路径 warrior。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E6%88%A6%E5%A3%AB",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Warrior。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Warrior / WAR；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-darkknight",
+      "category": "job",
+      "zh_cn": "暗黑骑士",
+      "ja": "暗黒騎士",
+      "kana": "あんこくきし",
+      "english": [
+        "Dark Knight"
+      ],
+      "aliases": [
+        "DRK"
+      ],
+      "triggers": {
+        "pinyin": [
+          "anheiqishi"
+        ],
+        "english": [
+          "Dark Knight",
+          "DRK"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：暗黑骑士；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：暗黒騎士，路径 darkknight。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E6%9A%97%E9%BB%92%E9%A8%8E%E5%A3%AB",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Dark Knight。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Dark Knight / DRK；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-gunbreaker",
+      "category": "job",
+      "zh_cn": "绝枪战士",
+      "ja": "ガンブレイカー",
+      "kana": "がんぶれいかー",
+      "english": [
+        "Gunbreaker"
+      ],
+      "aliases": [
+        "GNB"
+      ],
+      "triggers": {
+        "pinyin": [
+          "jueqiangzhanshi"
+        ],
+        "english": [
+          "Gunbreaker",
+          "GNB"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：绝枪战士；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：ガンブレイカー，路径 gunbreaker。"
+        },
+        {
+          "role": "kana",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/gunbreaker/",
+          "accessed": "2026-11-09",
+          "note": "官方职业名本身为片假名；逐字转为平假名，不推测汉字读音。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Gunbreaker。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Gunbreaker / GNB；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-whitemage",
+      "category": "job",
+      "zh_cn": "白魔法师",
+      "ja": "白魔道士",
+      "kana": "しろまどうし",
+      "english": [
+        "White Mage"
+      ],
+      "aliases": [
+        "WHM"
+      ],
+      "triggers": {
+        "pinyin": [
+          "baimofashi"
+        ],
+        "english": [
+          "White Mage",
+          "WHM"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：白魔法师；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：白魔道士，路径 whitemage。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E7%99%BD%E9%AD%94%E9%81%93%E5%A3%AB",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：White Mage。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：White Mage / WHM；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-scholar",
+      "category": "job",
+      "zh_cn": "学者",
+      "ja": "学者",
+      "kana": "がくしゃ",
+      "english": [
+        "Scholar"
+      ],
+      "aliases": [
+        "SCH"
+      ],
+      "triggers": {
+        "pinyin": [
+          "xuezhe"
+        ],
+        "english": [
+          "Scholar",
+          "SCH"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：学者；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：学者，路径 scholar。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E5%AD%A6%E8%80%85",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Scholar。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Scholar / SCH；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-astrologian",
+      "category": "job",
+      "zh_cn": "占星术士",
+      "ja": "占星術師",
+      "kana": "せんせいじゅつし",
+      "english": [
+        "Astrologian"
+      ],
+      "aliases": [
+        "AST"
+      ],
+      "triggers": {
+        "pinyin": [
+          "zhanxingshushi"
+        ],
+        "english": [
+          "Astrologian",
+          "AST"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：占星术士；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：占星術師，路径 astrologian。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E5%8D%A0%E6%98%9F%E8%A1%93%E5%B8%AB",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Astrologian。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Astrologian / AST；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-sage",
+      "category": "job",
+      "zh_cn": "贤者",
+      "ja": "賢者",
+      "kana": "けんじゃ",
+      "english": [
+        "Sage"
+      ],
+      "aliases": [
+        "SGE"
+      ],
+      "triggers": {
+        "pinyin": [
+          "xianzhe"
+        ],
+        "english": [
+          "Sage",
+          "SGE"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：贤者；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：賢者，路径 sage。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E8%B3%A2%E8%80%85",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Sage。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Sage / SGE；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-monk",
+      "category": "job",
+      "zh_cn": "武僧",
+      "ja": "モンク",
+      "kana": "もんく",
+      "english": [
+        "Monk"
+      ],
+      "aliases": [
+        "MNK"
+      ],
+      "triggers": {
+        "pinyin": [
+          "wuseng"
+        ],
+        "english": [
+          "Monk",
+          "MNK"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：武僧；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：モンク，路径 monk。"
+        },
+        {
+          "role": "kana",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/monk/",
+          "accessed": "2026-11-09",
+          "note": "官方职业名本身为片假名；逐字转为平假名，不推测汉字读音。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Monk。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Monk / MNK；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-dragoon",
+      "category": "job",
+      "zh_cn": "龙骑士",
+      "ja": "竜騎士",
+      "kana": "りゅうきし",
+      "english": [
+        "Dragoon"
+      ],
+      "aliases": [
+        "DRG"
+      ],
+      "triggers": {
+        "pinyin": [
+          "longqishi"
+        ],
+        "english": [
+          "Dragoon",
+          "DRG"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：龙骑士；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：竜騎士，路径 dragoon。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E7%AB%9C%E9%A8%8E%E5%A3%AB",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Dragoon。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Dragoon / DRG；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-ninja",
+      "category": "job",
+      "zh_cn": "忍者",
+      "ja": "忍者",
+      "kana": "にんじゃ",
+      "english": [
+        "Ninja"
+      ],
+      "aliases": [
+        "NIN"
+      ],
+      "triggers": {
+        "pinyin": [
+          "renzhe"
+        ],
+        "english": [
+          "Ninja",
+          "NIN"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：忍者；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：忍者，路径 ninja。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E5%BF%8D%E8%80%85",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Ninja。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Ninja / NIN；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-samurai",
+      "category": "job",
+      "zh_cn": "武士",
+      "ja": "侍",
+      "kana": "さむらい",
+      "english": [
+        "Samurai"
+      ],
+      "aliases": [
+        "SAM"
+      ],
+      "triggers": {
+        "pinyin": [
+          "wushi"
+        ],
+        "english": [
+          "Samurai",
+          "SAM"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：武士；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：侍，路径 samurai。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E4%BE%8D",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Samurai。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Samurai / SAM；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-reaper",
+      "category": "job",
+      "zh_cn": "钐镰客",
+      "ja": "リーパー",
+      "kana": "りーぱー",
+      "english": [
+        "Reaper"
+      ],
+      "aliases": [
+        "RPR"
+      ],
+      "triggers": {
+        "pinyin": [
+          "shanlianke"
+        ],
+        "english": [
+          "Reaper",
+          "RPR"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：钐镰客；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：リーパー，路径 reaper。"
+        },
+        {
+          "role": "kana",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/reaper/",
+          "accessed": "2026-11-09",
+          "note": "官方职业名本身为片假名；逐字转为平假名，不推测汉字读音。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Reaper。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Reaper / RPR；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-viper",
+      "category": "job",
+      "zh_cn": "蝰蛇剑士",
+      "ja": "ヴァイパー",
+      "kana": "ゔぁいぱー",
+      "english": [
+        "Viper"
+      ],
+      "aliases": [
+        "VPR"
+      ],
+      "triggers": {
+        "pinyin": [
+          "kuishejianshi"
+        ],
+        "english": [
+          "Viper",
+          "VPR"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：蝰蛇剑士；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：ヴァイパー，路径 viper。"
+        },
+        {
+          "role": "kana",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/viper/",
+          "accessed": "2026-11-09",
+          "note": "官方职业名本身为片假名；逐字转为平假名，不推测汉字读音。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Viper。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Viper / VPR；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-bard",
+      "category": "job",
+      "zh_cn": "吟游诗人",
+      "ja": "吟遊詩人",
+      "kana": "ぎんゆうしじん",
+      "english": [
+        "Bard"
+      ],
+      "aliases": [
+        "BRD"
+      ],
+      "triggers": {
+        "pinyin": [
+          "yinyoushiren"
+        ],
+        "english": [
+          "Bard",
+          "BRD"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：吟游诗人；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：吟遊詩人，路径 bard。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E5%90%9F%E9%81%8A%E8%A9%A9%E4%BA%BA",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Bard。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Bard / BRD；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-machinist",
+      "category": "job",
+      "zh_cn": "机工士",
+      "ja": "機工士",
+      "kana": "きこうし",
+      "english": [
+        "Machinist"
+      ],
+      "aliases": [
+        "MCH"
+      ],
+      "triggers": {
+        "pinyin": [
+          "jigongshi"
+        ],
+        "english": [
+          "Machinist",
+          "MCH"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：机工士；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：機工士，路径 machinist。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E6%A9%9F%E5%B7%A5%E5%A3%AB",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Machinist。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Machinist / MCH；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-dancer",
+      "category": "job",
+      "zh_cn": "舞者",
+      "ja": "踊り子",
+      "kana": "おどりこ",
+      "english": [
+        "Dancer"
+      ],
+      "aliases": [
+        "DNC"
+      ],
+      "triggers": {
+        "pinyin": [
+          "wuzhe"
+        ],
+        "english": [
+          "Dancer",
+          "DNC"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：舞者；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：踊り子，路径 dancer。"
+        },
+        {
+          "role": "kana",
+          "url": "https://kotobank.jp/word/%E8%B8%8A%E3%82%8A%E5%AD%90",
+          "accessed": "2026-11-09",
+          "note": "词典标题明确标注踊り子读作オドリコ，对照官方职业表记；仅采录读音。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Dancer。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Dancer / DNC；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-blackmage",
+      "category": "job",
+      "zh_cn": "黑魔法师",
+      "ja": "黒魔道士",
+      "kana": "くろまどうし",
+      "english": [
+        "Black Mage"
+      ],
+      "aliases": [
+        "BLM"
+      ],
+      "triggers": {
+        "pinyin": [
+          "heimofashi"
+        ],
+        "english": [
+          "Black Mage",
+          "BLM"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：黑魔法师；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：黒魔道士，路径 blackmage。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E9%BB%92%E9%AD%94%E9%81%93%E5%A3%AB",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Black Mage。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Black Mage / BLM；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-summoner",
+      "category": "job",
+      "zh_cn": "召唤师",
+      "ja": "召喚士",
+      "kana": "しょうかんし",
+      "english": [
+        "Summoner"
+      ],
+      "aliases": [
+        "SMN"
+      ],
+      "triggers": {
+        "pinyin": [
+          "zhaohuanshi"
+        ],
+        "english": [
+          "Summoner",
+          "SMN"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：召唤师；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：召喚士，路径 summoner。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E5%8F%AC%E5%96%9A%E5%A3%AB",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Summoner。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Summoner / SMN；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-redmage",
+      "category": "job",
+      "zh_cn": "赤魔法师",
+      "ja": "赤魔道士",
+      "kana": "あかまどうし",
+      "english": [
+        "Red Mage"
+      ],
+      "aliases": [
+        "RDM"
+      ],
+      "triggers": {
+        "pinyin": [
+          "chimofashi"
+        ],
+        "english": [
+          "Red Mage",
+          "RDM"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：赤魔法师；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：赤魔道士，路径 redmage。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E8%B5%A4%E9%AD%94%E9%81%93%E5%A3%AB",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Red Mage。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Red Mage / RDM；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-pictomancer",
+      "category": "job",
+      "zh_cn": "绘灵法师",
+      "ja": "ピクトマンサー",
+      "kana": "ぴくとまんさー",
+      "english": [
+        "Pictomancer"
+      ],
+      "aliases": [
+        "PCT"
+      ],
+      "triggers": {
+        "pinyin": [
+          "huilingfashi"
+        ],
+        "english": [
+          "Pictomancer",
+          "PCT"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：绘灵法师；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：ピクトマンサー，路径 pictomancer。"
+        },
+        {
+          "role": "kana",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/pictomancer/",
+          "accessed": "2026-11-09",
+          "note": "官方职业名本身为片假名；逐字转为平假名，不推测汉字读音。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Pictomancer。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Pictomancer / PCT；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-bluemage",
+      "category": "job",
+      "zh_cn": "青魔法师",
+      "ja": "青魔道士",
+      "kana": "あおまどうし",
+      "english": [
+        "Blue Mage"
+      ],
+      "aliases": [
+        "BLU"
+      ],
+      "triggers": {
+        "pinyin": [
+          "qingmofashi"
+        ],
+        "english": [
+          "Blue Mage",
+          "BLU"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：青魔法师；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：青魔道士，路径 bluemage。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E9%9D%92%E9%AD%94%E9%81%93%E5%A3%AB",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Blue Mage。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Blue Mage / BLU；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "job-beastmaster",
+      "category": "job",
+      "zh_cn": "驯兽师",
+      "ja": "魔獣使い",
+      "kana": "まじゅうつかい",
+      "english": [
+        "Beastmaster"
+      ],
+      "aliases": [
+        "BST"
+      ],
+      "triggers": {
+        "pinyin": [
+          "xunshoushi"
+        ],
+        "english": [
+          "Beastmaster",
+          "BST"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js",
+          "accessed": "2026-11-09",
+          "note": "国服官方职业指南导航名称与职业路径对应：驯兽师；去掉括号中的基础职业名。"
+        },
+        {
+          "role": "ja",
+          "url": "https://jp.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "日服官方战斗职业列表：魔獣使い，路径 beastmaster。"
+        },
+        {
+          "role": "kana",
+          "url": "https://ff14wiki.info/?%E3%82%B8%E3%83%A7%E3%83%96/%E9%AD%94%E7%8D%A3%E4%BD%BF%E3%81%84",
+          "accessed": "2026-11-09",
+          "note": "职业条目开头明确列出假名读音；仅采录名称与读音，不复制说明正文。"
+        },
+        {
+          "role": "alias",
+          "url": "https://na.finalfantasyxiv.com/jobguide/battle/",
+          "accessed": "2026-11-09",
+          "note": "官方英文职业全称：Beastmaster。"
+        },
+        {
+          "role": "alias",
+          "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100",
+          "accessed": "2026-11-09",
+          "note": "XIVAPI ClassJob 的 Name 与 Abbreviation 交叉核对：Beastmaster / BST；非官方数据服务。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：在线来源交叉核对，未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。"
+      }
+    },
+    {
+      "id": "completion-1305",
+      "category": "item",
+      "zh_cn": "灵魂水晶",
+      "ja": "ソウルクリスタル",
+      "kana": "そうるくりすたる",
+      "english": [
+        "soul crystal"
+      ],
+      "aliases": [],
+      "triggers": {
+        "pinyin": [
+          "linghunshuijing"
+        ],
+        "english": [
+          "soul crystal"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1305，Group=17，Key=6。Text 为中文名，GroupTitle 为拼音；只核对选定行。"
+        },
+        {
+          "role": "ja",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1305，Group=17，Key=6。与国服行 ID、分组键一致，Text 为日文术语。"
+        },
+        {
+          "role": "kana",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1305，Group=17，Key=6。Text 为片假名，逐字转为平假名。"
+        },
+        {
+          "role": "alias",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1305，Group=17，Key=6。英文 Text 对齐，作为英文触发词，不复制其他定型文。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：固定提交的中日英 Completion 行 ID 与 Group/Key 交叉核对；未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量术语对应事实；仅采录 10 个选定名称及读音，不复制游戏说明、图标或整库。游戏名称及商标归各权利人，无官方授权背书。"
+      }
+    },
+    {
+      "id": "completion-1601",
+      "category": "item",
+      "zh_cn": "碎晶",
+      "ja": "シャード",
+      "kana": "しゃーど",
+      "english": [
+        "shard"
+      ],
+      "aliases": [],
+      "triggers": {
+        "pinyin": [
+          "suijing"
+        ],
+        "english": [
+          "shard"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1601，Group=22，Key=1。Text 为中文名，GroupTitle 为拼音；只核对选定行。"
+        },
+        {
+          "role": "ja",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1601，Group=22，Key=1。与国服行 ID、分组键一致，Text 为日文术语。"
+        },
+        {
+          "role": "kana",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1601，Group=22，Key=1。Text 为片假名，逐字转为平假名。"
+        },
+        {
+          "role": "alias",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1601，Group=22，Key=1。英文 Text 对齐，作为英文触发词，不复制其他定型文。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：固定提交的中日英 Completion 行 ID 与 Group/Key 交叉核对；未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量术语对应事实；仅采录 10 个选定名称及读音，不复制游戏说明、图标或整库。游戏名称及商标归各权利人，无官方授权背书。"
+      }
+    },
+    {
+      "id": "completion-1602",
+      "category": "item",
+      "zh_cn": "水晶",
+      "ja": "クリスタル",
+      "kana": "くりすたる",
+      "english": [
+        "crystal"
+      ],
+      "aliases": [],
+      "triggers": {
+        "pinyin": [
+          "shuijing"
+        ],
+        "english": [
+          "crystal"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1602，Group=22，Key=2。Text 为中文名，GroupTitle 为拼音；只核对选定行。"
+        },
+        {
+          "role": "ja",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1602，Group=22，Key=2。与国服行 ID、分组键一致，Text 为日文术语。"
+        },
+        {
+          "role": "kana",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1602，Group=22，Key=2。Text 为片假名，逐字转为平假名。"
+        },
+        {
+          "role": "alias",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1602，Group=22，Key=2。英文 Text 对齐，作为英文触发词，不复制其他定型文。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：固定提交的中日英 Completion 行 ID 与 Group/Key 交叉核对；未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量术语对应事实；仅采录 10 个选定名称及读音，不复制游戏说明、图标或整库。游戏名称及商标归各权利人，无官方授权背书。"
+      }
+    },
+    {
+      "id": "completion-1603",
+      "category": "item",
+      "zh_cn": "晶簇",
+      "ja": "クラスター",
+      "kana": "くらすたー",
+      "english": [
+        "cluster"
+      ],
+      "aliases": [],
+      "triggers": {
+        "pinyin": [
+          "jingcu"
+        ],
+        "english": [
+          "cluster"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1603，Group=22，Key=3。Text 为中文名，GroupTitle 为拼音；只核对选定行。"
+        },
+        {
+          "role": "ja",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1603，Group=22，Key=3。与国服行 ID、分组键一致，Text 为日文术语。"
+        },
+        {
+          "role": "kana",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1603，Group=22，Key=3。Text 为片假名，逐字转为平假名。"
+        },
+        {
+          "role": "alias",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1603，Group=22，Key=3。英文 Text 对齐，作为英文触发词，不复制其他定型文。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：固定提交的中日英 Completion 行 ID 与 Group/Key 交叉核对；未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量术语对应事实；仅采录 10 个选定名称及读音，不复制游戏说明、图标或整库。游戏名称及商标归各权利人，无官方授权背书。"
+      }
+    },
+    {
+      "id": "completion-1604",
+      "category": "item",
+      "zh_cn": "魔晶石",
+      "ja": "マテリア",
+      "kana": "まてりあ",
+      "english": [
+        "materia"
+      ],
+      "aliases": [],
+      "triggers": {
+        "pinyin": [
+          "mojingshi"
+        ],
+        "english": [
+          "materia"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1604，Group=22，Key=20。Text 为中文名，GroupTitle 为拼音；只核对选定行。"
+        },
+        {
+          "role": "ja",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1604，Group=22，Key=20。与国服行 ID、分组键一致，Text 为日文术语。"
+        },
+        {
+          "role": "kana",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1604，Group=22，Key=20。Text 为片假名，逐字转为平假名。"
+        },
+        {
+          "role": "alias",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 1604，Group=22，Key=20。英文 Text 对齐，作为英文触发词，不复制其他定型文。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：固定提交的中日英 Completion 行 ID 与 Group/Key 交叉核对；未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量术语对应事实；仅采录 10 个选定名称及读音，不复制游戏说明、图标或整库。游戏名称及商标归各权利人，无官方授权背书。"
+      }
+    },
+    {
+      "id": "completion-4002",
+      "category": "item",
+      "zh_cn": "魔素石",
+      "ja": "魔晶石",
+      "kana": "ましょうせき",
+      "english": [
+        "magicite"
+      ],
+      "aliases": [],
+      "triggers": {
+        "pinyin": [
+          "mosushi"
+        ],
+        "english": [
+          "magicite"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4002，Group=17，Key=432。Text 为中文名，GroupTitle 为拼音；只核对选定行。"
+        },
+        {
+          "role": "ja",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4002，Group=17，Key=432。与国服行 ID、分组键一致，Text 为日文术语。"
+        },
+        {
+          "role": "kana",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4002，Group=17，Key=432。GroupTitle 明确为マショウセキ，转换为平假名。"
+        },
+        {
+          "role": "alias",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4002，Group=17，Key=432。英文 Text 对齐，作为英文触发词，不复制其他定型文。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：固定提交的中日英 Completion 行 ID 与 Group/Key 交叉核对；未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量术语对应事实；仅采录 10 个选定名称及读音，不复制游戏说明、图标或整库。游戏名称及商标归各权利人，无官方授权背书。"
+      }
+    },
+    {
+      "id": "completion-4005",
+      "category": "item",
+      "zh_cn": "文理碎晶",
+      "ja": "ロゴスシャード",
+      "kana": "ろごすしゃーど",
+      "english": [
+        "logogram"
+      ],
+      "aliases": [],
+      "triggers": {
+        "pinyin": [
+          "wenlisuijing"
+        ],
+        "english": [
+          "logogram"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4005，Group=17，Key=435。Text 为中文名，GroupTitle 为拼音；只核对选定行。"
+        },
+        {
+          "role": "ja",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4005，Group=17，Key=435。与国服行 ID、分组键一致，Text 为日文术语。"
+        },
+        {
+          "role": "kana",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4005，Group=17，Key=435。Text 为片假名，逐字转为平假名。"
+        },
+        {
+          "role": "alias",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4005，Group=17，Key=435。英文 Text 对齐，作为英文触发词，不复制其他定型文。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：固定提交的中日英 Completion 行 ID 与 Group/Key 交叉核对；未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量术语对应事实；仅采录 10 个选定名称及读音，不复制游戏说明、图标或整库。游戏名称及商标归各权利人，无官方授权背书。"
+      }
+    },
+    {
+      "id": "completion-4025",
+      "category": "item",
+      "zh_cn": "失传碎晶",
+      "ja": "ロストシャード",
+      "kana": "ろすとしゃーど",
+      "english": [
+        "forgotten fragment"
+      ],
+      "aliases": [],
+      "triggers": {
+        "pinyin": [
+          "shichuansuijing"
+        ],
+        "english": [
+          "forgotten fragment"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4025，Group=17，Key=442。Text 为中文名，GroupTitle 为拼音；只核对选定行。"
+        },
+        {
+          "role": "ja",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4025，Group=17，Key=442。与国服行 ID、分组键一致，Text 为日文术语。"
+        },
+        {
+          "role": "kana",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4025，Group=17，Key=442。Text 为片假名，逐字转为平假名。"
+        },
+        {
+          "role": "alias",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4025，Group=17，Key=442。英文 Text 对齐，作为英文触发词，不复制其他定型文。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：固定提交的中日英 Completion 行 ID 与 Group/Key 交叉核对；未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量术语对应事实；仅采录 10 个选定名称及读音，不复制游戏说明、图标或整库。游戏名称及商标归各权利人，无官方授权背书。"
+      }
+    },
+    {
+      "id": "completion-4030",
+      "category": "item",
+      "zh_cn": "博兹雅晶簇",
+      "ja": "ボズヤクラスター",
+      "kana": "ぼずやくらすたー",
+      "english": [
+        "Bozjan cluster"
+      ],
+      "aliases": [],
+      "triggers": {
+        "pinyin": [
+          "boziyajingcu"
+        ],
+        "english": [
+          "Bozjan cluster"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4030，Group=17，Key=446。Text 为中文名，GroupTitle 为拼音；只核对选定行。"
+        },
+        {
+          "role": "ja",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4030，Group=17，Key=446。与国服行 ID、分组键一致，Text 为日文术语。"
+        },
+        {
+          "role": "kana",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4030，Group=17，Key=446。Text 为片假名，逐字转为平假名。"
+        },
+        {
+          "role": "alias",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4030，Group=17，Key=446。英文 Text 对齐，作为英文触发词，不复制其他定型文。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：固定提交的中日英 Completion 行 ID 与 Group/Key 交叉核对；未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量术语对应事实；仅采录 10 个选定名称及读音，不复制游戏说明、图标或整库。游戏名称及商标归各权利人，无官方授权背书。"
+      }
+    },
+    {
+      "id": "completion-4038",
+      "category": "item",
+      "zh_cn": "战利水晶",
+      "ja": "トロフィークリスタル",
+      "kana": "とろふぃーくりすたる",
+      "english": [
+        "Trophy Crystal"
+      ],
+      "aliases": [],
+      "triggers": {
+        "pinyin": [
+          "zhanlishuijing"
+        ],
+        "english": [
+          "Trophy Crystal"
+        ]
+      },
+      "game_version": "7.56",
+      "sources": [
+        {
+          "role": "zh_cn",
+          "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4038，Group=17，Key=108。Text 为中文名，GroupTitle 为拼音；只核对选定行。"
+        },
+        {
+          "role": "ja",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4038，Group=17，Key=108。与国服行 ID、分组键一致，Text 为日文术语。"
+        },
+        {
+          "role": "kana",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4038，Group=17，Key=108。Text 为片假名，逐字转为平假名。"
+        },
+        {
+          "role": "alias",
+          "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+          "accessed": "2026-11-09",
+          "note": "Completion 行 4038，Group=17，Key=108。英文 Text 对齐，作为英文触发词，不复制其他定型文。"
+        }
+      ],
+      "review": {
+        "status": "verified",
+        "reviewer": "Codex：固定提交的中日英 Completion 行 ID 与 Group/Key 交叉核对；未经过第二位人工审核",
+        "date": "2026-11-09",
+        "rights_note": "独立整理的少量术语对应事实；仅采录 10 个选定名称及读音，不复制游戏说明、图标或整库。游戏名称及商标归各权利人，无官方授权背书。"
+      }
+    }
+  ]
 }

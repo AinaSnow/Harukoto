@@ -1,0 +1,131 @@
+{
+  "checked_on": "2026-11-09",
+  "scope": "名称、读音与缩写；不代表技能数值、版本内容或人工复核完成",
+  "sources": [
+    {
+      "sha256": "c01ffb3c5622f5adf3efc74a5b2cd423ae822a76e62267c17cc8270bf8cf77f3",
+      "url": "https://actff1.web.sdo.com/project/20190917jobguid/dateconfig/navpveConfig.js"
+    },
+    {
+      "sha256": "7495305078bc6123e0d7750272ea622d040bb40f9b3936b0d3bbd76bdc0664e6",
+      "url": "https://kotobank.jp/word/%E8%B8%8A%E3%82%8A%E5%AD%90"
+    },
+    {
+      "sha256": "3e2e596c1f5ed1aa488085cdb5f624ec6b75503b09330198f1622c4a2ba8ea54",
+      "url": "https://na.finalfantasyxiv.com/jobguide/battle/"
+    },
+    {
+      "sha256": "f4d4d0f136a201e776346949d2b4a2eb2e17b86b501f7cb03af1744ea67bf49f",
+      "url": "https://v2.xivapi.com/api/sheet/ClassJob?fields=Name,Abbreviation&limit=100"
+    },
+    {
+      "sha256": "aa5de8633d82ae8841ad1d3fca666d1a98f315d7cd1ef38aa4e0027c7c522062",
+      "url": "https://jp.finalfantasyxiv.com/jobguide/battle/"
+    },
+    {
+      "sha256": "9253955e53742143ffccef0a682f8dd3ca1b0f46b8813cd6ad123ac9bb57c35c",
+      "url": "https://ff14wiki.info/?%E3%83%8A%E3%82%A4%E3%83%88"
+    },
+    {
+      "sha256": "e091782314337f6c31b3bf5078e97fa82ab9355bb7c1ae051e7c0c63336d16e3",
+      "url": "https://ff14wiki.info/?%E6%88%A6%E5%A3%AB"
+    },
+    {
+      "sha256": "bd82e3dba6e01854a83a992ddc7d6ea08f6a5b54077469fff90545fbbaec02c3",
+      "url": "https://ff14wiki.info/?%E5%BF%8D%E8%80%85"
+    },
+    {
+      "sha256": "f290357eec58dbdb382b62b60de387f140850b447f9a680fc8d39a0434f570d6",
+      "url": "https://ff14wiki.info/?%E4%BE%8D"
+    },
+    {
+      "sha256": "26b5be86e97755cfb01a8c4e3824133e66df8db3a65c51c2006029edac3dfca9",
+      "url": "https://ff14wiki.info/?%E3%83%AA%E3%83%BC%E3%83%91%E3%83%BC"
+    },
+    {
+      "sha256": "40d8146755f83ff7b476e0340f33e12728893dc3f8468b94e43485adb3c48810",
+      "url": "https://ff14wiki.info/?%E3%83%B4%E3%82%A1%E3%82%A4%E3%83%91%E3%83%BC"
+    },
+    {
+      "sha256": "daa6d0602a8e31842b45584a7b243cc43fd52cafd4aaba92385775c313284a4a",
+      "url": "https://ff14wiki.info/?%E5%90%9F%E9%81%8A%E8%A9%A9%E4%BA%BA"
+    },
+    {
+      "sha256": "51d4afefed7dd86c1df4453fd26314267cdc811555a7d5e2ea058b6e310f5e0e",
+      "url": "https://ff14wiki.info/?%E6%A9%9F%E5%B7%A5%E5%A3%AB"
+    },
+    {
+      "sha256": "1bd6aa34535f2e116f66e3e556df8fed90d365e680807ce670f2a48394f4791f",
+      "url": "https://ff14wiki.info/?%E8%B8%8A%E3%82%8A%E5%AD%90"
+    },
+    {
+      "sha256": "080fb597f9cdbc285711201a4eaf545e697e7add7af12077dc2e2445ef5f10ec",
+      "url": "https://ff14wiki.info/?%E9%BB%92%E9%AD%94%E9%81%93%E5%A3%AB"
+    },
+    {
+      "sha256": "5495c23637634a5b312df463c016f8e065b0841c204d232ee85be10b423b9a18",
+      "url": "https://ff14wiki.info/?%E5%8F%AC%E5%96%9A%E5%A3%AB"
+    },
+    {
+      "sha256": "1af7a92c4ad5ddab258f7c40d3f42336b8f6d1de73767abc88ff73a2e6f2f748",
+      "url": "https://ff14wiki.info/?%E8%B5%A4%E9%AD%94%E9%81%93%E5%A3%AB"
+    },
+    {
+      "sha256": "baf2de10830ea00b1a6547f9d87d818b0b33173b1fa4851eb944c0b39824674c",
+      "url": "https://ff14wiki.info/?%E6%9A%97%E9%BB%92%E9%A8%8E%E5%A3%AB"
+    },
+    {
+      "sha256": "6ba418f9d28369a140f021a789614826a6a509e1232c60279d1436a45fcaa29e",
+      "url": "https://ff14wiki.info/?%E3%83%94%E3%82%AF%E3%83%88%E3%83%9E%E3%83%B3%E3%82%B5%E3%83%BC"
+    },
+    {
+      "sha256": "abc5ed514e9dafaf4cabcb960cf741d3cdd2dc6b9c6908a7f04621eeea187695",
+      "url": "https://ff14wiki.info/?%E9%9D%92%E9%AD%94%E9%81%93%E5%A3%AB"
+    },
+    {
+      "sha256": "f025f156071bfba7538d83301aaeb507d293b27f3f20fbc942e4e5fac75e948c",
+      "url": "https://ff14wiki.info/?%E9%AD%94%E7%8D%A3%E4%BD%BF%E3%81%84"
+    },
+    {
+      "sha256": "caadc4e8007ad75cfb0863d35f05120b911422d5060f430ab26c01efd5f16948",
+      "url": "https://ff14wiki.info/?%E3%82%AC%E3%83%B3%E3%83%96%E3%83%AC%E3%82%A4%E3%82%AB%E3%83%BC"
+    },
+    {
+      "sha256": "cd4d599f059972e4325dae6d8e1184f2a1cfc5517eccf1c150a0e5ed84fa3361",
+      "url": "https://ff14wiki.info/?%E7%99%BD%E9%AD%94%E9%81%93%E5%A3%AB"
+    },
+    {
+      "sha256": "6586c259c18ec758e1e8658db2bed2d8efefa8b8714c506d4bf96da2c10b45bc",
+      "url": "https://ff14wiki.info/?%E5%AD%A6%E8%80%85"
+    },
+    {
+      "sha256": "29a2c2b89cb81367d2fcb75043fb7494bb1c6c52fe3e41dcf75b8f4c3ad10024",
+      "url": "https://ff14wiki.info/?%E5%8D%A0%E6%98%9F%E8%A1%93%E5%B8%AB"
+    },
+    {
+      "sha256": "ae174ea46324e16d88b41c04ead9a1edcb4c404cc469ff57f270445eabf137dc",
+      "url": "https://ff14wiki.info/?%E8%B3%A2%E8%80%85"
+    },
+    {
+      "sha256": "5ec04a8f48848b754258f2c4d197c75fdc33ab23959e7614cbac97a439304874",
+      "url": "https://ff14wiki.info/?%E3%83%A2%E3%83%B3%E3%82%AF"
+    },
+    {
+      "sha256": "b84208b3e2caf29ccf43033c330a203d77ee827ef8411843815100fd482eafbd",
+      "url": "https://ff14wiki.info/?%E7%AB%9C%E9%A8%8E%E5%A3%AB"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Completion.csv",
+      "sha256": "9f0a9eba71cb5cb33923cb42cda46a4f1394acd15ea1686114fd925cd6af4395"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/ja/Completion.csv",
+      "sha256": "15e271e824e561e0738de5a6c4043c26dba1656d8f6c5e70a0585abd86039a6a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
+      "sha256": "b8d4451923d768ba4f87d4894ed4fab74e3601be28ae6a4115bc3f14228a8e45"
+    }
+  ],
+  "review_method": "Codex 在线逐条对照官方名称、带读音资料与 ClassJob 缩写；非第二位人工复核。SHA-256 对应获取后按 UTF-8 保存的页面文本，页面后续可能变化。"
+}

@@ -1,6 +1,6 @@
 # 本地主题词库管理
 
-适用：Windows 0.4.4-alpha.6。图形窗口与命令行均支持多包导入、独立启停、更新和上一版回退。管理工具需要 Python 3.10 或更新版本，图形窗口还需要 tkinter；安装器内置的 PowerShell 不包含 Python。日常输入不需要 Python。
+适用：Windows 0.4.4-alpha.7。图形窗口与命令行均支持多包导入、独立启停、更新和上一版回退。管理工具需要 Python 3.10 或更新版本，图形窗口还需要 tkinter；安装器内置的 PowerShell 不包含 Python。日常输入不需要 Python。
 
 ## 图形窗口
 
@@ -84,4 +84,4 @@ python Windows/manage-japanese-packages.py rollback my-japanese-terms
 
 ## FF14 接入边界
 
-当前仅附带普通词汇示例，没有收集或发布 FF14 词库。已定义[FF14 词条审核规范](FF14_TERMS.md)及校验／导出工具，记录词条 ID、分类、国服／日服名、玩家别名、版本与来源，只导出 verified 词条。已知专有名词辅助输入不等于任意游戏对话翻译。
+当前随附 [FF14 职业与物品术语包 0.1.1](FF14_DICTIONARY.md)：23 个职业及 10 个物品相关定型文术语，共 89 组触发词。点击管理窗口“预览 FF14 词库”，导入后手动启用，重开输入应用生效。已定义[FF14 词条审核规范](FF14_TERMS.md)及校验／导出工具，记录词条 ID、分类、国服／日服名、玩家别名、版本与来源，只导出 verified 词条。已知专有名词辅助输入不等于任意游戏对话翻译。

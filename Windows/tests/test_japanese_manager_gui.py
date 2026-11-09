@@ -74,6 +74,16 @@ class ManagerWindowTests(unittest.TestCase):
         self.app.preview_file(self.folder / 'missing.json'); self.wait()
         self.assertTrue(self.app.buttons['import'].instate(['disabled']))
 
+    def test_bundled_ff14_button_imports_disabled(self):
+        self.app.buttons['ff14'].invoke(); self.wait()
+        self.assertEqual(self.app.preview['manifest']['id'], 'harukoto-ff14')
+        self.assertEqual(len(self.app.preview['entries']), 89)
+        self.assertFalse((self.folder / 'store').exists())
+        self.app.buttons['import'].invoke(); self.wait()
+        self.assertFalse(self.app.state['packages']['harukoto-ff14']['enabled'])
+        self.app.buttons['enable'].invoke(); self.wait()
+        self.assertTrue(self.app.state['packages']['harukoto-ff14']['enabled'])
+
 
 if __name__ == '__main__':
     unittest.main()

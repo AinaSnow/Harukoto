@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.6'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.7'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,7 +22,7 @@ try {
         Copy-Item -LiteralPath (Join-Path $build "ime/$name") -Destination $payload
     }
     Copy-Item -LiteralPath (Join-Path $build 'MeowpuutGlassPreview.exe') -Destination $payload
-    foreach ($name in 'dictionary-manager.pyw','japanese_packages.py','japanese_dictionary.py') {
+    foreach ($name in 'dictionary-manager.pyw','japanese_packages.py','japanese_dictionary.py','ff14-manifest.json','ff14-words.txt','ff14-reviewed-source.json') {
         Copy-Item -LiteralPath (Join-Path $build $name) -Destination $payload
     }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Dictionaries.cmd') -Destination $stage
@@ -38,7 +38,12 @@ try {
     $example = Join-Path $stage 'Resources/DictionaryPackages/example'
     New-Item -ItemType Directory -Force $example | Out-Null
     Copy-Item -LiteralPath (Join-Path $root 'Resources/DictionaryPackages/example/manifest.json'),(Join-Path $root 'Resources/DictionaryPackages/example/words.txt') -Destination $example
-    foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md','BRAND.md') {
+    $ff14 = Join-Path $stage 'Resources/DictionaryPackages/ff14/jobs'
+    New-Item -ItemType Directory -Force $ff14 | Out-Null
+    foreach ($name in 'manifest.json','ff14-words.txt','reviewed-source.json') {
+        Copy-Item -LiteralPath (Join-Path $root "Resources/DictionaryPackages/ff14/jobs/$name") -Destination $ff14
+    }
+    foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','FF14_DICTIONARY.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md','BRAND.md') {
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
     }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-ime.ps1') -Destination (Join-Path $stage 'Install.ps1')
@@ -77,6 +82,11 @@ try {
     & (Join-Path $stage 'Install.ps1') -Prebuilt -VerifyOnly | Out-Null
     $zip = Join-Path $output "Harukoto-$Version-windows-x64.zip"
     Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
+    $ff14Manifest = Get-Content -LiteralPath (Join-Path $ff14 'manifest.json') -Raw | ConvertFrom-Json
+    if ($ff14Manifest.version -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$') { throw 'Invalid bundled FF14 package version.' }
+    $ff14Zip = Join-Path $output ("Harukoto-FF14-" + $ff14Manifest.version + '.zip')
+    Compress-Archive -Path (Join-Path $ff14 '*') -DestinationPath $ff14Zip -Force
+    ((Get-FileHash -LiteralPath $ff14Zip).Hash.ToLowerInvariant() + '  ' + (Split-Path $ff14Zip -Leaf)) | Set-Content -LiteralPath (Join-Path $output 'FF14-SHA256SUMS.txt') -Encoding ascii
     $sha = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
     Set-Content -LiteralPath (Join-Path $output 'SHA256SUMS.txt') -Encoding ascii -Value "$sha  $(Split-Path $zip -Leaf)"
     Write-Output $zip

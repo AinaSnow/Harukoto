@@ -44,7 +44,8 @@ class DictionaryManager(ttk.Frame):
         self.buttons = {}
         for index, (key, text, callback) in enumerate([('preview', '选择词库并预览', self.choose), ('import', '导入此预览', self.import_preview),
                 ('enable', '启用', lambda: self.modify('enable')), ('disable', '关闭', lambda: self.modify('disable')),
-                ('rollback', '回退上一版', lambda: self.modify('rollback')), ('refresh', '刷新', self.refresh)]):
+                ('rollback', '回退上一版', lambda: self.modify('rollback')), ('refresh', '刷新', self.refresh),
+                ('ff14', '预览 FF14 词库', self.preview_ff14)]):
             button = ttk.Button(bar, text=text, command=callback)
             button.grid(row=index // 3, column=index % 3, sticky='ew', padx=(0, 8), pady=3)
             bar.columnconfigure(index % 3, weight=1); self.buttons[key] = button
@@ -54,7 +55,7 @@ class DictionaryManager(ttk.Frame):
         details_scroll.grid(row=4, column=1, sticky='ns'); self.details.configure(yscrollcommand=details_scroll.set)
         self.status = tk.StringVar(value='正在读取本地词库…')
         ttk.Label(self, textvariable=self.status, wraplength=780).grid(row=5, column=0, sticky='ew', pady=(12, 0))
-        self.show_details('选择 manifest.json 可查看名称、来源、许可和冲突。\n当前不内置 FF14 词库。')
+        self.show_details('选择 manifest.json 可查看名称、来源、许可和冲突。\n随附 FF14 职业与物品术语包可点击按钮预览；导入后默认关闭。')
         self.poll_id = self.after(40, self.poll)
         self.bind('<Destroy>', self.destroyed)
         self.refresh()
@@ -131,6 +132,12 @@ class DictionaryManager(ttk.Frame):
     def choose(self):
         path = filedialog.askopenfilename(parent=self.master, title='选择主题词库清单', filetypes=[('词库清单', '*.json')])
         if path: self.preview_file(Path(path))
+
+    def preview_ff14(self):
+        path = HERE / 'ff14-manifest.json'
+        if not path.exists():
+            path = HERE.parent / 'Resources/DictionaryPackages/ff14/jobs/manifest.json'
+        self.preview_file(path)
 
     def preview_file(self, path):
         self.preview = None; self.preview_path = None

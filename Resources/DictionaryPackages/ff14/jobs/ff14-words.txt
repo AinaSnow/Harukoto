@@ -1,0 +1,34 @@
+# FF14 职业与物品术语
+ソウルクリスタル | そうるくりすたる | chinese: 灵魂水晶 | pinyin: linghunshuijing | english: soulcrystal
+シャード | しゃーど | chinese: 碎晶 | pinyin: suijing | english: shard
+クリスタル | くりすたる | chinese: 水晶 | pinyin: shuijing | english: crystal
+クラスター | くらすたー | chinese: 晶簇 | pinyin: jingcu | english: cluster
+マテリア | まてりあ | chinese: 魔晶石 | pinyin: mojingshi | english: materia
+魔晶石 | ましょうせき | chinese: 魔素石 | pinyin: mosushi | english: magicite
+ロゴスシャード | ろごすしゃーど | chinese: 文理碎晶 | pinyin: wenlisuijing | english: logogram
+ロストシャード | ろすとしゃーど | chinese: 失传碎晶 | pinyin: shichuansuijing | english: forgottenfragment
+ボズヤクラスター | ぼずやくらすたー | chinese: 博兹雅晶簇 | pinyin: boziyajingcu | english: bozjancluster
+トロフィークリスタル | とろふぃーくりすたる | chinese: 战利水晶 | pinyin: zhanlishuijing | english: trophycrystal
+占星術師 | せんせいじゅつし | chinese: 占星术士 | pinyin: zhanxingshushi | english: astrologian | english: ast
+吟遊詩人 | ぎんゆうしじん | chinese: 吟游诗人 | pinyin: yinyoushiren | english: bard | english: brd
+魔獣使い | まじゅうつかい | chinese: 驯兽师 | pinyin: xunshoushi | english: beastmaster | english: bst
+黒魔道士 | くろまどうし | chinese: 黑魔法师 | pinyin: heimofashi | english: blackmage | english: blm
+青魔道士 | あおまどうし | chinese: 青魔法师 | pinyin: qingmofashi | english: bluemage | english: blu
+踊り子 | おどりこ | chinese: 舞者 | pinyin: wuzhe | english: dancer | english: dnc
+暗黒騎士 | あんこくきし | chinese: 暗黑骑士 | pinyin: anheiqishi | english: darkknight | english: drk
+竜騎士 | りゅうきし | chinese: 龙骑士 | pinyin: longqishi | english: dragoon | english: drg
+ガンブレイカー | がんぶれいかー | chinese: 绝枪战士 | pinyin: jueqiangzhanshi | english: gunbreaker | english: gnb
+機工士 | きこうし | chinese: 机工士 | pinyin: jigongshi | english: machinist | english: mch
+モンク | もんく | chinese: 武僧 | pinyin: wuseng | english: monk | english: mnk
+忍者 | にんじゃ | chinese: 忍者 | pinyin: renzhe | english: ninja | english: nin
+ナイト | ないと | chinese: 骑士 | pinyin: qishi | english: paladin | english: pld
+ピクトマンサー | ぴくとまんさー | chinese: 绘灵法师 | pinyin: huilingfashi | english: pictomancer | english: pct
+リーパー | りーぱー | chinese: 钐镰客 | pinyin: shanlianke | english: reaper | english: rpr
+赤魔道士 | あかまどうし | chinese: 赤魔法师 | pinyin: chimofashi | english: redmage | english: rdm
+賢者 | けんじゃ | chinese: 贤者 | pinyin: xianzhe | english: sage | english: sge
+侍 | さむらい | chinese: 武士 | pinyin: wushi | english: samurai | english: sam
+学者 | がくしゃ | chinese: 学者 | pinyin: xuezhe | english: scholar | english: sch
+召喚士 | しょうかんし | chinese: 召唤师 | pinyin: zhaohuanshi | english: summoner | english: smn
+ヴァイパー | ゔぁいぱー | chinese: 蝰蛇剑士 | pinyin: kuishejianshi | english: viper | english: vpr
+戦士 | せんし | chinese: 战士 | pinyin: zhanshi | english: warrior | english: war
+白魔道士 | しろまどうし | chinese: 白魔法师 | pinyin: baimofashi | english: whitemage | english: whm

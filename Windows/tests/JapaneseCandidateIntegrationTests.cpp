@@ -1,12 +1,13 @@
 #define NOMINMAX
 #include "../ConjugationPanel.h"
 #include "../WordEvidence.h"
+#include "../JapanesePackages.h"
 #include <cassert>
 #include <fstream>
 #include <iostream>
 
 int main(int argc, char **argv) {
-    assert(argc == 2);
+    assert(argc == 2 || argc == 4);
     const std::filesystem::path dir(argv[1]);
     std::ifstream file(dir / "native-pinyin.tsv", std::ios::binary);
     assert(file);
@@ -20,6 +21,39 @@ int main(int argc, char **argv) {
     std::stable_sort(words.begin(), words.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
     WordEvidence evidence; evidence.open(dir / "language-evidence.sqlite");
     assert(!evidence.dictionary("chi", true).empty());
+    if (argc == 4) {
+        auto themes = readEnabledJapanesePackages(argv[2]);
+        assert(themes.size() == std::stoul(argv[3]));
+        auto merged = words; merged.insert(merged.end(), themes.begin(), themes.end());
+        std::stable_sort(merged.begin(), merged.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
+        for (bool simplified : {false, true}) {
+            auto lookup = [&](const std::string &reading) { return evidence.dictionary(reading, simplified); };
+            mpn_set_simplified(session, simplified);
+            for (const auto &word : themes) {
+                mpn_clear(session);
+                for (char c : word.reading) assert(mpn_key(session, c));
+                const auto choices = windowsCandidates(session, merged, lookup, false);
+                const auto end = choices.begin() + std::min(size_t(7), choices.size());
+                for (const auto &output : {word.text, word.kana}) {
+                    const auto found = std::find_if(choices.begin(), end, [&](const auto &c) { return c.text == output && c.directJapanese && !c.coreIndex; });
+                    if (found == end) std::cerr << "Missing first-page theme choice: " << word.reading << " -> " << output << std::endl;
+                    assert(found != end);
+                }
+                const auto locked = windowsCandidates(session, merged, lookup, true);
+                assert(std::none_of(locked.begin(), locked.end(), [](const auto &c) { return c.japanese; }));
+            }
+            for (const auto &input : {"nihao", "chi", "riben", "zhongguo", "jintian"}) {
+                mpn_clear(session); for (char c : std::string(input)) assert(mpn_key(session, c));
+                const auto before = windowsCandidates(session, words, lookup, false);
+                const auto after = windowsCandidates(session, merged, lookup, false);
+                assert(before.size() == after.size());
+                for (size_t i = 0; i < before.size(); ++i)
+                    assert(before[i].text == after[i].text && before[i].annotation == after[i].annotation && before[i].coreIndex == after[i].coreIndex);
+            }
+        }
+        std::cout << "PASS: FF14 real SQLite first-page spelling/kana, both scripts, Chinese isolation\n";
+        mpn_session_destroy(session); mpn_lexicon_destroy(lexicon); return 0;
+    }
     for (bool simplified : {false, true})
     for (const auto &input : {"chi", "eat", "riben", "qu", "lai", "hao", "xie", "you", "xuexi", "gao", "keai", "anjing"}) {
         mpn_clear(session); mpn_set_simplified(session, simplified);
