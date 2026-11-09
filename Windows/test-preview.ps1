@@ -11,3 +11,8 @@ $test = Join-Path $output 'CandidateLayoutTests.exe'
 if ($LASTEXITCODE -ne 0) { throw 'Layout test build failed.' }
 & $test (Join-Path $output 'MeowpuutGlassPreview.exe') (Join-Path $output 'candidate-layout.png')
 if ($LASTEXITCODE -ne 0) { throw 'Layout tests failed.' }
+$settingsTest = Join-Path $output 'LayoutOptionsTests.exe'
+& $compiler /nologo /target:exe /out:$settingsTest (Join-Path $PSScriptRoot 'LayoutOptions.cs') (Join-Path $PSScriptRoot 'AppearanceCli.cs') (Join-Path $PSScriptRoot 'tests/LayoutOptionsTests.cs')
+if ($LASTEXITCODE -ne 0) { throw 'Layout settings test build failed.' }
+& $settingsTest
+if ($LASTEXITCODE -ne 0) { throw 'Layout settings tests failed.' }

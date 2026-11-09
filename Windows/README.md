@@ -1,8 +1,10 @@
-# 晴词 · Harukoto 0.4.4-alpha.12 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.13 · Windows x64
 
 日常使用请先看[操作指南](../docs/USER_GUIDE.md)，包含选词、表记／假名二选一、F6 活用、繁简开关和常见问题。
 
 alpha.12 设置页新增真实候选布局预览：字号／宽度实时更新，可切换六类示例并预览高亮和日语展开。恢复默认只重置布局，保存前不影响输入；详细范围见 [布局编辑器](../docs/UI_LAYOUT_EDITOR.md)。
+
+alpha.13 在预览上加入横纵排列、读音字号、候选间距和内边距、拖动宽度与三种预设。整套布局一次保存，旧字号／宽度可迁移，默认外观保持。屏幕高度不足时暂时等比缩小显示全部候选。
 
 开发者入口：[中文质量与性能评测](../docs/CHINESE_EVALUATION.md)、[安装与旧进程诊断](../docs/WINDOWS_DIAGNOSIS.md)。这两项是当前源码工具，已有 alpha.11 安装包未包含诊断入口。
 
@@ -10,7 +12,7 @@ alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.12-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.13-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -69,7 +71,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.12
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.13
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。

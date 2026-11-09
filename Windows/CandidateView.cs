@@ -8,9 +8,10 @@ using System.Windows.Media;
 internal static class CandidateView
 {
     internal static void Render(Panel strip, string[] fields, int highlighted,
-                                         int mainIndex, bool expanded, double fontSize)
+                                         int mainIndex, bool expanded, LayoutOptions options)
     {
-        fontSize = CandidateLayout.ClampFont(fontSize);
+        options = options.Validated();
+        double fontSize = options.Font;
         double available = strip.Width;
         const double minimum = 64;
         var indices = new System.Collections.Generic.List<int>();
@@ -45,7 +46,7 @@ internal static class CandidateView
         {
             int index = indices[i];
             string[] candidate = fields[index + 3].Split('\t');
-            var content = new DockPanel { Margin = new Thickness(10, 8, 10, 8) };
+            var content = new DockPanel { Margin = new Thickness(options.PaddingX, options.PaddingY, options.PaddingX, options.PaddingY) };
             content.Children.Add(new TextBlock
             {
                 Text = (index + 1).ToString(),
@@ -56,7 +57,7 @@ internal static class CandidateView
             });
             var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             if (IsJapanese(fields[index + 3]) && candidate.Length > 1 && candidate[1].Length > 0)
-                words.Children.Add(new TextBlock { Text = candidate[1], FontSize = Math.Max(11, fontSize * 0.6), Opacity = contrast ? 1 : 0.85, Margin = new Thickness(0, 3, 0, 3),
+                words.Children.Add(new TextBlock { Text = candidate[1], FontSize = options.ReadingSize, Opacity = contrast ? 1 : 0.85, Margin = new Thickness(0, 3, 0, 3),
                                                    TextWrapping = TextWrapping.Wrap });
             words.Children.Add(new TextBlock
             {
@@ -65,7 +66,7 @@ internal static class CandidateView
                 TextWrapping = TextWrapping.Wrap
             });
             if (!IsJapanese(fields[index + 3]) && candidate.Length > 1 && candidate[1].Length > 0)
-                words.Children.Add(new TextBlock { Text = candidate[1], FontSize = Math.Max(11, fontSize * 0.6), Opacity = contrast ? 1 : 0.85, Margin = new Thickness(0, 3, 0, 3), TextWrapping = TextWrapping.Wrap });
+                words.Children.Add(new TextBlock { Text = candidate[1], FontSize = options.ReadingSize, Opacity = contrast ? 1 : 0.85, Margin = new Thickness(0, 3, 0, 3), TextWrapping = TextWrapping.Wrap });
             content.Children.Add(words);
             var button = new Button
             {
@@ -74,7 +75,7 @@ internal static class CandidateView
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Foreground = SystemColors.WindowTextBrush, Background = Brushes.Transparent, BorderBrush = Brushes.Transparent,
                 Focusable = false, Tag = index,
-                Margin = new Thickness(0, 0, 8, 8), VerticalAlignment = VerticalAlignment.Top
+                Margin = new Thickness(0, 0, options.GapX, options.GapY), VerticalAlignment = VerticalAlignment.Top
             };
             if (contrast)
                 button.Foreground = index == highlighted ? SystemColors.HighlightTextBrush : SystemColors.WindowTextBrush;
@@ -87,7 +88,7 @@ internal static class CandidateView
             strip.Children.Add(button);
             content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             double naturalWidth = content.DesiredSize.Width + 4;
-            preferred[i] = Math.Min(available - 8, Math.Max(minimum, naturalWidth));
+            preferred[i] = options.Vertical ? available - options.GapX : Math.Min(available - options.GapX, Math.Max(minimum, naturalWidth));
 
             buttons[i] = button;
         }

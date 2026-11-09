@@ -1,0 +1,59 @@
+using System;
+using Microsoft.Win32;
+
+internal static class LayoutOptionsTests
+{
+    static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
+    static void Main()
+    {
+        try { Run(); }
+        catch (Exception e) { Console.Error.WriteLine(e.GetType().FullName + ": " + e.Message); Environment.ExitCode = 1; }
+    }
+    static void Run()
+    {
+        string path = @"Software\HarukotoLayoutTests-" + Guid.NewGuid().ToString("N");
+        try {
+            using (var key = Registry.CurrentUser.CreateSubKey(path)) {
+                key.SetValue("FontSize", 26); key.SetValue("Width", 784);
+                var legacy = LayoutOptions.Read(key);
+                Check(legacy.Font == 26 && legacy.Width == 784 && legacy.Reading == 0 && !legacy.Vertical, "Legacy migration");
+                var changed = new LayoutOptions { Font = 28, Width = 520, Reading = 21, GapX = 3, GapY = 6, PaddingX = 7, PaddingY = 9, Outer = 14, Vertical = true };
+                LayoutOptions.Write(key, changed);
+                Check(LayoutOptions.Read(key).Encode() == changed.Encode(), "All fields persisted");
+                Check((int)key.GetValue("FontSize") == 26, "Legacy values must not be overwritten");
+            }
+            using (var readOnly = Registry.CurrentUser.OpenSubKey(path, false)) {
+                string before = (string)readOnly.GetValue("LayoutV1");
+                bool failed = false;
+                try { LayoutOptions.Write(readOnly, new LayoutOptions()); } catch (UnauthorizedAccessException) { failed = true; }
+                Check(failed && (string)readOnly.GetValue("LayoutV1") == before, "Failed write replaced old layout");
+                Check(LayoutOptions.Read(readOnly).Font == 28, "Reopen lost settings");
+                using (var input = Registry.CurrentUser.CreateSubKey(path + @"\Input")) {
+                    foreach (bool absent in new[] { true, false }) {
+                        if (!absent) input.SetValue("TraditionalOutput", 0, RegistryValueKind.DWord);
+                        failed = false;
+                        try { LayoutOptions.SavePreferences(input, readOnly, new LayoutOptions(), true); } catch (UnauthorizedAccessException) { failed = true; }
+                        Check(failed && (string)readOnly.GetValue("LayoutV1") == before, "Failed grouped save changed layout");
+                        Check(absent ? input.GetValue("TraditionalOutput") == null : (int)input.GetValue("TraditionalOutput") == 0, "Script rollback failed");
+                    }
+                }
+            }
+            using (var key = Registry.CurrentUser.OpenSubKey(path, true)) {
+                foreach (string invalid in new[] { "broken", "2;18;672;0;8;8;10;8;12;0", "1;18;672;0;8;8;10;8;12;2", "1;NaN;672;0;8;8;10;8;12;0" }) {
+                    key.SetValue("LayoutV1", invalid);
+                    Check(LayoutOptions.Read(key).Font == 26, "Invalid snapshot did not fall back to legacy");
+                }
+                key.SetValue("LayoutV1", 42, RegistryValueKind.DWord);
+                Check(LayoutOptions.Read(key).Width == 784, "Wrong registry type");
+                var bounded = LayoutOptions.Decode("1;-5;5000;99;-1;99;0;99;99;1");
+                Check(bounded.Font == 14 && bounded.Width == 1000 && bounded.Reading == 24 && bounded.GapX == 0 && bounded.GapY == 24 && bounded.PaddingX == 4 && bounded.PaddingY == 20 && bounded.Outer == 24, "Bounds");
+            }
+            for (int i = 0; i < 3; ++i) Check(LayoutOptions.Decode(LayoutOptions.Preset(i).Encode()).Encode() == LayoutOptions.Preset(i).Encode(), "Preset round trip");
+            using (var key = Registry.CurrentUser.OpenSubKey(path, true)) LayoutOptions.Write(key, new LayoutOptions { Vertical = true, Reading = 20, GapX = 5 });
+            var cli = LayoutOptions.Decode(HarukotoAppearanceBridge.Update(path, 24, 800, false));
+            Check(cli.Vertical && cli.Reading == 20 && cli.GapX == 5 && cli.Font == 24 && cli.Width == 800, "CLI lost extended layout fields");
+            Check(HarukotoAppearanceBridge.Update(path, 0, 0, true) == new LayoutOptions().Encode(), "CLI reset");
+            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds and presets.");
+        } finally { Registry.CurrentUser.DeleteSubKeyTree(path, false); }
+    }
+}

@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -45,7 +46,8 @@ class CandidateLayoutTests
             if (bounds.Right > panel.Width + 1 || bounds.Width < 1 || bounds.Height < 1) throw new Exception("Invalid preview bounds");
             for (int j = 0; j < i; j++) {
                 var other = (FrameworkElement)panel.Children[j];
-                if (bounds.IntersectsWith(new Rect(other.TranslatePoint(new Point(), panel), other.RenderSize))) throw new Exception("Preview overlap");
+                var intersection = Rect.Intersect(bounds, new Rect(other.TranslatePoint(new Point(), panel), other.RenderSize));
+                if (!intersection.IsEmpty && intersection.Width > 0.01 && intersection.Height > 0.01) throw new Exception("Preview overlap");
             }
         }
     }
@@ -85,6 +87,58 @@ class CandidateLayoutTests
         ((Button)strip.Children[2]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         if ((int)type.GetField("Selected", flags).GetValue(preview) != 2) throw new Exception("Preview selection failed");
         Console.WriteLine("PASS: 108 preview/production combinations, identical geometry and indices, no overlaps, isolated font and local selection.");
+    }
+    static void CheckAdvanced(Assembly assembly, Window production, Panel panel, MethodInfo update, string directory)
+    {
+        var flags = BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic;
+        var optionType = assembly.GetType("LayoutOptions"); var layout = assembly.GetType("CandidateLayout");
+        var previewType = assembly.GetType("CandidatePreview"); var preview = Activator.CreateInstance(previewType, true);
+        var root = (FrameworkElement)previewType.GetField("Root", flags).GetValue(preview);
+        var strip = (Panel)previewType.GetField("Panel", flags).GetValue(preview);
+        foreach (int sample in new[] { 0, 1, 2, 3, 4, 5 })
+        foreach (int preset in new[] { 0, 1, 2, 3 })
+        foreach (bool vertical in new[] { false, true })
+        foreach (int width in new[] { 480, 1000 }) {
+            var options = optionType.GetMethod("Preset", flags).Invoke(null, new object[] { preset });
+            optionType.GetField("Width", flags).SetValue(options, width); optionType.GetField("Vertical", flags).SetValue(options, vertical);
+            if (preset == 3) {
+                foreach (string name in new[] { "Reading", "Outer", "PaddingX" }) optionType.GetField(name, flags).SetValue(options, 24);
+                optionType.GetField("PaddingY", flags).SetValue(options, 20);
+                optionType.GetField("Font", flags).SetValue(options, 32);
+                optionType.GetField("GapX", flags).SetValue(options, 0); optionType.GetField("GapY", flags).SetValue(options, 0);
+            }
+            previewType.GetMethod("UpdateLayout", flags).Invoke(preview, new[] { (object)sample, options, true, false });
+            Arrange(root, width, double.PositiveInfinity); CheckBounds(strip);
+            var fields = (string[])previewType.GetMethod("Fields", flags).Invoke(null, new object[] { sample, false });
+            layout.GetField("Current", flags).SetValue(null, options);
+            layout.GetField("FontSize", flags).SetValue(null, (double)(int)optionType.GetField("Font", flags).GetValue(options));
+            production.Width = width;
+            layout.GetMethod("Apply", flags).Invoke(null, new[] { production.Content, panel, options, (object)(double)width });
+            update.Invoke(null, new object[] { panel, fields, 0, -1, true, null });
+            Arrange((FrameworkElement)production.Content, width, double.PositiveInfinity);
+            if (strip.Children.Count != 7 || panel.Children.Count != 7) throw new Exception("Advanced layout missing candidate");
+            for (int i = 0; i < 7; ++i) {
+                var a = (FrameworkElement)strip.Children[i]; var b = (FrameworkElement)panel.Children[i];
+                if (a.RenderSize != b.RenderSize || a.TranslatePoint(new Point(), strip) != b.TranslatePoint(new Point(), panel) || (int)a.Tag != i)
+                    throw new Exception("Advanced production geometry/indices mismatch");
+                if (vertical && (a.TranslatePoint(new Point(), strip).X != 0 || (i > 0 && a.TranslatePoint(new Point(), strip).Y <= ((FrameworkElement)strip.Children[i - 1]).TranslatePoint(new Point(), strip).Y)))
+                    throw new Exception("Vertical candidate not on its own row");
+            }
+            if (sample == 5 && preset == 1 && vertical && width == 480) {
+                var bitmap = new RenderTargetBitmap(width, (int)Math.Ceiling(root.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(root); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using (var file = File.Create(Path.Combine(directory, "preview-vertical.png"))) encoder.Save(file);
+            }
+            if (preset == 3 && vertical) {
+                layout.GetMethod("FitHeight", flags).Invoke(null, new object[] { production, 360.0 });
+                var content = (FrameworkElement)production.Content;
+                if (content.DesiredSize.Height > 360.1 || production.Width > width) throw new Exception("Tall layout escaped work area");
+                if ((int)optionType.GetField("Width", flags).GetValue(options) != width) throw new Exception("Fit changed saved width");
+                content.LayoutTransform = Transform.Identity;
+            }
+        }
+        layout.GetField("Current", flags).SetValue(null, Activator.CreateInstance(optionType, true));
+        Console.WriteLine("PASS: 96 advanced layout combinations, presets/vertical/max padding/reading/min gaps, identical production geometry and seven indices.");
     }
     [STAThread] static void Main(string[] args)
     {
@@ -166,6 +220,7 @@ class CandidateLayoutTests
         var formEncoder = new PngBitmapEncoder(); formEncoder.Frames.Add(BitmapFrame.Create(formImage));
         using (var file = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "conjugation-panel.png"))) formEncoder.Save(file);
         CheckPreview(assembly, window, panel, update, Path.GetDirectoryName(args[1]));
+        CheckAdvanced(assembly, window, panel, update, Path.GetDirectoryName(args[1]));
         string beforePreferences = Preferences();
         var settings = (Window)assembly.GetType("CandidateSettings").GetMethod("Create", flags).Invoke(null, null);
         var settingsRoot = (FrameworkElement)settings.Content;
@@ -177,10 +232,25 @@ class CandidateLayoutTests
         var scroll = Find<ScrollViewer>(settingsRoot, "PreviewScroll");
         traditional.IsChecked = true; fontControl.Value = 32; widthControl.Value = 480;
         samples.SelectedIndex = 5;
-        if (((FrameworkElement)scroll.Content).Width != 480) throw new Exception("Width slider did not refresh preview");
+        if (Find<FrameworkElement>(settingsRoot, "CandidatePreviewRoot").Width != 480) throw new Exception("Width slider did not refresh preview");
         Find<Button>(settingsRoot, "ResetLayout").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         if (fontControl.Value != 18 || widthControl.Value != 672 || traditional.IsChecked != true) throw new Exception("Reset changed script or failed to reset layout");
-        if (((FrameworkElement)scroll.Content).Width != 672) throw new Exception("Reset did not refresh preview");
+        if (Find<FrameworkElement>(settingsRoot, "CandidatePreviewRoot").Width != 672) throw new Exception("Reset did not refresh preview");
+        var direction = Find<ComboBox>(settingsRoot, "LayoutDirection");
+        direction.SelectedIndex = 1;
+        Find<CheckBox>(settingsRoot, "AutoReading").IsChecked = false;
+        Find<Slider>(settingsRoot, "ReadingSlider").Value = 24;
+        Find<Slider>(settingsRoot, "GapYSlider").Value = 24;
+        var grip = Find<Thumb>(settingsRoot, "WidthGrip");
+        grip.RaiseEvent(new DragStartedEventArgs(0, 0) { RoutedEvent = Thumb.DragStartedEvent });
+        grip.RaiseEvent(new DragDeltaEventArgs(104, 0) { RoutedEvent = Thumb.DragDeltaEvent });
+        if (widthControl.Value != 776 || Find<FrameworkElement>(settingsRoot, "CandidatePreviewRoot").Width != 776) throw new Exception("Drag width did not sync");
+        grip.RaiseEvent(new DragDeltaEventArgs(10000, 0) { RoutedEvent = Thumb.DragDeltaEvent });
+        if (widthControl.Value != 1000) throw new Exception("Drag width exceeded limit");
+        Find<ComboBox>(settingsRoot, "LayoutPreset").SelectedIndex = 0;
+        Find<Button>(settingsRoot, "ApplyPreset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        if (Find<Slider>(settingsRoot, "GapYSlider").Value != 4 || direction.SelectedIndex != 0 || traditional.IsChecked != true) throw new Exception("Preset applied incorrectly");
+        Find<Button>(settingsRoot, "ResetLayout").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Arrange(settingsRoot, settings.Width - 16, settings.Height - 40);
         var settingsImage = new RenderTargetBitmap((int)settings.Width, (int)Math.Ceiling(settingsRoot.ActualHeight + 48), 96, 96, PixelFormats.Pbgra32);
         settingsImage.Render(settingsRoot);

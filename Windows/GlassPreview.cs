@@ -174,7 +174,8 @@ internal static class GlassPreview
     private static void UpdateCandidates(Panel strip, string[] fields, int highlighted,
                                          int mainIndex, bool expanded, Geometry paw)
     {
-        CandidateView.Render(strip, fields, highlighted, mainIndex, expanded, CandidateLayout.FontSize);
+        var options = CandidateLayout.Current.Copy(); options.Font = (int)CandidateLayout.FontSize;
+        CandidateView.Render(strip, fields, highlighted, mainIndex, expanded, options);
     }
 
     private static bool IsJapanese(string candidate)

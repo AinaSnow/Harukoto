@@ -18,6 +18,7 @@ internal sealed class CandidatePreview
         using (var stream = typeof(CandidatePreview).Assembly.GetManifestResourceStream("CandidateWindow.xaml"))
             host = (Window)XamlReader.Load(stream);
         Root = (FrameworkElement)host.Content;
+        Root.Name = "CandidatePreviewRoot";
         Panel = (WrapPanel)host.FindName("Candidates");
         preedit = (TextBlock)host.FindName("Preedit");
         page = (TextBlock)host.FindName("PageIndicator");
@@ -49,8 +50,14 @@ internal sealed class CandidatePreview
 
     internal void Update(int sample, double font, double width, bool expanded, bool traditional)
     {
-        width = CandidateLayout.ClampWidth(width);
-        Root.Width = width; Panel.Width = width - 26;
+        UpdateLayout(sample, new LayoutOptions { Font = (int)CandidateLayout.ClampFont(font), Width = (int)CandidateLayout.ClampWidth(width) }, expanded, traditional);
+    }
+
+    internal void UpdateLayout(int sample, LayoutOptions options, bool expanded, bool traditional)
+    {
+        options = options.Validated();
+        Root.Width = options.Width;
+        CandidateLayout.Apply(Root, Panel, options, options.Width);
         var fields = Fields(sample, traditional);
         if (traditional) {
             // Convert only known Chinese fixture labels, never Japanese spellings/readings.
@@ -65,10 +72,10 @@ internal sealed class CandidatePreview
         preedit.Text = fields[2];
         page.Text = (traditional ? "繁" : "简") + (sample == 5 ? " · 活用 · F6/Esc 返回 · 1 / 2" : sample == 4 ? " · 2 / 3" : " · 1 / 3");
         if (sample == 2 || sample == 3) page.Text += expanded ? " · F4 收起" : " · F4 展开";
-        CandidateView.Render(Panel, fields, Selected, -1, expanded || sample == 5, font);
+        CandidateView.Render(Panel, fields, Selected, -1, expanded || sample == 5, options);
         foreach (Button button in Panel.Children) {
             int index = (int)button.Tag;
-            button.Click += (s, e) => { Selected = index; Update(sample, font, width, expanded, traditional); };
+            button.Click += (s, e) => { Selected = index; UpdateLayout(sample, options, expanded, traditional); };
         }
     }
 }
