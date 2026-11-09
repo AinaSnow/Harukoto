@@ -10,6 +10,8 @@ internal static class CandidateLayout
 {
     internal static double FontSize = 18;
     private static double width = 672;
+    internal static double ClampFont(double value) { return double.IsNaN(value) || double.IsInfinity(value) ? 18 : Math.Max(14, Math.Min(32, value)); }
+    internal static double ClampWidth(double value) { return double.IsNaN(value) || double.IsInfinity(value) ? 672 : Math.Max(480, Math.Min(1000, value)); }
     [StructLayout(LayoutKind.Sequential)] private struct PointI { internal int X, Y; }
     [StructLayout(LayoutKind.Sequential)] private struct RectI { internal int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { internal int Size; internal RectI Monitor, Work; internal uint Flags; }
@@ -28,8 +30,8 @@ internal static class CandidateLayout
         try {
             using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Meowpuut\CandidateWindow")) {
                 if (key != null) {
-                    FontSize = Math.Max(14, Math.Min(32, Convert.ToDouble(key.GetValue("FontSize", 18))));
-                    width = Math.Max(480, Math.Min(1000, Convert.ToDouble(key.GetValue("Width", 672))));
+                    FontSize = ClampFont(Convert.ToDouble(key.GetValue("FontSize", 18)));
+                    width = ClampWidth(Convert.ToDouble(key.GetValue("Width", 672)));
                 }
             }
         } catch { FontSize = 18; width = 672; }

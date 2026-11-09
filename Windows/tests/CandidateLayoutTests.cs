@@ -6,9 +6,86 @@ using System.Windows.Controls;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 
 class CandidateLayoutTests
 {
+    static T Find<T>(DependencyObject root, string name) where T : FrameworkElement
+    {
+        var element = root as T;
+        if (element != null && element.Name == name) return element;
+        foreach (var child in LogicalTreeHelper.GetChildren(root)) {
+            var dependency = child as DependencyObject;
+            if (dependency == null) continue;
+            var found = Find<T>(dependency, name); if (found != null) return found;
+        }
+        return null;
+    }
+    static string Preferences()
+    {
+        string result = "";
+        foreach (string path in new[] { @"Software\Meowpuut\Input", @"Software\Meowpuut\CandidateWindow" })
+        using (var key = Registry.CurrentUser.OpenSubKey(path)) {
+            result += path + (key == null ? "missing" : "present");
+            if (key != null) foreach (string name in key.GetValueNames()) result += name + ":" + key.GetValue(name) + ":" + key.GetValueKind(name);
+        }
+        return result;
+    }
+    static void Arrange(FrameworkElement root, double width, double height)
+    {
+        root.Measure(new Size(width, height));
+        root.Arrange(new Rect(0, 0, width, double.IsInfinity(height) ? root.DesiredSize.Height : height));
+        root.UpdateLayout();
+    }
+    static void CheckBounds(Panel panel)
+    {
+        for (int i = 0; i < panel.Children.Count; i++) {
+            var child = (FrameworkElement)panel.Children[i];
+            var bounds = new Rect(child.TranslatePoint(new Point(), panel), child.RenderSize);
+            if (bounds.Right > panel.Width + 1 || bounds.Width < 1 || bounds.Height < 1) throw new Exception("Invalid preview bounds");
+            for (int j = 0; j < i; j++) {
+                var other = (FrameworkElement)panel.Children[j];
+                if (bounds.IntersectsWith(new Rect(other.TranslatePoint(new Point(), panel), other.RenderSize))) throw new Exception("Preview overlap");
+            }
+        }
+    }
+    static void CheckPreview(Assembly assembly, Window production, Panel panel, MethodInfo update, string directory)
+    {
+        var flags = BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic;
+        var type = assembly.GetType("CandidatePreview");
+        var preview = Activator.CreateInstance(type, true);
+        var root = (FrameworkElement)type.GetField("Root", flags).GetValue(preview);
+        var strip = (Panel)type.GetField("Panel", flags).GetValue(preview);
+        var layout = assembly.GetType("CandidateLayout");
+        foreach (int sample in new[] { 0, 1, 2, 3, 4, 5 })
+        foreach (int width in new[] { 480, 672, 1000 })
+        foreach (int size in new[] { 14, 18, 32 })
+        foreach (bool expanded in new[] { false, true }) {
+            layout.GetField("FontSize", flags).SetValue(null, 23.0);
+            type.GetMethod("Update", flags).Invoke(preview, new object[] { sample, (double)size, (double)width, expanded, false });
+            if ((double)layout.GetField("FontSize", flags).GetValue(null) != 23) throw new Exception("Preview changed live font");
+            Arrange(root, width, double.PositiveInfinity); CheckBounds(strip);
+            var fields = (string[])type.GetMethod("Fields", flags).Invoke(null, new object[] { sample, false });
+            production.Width = width; panel.Width = width - 26;
+            layout.GetField("FontSize", flags).SetValue(null, (double)size);
+            update.Invoke(null, new object[] { panel, fields, 0, -1, expanded || sample == 5, null });
+            Arrange((FrameworkElement)production.Content, width, double.PositiveInfinity);
+            if (strip.Children.Count != panel.Children.Count) throw new Exception("Production/preview count differs");
+            for (int i = 0; i < strip.Children.Count; ++i) {
+                var a = (FrameworkElement)strip.Children[i]; var b = (FrameworkElement)panel.Children[i];
+                if (a.RenderSize != b.RenderSize || a.TranslatePoint(new Point(), strip) != b.TranslatePoint(new Point(), panel) || !a.Tag.Equals(b.Tag))
+                    throw new Exception("Production/preview geometry or selection differs");
+            }
+            if (sample == 5 && width == 480 && size == 32 && expanded) {
+                var bitmap = new RenderTargetBitmap(width, (int)Math.Ceiling(root.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(root); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using (var file = File.Create(Path.Combine(directory, "preview-narrow-large.png"))) encoder.Save(file);
+            }
+        }
+        ((Button)strip.Children[2]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        if ((int)type.GetField("Selected", flags).GetValue(preview) != 2) throw new Exception("Preview selection failed");
+        Console.WriteLine("PASS: 108 preview/production combinations, identical geometry and indices, no overlaps, isolated font and local selection.");
+    }
     [STAThread] static void Main(string[] args)
     {
         var assembly = Assembly.LoadFrom(args[0]);
@@ -88,18 +165,33 @@ class CandidateLayoutTests
         formImage.Render(formRoot);
         var formEncoder = new PngBitmapEncoder(); formEncoder.Frames.Add(BitmapFrame.Create(formImage));
         using (var file = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "conjugation-panel.png"))) formEncoder.Save(file);
+        CheckPreview(assembly, window, panel, update, Path.GetDirectoryName(args[1]));
+        string beforePreferences = Preferences();
         var settings = (Window)assembly.GetType("CandidateSettings").GetMethod("Create", flags).Invoke(null, null);
         var settingsRoot = (FrameworkElement)settings.Content;
         ((Panel)settingsRoot).Background = SystemColors.WindowBrush;
-        settingsRoot.Measure(new Size(settings.Width - 32, double.PositiveInfinity));
-        settingsRoot.Arrange(new Rect(new Point(), settingsRoot.DesiredSize));
-        settingsRoot.UpdateLayout();
+        var fontControl = Find<Slider>(settingsRoot, "FontSizeSlider");
+        var widthControl = Find<Slider>(settingsRoot, "WidthSlider");
+        var traditional = Find<CheckBox>(settingsRoot, "TraditionalOutput");
+        var samples = Find<ComboBox>(settingsRoot, "PreviewSample");
+        var scroll = Find<ScrollViewer>(settingsRoot, "PreviewScroll");
+        traditional.IsChecked = true; fontControl.Value = 32; widthControl.Value = 480;
+        samples.SelectedIndex = 5;
+        if (((FrameworkElement)scroll.Content).Width != 480) throw new Exception("Width slider did not refresh preview");
+        Find<Button>(settingsRoot, "ResetLayout").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        if (fontControl.Value != 18 || widthControl.Value != 672 || traditional.IsChecked != true) throw new Exception("Reset changed script or failed to reset layout");
+        if (((FrameworkElement)scroll.Content).Width != 672) throw new Exception("Reset did not refresh preview");
+        Arrange(settingsRoot, settings.Width - 16, settings.Height - 40);
         var settingsImage = new RenderTargetBitmap((int)settings.Width, (int)Math.Ceiling(settingsRoot.ActualHeight + 48), 96, 96, PixelFormats.Pbgra32);
         settingsImage.Render(settingsRoot);
         var settingsEncoder = new PngBitmapEncoder();
         settingsEncoder.Frames.Add(BitmapFrame.Create(settingsImage));
         using (var file = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "candidate-settings.png"))) settingsEncoder.Save(file);
-        Console.WriteLine("PASS: settings window created and rendered without changing user preferences.");
+        Arrange(settingsRoot, 700 - 16, 480 - 40);
+        if (scroll.ViewportWidth <= 0 || scroll.ViewportHeight <= 0) throw new Exception("Small settings window has no preview viewport");
+        Find<Button>(settingsRoot, "CancelSettings").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        if (Preferences() != beforePreferences) throw new Exception("Draft editing or cancellation changed user preferences");
+        Console.WriteLine("PASS: live sliders, layout-only reset, small-window scrolling and cancellation without changing user preferences.");
         var launcher = (Window)assembly.GetType("DictionaryLauncher").GetMethod("Create", flags).Invoke(null, null);
         var launcherRoot = (FrameworkElement)launcher.Content;
         ((Panel)launcherRoot).Background = SystemColors.WindowBrush;
