@@ -1,0 +1,76 @@
+# 开发状态与接手入口
+
+更新日期：2026-11-09。维护仓库：[NemophilaHare/input](https://git.hare.fun/NemophilaHare/input)，当前集成分支为 `main`。本文记录源码状态；“代码完成”“本机验证”“已发布／已安装”分别记录，不能互相替代。
+
+## 当前进度
+
+| 工作项 | 状态 | 证据与边界 |
+| --- | --- | --- |
+| 文档简体中文化 | 已完成首轮 | 根目录、Windows、平台说明及主要 docs 已转换；日语词例、繁简对照和第三方原始授权保留 |
+| 远程画面候选窗不可见 | 已修复并安装验证 | 输入法候选窗不再排除屏幕捕获；用户通过远程／串流确认恢复显示；独立折射预览保留原行为 |
+| 日语辅助输入第一阶段 | 已实现并安装 | 41 组拼音／英语触发词、读音标注、同形异读候选、本地词表导入；真实词库测试覆盖首屏候选 |
+| 候选拥挤 | 已修复并安装 | 自然词宽、自动换行、读音分层；默认字号保持 18，默认窗口宽度 672；9 组字号／宽度布局测试 |
+| 候选外观设置界面 | 源码已完成 | 字号／宽度滑块、保存／恢复默认、开始菜单和软件包入口；构建与离屏渲染检查通过，尚未安装到用户当前版本 |
+| PowerShell 7 安装与打包 | 源码已完成 | 安装、提权沿用 PS7；MSVC 打包保留许可证及导入工具；尚需新包的交互安装验收 |
+| 动词与形容词变形 | 待开发 | 第二阶段，尚无可用的变形引擎或面板 |
+| 敬语、完整日语整句、生词本 | 待开发 | 见[分阶段路线图](JAPANESE_INPUT_ROADMAP.md)，不可标为已支持 |
+
+当前实现参考 Madamada 的公开产品文档与自定义词表格式，并独立编写。没有接入其私有引擎、完整词库或未公开接口。
+
+## 开发者从这里开始
+
+1. 阅读 [Windows 构建、安装与快捷键](../Windows/README.md) 和[日语路线图](JAPANESE_INPUT_ROADMAP.md)。
+2. 准备 Windows x64、PowerShell 7、Python 3、Visual Studio C++ 工具、Windows SDK 和 CMake。使用 `Windows/build-ime-msvc.ps1` 构建；CMake 不在 PATH 时用 `-CMake` 指定绝对路径。
+3. 执行 `python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py` 和 `Windows/test-preview.ps1`。构建脚本已运行 CTest。
+4. 安装前运行 `Windows/install-ime.ps1 -VerifyOnly`；需要真实测试输入法时才执行正常安装。DLL 更新后重新打开测试应用。
+5. 使用 `Windows/package-ime.ps1 -MSVC -Version <版本>` 打包。`.build/` 为生成目录，不提交 DLL、词库构建结果或本机日志。
+
+本机验证环境为 Windows x64、PS7 7.6.9、Visual Studio 18 Community / MSVC 19.51。构建脚本通过参数和 PATH 定位工具，不依赖某个开发者的用户名或缓存路径。WPF 渲染器使用系统 .NET Framework 编译器不代表脚本运行在 PS5.1。
+
+## 代码导航
+
+| 位置 | 职责 |
+| --- | --- |
+| `Windows/TextService.cpp` | TSF 注册、按键、候选传送、用户词表加载 |
+| `Windows/MixedComposition.h` | 中文／日语候选合并、显式触发和读音标注 |
+| `Windows/GlassPreview.cs`、`CandidateLayout.cs` | WPF 候选显示、自动换行、屏幕坐标与设置读取 |
+| `Windows/CandidateSettings.cs` | 当前用户候选外观设置界面 |
+| `Resources/Lexicon/japanese-bridge.txt` | 自编的 41 组基础触发词 |
+| `scripts/japanese_dictionary.py` | 公开词表格式子集解析与序列化 |
+| `Windows/import-japanese-dictionary.py` | 用户词表校验、原子替换导入 |
+| `Windows/compile-lexicon.py` | Windows 增强日语表生成；跨平台三列表保持原格式 |
+| `Windows/tests` | 中文回归、日语候选、词表导入与布局测试 |
+| `Windows/install-ime.ps1`、`package-ime.ps1` | 版本目录安装、注册、设置入口与分发打包 |
+
+## 已验证与仍需验收
+
+- C++ Release：7 项 CTest 通过，包括真实中文词库、日语触发和会话测试；MSVC Release 测试保留断言。
+- Python：4 项词表测试通过，包括错误导入不覆盖旧文件。
+- WPF：9 组字号／宽度组合、7 个候选无重叠；设置页创建并离屏渲染。
+- 打包：MSVC ZIP 生成成功，源码及软件包的 `-VerifyOnly` 通过；包内包含设置入口、PS7 解析脚本、词表导入依赖及许可证。
+- 本机手动：旧版候选不可见问题复现，修复后远程画面恢复；候选布局已更新到当前安装。
+- 尚未完整验证：多显示器混合 DPI、各类编辑器／浏览器／游戏的 TSF 生命周期、焦点切换、设置页保存交互、新安装脚本的完整提权流程。文件完整性检查不代表这些行为已通过。
+- 当前机器曾有旧 DLL 被应用占用并安排重启删除；这是本机维护记录，不是安装器已具有通用卸载／回滚能力。
+
+仓库现有 `.github/workflows/windows.yml` 是 GitHub 的旧 Windows 分支工作流；本次上传 Gitea 不代表已配置 Gitea Actions 或已有自动构建。启用 CI 前先确认可用的 Windows runner 及标签。
+
+## 接下来按这个顺序推进
+
+| 顺序 | 任务 | 完成标准 |
+| --- | --- | --- |
+| P0 | 安装／更新可靠性 | 记录安装日志；注册失败可恢复旧版本；锁定文件安全处理；全新安装、覆盖升级、失败回滚均留下复现记录 |
+| P0 | Windows 兼容性验收 | 记事本、浏览器、VS Code，以及远程串流；覆盖选词、翻页、切焦点、中文长句和日语读音；记录 OS、应用版本、结果 |
+| P1 | 第二阶段词性与活用核心 | 一段、五段、する、来る及形容词；逐类例外测试；表记和读音同步；先完成纯逻辑再接面板 |
+| P1 | 键盘变形面板 | 按键进入／退出、选择活用形、保留剩余组字；明确与现有 F4 展开行为的关系，避免抢占快捷键 |
+| P2 | 敬语与表达表 | 独立维护特殊敬语、礼貌等级与用法提示；不以字符串替换代替语境处理 |
+| P2 | 整句与词库管理 | 分段和读音消耗模型、中文回归、词库启停和诊断、生词记录；详见路线图 |
+
+## 多人协作与进度维护
+
+- 每个任务开 `codex/<主题>` 或团队约定的功能分支，从 Gitea 的 `main` 拉取最新代码。单次提交围绕一个可说明的变化；保留上游历史和授权文件。
+- 提交说明写清修改目的与行为；PR 记录验证命令、结果和未覆盖范围。功能提交同步修改本文、相应使用说明和日语路线图，避免只在聊天里报告进度。
+- 认领任务时在 Gitea issue／PR 写明范围和负责人；完成后在相关记录链接提交。不要仅凭计划标记“已完成”。
+- 本地 `origin` 保留 GitHub 上游；维护远程使用 `gitea`。推送显式指定 `git push gitea <分支>`，避免误推上游。新克隆的远程名可能不同，先用 `git remote -v` 检查。
+- 历史查询：`git log --oneline --decorate -20`；按功能查询如 `git log -- Windows/CandidateLayout.cs`；按文档查询 `git log -- docs/DEVELOPMENT_STATUS.md`。
+
+提交索引见[开发变更记录](DEVELOPMENT_CHANGELOG.md)。本文未声称未发布的代码已经安装或通过全部实机验收。

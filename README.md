@@ -17,6 +17,8 @@
 
 目前是公开测试版。遇到不顺手的地方，欢迎提供按键顺序和预期文字。
 
+本维护分支以 Windows 为优先，代码托管于 [Gitea](https://git.hare.fun/NemophilaHare/input)。参与开发请先读[开发状态与接手入口](docs/DEVELOPMENT_STATUS.md)、[开发变更记录](docs/DEVELOPMENT_CHANGELOG.md)和[日语分阶段路线图](docs/JAPANESE_INPUT_ROADMAP.md)。下方 GitHub 下载链接为上游历史发布版本，不包含本分支新增修复。
+
 ## 把小猫带回家
 
 | 平台 | 下载 | 版本 |
