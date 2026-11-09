@@ -162,11 +162,13 @@ $registeredDll = (Get-Item -LiteralPath $serverKey).GetValue('')
 $glass = Join-Path (Split-Path $registeredDll) 'MeowpuutGlassPreview.exe'
 $programs = Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut'
 New-Item -ItemType Directory -Force $programs | Out-Null
-$settingsShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $programs 'Meowpuut Settings.lnk'))
+$settingsShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $programs '晴词候选窗设置.lnk'))
 $settingsShortcut.TargetPath = $glass
 $settingsShortcut.Arguments = '--settings'
 $settingsShortcut.WorkingDirectory = Split-Path $glass
 $settingsShortcut.Save()
+$legacySettings = Join-Path $programs 'Meowpuut Settings.lnk'
+if (Test-Path -LiteralPath $legacySettings) { Remove-Item -LiteralPath $legacySettings }
 Write-Host 'Settings shortcut saved. Checking the candidate renderer.'
 if (-not (Get-Process MeowpuutGlassPreview -ErrorAction SilentlyContinue | Where-Object Path -eq $glass)) {
     try {

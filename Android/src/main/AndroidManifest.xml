@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:label="喵撲" android:icon="@drawable/meowpuut_mark" android:allowBackup="false"
+    <application android:label="晴词" android:icon="@drawable/meowpuut_mark" android:allowBackup="false"
         android:theme="@style/MeowpuutTheme">
         <activity android:name=".SetupActivity" android:exported="true">
             <intent-filter>

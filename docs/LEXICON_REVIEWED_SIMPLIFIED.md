@@ -7,7 +7,7 @@
 第一批 11 笔从完整词库的同繁体、同读音、不同简体显示分组挑出；原始候选、编辑权重、来源证据和固定转换结果可用下列命令重新产生。报告仅供人工审核，不会修改词库：
 
 ```sh
-python3 scripts/audit-mimo-corpus.py --resources .build/Meowpuut.app/Contents/Resources --output /tmp/mimo-review.json
+python3 scripts/audit-mimo-corpus.py --resources .build/windows/ime --output .build/mimo-review.json
 ```
 
 第一批每笔都有相同繁体、读音及建议简体字形的 McBopomofo 来源记录，也与项目固定 ICU 转换结果一致。除「為 wei2」和「們 men2」外，Pinyin Pro 亦直接含建议简体字形的同调条目；这两项不能宣称已由 Pinyin Pro 独立证实同一声调。Pinyin Pro 的频率和项目排序权重是不同尺度，不能直接比较为真实使用次数。
@@ -39,7 +39,7 @@ python3 scripts/audit-mimo-corpus.py --resources .build/Meowpuut.app/Contents/Re
 重新构建词库后执行：
 
 ```sh
-python3 Core/tests/check_reviewed_simplified.py .build/Meowpuut.app/Contents/Resources
+python3 Core/tests/check_reviewed_simplified.py .build/windows/ime
 ```
 
 测试核对每个精确项在 SQLite 和拼音、注音核心中的输出与选字，并保护 `著名`、`乾隆`、两种「紀錄」简体词形及 `俱乐部` 等有效词项；不要求任何已知错误字形在未来词库中保留。修改清单时应先核对字形、读音及正确候选确实存在，再补相应案例。

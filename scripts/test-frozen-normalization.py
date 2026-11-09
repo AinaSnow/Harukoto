@@ -114,7 +114,7 @@ with tempfile.TemporaryDirectory(prefix='meowpuut-frozen-test-') as temporary:
     if args.integration:
         # Empty PATH ensures neither the ICU CLI nor any system converter can run.
         entrypoints = [
-            ('mac-ios', [str(ROOT / 'scripts/compile-native-lexicon.py')]),
+            ('portable', [str(ROOT / 'scripts/compile-native-lexicon.py')]),
             ('android', [str(ROOT / 'scripts/compile-native-lexicon.py')]),
             ('windows', [str(ROOT / 'Windows/compile-lexicon.py')]),
         ]
@@ -148,5 +148,5 @@ with tempfile.TemporaryDirectory(prefix='meowpuut-frozen-test-') as temporary:
             return digest.hexdigest()
         hashes = [logical_database(output / 'language-evidence.sqlite') for output in outputs]
         assert len(set(hashes)) == 1, ('SQLite content differs', hashes)
-        print('PASS: macOS/iOS, Android legacy --uconv and Windows entry points build identical indexes offline')
+        print('PASS: Portable, Android legacy --uconv and Windows entry points build identical indexes offline')
 print('PASS: pinned normalization, reviewed forms, missing keys and tampering')

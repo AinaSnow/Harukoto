@@ -9,7 +9,7 @@ using Microsoft.Win32;
 
 internal static class Setup
 {
-    internal const string ProductVersion = "0.4.3-japanese.3";
+    internal const string ProductVersion = "0.4.4-alpha.1";
     private const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Meowpuut";
     private static string work;
     [STAThread] private static void Main(string[] args)
@@ -22,10 +22,10 @@ internal static class Setup
             finally { if (work != null) Directory.Delete(work, true); }
             return;
         }
-        var form = new Form { Text = "喵扑输入法安装", ClientSize = new System.Drawing.Size(520, 280),
+        var form = new Form { Text = "晴词输入法安装", ClientSize = new System.Drawing.Size(520, 280),
             Font = new System.Drawing.Font("Microsoft YaHei UI", 10), AutoScaleMode = AutoScaleMode.None,
             StartPosition = FormStartPosition.CenterScreen, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false };
-        var title = new Label { Text = uninstall ? "卸载喵扑输入法" : "安装喵扑输入法", Left = 24, Top = 24, Width = 470, Height = 36,
+        var title = new Label { Text = uninstall ? "卸载晴词输入法" : "安装晴词输入法", Left = 24, Top = 24, Width = 470, Height = 36,
             Font = new System.Drawing.Font("Microsoft YaHei UI", 19) };
         var description = new Label { Left = 24, Top = 78, Width = 470, Height = 94, Text = uninstall
             ? "移除系统输入法注册和当前用户快捷方式。个人词表及外观设置保留。其他登录账户的语言列表需由对应账户清理。"
@@ -49,13 +49,13 @@ internal static class Setup
                     Run(uninstall ? "Uninstall.ps1" : "Install.ps1", uninstall ? "" : "-Prebuilt");
                     if (uninstall) Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false);
                     else {
-                        string launcher = Path.Combine(work, "MeowpuutSetup.exe");
+                        string launcher = Path.Combine(work, "HarukotoSetup.exe");
                         string current = Assembly.GetExecutingAssembly().Location;
                         if (!String.Equals(current, launcher, StringComparison.OrdinalIgnoreCase)) File.Copy(current, launcher, true);
                         using (var key = Registry.CurrentUser.CreateSubKey(UninstallKey)) {
-                            key.SetValue("DisplayName", "喵扑 Meowpuut 输入法");
+                            key.SetValue("DisplayName", "晴词 Harukoto 输入法");
                             key.SetValue("DisplayVersion", ProductVersion);
-                            key.SetValue("Publisher", "Meowpuut contributors");
+                            key.SetValue("Publisher", "Harukoto contributors");
                             key.SetValue("UninstallString", "\"" + launcher + "\" --uninstall");
                             key.SetValue("NoModify", 1); key.SetValue("NoRepair", 1);
                         }
@@ -65,7 +65,7 @@ internal static class Setup
                 action.Text = "完成";
             } catch (Exception error) {
                 status.Text = "未完成，可查看日志后重试。";
-                MessageBox.Show(form, error.Message + "\n\n日志：" + Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Meowpuut", "Logs"), "喵扑安装", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(form, error.Message + "\n\n日志：" + Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Meowpuut", "Logs"), "晴词安装", MessageBoxButtons.OK, MessageBoxIcon.Error);
             } finally { busy = false; action.Enabled = true; license.Enabled = true; }
         };
         form.Controls.AddRange(new Control[] { title, description, status, action, license });

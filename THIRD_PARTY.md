@@ -1,11 +1,13 @@
 # 数据来源与授权
 
+晴词 · Harukoto 基于 Meowpuut 独立维护。原版权声明保留在 LICENSE，原始数据和第三方授权不因改名而变更。
+
 ## McBopomofo 词库数据（MIT）
 
 - 上游：https://github.com/openvanilla/McBopomofo
 - 固定修订：`745e8641a95d958532f0820c3ee679c2a585d8e3`
 - 只导入 `BPMFBase.txt`、`BPMFMappings.txt`、`phrase.occ` 及三份 `heterophony` 表；目前编译器使用第一优先读音表。
-- 原始文件、MIT 授权及逐文件 SHA-256 位于 `DataSources/McBopomofo/`。macOS/iOS App 都附带 `Licenses/McBopomofo-MIT.txt` 与来源版本信息。
+- 原始文件、MIT 授权及逐文件 SHA-256 位于 `DataSources/McBopomofo/`。Windows 软件包附带 `Licenses/McBopomofo-MIT.txt` 与来源版本信息。
 - `Resources/Lexicon/mcbopomofo-retained.tsv` 保留 23 条在上述修订中移除的常用词，并记录原始修订、读音与词频；同样遵循上游 MIT 授权。
 - Meowpuut 自行解析数据、建立索引、解码、排序与输出；未导入 McBopomofo 引擎或界面。修改放在 `Resources/Lexicon`，不修改上游原始文件。
 

@@ -49,7 +49,8 @@ try {
     Get-Process MeowpuutGlassPreview -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process
     foreach ($shortcut in @(
         (Join-Path ([Environment]::GetFolderPath('Startup')) 'Meowpuut Candidate Renderer.lnk'),
-        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut/Meowpuut Settings.lnk')
+        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut/Meowpuut Settings.lnk'),
+        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut/晴词候选窗设置.lnk')
     )) {
         if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut }
     }

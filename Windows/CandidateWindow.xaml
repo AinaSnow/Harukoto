@@ -1,6 +1,6 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="喵扑候选" Width="672" WindowStyle="None" ResizeMode="NoResize"
+        Title="晴词候选" Width="672" WindowStyle="None" ResizeMode="NoResize"
         AllowsTransparency="True" Background="Transparent" SizeToContent="Height"
         FontFamily="Microsoft YaHei UI, Yu Gothic UI">
     <Border Padding="12" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"

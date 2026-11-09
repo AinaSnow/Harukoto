@@ -7,7 +7,7 @@ internal static class CandidateSettings
 {
     internal static Window Create()
     {
-        var window = new Window { Title = "喵扑 · 候选窗设置", Width = 440, SizeToContent = SizeToContent.Height,
+        var window = new Window { Title = "晴词 · 候选窗设置", Width = 440, SizeToContent = SizeToContent.Height,
             ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterScreen,
             FontFamily = new System.Windows.Media.FontFamily("Microsoft YaHei UI"), FontSize = 14 };
         var body = new StackPanel { Margin = new Thickness(24) };

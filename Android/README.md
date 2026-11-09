@@ -1,14 +1,12 @@
-# 喵扑 Android 测试版
+# 晴词 Android 测试版
 
-Android 7.0（API 24）以上的系统键盘。拼音、注音、候选排序和繁简输出共用喵扑的 C++17 核心及 mimo 词库。也可用罗马音输入日语假名和词表中的日文单字。键盘离线运作，没有网络权限。
+Android 7.0（API 24）以上的系统键盘。拼音、注音、候选排序和繁简输出共用晴词的 C++17 核心及 mimo 词库。也可用罗马音输入日语假名和词表中的日文单字。键盘离线运作，没有网络权限。
 
-界面沿用 iOS 的键位、试打页、候选展开、双猫／简洁皮肤、深浅色与十组色系。玻璃外观由 Android 的渐层、描边和透明度绘制。选词记忆和完整的 iOS 混合语言排序仍待移植。
+保留原上游的键位、试打页、候选展开、双猫／简洁皮肤、深浅色与十组色系。玻璃外观由 Android 的渐层、描边和透明度绘制。选词记忆和更完整的混合语言排序仍待开发。
 
 ## 安装
 
-[直接下载已签名的 APK](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-android.apk)（[发布信息与校验档](https://github.com/Krysta1ll/Meowpuut/releases/tag/v0.4.3-alpha.1)），安装后开启「喵扑」。在「键盘设置」启用并选取喵扑，回到试打页即可输入。
-
-0.4.3-alpha.1 使用新的发行签名。若已装过 Android 0.1.0，请先记下自己的键盘设置，再卸载旧版、安装新版；卸载会清除喵扑的本机设置，不能直接覆盖更新。第一次安装不受影响。
+本分支尚未发布晴词 APK，当前只保留源码。应用显示名称为“晴词”，applicationId 及 Java 包名保留旧值用于兼容；本轮未进行 Android 构建验收。
 
 ## 0.4.3-alpha.1
 
@@ -27,7 +25,7 @@ python3 scripts/compile-native-lexicon.py Android/Generated
 gradle -p Android assembleDebug
 ```
 
-APK 位于 `Android/build/outputs/apk/debug/`。安装后打开「喵扑」，从「键盘设置」进入系统设置，启用并选取喵扑键盘。
+APK 位于 `Android/build/outputs/apk/debug/`。安装后打开「晴词」，从「键盘设置」进入系统设置，启用并选取晴词键盘。
 
 ## 制作签名安装包
 
@@ -48,7 +46,7 @@ APK 位于 `Android/build/outputs/apk/debug/`。安装后打开「喵扑」，�
 pwsh -File Android/start-test.ps1
 ```
 
-脚本建立或启动 `Meowpuut_API_35`，安装最新构建的 APK，并在该模拟器启用喵扑和开启试打页。若未设置 `ANDROID_HOME`，脚本使用本机的 `.build/android-tools/sdk`。
+脚本建立或启动 `Meowpuut_API_35`，安装最新构建的 APK，并在该模拟器启用晴词和开启试打页。若未设置 `ANDROID_HOME`，脚本使用本机的 `.build/android-tools/sdk`。
 
 ## 试打
 

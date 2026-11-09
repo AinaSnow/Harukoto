@@ -21,7 +21,7 @@ const CLSID serviceId = {0x961c0ada,0x4dc6,0x488f,{0x95,0x63,0x4f,0xc1,0x44,0xef
 const GUID profileId = {0x8fde097d,0x3513,0x486a,{0x9a,0xb5,0x2d,0x1b,0x2c,0x67,0xc3,0x59}};
 constexpr size_t pageSize = 7;
 constexpr LANGID language = MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL);
-constexpr wchar_t name[] = L"Meowpuut Pinyin";
+constexpr wchar_t name[] = L"晴词 Harukoto";
 constexpr wchar_t classKey[] = L"Software\\Classes\\CLSID\\{961C0ADA-4DC6-488F-9563-4FC144EFAE27}";
 HMODULE module;
 LONG objects;

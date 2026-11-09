@@ -37,7 +37,7 @@ public final class SetupActivity extends Activity {
         screen.setFocusableInTouchMode(true);
         screen.setPadding(dp(20), dp(12), dp(20), dp(12));
         FrameLayout bar = new FrameLayout(this);
-        TextView name = text("Meowpuut", 17, true);
+        TextView name = text("Harukoto", 17, true);
         name.setGravity(Gravity.CENTER);
         bar.addView(name, new FrameLayout.LayoutParams(-1, dp(44)));
         Button settings = new Button(this);
@@ -60,7 +60,7 @@ public final class SetupActivity extends Activity {
         mark.setImageResource(R.drawable.meowpuut_mark);
         mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         masthead.addView(mark, new LinearLayout.LayoutParams(dp(134), dp(134)));
-        TextView wordmark = text("Meowpuut", 34, true);
+        TextView wordmark = text("Harukoto", 34, true);
         wordmark.setGravity(Gravity.CENTER);
         masthead.addView(wordmark);
         TextView phonetics = text("ㄅ ㄆ ㄇ ㄈ", 14, false);
@@ -106,7 +106,7 @@ public final class SetupActivity extends Activity {
         choice(appearance, "色調", "tone", "跟隨系統", "淺色", "深色");
         choice(appearance, "玻璃強度", "strength", "柔和", "標準", "鮮明");
         paletteChoice(appearance);
-        settingsRow(installation, "啟用喵撲",
+        settingsRow(installation, "启用晴词",
                 () -> startActivity(new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)));
         settingsRow(installation, "選擇預設鍵盤",
                 () -> getSystemService(InputMethodManager.class).showInputMethodPicker());
