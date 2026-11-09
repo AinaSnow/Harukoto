@@ -46,12 +46,23 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\Windows\build-preview.ps1
 ```powershell
 .\Windows\build-ime-msvc.ps1
 python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
+.\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
 .\Windows\package-ime.ps1 -MSVC -Version 0.4.3-japanese.1
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。
+
+### 更新失败与安装日志
+
+普通安装和管理员注册分别在运行账户的 `%LOCALAPPDATA%/Meowpuut/Logs` 写入日志，文件名包含时间、阶段和随机标识。若 UAC 使用另一个管理员账户，注册日志位于该管理员账户下。`-VerifyOnly` 不创建日志，也不注册输入法。
+
+安装会先复制到按文件内容区分的版本目录，并逐个校验 SHA-256，然后注册新 DLL。机器级注册失败或注册路径不符合预期时，会尝试重新注册安装前的旧 DLL；首次安装失败则尝试移除不完整注册。恢复失败会明确报错并保留版本文件以便诊断。原注册路径对应的 DLL 已丢失时，升级在注册前停止。
+
+已有版本文件内容相同则复用，不覆盖被应用占用的文件；内容不同则停止。旧版本目录不会自动删除。注册阶段使用文件锁避免并发修改；这不代表完整安装过程具有事务隔离。用户语言配置、快捷方式或渲染器启动发生在机器注册之后，这些后续阶段失败时不会自动回滚注册，可保留日志并重试。注册恢复尚不等于通用卸载或完整系统状态还原。
+
+`InstallSupportTests.ps1` 的 14 项检查使用模拟注册调用和临时文件，覆盖失败恢复、锁定文件与真实入口日志，不修改系统输入法。完整 UAC、TSF 和应用兼容性验收按[Windows 验收记录](../docs/WINDOWS_VALIDATION.md)执行。
 
 开发版已加入第一阶段日语辅助输入：拼音出日文汉字、英语出片假名、候选上方显示假名读音及本地自定义词表导入。当前包含 41 组基础触发词，详见[日语辅助输入与分阶段计划](../docs/JAPANESE_INPUT_ROADMAP.md)。动词变形、敬语、完整日语整句和生词本尚未实现。
 

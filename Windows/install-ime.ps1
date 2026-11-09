@@ -2,6 +2,7 @@ param([switch]$Register, [switch]$Signed, [switch]$Prebuilt, [switch]$VerifyOnly
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'PowerShellHost.ps1')
+. (Join-Path $PSScriptRoot 'InstallSupport.ps1')
 $powerShellHost = Get-MeowpuutPowerShell
 if ($PSVersionTable.PSVersion.Major -lt 7) {
     $forwarded = @()
@@ -10,6 +11,19 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
     }
     & $powerShellHost -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @forwarded
     exit $LASTEXITCODE
+}
+$transcriptStarted = $false
+$installLock = $null
+try {
+if (!$VerifyOnly) {
+    $logRoot = Join-Path $env:LOCALAPPDATA 'Meowpuut/Logs'
+    New-Item -ItemType Directory -Force $logRoot | Out-Null
+    $phase = if ($Register) { 'register' } else { 'install' }
+    $logPath = Join-Path $logRoot ('install-{0}-{1}-{2}.log' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $phase, [guid]::NewGuid().ToString('N'))
+    Start-Transcript -LiteralPath $logPath | Out-Null
+    $transcriptStarted = $true
+    Write-Host "Installation log: $logPath"
+    Write-Host "PowerShell: $($PSVersionTable.PSVersion); phase: $phase"
 }
 $build = Join-Path (Split-Path $PSScriptRoot) '.build/windows/ime'
 $sourceDll = Join-Path $build 'MeowpuutTip.dll'
@@ -49,25 +63,41 @@ if ($VerifyOnly) {
     return
 }
 if ($Register) {
+    if (![Environment]::Is64BitProcess) { throw 'Use x64 PowerShell 7 to register the x64 input service.' }
+    $installRoot = Join-Path $env:ProgramFiles 'Meowpuut/IME'
+    New-Item -ItemType Directory -Force $installRoot | Out-Null
+    # Serialize elevated registration and hold the lock until this process finishes.
+    try {
+        $installLock = [IO.File]::Open((Join-Path $installRoot '.install.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+    } catch { throw "Another installation may be running, or the installation directory is inaccessible. $_" }
+    $serverKey = 'HKLM:\Software\Classes\CLSID\{961C0ADA-4DC6-488F-9563-4FC144EFAE27}\InprocServer32'
+    $getRegisteredDll = {
+        if (Test-Path -LiteralPath $serverKey) { (Get-Item -LiteralPath $serverKey).GetValue('') }
+    }
+    $previousDll = & $getRegisteredDll
+    if ($previousDll -and !(Test-Path -LiteralPath $previousDll -PathType Leaf)) {
+        throw "Previous registered DLL is missing: $previousDll. Repair it before upgrading so recovery remains possible."
+    }
+    Write-Host "Previous registered DLL: $previousDll"
     $packageFiles = $sourceDll, $sourceLexicon, $sourceJapanese, $sourceEvidence, $renderer
     $version = ($packageFiles | ForEach-Object { (Get-FileHash -LiteralPath $_).Hash.Substring(0, 12) }) -join '-'
     $install = Join-Path $env:ProgramFiles "Meowpuut/IME/$version"
     $dll = Join-Path $install 'MeowpuutTip.dll'
-    New-Item -ItemType Directory -Force $install | Out-Null
-    foreach ($source in $packageFiles) {
-        $destination = Join-Path $install (Split-Path $source -Leaf)
-        if (!(Test-Path -LiteralPath $destination) -or
-            (Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $destination).Hash) {
-            Copy-Item -LiteralPath $source -Destination $destination -Force
-        }
-    }
+    Copy-MeowpuutPayload -Files $packageFiles -Destination $install
+    Write-Host "Verified payload: $install"
     if ($Prebuilt) {
         foreach ($notice in 'LICENSE','THIRD_PARTY.md','Licenses') {
             Copy-Item -LiteralPath (Join-Path $PSScriptRoot $notice) -Destination $install -Recurse -Force
         }
     }
-    $registration = Start-Process -FilePath "$env:WINDIR/System32/regsvr32.exe" -ArgumentList @('/s', ('"' + $dll + '"')) -PassThru -Wait -WindowStyle Hidden
-    exit $registration.ExitCode
+    $registerServer = { param($path)
+        (Start-Process -FilePath "$env:WINDIR/System32/regsvr32.exe" -ArgumentList @('/s', ('"' + $path + '"')) -PassThru -Wait -WindowStyle Hidden).ExitCode
+    }
+    $unregisterServer = { param($path)
+        (Start-Process -FilePath "$env:WINDIR/System32/regsvr32.exe" -ArgumentList @('/s','/u', ('"' + $path + '"')) -PassThru -Wait -WindowStyle Hidden).ExitCode
+    }
+    Invoke-MeowpuutRegistration -Dll $dll -PreviousDll $previousDll -RegisterServer $registerServer -UnregisterServer $unregisterServer -GetRegisteredDll $getRegisteredDll
+    return
 }
 
 $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Register'
@@ -75,8 +105,9 @@ if ($Prebuilt) { $arguments += ' -Prebuilt' }
 if ($Signed) { $arguments += ' -Signed' }
 $setup = Start-Process -FilePath $powerShellHost -ArgumentList $arguments -Verb RunAs -PassThru -Wait -WindowStyle Hidden
 if ($setup.ExitCode -ne 0) {
-    throw "TSF registration failed with exit code $($setup.ExitCode)."
+    throw "TSF registration failed with exit code $($setup.ExitCode). See the register log in Meowpuut/Logs under the elevated account LOCALAPPDATA."
 }
+Write-Host 'Machine registration completed. Configuring the current user profile.'
 
 # Remove the old per-user server override only after machine registration succeeds.
 $legacy = 'HKCU:\Software\Classes\CLSID\{961C0ADA-4DC6-488F-9563-4FC144EFAE27}\InprocServer32'
@@ -97,6 +128,7 @@ if ($language.InputMethodTips -notcontains $tip) {
 
 
 # Publish the enabled profile to the active sign-in session.
+Write-Host 'User language list configured. Publishing the profile to the active session.'
 if (-not ('Meowpuut.InputProfile' -as [type])) {
     Add-Type -TypeDefinition @"
 using System.Runtime.InteropServices;
@@ -124,6 +156,7 @@ if (-not [Meowpuut.InputProfile]::InstallLayoutOrTip("0x$tip", 0)) {
 }
 
 # Run the glass renderer outside packaged text editors, and start it again at sign-in.
+Write-Host 'Session profile published. Configuring settings and candidate renderer.'
 $serverKey = 'HKLM:\Software\Classes\CLSID\{961C0ADA-4DC6-488F-9563-4FC144EFAE27}\InprocServer32'
 $registeredDll = (Get-Item -LiteralPath $serverKey).GetValue('')
 $glass = Join-Path (Split-Path $registeredDll) 'MeowpuutGlassPreview.exe'
@@ -134,6 +167,7 @@ $settingsShortcut.TargetPath = $glass
 $settingsShortcut.Arguments = '--settings'
 $settingsShortcut.WorkingDirectory = Split-Path $glass
 $settingsShortcut.Save()
+Write-Host 'Settings shortcut saved. Checking the candidate renderer.'
 if (-not (Get-Process MeowpuutGlassPreview -ErrorAction SilentlyContinue | Where-Object Path -eq $glass)) {
     try {
         $rendererProcess = Start-Process -FilePath $glass -ArgumentList '--ime','desktop' -WindowStyle Hidden -PassThru
@@ -146,6 +180,7 @@ if (-not (Get-Process MeowpuutGlassPreview -ErrorAction SilentlyContinue | Where
     }
 }
 $startup = Join-Path ([Environment]::GetFolderPath('Startup')) 'Meowpuut Candidate Renderer.lnk'
+Write-Host 'Candidate renderer available. Updating the startup shortcut.'
 $previous = (New-Object -ComObject WScript.Shell).CreateShortcut($startup)
 if ($previous.TargetPath -ne $glass) {
     $oldPath = $previous.TargetPath
@@ -158,4 +193,12 @@ if ($previous.TargetPath -ne $glass) {
     $previous.Arguments = '--ime desktop'
     $previous.WorkingDirectory = Split-Path $glass
     $previous.Save()
+}
+Write-Host 'Installation completed. Reopen applications to load the new input service.'
+} catch {
+    Write-Host "Installation failed: $($_.Exception.Message)"
+    throw
+} finally {
+    if ($installLock) { $installLock.Dispose() }
+    if ($transcriptStarted) { Stop-Transcript | Out-Null }
 }

@@ -23,13 +23,13 @@ try {
     }
     Copy-Item -LiteralPath (Join-Path $build 'MeowpuutGlassPreview.exe') -Destination $payload
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install.cmd') -Destination $stage
-    foreach ($name in 'PowerShellHost.ps1','Settings.cmd','set-candidate-appearance.ps1') {
+    foreach ($name in 'PowerShellHost.ps1','InstallSupport.ps1','Settings.cmd','set-candidate-appearance.ps1') {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $stage
     }
     New-Item -ItemType Directory -Force (Join-Path $stage 'Windows'),(Join-Path $stage 'scripts'),(Join-Path $stage 'docs') | Out-Null
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'import-japanese-dictionary.py') -Destination (Join-Path $stage 'Windows')
     Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_dictionary.py') -Destination (Join-Path $stage 'scripts')
-    foreach ($name in 'JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md') {
+    foreach ($name in 'JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md') {
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
     }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-ime.ps1') -Destination (Join-Path $stage 'Install.ps1')
