@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.5'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.6'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,6 +22,10 @@ try {
         Copy-Item -LiteralPath (Join-Path $build "ime/$name") -Destination $payload
     }
     Copy-Item -LiteralPath (Join-Path $build 'MeowpuutGlassPreview.exe') -Destination $payload
+    foreach ($name in 'dictionary-manager.pyw','japanese_packages.py','japanese_dictionary.py') {
+        Copy-Item -LiteralPath (Join-Path $build $name) -Destination $payload
+    }
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Dictionaries.cmd') -Destination $stage
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install.cmd') -Destination $stage
     foreach ($name in 'PowerShellHost.ps1','InstallSupport.ps1','InputProfile.ps1','Settings.cmd','set-candidate-appearance.ps1') {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $stage
@@ -34,7 +38,7 @@ try {
     $example = Join-Path $stage 'Resources/DictionaryPackages/example'
     New-Item -ItemType Directory -Force $example | Out-Null
     Copy-Item -LiteralPath (Join-Path $root 'Resources/DictionaryPackages/example/manifest.json'),(Join-Path $root 'Resources/DictionaryPackages/example/words.txt') -Destination $example
-    foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md','BRAND.md') {
+    foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md','BRAND.md') {
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
     }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-ime.ps1') -Destination (Join-Path $stage 'Install.ps1')

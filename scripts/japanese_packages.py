@@ -210,9 +210,11 @@ def conflicts(state, package):
     return {'items': result, 'limited': False}
 
 
-def change(root, operation, value):
+def change(root, operation, value, expected_package=None):
     root = Path(root)
     incoming = load_package(value) if operation == 'import' else None
+    if expected_package is not None and incoming != expected_package:
+        raise ValueError('词库文件在预览后发生变化，请重新预览再导入')
     with writer_lock(root):
         state = copy.deepcopy(read_state(root))
         packages = state['packages']

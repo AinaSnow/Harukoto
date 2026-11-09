@@ -59,6 +59,11 @@ if ($Signed) {
 if (!(Test-Path -LiteralPath $renderer -PathType Leaf)) {
     throw 'The glass renderer is missing from the installation files.'
 }
+$managerFiles = foreach ($name in 'dictionary-manager.pyw','japanese_packages.py','japanese_dictionary.py') {
+    $path = Join-Path (Split-Path $renderer) $name
+    if (!(Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing dictionary manager file: $path" }
+    $path
+}
 if ($VerifyOnly) {
     Write-Output 'All Meowpuut installation files are present.'
     return
@@ -80,7 +85,7 @@ if ($Register) {
         throw "Previous registered DLL is missing: $previousDll. Repair it before upgrading so recovery remains possible."
     }
     Write-Host "Previous registered DLL: $previousDll"
-    $packageFiles = $sourceDll, $sourceLexicon, $sourceJapanese, $sourceEvidence, $renderer
+    $packageFiles = @($sourceDll, $sourceLexicon, $sourceJapanese, $sourceEvidence, $renderer) + @($managerFiles)
     $conjugationData = Join-Path $build 'japanese-conjugations.bin'
     if (Test-Path -LiteralPath $conjugationData -PathType Leaf) { $packageFiles += $conjugationData }
     $version = ($packageFiles | ForEach-Object { (Get-FileHash -LiteralPath $_).Hash.Substring(0, 12) }) -join '-'
@@ -164,6 +169,11 @@ $settingsShortcut.TargetPath = $glass
 $settingsShortcut.Arguments = '--settings'
 $settingsShortcut.WorkingDirectory = Split-Path $glass
 $settingsShortcut.Save()
+$dictionaryShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $programs '晴词主题词库.lnk'))
+$dictionaryShortcut.TargetPath = $glass
+$dictionaryShortcut.Arguments = '--dictionaries'
+$dictionaryShortcut.WorkingDirectory = Split-Path $glass
+$dictionaryShortcut.Save()
 $legacySettings = Join-Path $programs 'Meowpuut Settings.lnk'
 if (Test-Path -LiteralPath $legacySettings) { Remove-Item -LiteralPath $legacySettings }
 Write-Host 'Settings shortcut saved. Checking the candidate renderer.'

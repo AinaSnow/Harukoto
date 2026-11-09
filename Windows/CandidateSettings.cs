@@ -54,6 +54,9 @@ internal static class CandidateSettings
             } catch (Exception error) { status.Text = "保存失败：" + error.Message; }
         };
         actions.Children.Add(reset); actions.Children.Add(save); body.Children.Add(actions);
+        var dictionaries = new Button { Content = "管理主题词库…", Padding = new Thickness(12,7,12,7), Margin = new Thickness(0,16,0,0) };
+        dictionaries.Click += (s,e) => { var manager = DictionaryLauncher.Create(); manager.Owner = window; manager.Show(); };
+        body.Children.Add(dictionaries);
         return window;
     }
 }

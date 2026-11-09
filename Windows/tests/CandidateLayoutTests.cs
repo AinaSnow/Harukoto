@@ -100,5 +100,15 @@ class CandidateLayoutTests
         settingsEncoder.Frames.Add(BitmapFrame.Create(settingsImage));
         using (var file = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "candidate-settings.png"))) settingsEncoder.Save(file);
         Console.WriteLine("PASS: settings window created and rendered without changing user preferences.");
+        var launcher = (Window)assembly.GetType("DictionaryLauncher").GetMethod("Create", flags).Invoke(null, null);
+        var launcherRoot = (FrameworkElement)launcher.Content;
+        ((Panel)launcherRoot).Background = SystemColors.WindowBrush;
+        launcherRoot.Measure(new Size(launcher.Width - 32, double.PositiveInfinity));
+        launcherRoot.Arrange(new Rect(new Point(), launcherRoot.DesiredSize)); launcherRoot.UpdateLayout();
+        var launcherImage = new RenderTargetBitmap((int)launcher.Width, (int)Math.Ceiling(launcherRoot.ActualHeight + 48), 96, 96, PixelFormats.Pbgra32);
+        launcherImage.Render(launcherRoot);
+        var launcherEncoder = new PngBitmapEncoder(); launcherEncoder.Frames.Add(BitmapFrame.Create(launcherImage));
+        using (var file = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "dictionary-launcher.png"))) launcherEncoder.Save(file);
+        Console.WriteLine("PASS: dictionary launcher created and rendered without launching Python.");
     }
 }

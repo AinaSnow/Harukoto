@@ -46,7 +46,8 @@ try {
     foreach ($shortcut in @(
         (Join-Path ([Environment]::GetFolderPath('Startup')) 'Meowpuut Candidate Renderer.lnk'),
         (Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut/Meowpuut Settings.lnk'),
-        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut/晴词候选窗设置.lnk')
+        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut/晴词候选窗设置.lnk'),
+        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut/晴词主题词库.lnk')
     )) {
         if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut }
     }

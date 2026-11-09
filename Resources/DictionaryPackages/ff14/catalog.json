@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "package": {
+    "format": 1,
+    "id": "harukoto-ff14",
+    "name": "FF14 日语术语",
+    "version": "0.1.0-draft",
+    "source": "待逐条核对国服名、日服正式名称、读音和来源",
+    "license": "待审核使用依据；当前无词条，不构成可发行词库",
+    "words": "words.txt"
+  },
+  "entries": []
+}
