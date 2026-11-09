@@ -162,7 +162,7 @@ Write-Host 'Session profile published. Configuring settings and candidate render
 $serverKey = 'HKLM:\Software\Classes\CLSID\{961C0ADA-4DC6-488F-9563-4FC144EFAE27}\InprocServer32'
 $registeredDll = (Get-Item -LiteralPath $serverKey).GetValue('')
 $glass = Join-Path (Split-Path $registeredDll) 'MeowpuutGlassPreview.exe'
-$programs = Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut'
+$programs = Join-Path ([Environment]::GetFolderPath('Programs')) '晴词 Harukoto'
 New-Item -ItemType Directory -Force $programs | Out-Null
 $settingsShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $programs '晴词候选窗设置.lnk'))
 $settingsShortcut.TargetPath = $glass
@@ -174,8 +174,16 @@ $dictionaryShortcut.TargetPath = $glass
 $dictionaryShortcut.Arguments = '--dictionaries'
 $dictionaryShortcut.WorkingDirectory = Split-Path $glass
 $dictionaryShortcut.Save()
-$legacySettings = Join-Path $programs 'Meowpuut Settings.lnk'
-if (Test-Path -LiteralPath $legacySettings) { Remove-Item -LiteralPath $legacySettings }
+# Publish both new shortcuts before removing the known legacy entries.
+# Preserve anything else the user placed in the old folder.
+$legacyPrograms = Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut'
+foreach ($name in 'Meowpuut Settings.lnk','晴词候选窗设置.lnk','晴词主题词库.lnk') {
+    $legacyShortcut = Join-Path $legacyPrograms $name
+    if (Test-Path -LiteralPath $legacyShortcut) { Remove-Item -LiteralPath $legacyShortcut }
+}
+if ((Test-Path -LiteralPath $legacyPrograms) -and !(Get-ChildItem -LiteralPath $legacyPrograms -Force)) {
+    Remove-Item -LiteralPath $legacyPrograms
+}
 Write-Host 'Settings shortcut saved. Checking the candidate renderer.'
 if (-not (Get-Process MeowpuutGlassPreview -ErrorAction SilentlyContinue | Where-Object Path -eq $glass)) {
     try {
