@@ -38,7 +38,7 @@ python Windows/import-japanese-dictionary.py C:/path/to/words.txt --check
 python Windows/import-japanese-dictionary.py C:/path/to/words.txt
 ```
 
-编译结果写入 `%LOCALAPPDATA%/Meowpuut/japanese-custom.tsv`，无需管理员权限。导入会替换当前用户的这一个自定义词表，因此多个主题请先合并到一份文件。校验失败时不会覆盖旧文件。重新打开使用输入法的应用后加载新词表。也可用 `--output` 导出到指定文件。
+编译结果写入 `%LOCALAPPDATA%/Meowpuut/japanese-custom.tsv`，无需管理员权限。此旧入口会替换当前用户的一个自定义词表；需要多个主题独立启停和回退时，使用新增的[主题包管理](DICTIONARY_PACKAGES.md)。两种入口可共存。校验失败时不会覆盖旧文件。重新打开使用输入法的应用后加载新词表。也可用 `--output` 导出到指定文件。
 
 支持 `pinyin`、`english`、`chinese`、`priority`，以及同字形多读音。`pinyin`、`english` 可重复；全角分隔符、拼音声调符号、空格、连字符会规范化。含汉字的词必须显式填写平假名读音。未知属性忽略；`pos` 校验合法性，但本阶段不产生语法变形。仅有读音而没有显式触发词的自定义行不会加入索引。全部转换在本地完成。
 
@@ -61,6 +61,8 @@ JP-02 的编译和辅助数据加载已完成，JP-03 已接入 F6 活用面板�
 为拼音、英语、罗马字建立共同分段和读音消耗模型，支持部分选词、活用形直接输入、未完成末词补全及前后文排序。以 `tianqigaii`、`coffeewonomitai` 等作为功能验收示例，同时用独立材料评估中文排序、日语自然度与逐键延迟。现有中日混打不足以代表该阶段完成。
 
 ## 第五阶段：生词本和词库管理
+
+0.4.4-alpha.5 已提前实现主题包命令行首版：预览、跨包冲突诊断、独立启停、更新、上一版回退及 TSF 加载。图形管理页、基础词库冲突诊断、候选来源标记和生词本未实现，详见[主题包说明](DICTIONARY_PACKAGES.md)。
 
 提供本地词库启停、导入诊断、生词读音记录、复习状态、CSV 导出及记忆开关。学习记录只来自用户确认的候选，并可查看、停用和清除。主题词库按来源与授权分别管理；同步另行设计。
 

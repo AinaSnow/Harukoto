@@ -1,0 +1,3 @@
+# 晴词主题包示例
+図書館 | としょかん | pinyin: tushuguan
+喫茶店 | きっさてん | pinyin: kafeidian | english: cafe

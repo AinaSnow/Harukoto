@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "id": "harukoto-example",
+  "name": "晴词主题包示例",
+  "version": "1.0.0",
+  "source": "晴词项目人工编写的基础示例，仅演示主题包流程",
+  "license": "MIT，与项目 LICENSE 一致",
+  "words": "words.txt"
+}

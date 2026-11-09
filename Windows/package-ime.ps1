@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.4'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.5'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,8 +28,13 @@ try {
     }
     New-Item -ItemType Directory -Force (Join-Path $stage 'Windows'),(Join-Path $stage 'scripts'),(Join-Path $stage 'docs') | Out-Null
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'import-japanese-dictionary.py') -Destination (Join-Path $stage 'Windows')
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'manage-japanese-packages.py') -Destination (Join-Path $stage 'Windows')
     Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_dictionary.py') -Destination (Join-Path $stage 'scripts')
-    foreach ($name in 'USER_GUIDE.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md','BRAND.md') {
+    Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_packages.py') -Destination (Join-Path $stage 'scripts')
+    $example = Join-Path $stage 'Resources/DictionaryPackages/example'
+    New-Item -ItemType Directory -Force $example | Out-Null
+    Copy-Item -LiteralPath (Join-Path $root 'Resources/DictionaryPackages/example/manifest.json'),(Join-Path $root 'Resources/DictionaryPackages/example/words.txt') -Destination $example
+    foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md','BRAND.md') {
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
     }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-ime.ps1') -Destination (Join-Path $stage 'Install.ps1')

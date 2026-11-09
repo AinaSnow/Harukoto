@@ -15,6 +15,7 @@
 #include "ScriptPreference.h"
 #include "JapaneseConjugation.h"
 #include "ConjugationPanel.h"
+#include "JapanesePackages.h"
 #include <new>
 #include <string>
 #include "WordEvidence.h"
@@ -203,11 +204,11 @@ public:
                     auto custom = readJapaneseWords(customFile);
                     japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(custom.begin()),
                                          std::make_move_iterator(custom.end()));
-                    std::stable_sort(japaneseWords.begin(), japaneseWords.end(), [](const auto &a, const auto &b) {
-                        return a.weight > b.weight;
-                    });
                 }
+                auto themes = readEnabledJapanesePackages(std::filesystem::path(localAppData) / L"Meowpuut/Dictionaries");
+                japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(themes.begin()), std::make_move_iterator(themes.end()));
             }
+            std::stable_sort(japaneseWords.begin(), japaneseWords.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
             evidence.open(folder / L"language-evidence.sqlite");
             std::string bytes((std::istreambuf_iterator<char>(file)), {});
             lexicon = mpn_lexicon_create(bytes.data(), bytes.size());

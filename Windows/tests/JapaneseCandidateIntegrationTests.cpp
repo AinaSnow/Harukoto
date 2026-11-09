@@ -17,6 +17,7 @@ int main(int argc, char **argv) {
     auto words = readJapaneseWords(dictionary);
     JapaneseConjugations table; assert(table.loadFile(dir / "japanese-conjugations.bin"));
     appendConjugationWords(table, words);
+    std::stable_sort(words.begin(), words.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
     WordEvidence evidence; evidence.open(dir / "language-evidence.sqlite");
     assert(!evidence.dictionary("chi", true).empty());
     for (bool simplified : {false, true})
