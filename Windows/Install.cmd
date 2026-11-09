@@ -17,5 +17,5 @@ if errorlevel 1 (
     exit /b 1
 )
 echo.
-echo Harukoto is available under Traditional Chinese. Press Win+Space to switch.
+echo Harukoto is available under Simplified Chinese. Press Win+Space to switch.
 pause

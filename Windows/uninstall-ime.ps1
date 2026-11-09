@@ -1,6 +1,7 @@
 param([switch]$Unregister, [switch]$VerifyOnly)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'PowerShellHost.ps1')
+. (Join-Path $PSScriptRoot 'InputProfile.ps1')
 $hostPath = Get-MeowpuutPowerShell
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Run this script with PowerShell 7.' }
 if ($VerifyOnly) { Write-Output 'Uninstaller is available.'; return }
@@ -38,13 +39,8 @@ try {
     $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Unregister'
     $process = Start-Process -FilePath $hostPath -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -PassThru -Wait
     if ($process.ExitCode -ne 0) { throw "Machine unregistration failed: $($process.ExitCode). See the elevated account uninstall log." }
-    $tip = '0404:{961C0ADA-4DC6-488F-9563-4FC144EFAE27}{8FDE097D-3513-486A-9AB5-2D1B2C67C359}'
     $list = Get-WinUserLanguageList
-    $changed = $false
-    foreach ($language in $list) {
-        if ($language.InputMethodTips -contains $tip) { $language.InputMethodTips.Remove($tip) | Out-Null; $changed = $true }
-    }
-    if ($changed) { Set-WinUserLanguageList $list -Force }
+    if (Update-HarukotoLanguageList -List $list -Remove) { Set-WinUserLanguageList $list -Force }
     $root = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Meowpuut/IME')) + [IO.Path]::DirectorySeparatorChar
     Get-Process MeowpuutGlassPreview -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process
     foreach ($shortcut in @(

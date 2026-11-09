@@ -3,6 +3,7 @@ param([switch]$Register, [switch]$Signed, [switch]$Prebuilt, [switch]$VerifyOnly
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'PowerShellHost.ps1')
 . (Join-Path $PSScriptRoot 'InstallSupport.ps1')
+. (Join-Path $PSScriptRoot 'InputProfile.ps1')
 $powerShellHost = Get-MeowpuutPowerShell
 if ($PSVersionTable.PSVersion.Major -lt 7) {
     $forwarded = @()
@@ -114,15 +115,9 @@ $legacy = 'HKCU:\Software\Classes\CLSID\{961C0ADA-4DC6-488F-9563-4FC144EFAE27}\I
 if (Test-Path -LiteralPath $legacy) {
     Remove-Item -LiteralPath $legacy
 }
-$tip = '0404:{961C0ADA-4DC6-488F-9563-4FC144EFAE27}{8FDE097D-3513-486A-9AB5-2D1B2C67C359}'
+$tip = $script:HarukotoTip
 $list = Get-WinUserLanguageList
-$language = $list | Where-Object LanguageTag -eq 'zh-Hant-TW'
-if (!$language) {
-    $language = (New-WinUserLanguageList 'zh-Hant-TW')[0]
-    $list.Add($language)
-}
-if ($language.InputMethodTips -notcontains $tip) {
-    $language.InputMethodTips.Add($tip)
+if (Update-HarukotoLanguageList -List $list) {
     Set-WinUserLanguageList $list -Force
 }
 

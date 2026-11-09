@@ -24,7 +24,7 @@
 
 ## 安装与构建
 
-晴词开发版安装器为 Harukoto-0.4.4-alpha.1-Setup.exe，构建产物位于 .build/windows/dist。当前尚未发布 Gitea Release；请参阅 [Windows 说明](Windows/README.md)自行构建。安装后按 Win + 空格切换到“晴词 Harukoto”。
+晴词开发版安装器为 Harukoto-0.4.4-alpha.2-Setup.exe，构建产物位于 .build/windows/dist。当前尚未发布 Gitea Release；请参阅 [Windows 说明](Windows/README.md)自行构建。安装后按 Win + 空格切换到“晴词 Harukoto”。
 
 需要 Windows x64、PS7、Python 3、Visual Studio C++ 工具、Windows SDK 和 CMake。实际安装用户无需另装 PS7。
 

@@ -12,6 +12,7 @@
 #include "PendingDelivery.h"
 #include "PinyinPunctuation.h"
 #include "ScriptMode.h"
+#include "ScriptPreference.h"
 #include <new>
 #include <string>
 #include "WordEvidence.h"
@@ -20,7 +21,8 @@ namespace {
 const CLSID serviceId = {0x961c0ada,0x4dc6,0x488f,{0x95,0x63,0x4f,0xc1,0x44,0xef,0xae,0x27}};
 const GUID profileId = {0x8fde097d,0x3513,0x486a,{0x9a,0xb5,0x2d,0x1b,0x2c,0x67,0xc3,0x59}};
 constexpr size_t pageSize = 7;
-constexpr LANGID language = MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL);
+constexpr LANGID language = MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED);
+constexpr LANGID legacyLanguage = MAKELANGID(LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL);
 constexpr wchar_t name[] = L"晴词 Harukoto";
 constexpr wchar_t classKey[] = L"Software\\Classes\\CLSID\\{961C0ADA-4DC6-488F-9563-4FC144EFAE27}";
 HMODULE module;
@@ -180,6 +182,7 @@ public:
 
     HRESULT STDMETHODCALLTYPE Activate(ITfThreadMgr *manager, TfClientId id) override {
         try {
+            simplified = readSimplifiedPreference();
             const auto folder = std::filesystem::path(modulePath()).parent_path();
             std::ifstream file(folder / L"native-pinyin.tsv", std::ios::binary);
             std::ifstream japanese(folder / L"japanese.tsv", std::ios::binary);
@@ -331,6 +334,11 @@ public:
                 delivery->pump();
             }
             if (activeContext != context || !session || !delivery || !delivery->queue.canDeliver()) return S_OK;
+            const bool preference = readSimplifiedPreference();
+            if (applyPinyinScript(session, simplified, preference)) {
+                simplified = preference;
+                refreshCandidates();
+            }
             const size_t start = page * pageSize;
             const size_t total = candidateCount();
             const size_t count = total > start ? (std::min)(pageSize, total - start) : 0;
@@ -339,9 +347,11 @@ public:
                 // Consume repeats without repeatedly toggling while held.
                 if (!(static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30))) {
                     const bool next = !simplified;
-                    applyPinyinScript(session, simplified, next);
-                    simplified = next;
-                    refreshCandidates();
+                    if (writeSimplifiedPreference(next)) {
+                        applyPinyinScript(session, simplified, next);
+                        simplified = next;
+                        refreshCandidates();
+                    }
                 }
                 *eaten = TRUE;
             } else if (key == VK_F4) {
@@ -824,6 +834,7 @@ HRESULT registerProfile(bool install) {
         if (SUCCEEDED(hr)) hr = profiles->EnableLanguageProfile(serviceId, language, profileId, TRUE);
     } else {
         profiles->RemoveLanguageProfile(serviceId, language, profileId);
+        profiles->RemoveLanguageProfile(serviceId, legacyLanguage, profileId);
         hr = profiles->Unregister(serviceId);
     }
     profiles->Release();
@@ -835,6 +846,16 @@ HRESULT registerProfile(bool install) {
     hr = install ? categories->RegisterCategory(serviceId, GUID_TFCAT_TIP_KEYBOARD, serviceId)
                  : categories->UnregisterCategory(serviceId, GUID_TFCAT_TIP_KEYBOARD, serviceId);
     categories->Release();
+    // Remove only our old language profile, after the new profile and category
+    // are registered. Re-registering the old DLL can still restore it on failure.
+    if (install && SUCCEEDED(hr)) {
+        ITfInputProcessorProfiles *cleanup = nullptr;
+        if (SUCCEEDED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER,
+                                       IID_ITfInputProcessorProfiles, reinterpret_cast<void **>(&cleanup)))) {
+            cleanup->RemoveLanguageProfile(serviceId, legacyLanguage, profileId);
+            cleanup->Release();
+        }
+    }
     return hr;
 }
 }

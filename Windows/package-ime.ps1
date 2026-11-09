@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.1'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.2'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,7 +23,7 @@ try {
     }
     Copy-Item -LiteralPath (Join-Path $build 'MeowpuutGlassPreview.exe') -Destination $payload
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install.cmd') -Destination $stage
-    foreach ($name in 'PowerShellHost.ps1','InstallSupport.ps1','Settings.cmd','set-candidate-appearance.ps1') {
+    foreach ($name in 'PowerShellHost.ps1','InstallSupport.ps1','InputProfile.ps1','Settings.cmd','set-candidate-appearance.ps1') {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $stage
     }
     New-Item -ItemType Directory -Force (Join-Path $stage 'Windows'),(Join-Path $stage 'scripts'),(Join-Path $stage 'docs') | Out-Null

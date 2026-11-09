@@ -85,7 +85,7 @@ try {
     # Execute the real entry script against an incomplete package, without reaching UAC.
     $package = Join-Path $temporary 'package'
     New-Item -ItemType Directory -Path $package | Out-Null
-    foreach ($name in 'install-ime.ps1','PowerShellHost.ps1','InstallSupport.ps1') {
+    foreach ($name in 'install-ime.ps1','PowerShellHost.ps1','InstallSupport.ps1','InputProfile.ps1') {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot "../$name") -Destination $package
     }
     $processInfo = [Diagnostics.ProcessStartInfo]::new((Join-Path $PSHOME 'pwsh.exe'))

@@ -1,8 +1,8 @@
-# 晴词 · Harukoto 0.4.4-alpha.1 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.2 · Windows x64
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.1-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.2-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -55,7 +55,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.1
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.2
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。
@@ -90,9 +90,9 @@ CMake 不在 PATH 中时，可用 `-CMake C:/path/to/cmake.exe` 指定。MSVC �
 .\Windows\install-ime.ps1
 ```
 
-在应用程序的文字区按 Win + 空格键，从繁体中文切换到 **晴词 Harukoto**。数字 1–7 直接选词；方向键和 Tab 切换高亮，Enter 确认，空格键输出原始拼音加空格。Page Up／Page Down 翻页，Esc 取消，Backspace 修改。
+在应用程序的文字区按 Win + 空格键，从简体中文切换到 **晴词 Harukoto**。数字 1–7 直接选词；方向键和 Tab 切换高亮，Enter 确认，空格键输出原始拼音加空格。Page Up／Page Down 翻页，Esc 取消，Backspace 修改。
 
-拼音默认输出简体；按 **Ctrl + 左 Alt + Shift + Q** 切换繁简，候选窗会显示「简」或「繁」。切换时保留正在输入的拼音。此 Alpha 的选择只在当前输入服务中有效，不会同步到其他已开启的应用程序，重新启动后恢复简体。右 Alt（AltGr）不会触发快捷键。
+中文默认输出简体。设置页新增“输出繁体中文”：开启输出繁体，关闭输出简体，点击保存后在下次输入按键时生效。设置按当前 Windows 用户保存，跨应用及重启后保留；日语词形不受此开关影响。Ctrl + 左 Alt + Shift + Q 仍可切换，并保存同一开关；右 Alt（AltGr）不会触发。设置位于 HKCU/Software/Meowpuut/Input 的 TraditionalOutput（DWORD，1 为繁体，0 为简体）。
 
 美式键盘布局下，直接输入逗号、句号、分号、斜线、方括号与反斜线会输出 `，。；？「」、`；组字中会先上屏候选。按住 Shift 时交给应用程序输入英文标点。
 
@@ -139,3 +139,5 @@ ctest --test-dir build/windows -C Release --output-on-failure
 
 
 目前源代码也会在焦点变更时暂停该字段的待上屏队列；已调度但尚未写入的异步编辑会先保留文字，回到原字段并收到下一次可处理按键后再重试。选词已清空读音、但前段还在等待上屏时，紧接的数字与空格也排入同一队列，避免跑到前段之前。此保护不涵盖所有直接交给宿主的命令，例如 Enter、删除和移动光标；完整宿主编辑生命周期仍待 Windows 实测。
+
+新版注册到简体中文（zh-Hans-CN，0804）分类。升级只移除晴词旧繁体分类配置（0404），不删除用户其他输入法或语言；卸载清理两种晴词标识。语言分类和输出繁简开关相互独立。真实系统迁移尚待实机验收。

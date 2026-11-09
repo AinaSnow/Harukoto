@@ -8,9 +8,10 @@
 
 | 项目 | 处理方式 |
 | --- | --- |
-| 安装器与 ZIP | Harukoto 前缀，版本 0.4.4-alpha.1 |
+| 安装器与 ZIP | Harukoto 前缀，版本 0.4.4-alpha.2 |
 | 输入法列表、设置、安装向导、应用列表 | 晴词／Harukoto |
-| COM／TSF GUID、输入配置标识 | 保持原值，覆盖升级已有输入法 |
+| COM／TSF GUID | 保持原值，覆盖升级已有输入法 |
+| Windows 语言分类 | 由 0404（繁体中文）迁移至 0804（简体中文）；安装／卸载兼容旧条目 |
 | Program Files/Meowpuut、LOCALAPPDATA/Meowpuut | 保留，继续读取用户词表、设置和日志 |
 | HKCU/Software/Meowpuut 和卸载注册键 | 保留；显示名称更新，避免重复条目 |
 | MeowpuutTip.dll、MeowpuutGlassPreview.exe、C++ API 和数据格式头 | 保留内部名称，避免破坏加载和词库兼容 |
