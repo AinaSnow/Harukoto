@@ -54,6 +54,21 @@ class ConjugationTests(unittest.TestCase):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 conjugate(*args, **kwargs)
 
+    def test_adjective_exception_boundaries(self):
+        self.assertEqual(self.forms("可愛い", "かわいい", "i-adjective")["た形"], ("可愛かった", "かわいかった"))
+        self.assertEqual(self.forms("良い", "いい", "i-adjective", irregular="ii")["た形"], ("良かった", "よかった"))
+        self.assertEqual(self.forms("かっこいい", "かっこいい", "i-adjective", irregular="ii")["ない形"], ("かっこよくない", "かっこよくない"))
+
+    def test_aru_and_mismatched_endings(self):
+        forms = self.forms("ある", "ある", "godan", irregular="aru")
+        self.assertNotIn("可能形", forms)
+        self.assertNotIn("被动形", forms)
+        self.assertNotIn("使役形", forms)
+        for args, kwargs in [(("書く", "およぐ", "godan"), {}),
+                             (("書く", "かく", "godan"), {"irregular": "iku"})]:
+            with self.assertRaises(ValueError):
+                conjugate(*args, **kwargs)
+
 
 if __name__ == "__main__":
     unittest.main()

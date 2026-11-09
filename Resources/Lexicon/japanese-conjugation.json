@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "entries": [
+    {"id": "taberu", "text": "食べる", "reading": "たべる", "pos": "ichidan", "triggers": {"pinyin": ["chi"], "english": ["eat"]}},
+    {"id": "kaku", "text": "書く", "reading": "かく", "pos": "godan", "triggers": {"pinyin": ["xie"], "english": ["write"]}},
+    {"id": "iku", "text": "行く", "reading": "いく", "pos": "godan", "irregular": "iku", "triggers": {"pinyin": ["qu"], "english": ["go"]}},
+    {"id": "aru", "text": "有る", "reading": "ある", "pos": "godan", "irregular": "aru", "triggers": {"pinyin": ["you"], "english": ["exist"]}},
+    {"id": "benkyou-suru", "text": "勉強する", "reading": "べんきょうする", "pos": "suru", "triggers": {"pinyin": ["xuexi"], "english": ["study"]}},
+    {"id": "kuru", "text": "来る", "reading": "くる", "pos": "kuru", "triggers": {"pinyin": ["lai"], "english": ["come"]}},
+    {"id": "takai", "text": "高い", "reading": "たかい", "pos": "i-adjective", "triggers": {"pinyin": ["gao"], "english": ["high"]}},
+    {"id": "ii", "text": "良い", "reading": "いい", "pos": "i-adjective", "irregular": "ii", "triggers": {"pinyin": ["hao"], "english": ["good"]}},
+    {"id": "kawaii", "text": "可愛い", "reading": "かわいい", "pos": "i-adjective", "triggers": {"pinyin": ["keai"], "english": ["cute"]}},
+    {"id": "shizuka", "text": "静か", "reading": "しずか", "pos": "na-adjective", "triggers": {"pinyin": ["anjing"], "english": ["quiet"]}}
+  ]
+}

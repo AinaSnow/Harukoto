@@ -2,7 +2,7 @@
 
 全项目进度、构建验证与接手顺序见[开发状态](DEVELOPMENT_STATUS.md)。第一阶段已实现；第二阶段已开始独立规则原型，尚未接入输入法；第三至第五阶段为规划。每阶段按“核心实现→测试→Windows 交互→实机验收”推进。
 
-参考 [Madamada 产品说明](https://madamada.catchingnow.com/llms.txt) 和[公开自定义词表格式](https://madamada.catchingnow.com/help/custom-dictionary.md)，在喵扑内独立实现。上述页面没有提供可直接接入的引擎 SDK 或源码；本实现不包含其内置词库，不代表与该产品官方集成。
+参考 [Madamada 产品说明](https://madamada.catchingnow.com/llms.txt) 和[公开自定义词表格式](https://madamada.catchingnow.com/help/custom-dictionary.md)，在晴词内独立实现。上述页面没有提供可直接接入的引擎 SDK 或源码；本实现不包含其内置词库，不代表与该产品官方集成。
 
 ## 第一阶段：显式触发词与读音
 
@@ -45,6 +45,8 @@ python Windows/import-japanese-dictionary.py C:/path/to/words.txt
 这只是公开格式的一个子集，不是完整兼容实现。第一阶段没有任意中文翻译、自动推导所有日文汉字拼音、80 万日语词库、自动罗马字索引或完整日语整句解码。显式触发词只匹配整个输入，避免误伤中文长句排序。
 
 ## 第二阶段：动词与形容词变形
+
+本轮已补齐[独立活用词表 v1](JAPANESE_CONJUGATION_FORMAT.md)和编译入口，并修正规则边界。十条示例可输出稳定 JSON，编译失败保留旧文件。相关 Python 测试共 15 项通过；下一步是 C++ 加载和候选交互，尚未接入当前输入法。任务拆分见[开发计划](DEVELOPMENT_PLAN.md)。
 
 已新增 `scripts/japanese_conjugation.py` 作为独立 Python 规则原型，显式指定一段／五段／する／来る及形容词类型，同步生成表记和读音，覆盖行く、ある、いい的显式例外。6 项测试覆盖九种五段词尾、来る读音变化和基础形容词。此原型尚未接入词表编译、C++ TSF 或候选面板，不代表用户已经可以输入活用形。复合词和更多不规则词仍需扩展，不能据此宣称完整日语形态分析。
 

@@ -33,6 +33,7 @@
 ## 开发与授权
 
 - [开发状态及代码导航](docs/DEVELOPMENT_STATUS.md)
+- [后续任务与 FF14 主题词库计划](docs/DEVELOPMENT_PLAN.md)
 - [Windows 实机验收](docs/WINDOWS_VALIDATION.md)
 - [Android 构建说明](Android/README.md)
 - [核心与词库](docs/ENGINE.md)

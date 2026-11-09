@@ -74,9 +74,12 @@ def _forms(word: str, pos: str, irregular: str) -> dict[str, str]:
             raise ValueError("い形容词必须以い结尾")
         stem = word[:-1]
         if irregular == "ii":
-            if not word.endswith("いい"):
-                raise ValueError("いい例外需要いい词尾")
-            stem = word[:-2] + "よ"
+            if word.endswith("いい"):
+                stem = word[:-2] + "よ"
+            elif word.endswith(("良い", "よい")):
+                stem = word[:-1]
+            else:
+                raise ValueError("いい例外需要いい／良い／よい词尾")
         endings = {"丁宁形": "いです", "て形": "くて", "た形": "かった", "ない形": "くない", "ば形": "ければ"}
         result["丁宁形"] = word + "です"
     elif pos == "na-adjective":
@@ -86,6 +89,10 @@ def _forms(word: str, pos: str, irregular: str) -> dict[str, str]:
         raise ValueError("未知词性；请显式指定一段、五段、する、来る或形容词")
     for name, ending in endings.items():
         result.setdefault(name, stem + ending)
+    if irregular == "aru":
+        # 存在义「ある」不机械生成可能、被动和使役。
+        for name in ("可能形", "被动形", "使役形"):
+            result.pop(name, None)
     return result
 
 
@@ -98,12 +105,18 @@ def conjugate(text: str, reading: str, pos: str, *, irregular: str = "") -> list
     allowed = {"": None, "iku": "godan", "aru": "godan", "ii": "i-adjective"}
     if irregular not in allowed or (irregular and allowed[irregular] != pos):
         raise ValueError("例外类型与词性不匹配")
+    if pos == "godan" and text[-1] != reading[-1]:
+        raise ValueError("表记和读音的五段词尾不一致")
+    if irregular == "iku" and reading not in ("いく", "ゆく"):
+        raise ValueError("iku 例外仅支持行く／ゆく；复合词须另行审核")
+    if irregular == "aru" and reading != "ある":
+        raise ValueError("aru 例外仅支持存在义ある")
     # 这些读音必须指定例外，避免静默产生已知错误形式。
     if pos == "godan" and reading in ("いく", "ゆく") and irregular != "iku":
         raise ValueError("行く／ゆく需要显式指定 iku 例外")
     if pos == "godan" and reading == "ある" and irregular != "aru":
         raise ValueError("ある需要显式指定 aru 例外")
-    if pos == "i-adjective" and reading.endswith("いい") and irregular != "ii":
+    if pos == "i-adjective" and reading == "いい" and irregular != "ii":
         raise ValueError("いい需要显式指定 ii 例外")
     text_forms = _forms(text, pos, irregular)
     reading_forms = _forms(reading, pos, irregular)
