@@ -1,6 +1,16 @@
 param([switch]$Register, [switch]$Signed, [switch]$Prebuilt, [switch]$VerifyOnly)
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'PowerShellHost.ps1')
+$powerShellHost = Get-MeowpuutPowerShell
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    $forwarded = @()
+    foreach ($name in 'Register','Signed','Prebuilt','VerifyOnly') {
+        if ($PSBoundParameters[$name]) { $forwarded += "-$name" }
+    }
+    & $powerShellHost -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @forwarded
+    exit $LASTEXITCODE
+}
 $build = Join-Path (Split-Path $PSScriptRoot) '.build/windows/ime'
 $sourceDll = Join-Path $build 'MeowpuutTip.dll'
 $sourceLexicon = Join-Path $build 'native-pinyin.tsv'
@@ -63,7 +73,7 @@ if ($Register) {
 $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Register'
 if ($Prebuilt) { $arguments += ' -Prebuilt' }
 if ($Signed) { $arguments += ' -Signed' }
-$setup = Start-Process -FilePath "$env:WINDIR/System32/WindowsPowerShell/v1.0/powershell.exe" -ArgumentList $arguments -Verb RunAs -PassThru -Wait -WindowStyle Hidden
+$setup = Start-Process -FilePath $powerShellHost -ArgumentList $arguments -Verb RunAs -PassThru -Wait -WindowStyle Hidden
 if ($setup.ExitCode -ne 0) {
     throw "TSF registration failed with exit code $($setup.ExitCode)."
 }
@@ -117,6 +127,13 @@ if (-not [Meowpuut.InputProfile]::InstallLayoutOrTip("0x$tip", 0)) {
 $serverKey = 'HKLM:\Software\Classes\CLSID\{961C0ADA-4DC6-488F-9563-4FC144EFAE27}\InprocServer32'
 $registeredDll = (Get-Item -LiteralPath $serverKey).GetValue('')
 $glass = Join-Path (Split-Path $registeredDll) 'MeowpuutGlassPreview.exe'
+$programs = Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut'
+New-Item -ItemType Directory -Force $programs | Out-Null
+$settingsShortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $programs 'Meowpuut Settings.lnk'))
+$settingsShortcut.TargetPath = $glass
+$settingsShortcut.Arguments = '--settings'
+$settingsShortcut.WorkingDirectory = Split-Path $glass
+$settingsShortcut.Save()
 if (-not (Get-Process MeowpuutGlassPreview -ErrorAction SilentlyContinue | Where-Object Path -eq $glass)) {
     try {
         $rendererProcess = Start-Process -FilePath $glass -ArgumentList '--ime','desktop' -WindowStyle Hidden -PassThru

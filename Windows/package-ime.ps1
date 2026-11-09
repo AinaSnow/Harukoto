@@ -1,9 +1,12 @@
 param(
-    [Parameter(Mandatory)][string]$Compiler,
+    [string]$Compiler,
+    [switch]$MSVC,
     [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.3-alpha.1'
 )
 
 $ErrorActionPreference = 'Stop'
+if ($MSVC -and $Compiler) { throw 'Choose -MSVC or -Compiler, not both.' }
+if (!$MSVC -and !$Compiler) { throw 'Specify -MSVC or the LLVM-MinGW -Compiler path.' }
 $root = Split-Path $PSScriptRoot
 $build = Join-Path $root '.build/windows'
 $output = Join-Path $build 'dist'
@@ -20,8 +23,19 @@ try {
     }
     Copy-Item -LiteralPath (Join-Path $build 'MeowpuutGlassPreview.exe') -Destination $payload
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install.cmd') -Destination $stage
+    foreach ($name in 'PowerShellHost.ps1','Settings.cmd','set-candidate-appearance.ps1') {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $stage
+    }
+    New-Item -ItemType Directory -Force (Join-Path $stage 'Windows'),(Join-Path $stage 'scripts'),(Join-Path $stage 'docs') | Out-Null
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'import-japanese-dictionary.py') -Destination (Join-Path $stage 'Windows')
+    Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_dictionary.py') -Destination (Join-Path $stage 'scripts')
+    foreach ($name in 'JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md') {
+        Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
+    }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-ime.ps1') -Destination (Join-Path $stage 'Install.ps1')
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md'),(Join-Path $root 'LICENSE'),(Join-Path $root 'THIRD_PARTY.md') -Destination $stage
+    $readme = Join-Path $stage 'README.md'
+    (Get-Content -LiteralPath $readme -Raw).Replace('(../docs/','(docs/') | Set-Content -LiteralPath $readme -Encoding utf8
     Copy-Item -LiteralPath (Join-Path $root 'DataSources/McBopomofo/LICENSE.txt') -Destination (Join-Path $licenses 'McBopomofo-MIT.txt')
     Copy-Item -LiteralPath (Join-Path $root 'DataSources/PinyinPro/LICENSE') -Destination (Join-Path $licenses 'PinyinPro-MIT.txt')
     Copy-Item -LiteralPath (Join-Path $root 'DataSources/UniDic/SOURCE.json') -Destination (Join-Path $licenses 'UniDic-SOURCE.json')
@@ -33,12 +47,24 @@ try {
     Copy-Item -LiteralPath (Join-Path $root 'DataSources/MimoNormalization/ICU-LICENSE.txt') -Destination (Join-Path $licenses 'ICU-LICENSE.txt')
     Copy-Item -LiteralPath (Join-Path $root 'DataSources/MimoNormalization/ICU-Hans_Hant.txt') -Destination (Join-Path $licenses 'ICU-Hans_Hant.txt')
     Copy-Item -LiteralPath (Join-Path $root 'DataSources/MimoNormalization/SOURCE.json') -Destination (Join-Path $licenses 'MimoNormalization-SOURCE.json')
-    $toolchain = Split-Path (Split-Path (Resolve-Path -LiteralPath $Compiler).Path)
-    Copy-Item -LiteralPath (Join-Path $toolchain 'LICENSE.TXT') -Destination (Join-Path $licenses 'LLVM-MinGW.txt')
-    $mingw = Join-Path $toolchain 'x86_64-w64-mingw32/share/mingw32'
-    foreach ($name in 'COPYING.MinGW-w64.txt','COPYING.MinGW-w64-runtime.txt','COPYING.winpthreads.txt') {
-        Copy-Item -LiteralPath (Join-Path $mingw $name) -Destination $licenses
+    if (!$MSVC) {
+        $toolchain = Split-Path (Split-Path (Resolve-Path -LiteralPath $Compiler).Path)
+        Copy-Item -LiteralPath (Join-Path $toolchain 'LICENSE.TXT') -Destination (Join-Path $licenses 'LLVM-MinGW.txt')
+        $mingw = Join-Path $toolchain 'x86_64-w64-mingw32/share/mingw32'
+        foreach ($name in 'COPYING.MinGW-w64.txt','COPYING.MinGW-w64-runtime.txt','COPYING.winpthreads.txt') {
+            Copy-Item -LiteralPath (Join-Path $mingw $name) -Destination $licenses
+        }
     }
+    $revision = & git -C $root rev-parse HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot determine source revision.' }
+    $dirty = [bool](& git -C $root status --porcelain)
+    $chain = if ($MSVC) { 'MSVC (static runtime)' } else { 'LLVM-MinGW' }
+    @(
+        '# 构建信息', '', "版本：$Version", "源提交：$revision",
+        "包含未提交修改：$dirty", "工具链：$chain",
+        '验证：打包时只检查安装文件完整性；功能测试请参阅仓库 docs/DEVELOPMENT_STATUS.md。',
+        '构建与打包前请使用同一工具链重新生成全部二进制。本包不代表已完成跨应用兼容性验收。'
+    ) | Set-Content -LiteralPath (Join-Path $stage 'BUILD-INFO.md') -Encoding utf8
     & (Join-Path $stage 'Install.ps1') -Prebuilt -VerifyOnly | Out-Null
     $zip = Join-Path $output "Meowpuut-$Version-windows-x64.zip"
     Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
