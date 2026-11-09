@@ -1,69 +1,69 @@
-# 喵撲 Android 測試版
+# 喵扑 Android 测试版
 
-Android 7.0（API 24）以上的系統鍵盤。拼音、注音、候選排序和繁簡輸出共用喵撲的 C++17 核心及 mimo 詞庫。也可用羅馬音輸入日語假名和詞表中的日文單字。鍵盤離線運作，沒有網路權限。
+Android 7.0（API 24）以上的系统键盘。拼音、注音、候选排序和繁简输出共用喵扑的 C++17 核心及 mimo 词库。也可用罗马音输入日语假名和词表中的日文单字。键盘离线运作，没有网络权限。
 
-介面沿用 iOS 的鍵位、試打頁、候選展開、雙貓／簡潔皮膚、深淺色與十組色系。玻璃外觀由 Android 的漸層、描邊和透明度繪製。選詞記憶和完整的 iOS 混合語言排序仍待移植。
+界面沿用 iOS 的键位、试打页、候选展开、双猫／简洁皮肤、深浅色与十组色系。玻璃外观由 Android 的渐层、描边和透明度绘制。选词记忆和完整的 iOS 混合语言排序仍待移植。
 
-## 安裝
+## 安装
 
-[直接下載已簽署的 APK](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-android.apk)（[發佈資訊與校驗檔](https://github.com/Krysta1ll/Meowpuut/releases/tag/v0.4.3-alpha.1)），安裝後開啟「喵撲」。在「鍵盤設定」啟用並選取喵撲，回到試打頁即可輸入。
+[直接下载已签名的 APK](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-android.apk)（[发布信息与校验档](https://github.com/Krysta1ll/Meowpuut/releases/tag/v0.4.3-alpha.1)），安装后开启「喵扑」。在「键盘设置」启用并选取喵扑，回到试打页即可输入。
 
-0.4.3-alpha.1 使用新的發行簽章。若已裝過 Android 0.1.0，請先記下自己的鍵盤設定，再卸載舊版、安裝新版；卸載會清除喵撲的本機設定，不能直接覆蓋更新。第一次安裝不受影響。
+0.4.3-alpha.1 使用新的发行签名。若已装过 Android 0.1.0，请先记下自己的键盘设置，再卸载旧版、安装新版；卸载会清除喵扑的本机设置，不能直接覆盖更新。第一次安装不受影响。
 
 ## 0.4.3-alpha.1
 
-這版更新 mimo 詞庫與共用輸入核心，補回單字讀音，修正長句分段後剩餘讀音的處理。拼音輸入到下一個音節時，可以保留前面的分段候選，不必從第一個字重選。也修正換欄位、移動游標和長按時的待送文字處理。
+这版更新 mimo 词库与共用输入核心，补回单字读音，修正长句分段后剩余读音的处理。拼音输入到下一个音节时，可以保留前面的分段候选，不必从第一个字重选。也修正换字段、移动光标和长按时的待送文字处理。
 
-這是公開測試版，尚未完成 Android 真機驗收。
+这是公开测试版，尚未完成 Android 真机验收。
 
-## 建置
+## 构建
 
-準備 JDK 17、Gradle 8.9、Android SDK Platform 35、Build Tools 35.0.0、NDK 27.2.12479018、CMake 3.22.1 和 Python 3。將 `ANDROID_HOME` 指向 Android SDK。詞庫使用隨原始碼附帶的固定轉換資料，不需要安裝 `uconv`。
+准备 JDK 17、Gradle 8.9、Android SDK Platform 35、Build Tools 35.0.0、NDK 27.2.12479018、CMake 3.22.1 和 Python 3。将 `ANDROID_HOME` 指向 Android SDK。词库使用随源代码附带的固定转换数据，不需要安装 `uconv`。
 
-在儲存庫根目錄執行：
+在保存库根目录执行：
 
 ```sh
 python3 scripts/compile-native-lexicon.py Android/Generated
 gradle -p Android assembleDebug
 ```
 
-APK 位於 `Android/build/outputs/apk/debug/`。安裝後打開「喵撲」，從「鍵盤設定」進入系統設定，啟用並選取喵撲鍵盤。
+APK 位于 `Android/build/outputs/apk/debug/`。安装后打开「喵扑」，从「键盘设置」进入系统设置，启用并选取喵扑键盘。
 
-## 製作簽署安裝包
+## 制作签名安装包
 
-使用 JDK 17，設定 `ANDROID_HOME` 與 `GRADLE`（Gradle 執行檔路徑），再提供以下本機環境變數：
+使用 JDK 17，设置 `ANDROID_HOME` 与 `GRADLE`（Gradle 执行档路径），再提供以下本机环境变数：
 
-- `MEOWPUUT_ANDROID_KEYSTORE`：原有發行金鑰檔案。
-- `MEOWPUUT_ANDROID_KEY_ALIAS`：金鑰別名。
-- `MEOWPUUT_ANDROID_STORE_PASS_FILE`：只含 keystore 密碼的本機檔案。
-- `MEOWPUUT_ANDROID_KEY_PASS_FILE`：金鑰密碼檔案；相同時可省略。
+- `MEOWPUUT_ANDROID_KEYSTORE`：原有发行金钥文件。
+- `MEOWPUUT_ANDROID_KEY_ALIAS`：金钥别名。
+- `MEOWPUUT_ANDROID_STORE_PASS_FILE`：只含 keystore 密码的本机文件。
+- `MEOWPUUT_ANDROID_KEY_PASS_FILE`：金钥密码文件；相同时可省略。
 
-密碼檔與金鑰應保存在儲存庫外，限制為帳號本人可讀。執行 `Android/build-release.sh` 後，簽署 APK 會放在 `.build/releases/<版本>/`。腳本會重建詞庫、編譯 release、檢查簽章與 16 KB ZIP 對齊，最後列出 SHA-256。更新既有安裝必須使用相同簽署金鑰。
+密码档与金钥应保存在保存库外，限制为帐号本人可读。执行 `Android/build-release.sh` 后，签名 APK 会放在 `.build/releases/<版本>/`。脚本会重建词库、编译 release、检查签名与 16 KB ZIP 对齐，最后列出 SHA-256。更新既有安装必须使用相同签名金钥。
 
-## Windows 模擬器
+## Windows 模拟器
 
-在 Android SDK 中安裝 Android Emulator、Platform Tools 和 `system-images;android-35;default;x86_64`，再從儲存庫根目錄執行：
+在 Android SDK 中安装 Android Emulator、Platform Tools 和 `system-images;android-35;default;x86_64`，再从保存库根目录执行：
 
 ```powershell
 pwsh -File Android/start-test.ps1
 ```
 
-腳本建立或啟動 `Meowpuut_API_35`，安裝最新建置的 APK，並在該模擬器啟用喵撲和開啟試打頁。若未設定 `ANDROID_HOME`，腳本使用本機的 `.build/android-tools/sdk`。
+脚本建立或启动 `Meowpuut_API_35`，安装最新构建的 APK，并在该模拟器启用喵扑和开启试打页。若未设置 `ANDROID_HOME`，脚本使用本机的 `.build/android-tools/sdk`。
 
-## 試打
+## 试打
 
-「鍵盤設定 → 按鍵高度」可選標準、加高或特高。鍵盤依目前視窗可用高度收緊，空間足夠時保留所選高度；橫向與分割視窗不再被固定的 312 dp 最低高度撐大。導航列與螢幕缺口留在安全區外，展開候選時維持鍵盤原高度。按鍵列與候選條的縱向點擊範圍至少 44 dp；極矮視窗仍可能需要系統全螢幕編輯區。這些尺寸經幾何測試，尚待 Android 真機確認。
+「键盘设置 → 按键高度」可选标准、加高或特高。键盘依目前窗口可用高度收紧，空间足够时保留所选高度；横向与分割窗口不再被固定的 312 dp 最低高度撑大。导航列与屏幕缺口留在安全区外，展开候选时维持键盘原高度。按键列与候选条的纵向点击范围至少 44 dp；极矮窗口仍可能需要系统全屏幕编辑区。这些尺寸经几何测试，尚待 Android 真机确认。
 
-- 新安裝預設使用簡體拼音。切換注音後，依序點 `ㄋ ㄧ ˇ ㄏ ㄠ ˇ`，選「你好」。注音的空格鍵在組字時可標一聲或選詞。
-- 長按底列的 ABC／語言鍵，直接選擇注音、日語或拼音。拼音輸入 `nihao` 可按空格提交首選「你好」。前綴候選旁會顯示對應拼音，選取後可繼續轉換剩餘讀音。
-- 長按 ABC／語言鍵並從選單切換繁簡，用拼音輸入 `youhua`，選「優化」或「优化」。
-- 日語輸入 `sushi` 可選「寿司」、平假名或片假名。拼音模式識別詞庫中的日語片段後，中文可完整解碼時優先顯示中文候選，手動指定日語片段後則以指定寫法為首選。含日語的候選會加上貓爪標記。收合時最多顯示一項，其他日語候選會和低置信中文候選交錯出現在展開清單。長按該候選可選其他寫法，只替換日語片段，整句會留在組字區。
-- 點候選條右側箭頭展開，展開後可翻頁。長按空格滑動可移動游標，長按退格可連續刪除。
-- 密碼、網址、電郵及數字欄位使用直接輸入。
+- 新安装默认使用简体拼音。切换注音后，依序点 `ㄋ ㄧ ˇ ㄏ ㄠ ˇ`，选「你好」。注音的空格键在组字时可标一声或选词。
+- 长按底列的 ABC／语言键，直接选择注音、日语或拼音。拼音输入 `nihao` 可按空格提交首选「你好」。前缀候选旁会显示对应拼音，选取后可继续转换剩余读音。
+- 长按 ABC／语言键并从选单切换繁简，用拼音输入 `youhua`，选「优化」或「优化」。
+- 日语输入 `sushi` 可选「寿司」、平假名或片假名。拼音模式识别词库中的日语片段后，中文可完整解码时优先显示中文候选，手动指定日语片段后则以指定写法为首选。含日语的候选会加上猫爪标记。收合时最多显示一项，其他日语候选会和低置信中文候选交错出现在展开清单。长按该候选可选其他写法，只替换日语片段，整句会留在组字区。
+- 点候选条右侧箭头展开，展开后可翻页。长按空格滑动可移动光标，长按退格可连续删除。
+- 密码、网址、电邮及数字字段使用直接输入。
 
-## 核心冒煙測試
+## 核心冒烟测试
 
-生成詞庫後，使用桌面端的 C++17 編譯器執行：
+生成词库后，使用桌面端的 C++17 编译器执行：
 
 ```sh
 c++ -std=c++17 -ICore Core/MeowpuutCore.cpp Android/smoke.cpp -o Android/Generated/smoke
@@ -71,11 +71,11 @@ Android/Generated/smoke
 ```
 
 
-## 上屏失敗重試
+## 上屏失败重试
 
-目前原始碼會保留已選取、但應用程式暫時拒絕接收的文字，顯示「文字尚未送出，點此重試」。點提示或再次按鍵會先重試該次選詞；成功前不寫入剩餘讀音，也不執行舊候選的點擊。若重試前游標已移動，會暫停自動重試；只有點選「游標已移動，點此插入待送文字」才插入目前位置。文字只屬於目前編輯欄位；離開欄位後不會送到另一個應用程式。此保護尚未在 Android 真機驗證；應用關閉或持續拒絕寫入仍可能讓未送出的文字遺失。
+目前源代码会保留已选取、但应用程序暂时拒绝接收的文字，显示「文字尚未送出，点此重试」。点提示或再次按键会先重试该次选词；成功前不写入剩余读音，也不执行旧候选的点击。若重试前光标已移动，会暂停自动重试；只有点选「光标已移动，点此插入待送文字」才插入目前位置。文字只属于目前编辑字段；离开字段后不会送到另一个应用程序。此保护尚未在 Android 真机验证；应用关闭或持续拒绝写入仍可能让未送出的文字遗失。
 
-可用 JDK 獨立檢查重試、順序與欄位隔離：
+可用 JDK 独立检查重试、顺序与字段隔离：
 
 ```sh
 javac -d /tmp/meowpuut-delivery Android/src/main/java/app/meowpuut/android/PendingCommit.java Android/tests/PendingCommitTest.java
@@ -83,7 +83,7 @@ java -ea -cp /tmp/meowpuut-delivery app.meowpuut.android.PendingCommitTest
 ```
 
 
-版面幾何可在桌面 JDK 檢查，涵蓋 192 組視窗高度、安全區、拼音／注音列數與高度偏好：
+版面几何可在桌面 JDK 检查，涵盖 192 组窗口高度、安全区、拼音／注音列数与高度偏好：
 
 ```sh
 javac -d /tmp/meowpuut-layout Android/src/main/java/app/meowpuut/android/KeyboardLayoutMetrics.java Android/tests/KeyboardLayoutMetricsTest.java
@@ -91,13 +91,13 @@ java -ea -cp /tmp/meowpuut-layout app.meowpuut.android.KeyboardLayoutMetricsTest
 ```
 
 
-## 編輯位置與長按
+## 编辑位置与长按
 
-在應用程式中清空、貼上或移動游標時，鍵盤會結束舊組字，避免下次按鍵帶回已刪除的讀音。上屏造成的延遲游標回報會與已接受的寫入逐一比對。長按刪除與空格滑動在隱藏、換欄位、重新佈局或視圖移除時取消；空格上的第二根手指也會取消該次手勢。
+在应用程序中清空、粘贴或移动光标时，键盘会结束旧组字，避免下次按键带回已删除的读音。上屏造成的延迟光标反馈会与已接受的写入逐一比对。长按删除与空格滑动在隐藏、换字段、重新布局或视图移除时取消；空格上的第二根手指也会取消该次手势。
 
 ```sh
 javac -d /tmp/meowpuut-selection Android/src/main/java/app/meowpuut/android/EditorSelection.java Android/tests/EditorSelectionTest.java
 java -ea -cp /tmp/meowpuut-selection app.meowpuut.android.EditorSelectionTest
 ```
 
-游標協議已通過桌面模型測試，手勢生命週期已編譯檢查；仍需在 Android 應用中驗證真實事件順序。
+光标协议已通过桌面模型测试，手势生命周期已编译检查；仍需在 Android 应用中验证真实事件顺序。

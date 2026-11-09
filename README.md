@@ -2,75 +2,75 @@
   <img src="assets/brand/MeowpuutMark.png" width="160" alt="米米莫和莫莫">
 </p>
 
-<h1 align="center">喵撲 Meowpuut</h1>
+<h1 align="center">喵扑 Meowpuut</h1>
 <p align="center">mimimo。</p>
 <p align="center">
-  <a href="https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-macos-arm64.dmg">下載 macOS 測試版</a> ·
+  <a href="https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-macos-arm64.dmg">下载 macOS 测试版</a> ·
   <a href="https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-windows-x64.zip">Windows</a> ·
   <a href="https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-android.apk">Android</a> ·
-  <a href="docs/INSTALL.md">安裝說明</a> ·
-  <a href="https://github.com/Krysta1ll/Meowpuut/issues">回報問題</a> ·
+  <a href="docs/INSTALL.md">安装说明</a> ·
+  <a href="https://github.com/Krysta1ll/Meowpuut/issues">反馈问题</a> ·
   <a href="LICENSE">MIT</a>
 </p>
 
-喵撲是一款從日常中文輸入出發的開源輸入法。拼音和注音各有自己的按鍵規則，繁簡共用一份詞庫；偶爾想打日文單字，可以直接輸入羅馬音，不必為幾個字來回切換輸入法。
+喵扑是一款从日常中文输入出发的开源输入法。拼音和注音各有自己的按键规则，繁简共用一份词库；偶尔想打日文单字，可以直接输入罗马音，不必为几个字来回切换输入法。
 
-目前是公開測試版。遇到不順手的地方，歡迎提供按鍵順序和預期文字。
+目前是公开测试版。遇到不顺手的地方，欢迎提供按键顺序和预期文字。
 
-## 把小貓帶回家
+## 把小猫带回家
 
-| 平台 | 下載 | 版本 |
+| 平台 | 下载 | 版本 |
 | --- | --- | --- |
-| macOS · Apple silicon | [紙箱安裝盤](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-macos-arm64.dmg) · [安裝套件](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-macos-arm64.pkg) · [SHA-256](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/SHA256SUMS.txt) | 0.4.3 Alpha 1，macOS 27+ |
-| Windows · x64 | [下載 ZIP](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-windows-x64.zip) · [SHA-256](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/SHA256SUMS.txt) | 0.4.3 Alpha 1，Windows 10／11 |
-| Android | [下載 APK](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-android.apk) · [SHA-256](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/SHA256SUMS.txt) | 0.4.3 Alpha 1，Android 7+ |
-| iOS／iPadOS | [原始碼與建置說明](iOS/README.md) | 尚無公開 TestFlight 或 IPA |
+| macOS · Apple silicon | [纸箱安装盘](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-macos-arm64.dmg) · [安装包](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-macos-arm64.pkg) · [SHA-256](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/SHA256SUMS.txt) | 0.4.3 Alpha 1，macOS 27+ |
+| Windows · x64 | [下载 ZIP](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-windows-x64.zip) · [SHA-256](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/SHA256SUMS.txt) | 0.4.3 Alpha 1，Windows 10／11 |
+| Android | [下载 APK](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/Meowpuut-0.4.3-alpha.1-android.apk) · [SHA-256](https://github.com/Krysta1ll/Meowpuut/releases/download/v0.4.3-alpha.1/SHA256SUMS.txt) | 0.4.3 Alpha 1，Android 7+ |
+| iOS／iPadOS | [源代码与构建说明](iOS/README.md) | 尚无公开 TestFlight 或 IPA |
 
-Windows 與 Android 仍是 Alpha，功能與 macOS 不完全相同；Windows 目前以拼音為主，新版焦點及上屏保護未經 Windows 實測，未提交的文字仍可能遺失。Windows 與 Android 尚未完成真機驗收。macOS 安裝包尚未公證，Windows 套件未簽署；安裝前請讀各平台說明並核對 SHA-256。Intel Mac 與較舊的 macOS 尚未驗證。
+Windows 与 Android 仍是 Alpha，功能与 macOS 不完全相同；Windows 目前以拼音为主，新版焦点及上屏保护未经 Windows 实测，未提交的文字仍可能遗失。Windows 与 Android 尚未完成真机验收。macOS 安装包尚未公证，Windows 软件包未签名；安装前请读各平台说明并核对 SHA-256。Intel Mac 与较旧的 macOS 尚未验证。
 
-**Android 舊版更新：** 0.4.3 改用新的發行簽章，無法直接覆蓋 0.1.0。請先記下設定，再卸載舊版、安裝新版；卸載會清除本機設定。全新安裝不受影響。
+**Android 旧版更新：** 0.4.3 改用新的发行签名，无法直接覆盖 0.1.0。请先记下设置，再卸载旧版、安装新版；卸载会清除本机设置。全新安装不受影响。
 
-## 0.4.3：句子還沒打完，也能先選前半段
+## 0.4.3：句子还没打完，也能先选前半段
 
-`woxihuannid` 打到最後的 `d`，前面的「我喜歡你」仍可選；選完只留下 `d`，接著打下一個字。注音也保留前段與尚未完成的音節。拼音後面接 `kirei` 或 `udon` 時，中文前段與日語候選一起參與分段，不必先把中文送出去。
+`woxihuannid` 打到最后的 `d`，前面的「我喜歡你」仍可选；选完只留下 `d`，接着打下一个字。注音也保留前段与尚未完成的音节。拼音后面接 `kirei` 或 `udon` 时，中文前段与日语候选一起参与分段，不必先把中文送出去。
 
-這版重新核對 mimo 的單字讀音、繁簡字形和來源詞頻。簡體拼音用簡體來源的詞頻排序，繁體輸出保留自己的權重；已選前段的短期上下文也會參與後段排序。詞庫與三個公開客戶端在同一版收齊。具體修復與限制見[版本更新](docs/RELEASE_NOTES.md)。
+这版重新核对 mimo 的单字读音、繁简字形和来源词频。简体拼音用简体来源的词频排序，繁体输出保留自己的权重；已选前段的短期上下文也会参与后段排序。词库与三个公开客户端在同一版收齐。具体修复与限制见[版本更新](docs/RELEASE_NOTES.md)。
 
-## 今天想打什麼？
+## 今天想打什么？
 
-以下畫面為 macOS 0.4.2 的候選介面預覽。
+以下画面为 macOS 0.4.2 的候选界面预览。
 
-打 `sushi` 的時候，「蘇軾」和「寿司」都可以在候選裡找到。貓爪提醒你那是日語，想吃壽司還是想聊蘇軾，交給你選。
+打 `sushi` 的时候，「蘇軾」和「寿司」都可以在候选里找到。猫爪提醒你那是日语，想吃寿司还是想聊苏轼，交给你选。
 
-![輸入 sushi 時的候選窗介面預覽](assets/screenshots/sushi-current.png)
+![输入 sushi 时的候选窗界面预览](assets/screenshots/sushi-current.png)
 
-想說「我好き你」？在拼音模式接著打 `wosukini` 就好。也可以先選長句的前半段：`woxihuannid` 選「我喜歡你」之後，剩下的 `d` 會留在組字中。
+想说「我好き你」？在拼音模式接着打 `wosukini` 就好。也可以先选长句的前半段：`woxihuannid` 选「我喜歡你」之后，剩下的 `d` 会留在组字中。
 
-![中日混打「我好き你」的候選窗介面預覽](assets/screenshots/mixed-current.png)
+![中日混打「我好き你」的候选窗界面预览](assets/screenshots/mixed-current.png)
 
-習慣注音的話，`su3cl3` 就是「你好」。拼音和注音各有一套按鍵，不用猜現在該按哪種聲調。
+习惯注音的话，`su3cl3` 就是「你好」。拼音和注音各有一套按键，不用猜现在该按哪种声调。
 
-![注音輸入「你好」的候選窗介面預覽](assets/screenshots/zhuyin-current.png)
+![注音输入「你好」的候选窗界面预览](assets/screenshots/zhuyin-current.png)
 
-## 米米莫、莫莫，和候選窗
+## 米米莫、莫莫，和候选窗
 
-左邊是米米莫，右邊是莫莫。貓耳構成玻璃的邊界，尾巴沿著候選列收起，兩張臉留在左右兩端。角色和視窗一起變長、收合；文字仍是中間最重要的部分。
+左边是米米莫，右边是莫莫。猫耳构成玻璃的边界，尾巴沿著候选列收起，两张脸留在左右两端。角色和窗口一起变长、收合；文字仍是中间最重要的部分。
 
-「雙貓玻璃」之外，也有「簡潔玻璃」。兩種皮膚共用深色、淺色與跟隨系統的選擇，內建玫瑰奶茶、海鹽藍、鼠尾草綠、霧紫、琥珀蜜、石墨六組配色，玻璃強度亦可調整。兩者都依實際字寬安排候選，短詞可以並排，長句展開閱讀。縮放與展開有輕柔過渡，也會遵守系統的減少動態效果設定。
+「双猫玻璃」之外，也有「简洁玻璃」。两种皮肤共用深色、浅色与跟随系统的选择，内置玫瑰奶茶、海盐蓝、鼠尾草绿、雾紫、琥珀蜜、石墨六组配色，玻璃强度亦可调整。两者都依实际字宽安排候选，短词可以并排，长句展开阅读。缩放与展开有轻柔过渡，也会遵守系统的减少动态效果设置。
 
-## 選字，先照顧中文
+## 选字，先照顾中文
 
-- **拼音與注音分開。** 拼音用數字直接選詞；注音保留數字聲調，用 Shift＋數字選詞，不讓兩套規則互相搶按鍵。
-- **日語留在旁邊。** 拼音輸入時，完整羅馬音可產生假名或日語詞彙候選；有日語候選時，收合列保留一個，以傾斜的小貓爪標示。展開後可按候選排序繼續瀏覽。
-- **英文留得住。** 拼音組字時，空格或 Enter 選取目前高亮的候選，數字可直接選詞；Shift＋Enter 輸出原始字母。單個字母仍可選英文，但中文優先。已識別的英文單字也可以成為首選。
-- **越用越熟悉你的用詞。** 記住確認過的選詞、使用次數，以及短時間相鄰選詞的關係。反覆使用的短語可進入本機個人詞庫，無須逐個收藏。
-- **表情跟著詞義走。** 「開心」「謝謝」「晚安」等詞可以帶出 emoji 和顏文字，作為文字之外的選擇。
+- **拼音与注音分开。** 拼音用数字直接选词；注音保留数字声调，用 Shift＋数字选词，不让两套规则互相抢按键。
+- **日语留在旁边。** 拼音输入时，完整罗马音可产生假名或日语词汇候选；有日语候选时，收合列保留一个，以倾斜的小猫爪标示。展开后可按候选排序继续浏览。
+- **英文留得住。** 拼音组字时，空格或 Enter 选取目前高亮的候选，数字可直接选词；Shift＋Enter 输出原始字母。单个字母仍可选英文，但中文优先。已识别的英文单字也可以成为首选。
+- **越用越熟悉你的用词。** 记住确认过的选词、使用次数，以及短时间相邻选词的关系。反复使用的短语可进入本机个人词库，无须逐个收藏。
+- **表情跟著词义走。** 「开心」「谢谢」「晚安」等词可以带出 emoji 和颜文字，作为文字之外的选择。
 
-日語目前是羅馬音轉假名加小型單字詞表，不是完整的日語整句漢字轉換器。能轉成假名，也不代表那串字一定是有意義的日語。
+日语目前是罗马音转假名加小型单字词表，不是完整的日语整句汉字转换器。能转成假名，也不代表那串字一定是有意义的日语。
 
-## 先試幾個字（macOS）
+## 先试几个字（macOS）
 
-| 模式 | 輸入 | 可以選到 |
+| 模式 | 输入 | 可以选到 |
 | --- | --- | --- |
 | 注音 | `su3cl3` | 你好 |
 | 注音 | `aul `（末尾空格） | 喵 |
@@ -78,43 +78,43 @@ Windows 與 Android 仍是 Alpha，功能與 macOS 不完全相同；Windows 目
 | 拼音 | `miao` | 喵 |
 | 拼音 | `youhua` | 優化／优化 |
 | 拼音 | `d` | 的、到、都等中文，亦保留原字母 |
-| 拼音 | `sushi` | 中文同音詞，以及日語備選 |
+| 拼音 | `sushi` | 中文同音词，以及日语备选 |
 | 拼音 | `emoji` | 英文原文 |
 
-| 操作 | 快捷鍵 |
+| 操作 | 快捷键 |
 | --- | --- |
-| 注音／拼音／日語模式 | Control＋Option＋1／2／3 |
-| 拼音選詞 | 1–7 |
-| 注音選詞 | Shift＋1–7 |
-| 確認候選 | Enter；拼音也可按空格 |
+| 注音／拼音／日语模式 | Control＋Option＋1／2／3 |
+| 拼音选词 | 1–7 |
+| 注音选词 | Shift＋1–7 |
+| 确认候选 | Enter；拼音也可按空格 |
 | 保留原始字母 | Shift＋Enter |
-| 展開／收合或取消 | ↓／Esc |
-| 翻頁 | Option＋←／→，或 Page Up／Page Down |
-| 拼音聲調（可選） | Shift＋空格／6／3／4／7 → 一／二／三／四／輕聲 |
-| 中英切換 | 拼音單按 Shift；注音保留 Shift＋Space |
-| 標點選單 | 反引號 |
-| 中文模式輸入英文斜線 `/` | Option＋斜線 |
-| 本地短語模組 | Option＋Space |
+| 展开／收合或取消 | ↓／Esc |
+| 翻页 | Option＋←／→，或 Page Up／Page Down |
+| 拼音声调（可选） | Shift＋空格／6／3／4／7 → 一／二／三／四／轻声 |
+| 中英切换 | 拼音单按 Shift；注音保留 Shift＋Space |
+| 标点选单 | 反引号 |
+| 中文模式输入英文斜线 `/` | Option＋斜线 |
+| 本地短语模组 | Option＋Space |
 
-拼音直接按標點鍵輸入中文標點；Shift＋逗號、句號、斜線可輸入英文標點。注音的聲韻鍵保留原功能。繁簡與皮膚可在輸入法選單切換。
+拼音直接按标点键输入中文标点；Shift＋逗号、句号、斜线可输入英文标点。注音的声韵键保留原功能。繁简与皮肤可在输入法选单切换。
 
-## mimo 1.0：一份繁簡詞庫，兩套輸入規則
+## mimo 1.0：一份繁简词库，两套输入规则
 
-中文解碼、斷詞與排序由喵撲的 C++17 核心完成，沒有 Rime 執行時依賴。中文資料採用 McBopomofo 與 Pinyin Pro 的 MIT 詞表，再套用喵撲的讀音、字形與排序修訂；日語詞條也包含附帶 BSD 授權的 UniDic 精選資料。
+中文解码、断词与排序由喵扑的 C++17 核心完成，没有 Rime 执行时依赖。中文数据采用 McBopomofo 与 Pinyin Pro 的 MIT 词表，再套用喵扑的读音、字形与排序修订；日语词条也包含附带 BSD 授权的 UniDic 精选数据。
 
-合併詞庫名為 **mimo 1.0**。讀音和簡體相同、繁體不同的字詞各自保留，例如「志／誌」和「一周／一週」；簡體輸出會將相同候選去重。兩份來源的頻率尺度以共同詞條校準，簡體來源的表達優先，本地修訂最後生效。每筆資料保有繁簡字形，切換輸出不需要載入另一份詞庫。
+合并词库名为 **mimo 1.0**。读音和简体相同、繁体不同的字词各自保留，例如「志／誌」和「一周／一週」；简体输出会将相同候选去重。两份来源的频率尺度以共同词条校准，简体来源的表达优先，本地修订最后生效。每笔数据保有繁简字形，切换输出不需要加载另一份词库。
 
-約 40 萬組詞條讀音保存在完整索引，常用部分供核心斷詞；這不是 40 萬個互不重複的詞，也不是即時聯網更新。固定版本、校驗值與授權見 [THIRD_PARTY.md](THIRD_PARTY.md)。合併策略與已知限制見[引擎說明](docs/ENGINE.md)。
+约 40 万组词条读音保存在完整索引，常用部分供核心断词；这不是 40 万个互不重复的词，也不是即时联网更新。固定版本、校验值与授权见 [THIRD_PARTY.md](THIRD_PARTY.md)。合并策略与已知限制见[引擎说明](docs/ENGINE.md)。
 
-## 資料留在本機
+## 数据留在本机
 
-macOS 和 iOS 的輸入、排序與個人詞庫不需要網路。開始一段中文組字時，使用目前輸入欄位游標前最多四個連續中文字輔助排序，遇到標點、空白或其他文字便停止；這段前文只留在本次組字，不寫入個人詞庫，也不掃描聊天記錄或整份文件。個人詞庫學習的是你確認過的候選，可在設定中停用或清除；停用記憶後仍可使用當前語境排序。Windows、Android Alpha 的功能請參考各自的版本說明。
+macOS 和 iOS 的输入、排序与个人词库不需要网络。开始一段中文组字时，使用目前输入字段光标前最多四个连续中文字辅助排序，遇到标点、空白或其他文字便停止；这段前文只留在本次组字，不写入个人词库，也不扫描聊天记录或整份文件。个人词库学习的是你确认过的候选，可在设置中停用或清除；停用记忆后仍可使用当前语境排序。Windows、Android Alpha 的功能请参考各自的版本说明。
 
-macOS 資料位於 `~/Library/Application Support/Meowpuut/`。iOS 鍵盤使用自己的沙盒；目前沒有跨裝置同步。
+macOS 数据位于 `~/Library/Application Support/Meowpuut/`。iOS 键盘使用自己的沙盒；目前没有跨设备同步。
 
-## 從原始碼建置
+## 从源代码构建
 
-macOS 需要 macOS 27 SDK 的完整 Xcode、Python 3 和命令列工具。建置腳本預設使用 `/Applications/Xcode.app`；其他位置可設定 `MEOWPUUT_XCODE_DIR`。
+macOS 需要 macOS 27 SDK 的完整 Xcode、Python 3 和命令行工具。构建脚本默认使用 `/Applications/Xcode.app`；其他位置可设置 `MEOWPUUT_XCODE_DIR`。
 
 ```sh
 git clone https://github.com/Krysta1ll/Meowpuut.git
@@ -124,23 +124,23 @@ bash scripts/build.sh
 bash scripts/package-macos.sh
 ```
 
-詞庫快照隨原始碼保存，正常建置不用下載外部引擎或詞庫。測試使用獨立偏好設定，不修改日常選詞記憶。安裝包輸出至 `.build/releases/`。
+词库快照随源代码保存，正常构建不用下载外部引擎或词库。测试使用独立偏好设置，不修改日常选词记忆。安装包输出至 `.build/releases/`。
 
-C++ 核心可以單獨建置：
+C++ 核心可以单独构建：
 
 ```sh
 cmake -S Core -B .build/core
 cmake --build .build/core
 ```
 
-iOS 另需 XcodeGen，見 [iOS/README.md](iOS/README.md)。
+Windows 的构建、安装与会话层测试见 [Windows/README.md](Windows/README.md)。iOS 另需 XcodeGen，见 [iOS/README.md](iOS/README.md)。
 
-輸入體驗的修正、測試方式與尚未完成的部分，見[體驗檢查記錄](docs/INPUT_EXPERIENCE_AUDIT.md)。
+输入体验的修正、测试方式与尚未完成的部分，见[体验检查记录](docs/INPUT_EXPERIENCE_AUDIT.md)。
 
-## 一起把選詞做好
+## 一起把选词做好
 
-最有用的回報往往只有幾行：使用哪個模式、按了哪些鍵、想打什麼、目前出現什麼。請刪掉截圖中的私人內容，再附上系統與應用版本。
+最有用的反馈往往只有几行：使用哪个模式、按了哪些键、想打什么、目前出现什么。请删掉截图中的私人内容，再附上系统与应用版本。
 
-詞庫修訂放在 `Resources/Lexicon/`，不要直接修改上游快照。歡迎修讀音、調排序、補日常詞彙和改善跨應用相容性。提交方式見 [CONTRIBUTING.md](CONTRIBUTING.md)。
+词库修订放在 `Resources/Lexicon/`，不要直接修改上游快照。欢迎修读音、调排序、补日常词汇和改善跨应用兼容性。提交方式见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-原創程式碼與隨附專案素材採 [MIT](LICENSE)；外部詞庫保留各自授權。喵撲仍在測試階段，長句斷詞、繁簡歧義字形、日語單字覆蓋和不同應用中的候選定位，都還有需要打磨的地方。
+原创代码与随附项目素材采 [MIT](LICENSE)；外部词库保留各自授权。喵扑仍在测试阶段，长句断词、繁简歧义字形、日语单字覆盖和不同应用中的候选定位，都还有需要打磨的地方。
