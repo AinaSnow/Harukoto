@@ -276,7 +276,21 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
     if (!names.empty()) {
         // Keep ordinary high-confidence Chinese first. A recorded theme name
         // precedes speculative spelling paths, with room for the Japanese pair.
-        auto position = std::find_if(result.begin(), result.end(), [](const auto &c) { return !c.strong || c.japanese; });
+        auto position = std::find_if(result.begin(), result.end(), [&](const auto &c) {
+            if (c.japanese) return true;
+            if (c.strong) return false;
+            if (c.coreIndex) {
+                MPNCandidateInfo info{};
+                if (mpn_candidate_info(session, *c.coreIndex, &info, sizeof(info)) && info.consumed_bytes == input.size()) {
+                    // An exact dictionary reading keeps priority even with a low
+                    // source frequency. Also retain a complete phrase when the
+                    // theme expands it (辛苦了 -> 打得好！辛苦了！).
+                    if (info.kind == MPN_CANDIDATE_EXACT ||
+                        (info.kind == MPN_CANDIDATE_PATH && names.front().text.find(c.text) != std::string::npos)) return false;
+                }
+            }
+            return true;
+        });
         result.insert(position, std::move(names.front()));
         result.insert(result.end(), std::make_move_iterator(names.begin() + 1), std::make_move_iterator(names.end()));
     }

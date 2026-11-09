@@ -3,6 +3,7 @@
 #include "../WordEvidence.h"
 #include "../JapanesePackages.h"
 #include <cassert>
+#include <array>
 #include <fstream>
 #include <iostream>
 
@@ -101,6 +102,33 @@ int main(int argc, char **argv) {
         }
         mpn_session_destroy(session); mpn_lexicon_destroy(lexicon); return 0;
     }
+    // Reusable short context must improve composed phrases in both scripts;
+    // these sentences are not whole-word entries in the authored dictionaries.
+    for (bool simplified : {false, true}) {
+        mpn_set_simplified(session, simplified);
+        for (const auto &sample : std::vector<std::array<std::string, 3>>{
+            {"womenmingtianjian", "我们明天见", "我們明天見"},
+            {"womenwanshangjian", "我们晚上见", "我們晚上見"},
+            {"tamenmingtianjian", "他们明天见", "他們明天見"},
+            {"qingbangwokanyixia", "请帮我看一下", "請幫我看一下"},
+            {"qingbangwomen", "请帮我们", "請幫我們"},
+            {"zuduishijian", "组队时间", "組隊時間"},
+            {"woduanxianle", "我断线了", "我斷線了"},
+            {"taduanxianle", "他断线了", "他斷線了"},
+            {"womenkaishiba", "我们开始吧", "我們開始吧"},
+            {"nimenkaishiba", "你们开始吧", "你們開始吧"},
+            {"zhegezenmeda", "这个怎么打", "這個怎麼打"}}) {
+            mpn_clear(session);
+            for (char c : sample[0]) assert(mpn_key(session, c));
+            const auto choices = windowsCandidates(session, words, [&](const std::string &reading) { return evidence.dictionary(reading, simplified); }, false);
+            const auto &expected = sample[simplified ? 1 : 2];
+            if (choices.empty() || choices.front().text != expected) std::cerr << "Context: " << sample[0] << " expected " << expected << std::endl;
+            assert(!choices.empty() && choices.front().text == expected && choices.front().coreIndex);
+            assert(mpn_choose(session, *choices.front().coreIndex));
+            assert(std::string(mpn_committed(session)) == expected && !*mpn_input(session));
+            mpn_clear_commit(session);
+        }
+    }
     if (argc >= 4) {
         const bool bulk = argc == 5;
         auto themes = readEnabledJapanesePackages(argv[2]);
@@ -111,6 +139,17 @@ int main(int argc, char **argv) {
             auto lookup = [&](const std::string &reading) { return evidence.dictionary(reading, simplified); };
             mpn_set_simplified(session, simplified);
             if (bulk) {
+                for (const auto &input : {"xinkule", "zaoshanghao"}) {
+                    mpn_clear(session); for (char c : std::string(input)) assert(mpn_key(session, c));
+                    const auto before = windowsCandidates(session, words, lookup, false);
+                    const auto after = windowsCandidates(session, merged, lookup, false);
+                    assert(!before.empty() && !after.empty() && before.front().text == after.front().text);
+                    assert(after.front().coreIndex && after.front().coreIndex == before.front().coreIndex);
+                    assert(std::any_of(after.begin(), after.end(), [](const auto &c) { return c.annotation == "主题词库 · 中文"; }));
+                    assert(mpn_choose(session, *after.front().coreIndex));
+                    assert(std::string(mpn_committed(session)) == before.front().text && !*mpn_input(session));
+                    mpn_clear_commit(session);
+                }
                 for (const auto &input : {"wuerdaha", "xinkule"}) {
                     mpn_clear(session);
                     for (char c : std::string(input)) assert(mpn_key(session, c));
