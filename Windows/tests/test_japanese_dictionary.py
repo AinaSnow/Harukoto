@@ -10,6 +10,13 @@ from japanese_dictionary import parse_word_list, trigger
 
 
 class WordListTests(unittest.TestCase):
+    def test_fullwidth_colon_preserved_in_names(self):
+        words = self.parse('# 测试\n魔土器:自己強化 | まどきじこきょうか | chinese: 魔陶器：强化自身 | pinyin：motaqiqianghuazishen\n')
+        self.assertEqual(words[0][1], '魔土器:自己強化')
+        self.assertEqual(words[0][5], '魔陶器：强化自身')
+        words = self.parse('# 测试\n魔土器:自己強化｜まどきじこきょうか｜chinese：魔陶器:强化自身｜pinyin：motaqiqianghuazishen\n')
+        self.assertEqual(words[0][5], '魔陶器:强化自身')
+
     def parse(self, content):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'words.txt'

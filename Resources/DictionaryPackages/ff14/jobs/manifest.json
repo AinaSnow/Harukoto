@@ -1,9 +1,9 @@
 {
   "format": 1,
   "id": "harukoto-ff14",
-  "name": "FF14 职业与物品术语",
-  "version": "0.1.1",
-  "source": "国服／日服／英文官方职业指南；读音辅以 FF14 Online Wiki 与コトバンク；缩写对照 XIVAPI ClassJob。核对日期 2026-11-09；适用 7.56 职业名称。；另按中／日／英 Completion CSV 行 ID、Group、Key 对齐 10 个物品相关定型文术语，固定来源提交见逐条记录。",
+  "name": "FF14 职业、道具与制作术语",
+  "version": "0.2.0",
+  "source": "官方职业指南；固定提交 Completion 制作采集、深层迷宫及货币术语；按 Item ID 对齐基础恢复药。范围、遗漏与逐条来源见随包记录。核对日期 2026-11-09。",
   "license": "独立整理的少量职业名称、读音和术语对应事实；不复制说明正文、图标或整库。游戏名称及商标归各权利人；本项目不宣称获得 Square Enix 或盛趣官方授权。",
   "words": "ff14-words.txt"
 }

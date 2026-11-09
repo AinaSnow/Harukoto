@@ -50,16 +50,17 @@ def parse_word_list(path):
             count += 1
             if count > 100_000:
                 raise ValueError('词表不得超过 100000 行词条')
-            parts = [part.strip() for part in line.replace('｜', '|').replace('：', ':').split('|')]
+            parts = [part.strip() for part in line.replace('｜', '|').split('|')]
             word = label(parts.pop(0))
-            reading = parts.pop(0) if parts and ':' not in parts[0] else kana(word)
+            reading = parts.pop(0) if parts and ':' not in parts[0] and '：' not in parts[0] else kana(word)
             if not re.fullmatch('[ぁ-ゖー]{1,32}', reading):
                 raise ValueError('含汉字的词必须填写平假名读音（最多 32 字）')
             fields = {}
             for part in parts:
-                if ':' not in part:
+                property_parts = re.split('[:：]', part, maxsplit=1)
+                if len(property_parts) != 2:
                     raise ValueError('属性须使用 key: value 格式')
-                key, value = (s.strip() for s in part.split(':', 1))
+                key, value = (s.strip() for s in property_parts)
                 if key not in {'pinyin', 'english', 'chinese', 'pos', 'priority'}:
                     continue
                 if key not in {'pinyin', 'english'} and key in fields:

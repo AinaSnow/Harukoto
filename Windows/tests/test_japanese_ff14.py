@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from ff14_dictionary import validate_catalog, word_list
-from ff14_completion import read_completion, align_terms
+from ff14_completion import read_completion, align_terms, completion_reading, english_trigger
 from japanese_packages import load_package, change
 spec = importlib.util.spec_from_file_location('ff14_export', ROOT / 'scripts/compile-ff14-dictionary.py')
 compiler = importlib.util.module_from_spec(spec); spec.loader.exec_module(compiler)
@@ -23,6 +23,14 @@ if '--reader' in sys.argv:
 
 
 class FF14Tests(unittest.TestCase):
+    def test_full_name_readings_and_possessive_triggers(self):
+        self.assertEqual(completion_reading('アラガントームストーン:詩学', 'シガク'), 'あらがんとーむすとーんしがく')
+        self.assertEqual(completion_reading('ギャザラースクリップ:橙貨', 'トウカ.'), 'ぎゃざらーすくりっぷとうか')
+        self.assertEqual(completion_reading('魔土器:自己強化', 'マドキジコキョウカ'), 'まどきじこきょうか')
+        with self.assertRaises(ValueError): completion_reading('魔土器:自己強化', 'ジコキョウカ')
+        with self.assertRaises(ValueError): completion_reading('未知:貨幣', 'カヘイ')
+        self.assertEqual(english_trigger("gatherers' scrip"), 'gatherersscrip')
+
     def test_completion_headers_and_identity_checks(self):
         with tempfile.TemporaryDirectory() as folder:
             cn = Path(folder) / 'cn.csv'; ja = Path(folder) / 'ja.csv'; en = Path(folder) / 'en.csv'
@@ -42,14 +50,25 @@ class FF14Tests(unittest.TestCase):
         directory = ROOT / 'Resources/DictionaryPackages/ff14'
         data = json.loads((directory / 'catalog.json').read_text(encoding='utf-8'))
         words, ids = word_list(data)
-        self.assertEqual(len(ids), 33)
+        self.assertEqual(len(ids), 204)
         self.assertEqual((directory / 'jobs/ff14-words.txt').read_text(encoding='utf-8'), words)
         package = load_package(directory / 'jobs/manifest.json')
         self.assertEqual(package['manifest'], data['package'])
-        self.assertEqual(len(package['entries']), 89)
+        self.assertEqual(len(package['entries']), 431)
         mappings = {e['zh_cn']: e['ja'] for e in data['entries']}
         self.assertEqual(mappings['魔晶石'], 'マテリア')
         self.assertEqual(mappings['魔素石'], '魔晶石')
+        by_id = {e['id']: e for e in data['entries']}
+        self.assertEqual(by_id['item-4551']['zh_cn'], '恢复药')
+        self.assertEqual(by_id['item-4551']['ja'], 'ポーション')
+        self.assertEqual(by_id['completion-1375']['kana'], 'あらがんとーむすとーんしがく')
+        self.assertEqual(by_id['completion-3605']['zh_cn'], '魔陶器：强化自身')
+        self.assertNotIn('completion-4012', by_id)
+        self.assertTrue(any(row[5] == '魔陶器：强化自身' for row in package['entries']))
+        coverage = json.loads((directory / 'coverage.json').read_text(encoding='utf-8'))
+        self.assertEqual(coverage['total_entries'], len(data['entries']))
+        self.assertEqual(coverage['total_triggers'], len(package['entries']))
+        self.assertEqual([row['row_id'] for row in coverage['excluded']], [4012])
         self.assertEqual(json.loads((directory / 'jobs/reviewed-source.json').read_text(encoding='utf-8')), data)
         self.assertIn(('vpr', 'ヴァイパー', 'ゔぁいぱー'), [(row[0], row[1], row[3]) for row in package['entries']])
 
@@ -62,7 +81,7 @@ class FF14Tests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr.decode('utf-8', errors='replace'))
             change(root, 'import', ROOT / 'Resources/DictionaryPackages/ff14/jobs/manifest.json')
             check(0)
-            change(root, 'enable', 'harukoto-ff14'); check(89)
+            change(root, 'enable', 'harukoto-ff14'); check(431)
             change(root, 'disable', 'harukoto-ff14'); check(0)
     def catalog(self):
         data = json.loads((ROOT / 'Resources/DictionaryPackages/ff14/catalog.json').read_text(encoding='utf-8'))

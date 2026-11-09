@@ -1,8 +1,42 @@
 """Read both community CSV layouts and align explicit Completion rows by ID and keys."""
 import csv
 import io
+import re
 from pathlib import Path
 from japanese_dictionary import kana, trigger
+
+
+def completion_reading(text, index):
+    """GroupTitle is a search key, sometimes only the suffix after a katakana prefix."""
+    direct = kana(text)
+    if re.fullmatch('[ぁ-ゖー]{1,32}', direct):
+        return direct
+    if ':' in text:
+        prefix, suffix = text.split(':', 1)
+        known_prefixes = {'魔土器': 'まどき', '魔科学器': 'まかがくき', '魔紋起動証': 'まもんきどうしょう'}
+        if prefix in known_prefixes:
+            reading = kana(index)
+            if reading.startswith(known_prefixes[prefix]) and re.fullmatch('[ぁ-ゖー]{1,32}', reading):
+                return reading
+            raise ValueError('检索读音未包含已核对的道具前缀')
+        prefix = kana(prefix)
+        # A terminal dot distinguishes duplicate search keys in Completion. Only
+        # strip it for this explicit all-katakana-prefix + named-suffix structure.
+        reading = kana(index.removesuffix('.'))
+        if re.fullmatch('[ぁ-ゖー]+', prefix) and re.fullmatch('[ぁ-ゖー]+', reading):
+            if not reading.startswith(prefix):
+                reading = prefix + reading
+            if len(reading) <= 32: return reading
+        raise ValueError('名称前缀缺少完整读音，不能只使用检索后缀')
+    reading = kana(index)
+    if not re.fullmatch('[ぁ-ゖー]{1,32}', reading):
+        raise ValueError('没有可核对假名读音')
+    return reading
+
+
+def english_trigger(text):
+    # Possessive apostrophes occur in official English terminology, not in IME input.
+    return trigger(text.replace("'", '').replace('’', ''))
 
 
 def read_completion(path):
@@ -40,10 +74,8 @@ def align_terms(chinese, japanese, english, ids):
             raise ValueError('定型文 %d 的分组／键不一致' % row_id)
         if any(row['LookupTable'] or not row['Text'] or row['Key'] == 0 for row in (cn, ja, en)):
             raise ValueError('定型文 %d 是索引分组或缺少文本，不能作为物品术语' % row_id)
-        reading = kana(ja['GroupTitle'] if ja['GroupTitle'] != '-' else ja['Text'])
-        import re
-        if not re.fullmatch('[ぁ-ゖー]{1,32}', reading):
-            raise ValueError('定型文 %d 没有可核对假名读音' % row_id)
+        try: reading = completion_reading(ja['Text'], ja['GroupTitle'])
+        except ValueError as error: raise ValueError('定型文 %d：%s' % (row_id, error)) from error
         result.append({'row_id': row_id, 'group': cn['Group'], 'key': cn['Key'],
                        'zh_cn': cn['Text'], 'ja': ja['Text'], 'kana': reading,
                        'pinyin': trigger(cn['GroupTitle']), 'english': en['Text']})

@@ -125,6 +125,21 @@
     {
       "url": "https://raw.githubusercontent.com/xivapi/ffxiv-datamining/a67c23b00fe8cb254855d06b59845958b55d28f3/csv/en/Completion.csv",
       "sha256": "b8d4451923d768ba4f87d4894ed4fab74e3601be28ae6a4115bc3f14228a8e45"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/thewakingsands/ffxiv-datamining-cn/3ba064a64e21ff62b587d886701bbe6e74d8d224/Item.csv",
+      "sha256": "ddaafcfcfe10d70e77491df5e831e413c04c4e2f2bd0599cb693a045f90ac51c",
+      "scope": "中文仅获取基础物品所在的前 6001 行；日英仅请求十个指定 ID 的 Name。摘要标识本地核对文件。"
+    },
+    {
+      "url": "https://v2.xivapi.com/api/sheet/Item?rows=4551,4552,4553,4554,4555,4556,4557,4558,4559,4560&fields=Name&version=0874aee069e1e7c4&language=ja",
+      "sha256": "eb86a8215d3e5d11eee7953be00f13ebc1522e1c18cbe3a8febb9db7f97c92e9",
+      "scope": "中文仅获取基础物品所在的前 6001 行；日英仅请求十个指定 ID 的 Name。摘要标识本地核对文件。"
+    },
+    {
+      "url": "https://v2.xivapi.com/api/sheet/Item?rows=4551,4552,4553,4554,4555,4556,4557,4558,4559,4560&fields=Name&version=0874aee069e1e7c4&language=en",
+      "sha256": "e92897711d4a3fc90ab07f8b21f9ddca45b88af295c4bc202375fb1015252b84",
+      "scope": "中文仅获取基础物品所在的前 6001 行；日英仅请求十个指定 ID 的 Name。摘要标识本地核对文件。"
     }
   ],
   "review_method": "Codex 在线逐条对照官方名称、带读音资料与 ClassJob 缩写；非第二位人工复核。SHA-256 对应获取后按 UTF-8 保存的页面文本，页面后续可能变化。"

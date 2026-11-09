@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.7'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.8'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,6 +42,9 @@ try {
     New-Item -ItemType Directory -Force $ff14 | Out-Null
     foreach ($name in 'manifest.json','ff14-words.txt','reviewed-source.json') {
         Copy-Item -LiteralPath (Join-Path $root "Resources/DictionaryPackages/ff14/jobs/$name") -Destination $ff14
+    }
+    foreach ($name in 'coverage.json','source-checks.json') {
+        Copy-Item -LiteralPath (Join-Path $root "Resources/DictionaryPackages/ff14/$name") -Destination $ff14
     }
     foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','FF14_DICTIONARY.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md','BRAND.md') {
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
