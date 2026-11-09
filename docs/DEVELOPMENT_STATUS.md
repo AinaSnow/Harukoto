@@ -174,7 +174,7 @@
 - 当前机器曾有旧 DLL 被应用占用并安排重启删除；这是本机维护记录，不是安装器已具有通用卸载／回滚能力。
 - 新安装器只在机器注册阶段失败时尝试恢复旧 DLL；后续用户配置失败不自动回滚，保留日志后重试。旧版本目录保留，不自动删除。
 
-仓库现有 `.github/workflows/windows.yml` 是 GitHub 的旧 Windows 分支工作流；本次上传 Gitea 不代表已配置 Gitea Actions 或已有自动构建。启用 CI 前先确认可用的 Windows runner 及标签。
+2026-11-10 按维护者要求移除了旧 GitHub core／Windows Actions 工作流；Gitea 尚未配置 runner，当前使用本地构建与验证。将来启用 CI 时重新配置可用 runner 及标签。
 
 ## 接下来按这个顺序推进
 
