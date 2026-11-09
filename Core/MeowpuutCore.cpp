@@ -97,6 +97,8 @@ struct Lexicon {
     struct ContextScore { std::string_view first; int weight, hansWeight; };
     std::vector<ContextScore> context;
     std::unordered_map<std::string_view, std::pair<std::string_view, int>> traditionalCharacters;
+    std::unordered_map<std::string_view, std::pair<std::string_view, int>> traditionalPhrases;
+    size_t longestTraditionalPhrase = 0;
     size_t longest = 0;
     bool pinyin = false;
     std::array<std::vector<size_t>, 128> initials;
@@ -221,6 +223,12 @@ struct Lexicon {
             for (size_t i = 0; i < words.size(); ++i) {
                 const auto reading = words[i].reading();
                 const auto traditional = words[i].text(false), simplified = words[i].text(true);
+                if (simplified != traditional && simplified.size() > 3 && simplified.size() <= 384) {
+                    auto found = traditionalPhrases.find(simplified);
+                    if (found == traditionalPhrases.end() || found->second.second < words[i].hansWeight)
+                        traditionalPhrases[simplified] = {traditional, words[i].hansWeight};
+                    longestTraditionalPhrase = std::max(longestTraditionalPhrase, simplified.size());
+                }
                 if (pinyin && traditional.size() <= 4 && han_characters(traditional).size() == 1)
                     singleSpellings.push_back(reading);
                 if (traditional.size() <= 4 && simplified.size() <= 4 &&
@@ -860,7 +868,7 @@ struct MPNLexicon { std::shared_ptr<const Lexicon> value; };
 struct MPNSession {
     struct JapaneseWord { std::string reading, text; int weight; };
     std::shared_ptr<const Lexicon> lexicon;
-    std::string input, preedit, committed, mixedPinyin, segmentContext, exactPinyin;
+    std::string input, preedit, committed, mixedPinyin, segmentContext, exactPinyin, customChinese;
     std::vector<JapaneseWord> japanese;
     std::vector<Candidate> candidates;
     size_t page = 0;
@@ -941,7 +949,16 @@ struct MPNSession {
             if (ranked.size() > ranked_limit) ranked.pop_back();
           }
         };
-        prepend(partial);
+        if (!partial.empty() && hasCompleteReading()) {
+            // A complete sentence such as zhi-dao-le must not be displaced by
+            // a shorter word such as zhi-da merely because 'ole' is unfinished.
+            size_t position = std::min(size_t(3), ranked.size());
+            for (auto &item : partial) {
+                if (std::any_of(ranked.begin(), ranked.end(), [&](const Candidate &candidate) { return sameSelection(candidate, item); })) continue;
+                ranked.insert(ranked.begin() + position++, partialCandidate(item));
+                if (ranked.size() > ranked_limit) ranked.pop_back();
+            }
+        } else prepend(partial);
         auto predictive = predictive_segments(*lexicon, input, hans);
         if (!predictive.empty()) {
             const bool noComplete = lexicon->pinyin ? !hasCompleteReading() : ranked.empty();
@@ -1422,6 +1439,31 @@ const char *mpn_mixed_pinyin_prefix(MPNSession *session, const char *reading, in
     } catch (...) {}
     session->mixedPinyin.clear();
     return session->mixedPinyin.c_str();
+}
+
+const char *mpn_custom_chinese(MPNSession *session, const char *text) {
+    if (!session) return "";
+    session->customChinese.clear();
+    if (!text) return session->customChinese.c_str();
+    const std::string_view input(text);
+    if (session->hans) session->customChinese = input;
+    else for (size_t i = 0; i < input.size();) {
+        bool matched = false;
+        for (size_t length = std::min(session->lexicon->longestTraditionalPhrase, input.size() - i); length > 3; --length) {
+            const auto found = session->lexicon->traditionalPhrases.find(input.substr(i, length));
+            if (found == session->lexicon->traditionalPhrases.end()) continue;
+            session->customChinese.append(found->second.first);
+            i += length; matched = true; break;
+        }
+        if (matched) continue;
+        const auto first = static_cast<unsigned char>(input[i]);
+        const size_t length = first < 0x80 ? 1 : first < 0xe0 ? 2 : first < 0xf0 ? 3 : 4;
+        const auto character = input.substr(i, std::min(length, input.size() - i));
+        const auto found = session->lexicon->traditionalCharacters.find(character);
+        session->customChinese.append(found == session->lexicon->traditionalCharacters.end() ? character : found->second.first);
+        i += character.size();
+    }
+    return session->customChinese.c_str();
 }
 
 void mpn_set_simplified(MPNSession *session, int simplified) {

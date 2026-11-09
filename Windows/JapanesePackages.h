@@ -58,6 +58,7 @@ inline std::vector<JapaneseWord> readEnabledJapanesePackages(const std::filesyst
             return word.source.empty() || !validPackageUnicode(word.text) ||
                 !validPackageUnicode(word.kana, true, true) || !validPackageUnicode(word.chinese, false, true);
         })) return {};
+        for (auto &word : words) word.theme = true;
         return words;
     } catch (...) { return {}; }
 }

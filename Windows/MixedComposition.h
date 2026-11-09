@@ -18,6 +18,7 @@ struct JapaneseWord {
     std::string reading, text;
     int weight;
     std::string kana, source, chinese;
+    bool theme = false;
 };
 
 inline std::vector<JapaneseWord> readJapaneseWords(std::istream &file) {
@@ -260,5 +261,24 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
         return word.reading == input && word.source == "english";
     })) append(input, {}, false);
     if (choices.empty()) append(input, {}, false);
-    return interleaveCandidates(std::move(choices));
+    auto result = interleaveCandidates(std::move(choices));
+    std::vector<WindowsCandidate> names;
+    std::set<std::string> included;
+    for (const auto &word : dictionary) {
+        if (!word.theme || word.reading != input || word.chinese.empty()) continue;
+        const std::string chineseName = mpn_custom_chinese(session, word.chinese.c_str());
+        if (!included.insert(chineseName).second) continue;
+        if (std::any_of(result.begin(), result.end(), [&](const auto &c) {
+            return !c.japanese && c.text == chineseName && (!c.coreIndex || mpn_candidate_consumed(session, *c.coreIndex) == input.size());
+        })) continue;
+        names.push_back({chineseName, {}, false, true, "主题词库 · 中文", false});
+    }
+    if (!names.empty()) {
+        // Keep ordinary high-confidence Chinese first. A recorded theme name
+        // precedes speculative spelling paths, with room for the Japanese pair.
+        auto position = std::find_if(result.begin(), result.end(), [](const auto &c) { return !c.strong || c.japanese; });
+        result.insert(position, std::move(names.front()));
+        result.insert(result.end(), std::make_move_iterator(names.begin() + 1), std::make_move_iterator(names.end()));
+    }
+    return result;
 }

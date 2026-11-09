@@ -7,7 +7,7 @@
 #include <iostream>
 
 int main(int argc, char **argv) {
-    assert(argc == 2 || argc == 4 || argc == 5);
+    assert(argc == 2 || argc == 3 || argc == 4 || argc == 5);
     const std::filesystem::path dir(argv[1]);
     std::ifstream file(dir / "native-pinyin.tsv", std::ios::binary);
     assert(file);
@@ -21,6 +21,37 @@ int main(int argc, char **argv) {
     std::stable_sort(words.begin(), words.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
     WordEvidence evidence; evidence.open(dir / "language-evidence.sqlite");
     assert(!evidence.dictionary("chi", true).empty());
+    // Ordinary Chinese regression corpus, with themes absent. Full readings
+    // must beat an overlapping unfinished-prefix interpretation.
+    mpn_set_simplified(session, true);
+    for (const auto &sample : std::vector<std::pair<std::string, std::string>>{
+            {"zhidaole", "知道了"}, {"wozhidaole", "我知道了"},
+            {"xinkule", "辛苦了"}, {"dengyixia", "等一下"},
+            {"wokanyixia", "我看一下"}, {"wobuzhidao", "我不知道"},
+            {"meiwenti", "没问题"}, {"woyaohuijia", "我要回家"},
+            {"zhidaol", "知道"}, {"wozhidaol", "我知道"}}) {
+        mpn_clear(session); for (char c : sample.first) assert(mpn_key(session, c));
+        const auto choices = windowsCandidates(session, words, [&](const std::string &reading) { return evidence.dictionary(reading, true); }, false);
+        assert(!choices.empty() && choices.front().text == sample.second && choices.front().coreIndex);
+        if (sample.first == "zhidaole") {
+            assert(mpn_choose(session, *choices.front().coreIndex));
+            assert(std::string(mpn_committed(session)) == "知道了" && !*mpn_input(session));
+            mpn_clear_commit(session);
+        }
+    }
+    if (argc == 3 && std::string(argv[2]) == "--diagnose") {
+        mpn_set_simplified(session, true);
+        for (std::string input; std::getline(std::cin, input);) {
+            if (!input.empty() && input.back() == '\r') input.pop_back();
+            mpn_clear(session); for (char c : input) mpn_key(session, c);
+            const auto choices = windowsCandidates(session, words, [&](const std::string &reading) { return evidence.dictionary(reading, true); }, false);
+            std::cout << input;
+            for (size_t i = 0; i < std::min(size_t(7), choices.size()); ++i)
+                std::cout << " | " << choices[i].text;
+            std::cout << std::endl;
+        }
+        mpn_session_destroy(session); mpn_lexicon_destroy(lexicon); return 0;
+    }
     if (argc >= 4) {
         const bool bulk = argc == 5;
         auto themes = readEnabledJapanesePackages(argv[2]);
@@ -30,6 +61,25 @@ int main(int argc, char **argv) {
         for (bool simplified : {false, true}) {
             auto lookup = [&](const std::string &reading) { return evidence.dictionary(reading, simplified); };
             mpn_set_simplified(session, simplified);
+            if (bulk) {
+                for (const auto &input : {"wuerdaha", "xinkule"}) {
+                    mpn_clear(session);
+                    for (char c : std::string(input)) assert(mpn_key(session, c));
+                    const auto choices = windowsCandidates(session, merged, lookup, false);
+                    const auto pageEnd = choices.begin() + std::min(size_t(7), choices.size());
+                    if (std::string(input) == "wuerdaha") {
+                        assert(choices.front().text == (simplified ? "乌尔达哈" : "烏爾達哈"));
+                        assert(!choices.front().japanese && !choices.front().coreIndex);
+                        assert(std::any_of(choices.begin(), pageEnd, [](const auto &c) { return c.text == "ウルダハ"; }));
+                    } else {
+                        assert(std::any_of(choices.begin(), pageEnd, [](const auto &c) { return c.text == "お疲れ様でした。"; }));
+                        assert(std::any_of(choices.begin(), pageEnd, [](const auto &c) { return c.text == "おつかれさまでした"; }));
+                    }
+                }
+                const std::string longName = "乌尔达哈·高级恢复药（测试）";
+                const std::string converted = mpn_custom_chinese(session, longName.c_str());
+                assert(converted == (simplified ? longName : "烏爾達哈·高級恢復藥（測試）"));
+            }
             size_t checked = 0;
             for (const auto &word : themes) {
                 // Load validates every row. Sample across the entire large table

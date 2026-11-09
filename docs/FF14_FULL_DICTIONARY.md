@@ -56,3 +56,9 @@ python scripts/build-ff14-full.py .build/ff14-full-sources Resources/DictionaryP
 full/reviewed-source.json 使用 ff14-bulk-audit-v1，明确为程序对齐，未逐项人工复核；它与精选 catalog.json 的 verified 审核格式不同。来源摘要、数据版本、拼音工具版本和覆盖账本随独立 ZIP 分发。
 
 测试对全部导出记录核对来源账本与触发集合，真实 C++ 加载全部记录；真实中文词库／SQLite 候选测试跨全表抽样，验证繁简模式、中文候选保留、无假名表记、升级和回退。未将抽样候选检查称为全部词条上屏验收；实际游戏内输入、跨 DPI 长词显示和大包持续使用体验仍待实机验收。
+
+## alpha.10 中文名称与升级检查
+
+alpha.10 提供主题中文正式名：wuerdaha → 乌尔达哈／烏爾達哈，同时可选ウルダハ。zhidaole 的完整知道了候选恢复首选，未完成拼音仍能分段选词。
+
+词库仍为 0.3.0，无需重新导入。更新后必须彻底退出并重开应用；QQ 需右键托盘图标退出，只关聊天窗口不够。已观察到用户 QQ 持有旧 DLL，即使注册版本和词库均已更新，旧进程仍不能使用新功能。实机验证 xinkule 的日文／假名、wuerdaha 的繁简中文及普通中文分段；alpha.10 实机上屏仍待执行。

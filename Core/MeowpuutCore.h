@@ -26,6 +26,9 @@ int mpn_key(MPNSession *session, int32_t key);
 // When enabled, the first candidate always covers the complete composition.
 void mpn_require_full_candidate(MPNSession *session);
 void mpn_set_simplified(MPNSession *session, int simplified);
+// Render a simplified custom name in the session's output script without changing composition.
+// The returned buffer remains valid until the next call to this function on the session.
+const char *mpn_custom_chinese(MPNSession *session, const char *text);
 void mpn_clear(MPNSession *session);
 // Set adjacent Chinese ranking context before a new composition, or restore
 // its selected prefix while rebuilding the same partial composition. Hosts

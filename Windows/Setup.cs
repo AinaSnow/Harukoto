@@ -9,7 +9,7 @@ using Microsoft.Win32;
 
 internal static class Setup
 {
-    internal const string ProductVersion = "0.4.4-alpha.9";
+    internal const string ProductVersion = "0.4.4-alpha.10";
     private const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Meowpuut";
     private static string work;
     [STAThread] private static void Main(string[] args)
@@ -61,7 +61,7 @@ internal static class Setup
                         }
                     }
                 });
-                status.Text = uninstall ? "卸载完成。个人数据及旧版本文件已保留。" : "安装完成！按 Win + 空格切换到 Meowpuut。请重新打开输入应用。";
+                status.Text = uninstall ? "卸载完成。个人数据及旧版本文件已保留。" : "安装完成！Win + 空格切换晴词。请彻底退出并重开应用（QQ 需从托盘退出）。";
                 action.Text = "完成";
             } catch (Exception error) {
                 status.Text = "未完成，可查看日志后重试。";
