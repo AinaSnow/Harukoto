@@ -607,12 +607,13 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
 
     // Whole dictionary words stay first; known completions/corrections precede
     // speculative chains such as interpreting a mistyped ending as an abbreviation.
-    if (results.empty() && lexicon.pinyin && !completeOnly) {
-        for (const auto &item : fallback(lexicon, input, hans, false))
-            append(item.text, {MPN_CANDIDATE_CORRECTION, MPN_SCORE_FALLBACK, item.score});
-    }
+    const bool needFallback = results.empty() && lexicon.pinyin && !completeOnly;
 
     struct Path { std::string text, traditional; double score; bool spelled, verified; };
+    // The sentence search beam is a latency bound, not a five-candidate UI cap.
+    // Widen short, user-visible pinyin lookups only; internal completion probes
+    // and longer sentence searches retain their existing bounded work.
+    const size_t pathLimit = lexicon.pinyin && metadata && !completeOnly && length <= 8 ? page_size * 3 : beam;
     std::vector<std::vector<Path>> suffixes(length + 1);
     suffixes[length].push_back({"", "", 0, true, true});
     for (size_t start = length; start-- > 0;) {
@@ -621,7 +622,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             if (suffixes[end].empty() || (start == 0 && end == length)) continue;
             const auto options = lexicon.range(std::string_view(reading.sounds).substr(start, end - start));
             std::vector<std::string_view> used_spellings;
-            used_spellings.reserve(beam);
+            used_spellings.reserve(pathLimit);
             for (size_t index = options.first; index < options.second; ++index) {
                 const auto &word = lexicon.word(index, hans);
                 if (completeOnly && !fully_spelled(word)) continue;
@@ -649,7 +650,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                         suffix.verified && verified,
                     });
                 }
-                if (used_spellings.size() == beam) break;
+                if (used_spellings.size() == pathLimit) break;
             }
         }
         std::sort(paths.begin(), paths.end(), [](const Path &a, const Path &b) {
@@ -658,9 +659,19 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
         std::unordered_set<std::string> unique;
         for (auto &path : paths) {
             if (unique.insert(path.text).second) suffixes[start].push_back(std::move(path));
-            if (suffixes[start].size() == beam) break;
+            if (suffixes[start].size() == pathLimit) break;
         }
     }
+    const auto appendFallback = [&] {
+        if (needFallback) for (const auto &item : fallback(lexicon, input, hans, false)) {
+            if (results.size() >= result_limit) break;
+            append(item.text, {MPN_CANDIDATE_CORRECTION, MPN_SCORE_FALLBACK, item.score});
+        }
+    };
+    // A rare newly indexed word reached by a typo must not outrank a fully
+    // spelled sentence (zhidaole -> 知道了, not keyboard correction 指导科).
+    const bool completePath = std::any_of(suffixes[0].begin(), suffixes[0].end(), [](const Path &path) { return path.spelled && path.verified; });
+    if (!completePath) appendFallback();
     for (const auto &path : suffixes[0]) {
         const auto kind = !reading.unambiguous ? MPN_CANDIDATE_UNKNOWN :
             (!path.spelled ? MPN_CANDIDATE_CORRECTION :
@@ -668,6 +679,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
         append(path.text, {static_cast<uint32_t>(kind), MPN_SCORE_PATH, path.score});
         if (results.size() == result_limit) break;
     }
+    if (completePath) appendFallback();
     return results;
 }
 

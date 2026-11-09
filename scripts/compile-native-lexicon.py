@@ -339,7 +339,10 @@ def merge_simplified(words, converter, simplified_scores=None):
         added += existing is None
         # A single character must remain selectable on its own even if its
         # corpus frequency is too low to put a whole phrase in the hot index.
-        if existing or frequency >= 1e-11 or hans in eligible_low_single: native_keys.add(key)
+        # Keep validated multi-character readings in the native decoder too.
+        # Previously ~190k readings existed only in SQLite and could not take
+        # part in sentence segmentation. Preserve their low source weights.
+        if existing or len(hans) > 1 or frequency >= 1e-11 or hans in eligible_low_single: native_keys.add(key)
     # Simplified spelling is not a unique key for a traditional word:
     # 志／誌, 周／週 and 記錄／紀錄 can share simplified spelling and reading.
     # Keep upstream traditional forms alongside the preferred simplified
@@ -353,7 +356,7 @@ def merge_simplified(words, converter, simplified_scores=None):
               "new_readings": added, "excluded_invalid_rows": skipped,
               "merged_readings": len(merged), "native_hot_readings": len(native_keys),
               "traditional_only_scale_offset": offset, "traditional_only_preference_discount": 350,
-              "note": "All valid new readings remain in indexed SQLite; frequent words also enter native segmentation."}
+              "note": "All validated multi-character readings also enter native segmentation with unchanged source weights."}
     print("Simplified merge:", json.dumps(report, ensure_ascii=False))
     return merged, native_keys, report
 
@@ -466,7 +469,7 @@ def main(destination, converter=None):
         # Distinct traditional spellings remain selectable, including phrases.
         return (hans, code, hant)
     derived_keys = set()
-    authored_rows = list(authored("chinese.tsv"))
+    authored_rows = list(authored("chinese.tsv")) + list(authored("daily-chinese.tsv"))
     # A phrase's conversion can depend on context (紀錄 → 记录), so its
     # individual character pairs are only safe when supported independently.
     character_pairs = {(hant, hans) for hant, hans, _ in imported if len(hant) == len(hans) == 1}

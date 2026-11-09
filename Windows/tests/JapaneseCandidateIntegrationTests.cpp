@@ -21,6 +21,53 @@ int main(int argc, char **argv) {
     std::stable_sort(words.begin(), words.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
     WordEvidence evidence; evidence.open(dir / "language-evidence.sqlite");
     assert(!evidence.dictionary("chi", true).empty());
+    if (argc == 4 && std::string(argv[2]) == "--daily") {
+        std::ifstream source(argv[3]); assert(source);
+        size_t count = 0;
+        for (std::string line; std::getline(source, line);) {
+            if (line.empty() || line.front() == '#') continue;
+            if (line.back() == '\r') line.pop_back();
+            std::vector<std::string> fields; std::istringstream row(line);
+            for (std::string field; std::getline(row, field, '|');) fields.push_back(field);
+            assert(fields.size() == 4);
+            std::string input; for (char c : fields[2]) if (c >= 'a' && c <= 'z') input += c;
+            for (bool simplified : {false, true}) {
+                mpn_clear(session); mpn_set_simplified(session, simplified);
+                for (char c : input) assert(mpn_key(session, c));
+                const auto choices = windowsCandidates(session, words, [&](const std::string &reading) { return evidence.dictionary(reading, simplified); }, false);
+                const auto &expected = fields[simplified ? 1 : 0];
+                if (choices.empty() || choices.front().text != expected) std::cerr << input << " expected " << expected << std::endl;
+                assert(!choices.empty() && choices.front().text == expected && choices.front().coreIndex);
+                assert(mpn_choose(session, *choices.front().coreIndex));
+                assert(std::string(mpn_committed(session)) == expected && !*mpn_input(session));
+                mpn_clear_commit(session);
+            }
+            ++count;
+        }
+        assert(count >= 270);
+        std::cout << "PASS: daily Chinese first choice and commit in both scripts: " << count << std::endl;
+        mpn_session_destroy(session); mpn_lexicon_destroy(lexicon); return 0;
+    }
+    // A common exact word must not hide a newly recorded gaming homophone,
+    // and short-input search must expose usable choices beyond five paths.
+    for (bool simplified : {false, true}) {
+        mpn_set_simplified(session, simplified);
+        mpn_clear(session);
+        for (char c : std::string("yedui")) assert(mpn_key(session, c));
+        const auto choices = windowsCandidates(session, words, [&](const std::string &reading) { return evidence.dictionary(reading, simplified); }, false);
+        assert(choices.size() > 7);
+        assert(choices.front().text == (simplified ? "也对" : "也對"));
+        const auto firstPage = choices.begin() + 7;
+        const auto team = std::find_if(choices.begin(), firstPage, [&](const auto &c) { return c.text == (simplified ? "野队" : "野隊"); });
+        assert(team != firstPage && team->coreIndex);
+        assert(mpn_choose(session, *team->coreIndex));
+        assert(std::string(mpn_committed(session)) == team->text && !*mpn_input(session));
+        mpn_clear_commit(session);
+        mpn_clear(session); for (char c : std::string("yedui")) assert(mpn_key(session, c));
+        assert(choices[7].coreIndex && mpn_choose(session, *choices[7].coreIndex));
+        assert(std::string(mpn_committed(session)) == choices[7].text);
+        mpn_clear_commit(session);
+    }
     // Ordinary Chinese regression corpus, with themes absent. Full readings
     // must beat an overlapping unfinished-prefix interpretation.
     mpn_set_simplified(session, true);
@@ -32,6 +79,8 @@ int main(int argc, char **argv) {
             {"zhidaol", "知道"}, {"wozhidaol", "我知道"}}) {
         mpn_clear(session); for (char c : sample.first) assert(mpn_key(session, c));
         const auto choices = windowsCandidates(session, words, [&](const std::string &reading) { return evidence.dictionary(reading, true); }, false);
+        if (choices.empty() || choices.front().text != sample.second)
+            std::cerr << "Chinese ranking regression: " << sample.first << " expected " << sample.second << " actual " << (choices.empty() ? "empty" : choices.front().text) << std::endl;
         assert(!choices.empty() && choices.front().text == sample.second && choices.front().coreIndex);
         if (sample.first == "zhidaole") {
             assert(mpn_choose(session, *choices.front().coreIndex));
