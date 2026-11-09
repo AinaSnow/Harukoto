@@ -2,6 +2,8 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
+using System.Windows.Input;
+using System.Windows.Automation;
 
 // Only synthetic local samples. The detached content never creates an IME HWND.
 internal sealed class CandidatePreview
@@ -11,6 +13,7 @@ internal sealed class CandidatePreview
     private readonly TextBlock preedit, page;
     internal static readonly string[] Names = { "短中文", "FF14 长名称", "日文与假名", "同形异读", "候选第二页", "F6 活用" };
     internal int Selected;
+    private Action redraw;
 
     internal CandidatePreview()
     {
@@ -19,6 +22,11 @@ internal sealed class CandidatePreview
             host = (Window)XamlReader.Load(stream);
         Root = (FrameworkElement)host.Content;
         Root.Name = "CandidatePreviewRoot";
+        Root.Focusable = true;
+        AutomationProperties.SetName(Root, "候选布局预览，方向键移动，数字一到七选择示例");
+        Root.KeyDown += (s,e) => {
+            if (SelectKey(e.Key)) { if (redraw != null) redraw(); e.Handled = true; }
+        };
         Panel = (WrapPanel)host.FindName("Candidates");
         preedit = (TextBlock)host.FindName("Preedit");
         page = (TextBlock)host.FindName("PageIndicator");
@@ -56,6 +64,7 @@ internal sealed class CandidatePreview
     internal void UpdateLayout(int sample, LayoutOptions options, bool expanded, bool traditional)
     {
         options = options.Validated();
+        redraw = () => UpdateLayout(sample, options, expanded, traditional);
         Root.Width = options.Width;
         CandidateLayout.Apply(Root, Panel, options, options.Width);
         var fields = Fields(sample, traditional);
@@ -75,7 +84,25 @@ internal sealed class CandidatePreview
         CandidateView.Render(Panel, fields, Selected, -1, expanded || sample == 5, options);
         foreach (Button button in Panel.Children) {
             int index = (int)button.Tag;
-            button.Click += (s, e) => { Selected = index; UpdateLayout(sample, options, expanded, traditional); };
+            button.Click += (s, e) => { Root.Focus(); Selected = index; UpdateLayout(sample, options, expanded, traditional); };
         }
+    }
+
+    internal bool SelectKey(Key key)
+    {
+        var indices = new System.Collections.Generic.List<int>();
+        foreach (Button button in Panel.Children) indices.Add((int)button.Tag);
+        if (indices.Count == 0) return false;
+        int at = Math.Max(0, indices.IndexOf(Selected));
+        if (key == Key.Left || key == Key.Up) Selected = indices[Math.Max(0, at - 1)];
+        else if (key == Key.Right || key == Key.Down) Selected = indices[Math.Min(indices.Count - 1, at + 1)];
+        else if (key == Key.Home) Selected = indices[0];
+        else if (key == Key.End) Selected = indices[indices.Count - 1];
+        else if ((key >= Key.D1 && key <= Key.D7) || (key >= Key.NumPad1 && key <= Key.NumPad7)) {
+            int index = key >= Key.NumPad1 ? key - Key.NumPad1 : key - Key.D1;
+            if (indices.Contains(index)) Selected = index;
+        } else if (key != Key.Enter && key != Key.Space) return false;
+        // Enter/Space in the preview must not invoke the settings Save default button.
+        return true;
     }
 }

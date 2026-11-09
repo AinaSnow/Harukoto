@@ -29,14 +29,16 @@ internal static class CandidateLayout
     {
         Current = LayoutOptions.Load(); FontSize = Current.Font; width = Current.Width;
         new WindowInteropHelper(window).EnsureHandle();
-        var source = PresentationSource.FromVisual(window) as HwndSource;
+        var source = HwndSource.FromHwnd(new WindowInteropHelper(window).Handle);
         var transform = source == null ? Matrix.Identity : source.CompositionTarget.TransformFromDevice;
         var work = SystemParameters.WorkArea;
         var info = new MonitorInfo { Size = Marshal.SizeOf(typeof(MonitorInfo)) };
         if (GetMonitorInfo(MonitorFromPoint(new PointI { X = x, Y = y }, 2), ref info))
-            work = new Rect(transform.Transform(new Point(info.Work.Left, info.Work.Top)),
-                            transform.Transform(new Point(info.Work.Right, info.Work.Bottom)));
-        window.Width = Math.Min(width, work.Width);
+            work = DeviceWorkArea(new Rect(info.Work.Left, info.Work.Top, info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top), transform);
+        // Retain a readable logical canvas even on an unusually narrow work area;
+        // FitToWorkArea scales the entire result, including the header.
+        window.Width = Math.Max(480, Math.Min(width, work.Width));
+        ((FrameworkElement)window.Content).LayoutTransform = Transform.Identity;
         Apply((FrameworkElement)window.Content, panel, Current, window.Width);
         return work;
     }
@@ -49,28 +51,49 @@ internal static class CandidateLayout
 
     internal static void Show(Window window, Rect work, int x, int y)
     {
-        var source = PresentationSource.FromVisual(window) as HwndSource;
+        var source = HwndSource.FromHwnd(new WindowInteropHelper(window).Handle);
         var transform = source == null ? Matrix.Identity : source.CompositionTarget.TransformFromDevice;
         var point = transform.Transform(new Point(x, y));
         var content = (FrameworkElement)window.Content;
-        FitHeight(window, work.Height);
-        window.Left = Math.Max(work.Left, Math.Min(point.X, work.Right - window.Width));
-        window.Top = Math.Max(work.Top, Math.Min(point.Y, work.Bottom - content.DesiredSize.Height));
+        FitToWorkArea(window, work.Size);
+        var location = Place(work, point, new Size(window.Width, content.DesiredSize.Height));
+        window.Left = location.X; window.Top = location.Y;
         window.Show();
+    }
+
+    internal static Rect DeviceWorkArea(Rect pixels, Matrix fromDevice)
+    {
+        return new Rect(fromDevice.Transform(pixels.TopLeft), fromDevice.Transform(pixels.BottomRight));
+    }
+
+    internal static Point Place(Rect work, Point anchor, Size content)
+    {
+        return new Point(Math.Max(work.Left, Math.Min(anchor.X, work.Right - content.Width)),
+                         Math.Max(work.Top, Math.Min(anchor.Y, work.Bottom - content.Height)));
     }
 
     // Keep all seven choices visible on a short work area. This only scales the
     // current presentation; the user's stored font/width/layout stays untouched.
     internal static void FitHeight(Window window, double availableHeight)
     {
+        FitToWorkArea(window, new Size(double.PositiveInfinity, availableHeight));
+    }
+
+    internal static void FitToWorkArea(Window window, Size available)
+    {
         var content = (FrameworkElement)window.Content;
+        var panel = (Panel)window.FindName("Candidates");
+        var border = (Border)content;
+        // Derive the unscaled canvas anew. Repeated fitting must not shrink it again.
+        double logicalWidth = panel.Width + border.Padding.Left + border.Padding.Right + border.BorderThickness.Left + border.BorderThickness.Right;
+        window.Width = logicalWidth;
         content.LayoutTransform = Transform.Identity;
-        content.Measure(new Size(window.Width, double.PositiveInfinity));
+        content.Measure(new Size(logicalWidth, double.PositiveInfinity));
         double height = content.DesiredSize.Height;
-        if (height > availableHeight && availableHeight > 2) {
-            double factor = (availableHeight - 1) / height;
+        double factor = Math.Min(1, Math.Min(Math.Max(1, available.Width - 1) / logicalWidth, Math.Max(1, available.Height - 1) / Math.Max(1, height)));
+        if (factor < 1) {
             content.LayoutTransform = new ScaleTransform(factor, factor);
-            window.Width *= factor;
+            window.Width = logicalWidth * factor;
             content.Measure(new Size(window.Width, double.PositiveInfinity));
         }
     }

@@ -82,7 +82,7 @@ internal static class CandidateSettings
         var sampleLabel = new Label { Content = "预览示例", Target = sample, Padding = new Thickness(0,4,12,0) };
         var expanded = new CheckBox { Name = "PreviewExpanded", Content = "展开日语候选", IsChecked = true, Margin = new Thickness(0,5,0,8) };
         toolbar.Children.Add(sampleLabel); toolbar.Children.Add(sample); toolbar.Children.Add(expanded); previewArea.Children.Add(toolbar);
-        var explanation = new TextBlock { Text = "仅用示例演示布局，点击候选只改变高亮。\n拖动右侧蓝色边条调整宽度；超出预览区域可滚动。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,16) };
+        var explanation = new TextBlock { Text = "仅用示例演示布局，不会输入文字。点击或 Tab 聚焦预览后，用方向键、1–7 改变高亮。\n拖动右侧边条调整宽度；超出预览区域可滚动。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,16) };
         Grid.SetRow(explanation, 1); previewArea.Children.Add(explanation);
         var preview = new CandidatePreview();
         var previewFrame = new Grid { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
@@ -90,7 +90,7 @@ internal static class CandidateSettings
         previewFrame.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         previewFrame.Children.Add(preview.Root);
         var grip = new Thumb { Name = "WidthGrip", Width = 10, MinHeight = 80, Cursor = Cursors.SizeWE, Focusable = true,
-            Background = System.Windows.Media.Brushes.SteelBlue, ToolTip = "拖动调整宽度，也可用左右方向键" };
+            Background = SystemParameters.HighContrast ? SystemColors.HighlightBrush : System.Windows.Media.Brushes.SteelBlue, ToolTip = "拖动调整宽度，也可用左右方向键" };
         AutomationProperties.SetName(grip, "拖动候选窗口宽度"); Grid.SetColumn(grip, 1); previewFrame.Children.Add(grip);
         double dragWidth = widthSlider.Value;
         grip.DragStarted += (s,e) => dragWidth = widthSlider.Value;

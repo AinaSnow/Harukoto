@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.13'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.14'
 )
 
 $ErrorActionPreference = 'Stop'

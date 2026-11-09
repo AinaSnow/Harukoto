@@ -16,3 +16,8 @@ $settingsTest = Join-Path $output 'LayoutOptionsTests.exe'
 if ($LASTEXITCODE -ne 0) { throw 'Layout settings test build failed.' }
 & $settingsTest
 if ($LASTEXITCODE -ne 0) { throw 'Layout settings tests failed.' }
+$boundaryTest = Join-Path $output 'CandidateBoundaryTests.exe'
+& $compiler /nologo /target:exe /out:$boundaryTest $references /reference:System.Xaml.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll (Join-Path $PSScriptRoot 'tests/CandidateBoundaryTests.cs')
+if ($LASTEXITCODE -ne 0) { throw 'Boundary test build failed.' }
+& $boundaryTest (Join-Path $output 'MeowpuutGlassPreview.exe') $output
+if ($LASTEXITCODE -ne 0) { throw 'Boundary tests failed.' }
