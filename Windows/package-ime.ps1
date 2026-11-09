@@ -46,9 +46,11 @@ try {
     foreach ($name in 'coverage.json','source-checks.json') {
         Copy-Item -LiteralPath (Join-Path $root "Resources/DictionaryPackages/ff14/full/$name") -Destination $ff14
     }
-    foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','FF14_DICTIONARY.md','FF14_FULL_DICTIONARY.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md','BRAND.md') {
+    foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','FF14_DICTIONARY.md','FF14_FULL_DICTIONARY.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','DEVELOPMENT_PLAN.md','UI_LAYOUT_EDITOR.md','CHINESE_EVALUATION.md','WINDOWS_DIAGNOSIS.md','WINDOWS_VALIDATION.md','BRAND.md') {
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
     }
+    New-Item -ItemType Directory -Force (Join-Path $stage 'docs/benchmarks') | Out-Null
+    Copy-Item -LiteralPath (Join-Path $root 'docs/benchmarks/chinese-alpha11-baseline.json') -Destination (Join-Path $stage 'docs/benchmarks')
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-ime.ps1') -Destination (Join-Path $stage 'Install.ps1')
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md'),(Join-Path $root 'LICENSE'),(Join-Path $root 'THIRD_PARTY.md') -Destination $stage
     $readme = Join-Path $stage 'README.md'

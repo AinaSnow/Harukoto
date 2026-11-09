@@ -1,3 +1,4 @@
+#requires -Version 7.0
 param([string]$CMake = 'cmake')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot
@@ -5,7 +6,7 @@ $output = Join-Path $root '.build/windows/ime'
 $native = Join-Path $root '.build/windows/msvc'
 & python (Join-Path $PSScriptRoot 'compile-lexicon.py') $output
 if ($LASTEXITCODE -ne 0) { throw 'Lexicon build failed.' }
-& $CMake -S $PSScriptRoot -B $native -A x64 "-DMEOWPUUT_LEXICON_DIR=$output"
+& $CMake -S $PSScriptRoot -B $native -A x64 "-DMEOWPUUT_LEXICON_DIR=$output" "-DHARUKOTO_PWSH=$(Join-Path $PSHOME 'pwsh.exe')"
 if ($LASTEXITCODE -ne 0) { throw 'CMake configuration failed.' }
 & $CMake --build $native --config Release
 if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
