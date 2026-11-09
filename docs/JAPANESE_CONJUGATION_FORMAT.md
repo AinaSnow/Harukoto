@@ -1,6 +1,6 @@
 # 活用词表 v1（开发接口）
 
-本格式为晴词自有开发接口，不是 Madamada 词表格式。JSON 为源数据／审核格式，Windows TSF 加载由它编译的独立二进制文件，尚未提供活用候选交互。样例见 Resources/Lexicon/japanese-conjugation.json。
+本格式为晴词自有开发接口，不是 Madamada 词表格式。JSON 为源数据／审核格式，Windows TSF 加载由它编译的独立二进制文件，已提供整段触发词的 F6 活用面板首版。样例见 Resources/Lexicon/japanese-conjugation.json。
 
 根对象只包含 schema（整数 1）和 entries 数组。词条包含 id、text、reading、pos、triggers，可选 irregular。未知字段报错，便于发现拼写错误。
 
@@ -34,4 +34,4 @@ Windows/compile-lexicon.py 在正常构建时生成此文件。打包包含它�
 
 C++ 提供按“表记＋读音”和“来源＋触发词”查找的接口；相同表记不同读音不会混用。同一触发词可以关联多个词条。接口返回的词条指针只在下一次加载前有效。
 
-下一步把查找结果关联候选并增加活用面板。FF14 名词主题词库仍依赖独立主题管理，不需要为每个名词填写活用规则。
+查找结果已用于整段触发候选和 F6 活用面板；局部组字活用尚未支持。FF14 名词主题词库仍依赖独立主题管理，不需要为每个名词填写活用规则。

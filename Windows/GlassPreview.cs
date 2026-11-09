@@ -138,11 +138,12 @@ internal static class GlassPreview
                     preedit.Text = state[0];
                     header.Visibility = Visibility.Visible;
                     pageIndicator.Text = state.Length > 2 ? state[2] : "";
-                    bool expanded = state.Length > 3 && state[3] == "1";
+                    bool conjugating = state.Length > 3 && state[3] == "2";
+                    bool expanded = conjugating || (state.Length > 3 && state[3] == "1");
                     int japaneseCount = 0;
                     for (int i = 3; i < fields.Length; i++)
                         if (IsJapanese(fields[i])) japaneseCount++;
-                    if (expanded || japaneseCount > 1)
+                    if (!conjugating && (expanded || japaneseCount > 1))
                         pageIndicator.Text += (pageIndicator.Text.Length > 0 ? "   ·   " : "") + (expanded ? "F4 收起" : "F4 展开");
                     pageChip.Visibility = pageIndicator.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                     var work = CandidateLayout.Prepare(window, strip, x, y);

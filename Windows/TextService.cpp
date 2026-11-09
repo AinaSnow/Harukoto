@@ -14,6 +14,7 @@
 #include "ScriptMode.h"
 #include "ScriptPreference.h"
 #include "JapaneseConjugation.h"
+#include "ConjugationPanel.h"
 #include <new>
 #include <string>
 #include "WordEvidence.h"
@@ -190,6 +191,7 @@ public:
             std::ifstream file(folder / L"native-pinyin.tsv", std::ios::binary);
             std::ifstream japanese(folder / L"japanese.tsv", std::ios::binary);
             japaneseWords = readJapaneseWords(japanese);
+            appendConjugationWords(conjugations, japaneseWords);
             wchar_t localAppData[32768];
             const DWORD localLength = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, ARRAYSIZE(localAppData));
             if (localLength && localLength < ARRAYSIZE(localAppData)) {
@@ -224,6 +226,7 @@ public:
     }
 
     HRESULT STDMETHODCALLTYPE Deactivate() override {
+        conjugationPanel.clear();
         if (delivery) delivery->queue.close();
         for (auto &entry : suspended)
             if (entry.second.delivery) entry.second.delivery->queue.close();
@@ -338,15 +341,31 @@ public:
             }
             if (activeContext != context || !session || !delivery || !delivery->queue.canDeliver()) return S_OK;
             const bool preference = readSimplifiedPreference();
+            if (preference != simplified) conjugationPanel.close(choices, page, highlighted, expanded);
             if (applyPinyinScript(session, simplified, preference)) {
                 simplified = preference;
                 refreshCandidates();
             }
+            // Editing returns to normal composition before handling the key.
+            if (conjugationPanel.active() && (scriptShortcut(key) || key == VK_SPACE ||
+                (key >= 'A' && key <= 'Z') || pinyinPunctuation(static_cast<unsigned int>(key)) || key == VK_OEM_7))
+                conjugationPanel.close(choices, page, highlighted, expanded);
             const size_t start = page * pageSize;
             const size_t total = candidateCount();
             const size_t count = total > start ? (std::min)(pageSize, total - start) : 0;
             std::wstring text;
-            if (scriptShortcut(key)) {
+            if (key == VK_F6 || (conjugationPanel.active() && (key == VK_ESCAPE || key == VK_BACK))) {
+                if (!(static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30))) {
+                    if (conjugationPanel.active()) conjugationPanel.close(choices, page, highlighted, expanded);
+                    else conjugationPanel.open(conjugations, choices, mpn_input(session), page, highlighted, expanded);
+                }
+                *eaten = TRUE;
+            } else if (conjugationPanel.active() && key == VK_F4) {
+                *eaten = TRUE; // Keep all forms visible; F4 resumes its normal role after leaving.
+            } else if (conjugationPanel.active() && key >= '0' && key <= '9' &&
+                       !(key >= '1' && key <= '7' && start + key - '1' < total)) {
+                *eaten = TRUE; // An unused number must not commit an unrelated form.
+            } else if (scriptShortcut(key)) {
                 // Consume repeats without repeatedly toggling while held.
                 if (!(static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30))) {
                     const bool next = !simplified;
@@ -486,6 +505,11 @@ private:
         }
         const size_t currentPage = context == activeContext ? page : saved->second.page;
         const size_t currentCount = context == activeContext ? candidateCount() : saved->second.choices.size();
+        if (key == VK_F6) {
+            if (context != activeContext) return false;
+            const size_t index = page * pageSize + highlighted;
+            return conjugationPanel.active() || (index < choices.size() && conjugationFor(conjugations, choices[index], mpn_input(current)));
+        }
         if (key >= '0' && key <= '9') return true;
         if (navigation(key) || key == VK_F4)
             return currentPage * pageSize < currentCount;
@@ -500,6 +524,7 @@ private:
         size_t page = 0, highlighted = 0;
     };
     bool switchContext(ITfContext *context) {
+        conjugationPanel.close(choices, page, highlighted, expanded);
         auto found = suspended.find(context);
         MPNSession *next = found == suspended.end() ? (activeContext ? mpn_session_create(lexicon) : session) : found->second.session;
         if (!next) return false;
@@ -540,12 +565,14 @@ private:
     }
 
     void resetCandidates() {
+        conjugationPanel.clear();
         choices.clear();
         page = highlighted = 0;
         chineseLocked = expanded = false;
     }
 
     void refreshCandidates() {
+        conjugationPanel.clear();
         page = highlighted = 0;
         if (!*mpn_input(session)) {
             resetCandidates();
@@ -701,6 +728,10 @@ private:
             return;
         }
         auto display = wide(mpn_preedit(session)) + (simplified ? L"  简" : L"  繁");
+        const bool canConjugate = !conjugationPanel.active() && page * pageSize + highlighted < choices.size() &&
+            conjugationFor(conjugations, choices[page * pageSize + highlighted], mpn_input(session));
+        const std::wstring conjugationHint = conjugationPanel.active() ? L"  活用 · F6/Esc 返回" : canConjugate ? L"  F6 活用" : L"";
+        display += conjugationHint;
         const auto start = page * pageSize;
         popupIndices.clear();
         std::optional<size_t> japanese;
@@ -738,9 +769,10 @@ private:
             + wide(mpn_preedit(session)) + L"\t" + std::to_wstring(highlighted);
         const size_t pageCount = (candidateCount() + pageSize - 1) / pageSize;
         payload += simplified ? L"\t简" : L"\t繁";
+        payload += conjugationHint;
         if (pageCount > 1)
             payload += L"  ·  " + std::to_wstring(page + 1) + L" / " + std::to_wstring(pageCount);
-        payload += expanded ? L"\t1" : L"\t0";
+        payload += conjugationPanel.active() ? L"\t2" : expanded ? L"\t1" : L"\t0";
         for (size_t i = 0; i < pageSize && start + i < candidateCount(); ++i)
             payload += L"\n" + candidateText(start + i) + L"\t" + candidateReading(start + i)
                 + (choices[start + i].japanese ? L"\tja" : L"");
@@ -784,6 +816,7 @@ private:
     std::unordered_map<ITfContext *, SavedContext> suspended;
     std::vector<JapaneseWord> japaneseWords;
     JapaneseConjugations conjugations;
+    ConjugationPanel conjugationPanel;
     WordEvidence evidence;
     std::vector<WindowsCandidate> choices;
     bool chineseLocked = false, expanded = false, simplified = true;

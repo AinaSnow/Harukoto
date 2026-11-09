@@ -1,8 +1,8 @@
-# 晴词 · Harukoto 0.4.4-alpha.2 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.3 · Windows x64
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.2-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.3-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -28,6 +28,12 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\Windows\build-preview.ps1
 可点选候选，或按数字键 1–5、7 与左右方向键切换高亮。按 Esc 关闭，也可拖动玻璃区移动窗口。预览使用固定候选词。
 
 ## Windows 系统输入法（x64 Alpha）
+
+### 日语活用面板（首版）
+
+输入 `chi`、`xie`、`qu`、`lai`、`xuexi` 或 `eat`、`write`、`go`、`come`、`study`，用方向键高亮对应日语词。看到“F6 活用”后按 F6，候选切换为辞书形、ます形、て形等，并显示读音和形式标签。数字 1–7 或 Enter 选词，Page Up／Page Down 翻页；F6、Esc 或退格返回原页及高亮，原始组字保留。
+
+首版仅支持整段触发词。混合句、部分匹配和有歧义的词条不显示入口，避免错误消耗后续组字。面板中继续输入字母会返回正常组字；空格仍输出原始输入加空格。普通候选的 F4 展开不变，活用面板中 F4 不折叠。切换输入上下文退出面板。当前通过逻辑及离屏渲染测试，真实 TSF 按键和跨应用行为待验收。
 
 ### 候选字号与排版
 
@@ -55,7 +61,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.2
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.3
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。

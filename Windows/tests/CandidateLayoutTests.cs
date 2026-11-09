@@ -53,6 +53,23 @@ class CandidateLayoutTests
             }
         }
         Console.WriteLine("PASS: 9 width/font combinations, seven visible candidates, no overlaps.");
+        window.Width = 672; panel.Width = 646;
+        layout.GetField("FontSize", flags).SetValue(null, 18.0);
+        ((TextBlock)window.FindName("Preedit")).Text = "chi";
+        ((TextBlock)window.FindName("PageIndicator")).Text = "简 · 活用 · F6/Esc 返回 · 1 / 2";
+        string[] forms = { "0", "0", "chi", "食べる\tたべる · 辞书形\tja", "食べます\tたべます · ます形\tja",
+            "食べて\tたべて · て形\tja", "食べた\tたべた · た形\tja", "食べない\tたべない · ない形\tja",
+            "食べられる\tたべられる · 可能形\tja", "食べられる\tたべられる · 被动形\tja" };
+        update.Invoke(null, new object[] { panel, forms, 1, -1, true, paw });
+        var formRoot = (FrameworkElement)window.Content;
+        formRoot.Measure(new Size(672, double.PositiveInfinity));
+        formRoot.Arrange(new Rect(0, 0, 672, formRoot.DesiredSize.Height));
+        formRoot.UpdateLayout();
+        if (panel.Children.Count != 7) throw new Exception("Conjugation forms were collapsed.");
+        var formImage = new RenderTargetBitmap(672, (int)Math.Ceiling(formRoot.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+        formImage.Render(formRoot);
+        var formEncoder = new PngBitmapEncoder(); formEncoder.Frames.Add(BitmapFrame.Create(formImage));
+        using (var file = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "conjugation-panel.png"))) formEncoder.Save(file);
         var settings = (Window)assembly.GetType("CandidateSettings").GetMethod("Create", flags).Invoke(null, null);
         var settingsRoot = (FrameworkElement)settings.Content;
         ((Panel)settingsRoot).Background = SystemColors.WindowBrush;

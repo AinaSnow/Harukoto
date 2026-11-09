@@ -20,11 +20,11 @@
 - 简洁矩形候选窗，自动换行，字号与宽度可调，支持远程串流显示。
 - 单文件安装／更新向导，内置 PS7，安装日志及注册失败恢复。
 
-日语活用目前是独立规则原型，尚未接入输入法；敬语、完整日语整句和生词本仍在规划。详见[日语路线图](docs/JAPANESE_INPUT_ROADMAP.md)。
+日语活用已接入 F6 候选面板首版，仅支持整段精确匹配的基础触发词，尚待实机验收；敬语、完整日语整句和生词本仍在规划。详见[日语路线图](docs/JAPANESE_INPUT_ROADMAP.md)。
 
 ## 安装与构建
 
-晴词开发版安装器为 Harukoto-0.4.4-alpha.2-Setup.exe，构建产物位于 .build/windows/dist。当前尚未发布 Gitea Release；请参阅 [Windows 说明](Windows/README.md)自行构建。安装后按 Win + 空格切换到“晴词 Harukoto”。
+晴词开发版安装器为 Harukoto-0.4.4-alpha.3-Setup.exe，构建产物位于 .build/windows/dist。当前尚未发布 Gitea Release；请参阅 [Windows 说明](Windows/README.md)自行构建。安装后按 Win + 空格切换到“晴词 Harukoto”。
 
 需要 Windows x64、PS7、Python 3、Visual Studio C++ 工具、Windows SDK 和 CMake。实际安装用户无需另装 PS7。
 
