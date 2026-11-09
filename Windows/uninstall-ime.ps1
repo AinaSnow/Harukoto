@@ -1,0 +1,58 @@
+param([switch]$Unregister, [switch]$VerifyOnly)
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'PowerShellHost.ps1')
+$hostPath = Get-MeowpuutPowerShell
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Run this script with PowerShell 7.' }
+if ($VerifyOnly) { Write-Output 'Uninstaller is available.'; return }
+$logRoot = Join-Path $env:LOCALAPPDATA 'Meowpuut/Logs'
+New-Item -ItemType Directory -Force $logRoot | Out-Null
+Start-Transcript -LiteralPath (Join-Path $logRoot ('uninstall-' + [guid]::NewGuid().ToString('N') + '.log')) | Out-Null
+try {
+    if ($Unregister) {
+        if (![Environment]::Is64BitProcess) { throw 'Use x64 PowerShell 7.' }
+        $root = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Meowpuut/IME'))
+        $lock = $null
+        try {
+            if (Test-Path -LiteralPath $root) {
+                $lock = [IO.File]::Open((Join-Path $root '.install.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+            }
+            $key = 'HKLM:\Software\Classes\CLSID\{961C0ADA-4DC6-488F-9563-4FC144EFAE27}\InprocServer32'
+            if (Test-Path -LiteralPath $key) {
+                $dll = [IO.Path]::GetFullPath((Get-Item -LiteralPath $key).GetValue(''))
+                $folder = Split-Path $dll
+                if ([IO.Path]::GetDirectoryName($folder) -ne $root -or (Split-Path $dll -Leaf) -ne 'MeowpuutTip.dll') {
+                    throw 'Registered DLL is outside the managed installation directory; no files were removed.'
+                }
+                foreach ($path in $root,$folder,$dll) {
+                    if ((Get-Item -LiteralPath $path).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing a redirected installation path.' }
+                }
+                $process = Start-Process -FilePath "$env:WINDIR/System32/regsvr32.exe" -ArgumentList @('/s','/u',('"' + $dll + '"')) -WindowStyle Hidden -Wait -PassThru
+                if ($process.ExitCode -ne 0 -or (Test-Path -LiteralPath $key)) {
+                    throw "Unregistration could not be verified (exit $($process.ExitCode)). Files were preserved."
+                }
+                Write-Host 'Machine registration removed. Version files retained for apps that still hold the DLL.'
+            }
+        } finally { if ($lock) { $lock.Dispose() } }
+        return
+    }
+    $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Unregister'
+    $process = Start-Process -FilePath $hostPath -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -PassThru -Wait
+    if ($process.ExitCode -ne 0) { throw "Machine unregistration failed: $($process.ExitCode). See the elevated account uninstall log." }
+    $tip = '0404:{961C0ADA-4DC6-488F-9563-4FC144EFAE27}{8FDE097D-3513-486A-9AB5-2D1B2C67C359}'
+    $list = Get-WinUserLanguageList
+    $changed = $false
+    foreach ($language in $list) {
+        if ($language.InputMethodTips -contains $tip) { $language.InputMethodTips.Remove($tip) | Out-Null; $changed = $true }
+    }
+    if ($changed) { Set-WinUserLanguageList $list -Force }
+    $root = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'Meowpuut/IME')) + [IO.Path]::DirectorySeparatorChar
+    Get-Process MeowpuutGlassPreview -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process
+    foreach ($shortcut in @(
+        (Join-Path ([Environment]::GetFolderPath('Startup')) 'Meowpuut Candidate Renderer.lnk'),
+        (Join-Path ([Environment]::GetFolderPath('Programs')) 'Meowpuut/Meowpuut Settings.lnk')
+    )) {
+        if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut }
+    }
+    Write-Host 'Uninstalled for this user. Personal data and version files are retained. Reopen applications.'
+} catch { Write-Host "Uninstallation failed: $_"; throw }
+finally { Stop-Transcript | Out-Null }

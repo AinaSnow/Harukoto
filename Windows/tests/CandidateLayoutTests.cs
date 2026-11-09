@@ -13,13 +13,12 @@ class CandidateLayoutTests
     {
         var assembly = Assembly.LoadFrom(args[0]);
         Window window;
-        using (var stream = assembly.GetManifestResourceStream("GlassPreview.xaml"))
+        using (var stream = assembly.GetManifestResourceStream("CandidateWindow.xaml"))
             window = (Window)XamlReader.Load(stream);
         var layout = assembly.GetType("CandidateLayout");
         var flags = BindingFlags.Static | BindingFlags.NonPublic;
         var panel = (WrapPanel)layout.GetMethod("Create", flags).Invoke(null, new object[] { window });
-        var paw = ((System.Windows.Shapes.Path)window.FindName("JapanesePaw")).Data;
-        ((FrameworkElement)window.FindName("JapanesePaw")).Visibility = Visibility.Collapsed;
+        Geometry paw = null;
         ((FrameworkElement)window.FindName("CompositionHeader")).Visibility = Visibility.Visible;
         ((TextBlock)window.FindName("Preedit")).Text = "jiankangbaoxian";
         string[] fields = { "0", "0", "jiankangbaoxian", "健康保险", "健康保険\tけんこうほけん · 拼\tja",
@@ -27,7 +26,7 @@ class CandidateLayoutTests
         var update = assembly.GetType("GlassPreview").GetMethod("UpdateCandidates", flags);
         foreach (int width in new[] { 480, 672, 1000 })
         foreach (int size in new[] { 18, 26, 32 }) {
-            window.Width = width; panel.Width = width - 42;
+            window.Width = width; panel.Width = width - 26;
             layout.GetField("FontSize", flags).SetValue(null, (double)size);
             update.Invoke(null, new object[] { panel, fields, 1, -1, true, paw });
             var root = (FrameworkElement)window.Content;

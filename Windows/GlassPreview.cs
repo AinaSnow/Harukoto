@@ -68,7 +68,7 @@ internal static class GlassPreview
         using (var receiver = new HwndSource(receiverParameters))
         {
             Window window;
-            using (var layout = typeof(GlassPreview).Assembly.GetManifestResourceStream("GlassPreview.xaml"))
+            using (var layout = typeof(GlassPreview).Assembly.GetManifestResourceStream("CandidateWindow.xaml"))
                 window = (Window)XamlReader.Load(layout);
             window.ShowActivated = false;
             window.ShowInTaskbar = false;
@@ -87,33 +87,10 @@ internal static class GlassPreview
             var strip = CandidateLayout.Create(window);
             var header = (FrameworkElement)window.FindName("CompositionHeader");
             var pageChip = (Border)window.FindName("PageChip");
-            var longCandidate = (Border)window.FindName("LongCandidate");
-            var longCandidateText = (TextBlock)window.FindName("LongCandidateText");
-            var primaryNumber = (TextBlock)window.FindName("PrimaryNumber");
-            var primaryBadge = (Border)window.FindName("PrimaryBadge");
             var preedit = (TextBlock)window.FindName("Preedit");
             var pageIndicator = (TextBlock)window.FindName("PageIndicator");
-            var previewPaw = (System.Windows.Shapes.Path)window.FindName("JapanesePaw");
-            Geometry paw = previewPaw.Data;
-            previewPaw.Visibility = Visibility.Collapsed;
-            if (SystemParameters.HighContrast)
-            {
-                ((System.Windows.Shapes.Rectangle)window.FindName("GlassSurface")).Fill = SystemColors.WindowBrush;
-                preedit.Foreground = SystemColors.WindowTextBrush;
-                pageIndicator.Foreground = SystemColors.WindowTextBrush;
-                pageChip.Background = SystemColors.WindowBrush;
-                pageChip.BorderBrush = SystemColors.WindowTextBrush;
-                longCandidate.Background = SystemColors.WindowBrush;
-                longCandidate.BorderBrush = SystemColors.WindowTextBrush;
-                longCandidateText.Foreground = SystemColors.WindowTextBrush;
-                primaryBadge.Background = SystemColors.HighlightBrush;
-                primaryBadge.BorderBrush = SystemColors.HighlightTextBrush;
-                primaryNumber.Foreground = SystemColors.HighlightTextBrush;
-            }
-            // The IME must remain visible in remote desktops and screen sharing.
-            // GlassBackdrop excludes its window from capture to avoid sampling itself,
-            // which also removes candidates from the user's streamed desktop. Keep
-            // the XAML translucent glass here; live refraction is preview-only.
+            Geometry paw = null;
+            // The plain candidate window remains visible in screen sharing.
 
             IntPtr foreground = IntPtr.Zero;
             receiver.AddHook(delegate(IntPtr hwnd, int message, IntPtr sender, IntPtr data, ref bool handled)
@@ -166,11 +143,11 @@ internal static class GlassPreview
                     for (int i = 3; i < fields.Length; i++)
                         if (IsJapanese(fields[i])) japaneseCount++;
                     if (expanded || japaneseCount > 1)
-                        pageIndicator.Text += (pageIndicator.Text.Length > 0 ? "   ·   " : "") + (expanded ? "F4 收合" : "F4 展開");
+                        pageIndicator.Text += (pageIndicator.Text.Length > 0 ? "   ·   " : "") + (expanded ? "F4 收起" : "F4 展开");
                     pageChip.Visibility = pageIndicator.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                     var work = CandidateLayout.Prepare(window, strip, x, y);
                     UpdateCandidates(strip, fields, highlighted, -1, expanded, paw);
-                    longCandidate.Visibility = Visibility.Collapsed;
+
                     CandidateLayout.Show(window, work, x, y);
                 }));
                 return new IntPtr(1);
@@ -218,9 +195,9 @@ internal static class GlassPreview
 
 
         bool contrast = SystemParameters.HighContrast;
-        var rose = new LinearGradientBrush(Color.FromRgb(143, 102, 91), Color.FromRgb(88, 58, 63), 78);
+        var rose = new SolidColorBrush(Color.FromRgb(228, 238, 252));
         rose.Freeze();
-        var rim = new SolidColorBrush(Color.FromArgb(140, 247, 205, 184));
+        var rim = new SolidColorBrush(Color.FromRgb(138, 176, 227));
         rim.Freeze();
         strip.Children.Clear();
 
@@ -237,21 +214,6 @@ internal static class GlassPreview
                 Margin = new Thickness(0, 0, 7, 0),
                 VerticalAlignment = VerticalAlignment.Center
             });
-            if (IsJapanese(fields[index + 3]))
-            {
-                var mark = new System.Windows.Shapes.Path
-                {
-                    Data = paw,
-                    Fill = contrast ? SystemColors.WindowTextBrush : Brushes.PeachPuff,
-                    Width = 13,
-                    Height = 13,
-                    Stretch = Stretch.Uniform,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(5, 0, 0, 0)
-                };
-                DockPanel.SetDock(mark, Dock.Right);
-                content.Children.Add(mark);
-            }
             var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             if (IsJapanese(fields[index + 3]) && candidate.Length > 1 && candidate[1].Length > 0)
                 words.Children.Add(new TextBlock { Text = candidate[1], FontSize = Math.Max(11, CandidateLayout.FontSize * 0.6), Opacity = contrast ? 1 : 0.85, Margin = new Thickness(0, 3, 0, 3),
@@ -270,6 +232,7 @@ internal static class GlassPreview
                 Content = content,
                 Height = double.NaN, MinHeight = 44, Width = double.NaN,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                Foreground = SystemColors.WindowTextBrush, Background = Brushes.Transparent, BorderBrush = Brushes.Transparent,
                 Focusable = false,
                 Margin = new Thickness(0, 0, 8, 8), VerticalAlignment = VerticalAlignment.Top
             };

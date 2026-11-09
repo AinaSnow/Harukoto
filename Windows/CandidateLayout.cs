@@ -18,15 +18,7 @@ internal static class CandidateLayout
 
     internal static WrapPanel Create(Window window)
     {
-        var original = (StackPanel)window.FindName("Candidates");
-        original.Visibility = Visibility.Collapsed;
-        var panel = new WrapPanel { Resources = original.Resources };
-        var body = new Border { Child = panel, Padding = new Thickness(12), Margin = new Thickness(8, 0, 8, 8),
-            CornerRadius = new CornerRadius(18), BorderThickness = new Thickness(1),
-            Background = SystemParameters.HighContrast ? SystemColors.WindowBrush : new SolidColorBrush(Color.FromArgb(245, 48, 42, 46)),
-            BorderBrush = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : new SolidColorBrush(Color.FromArgb(120, 223, 192, 180)) };
-        ((StackPanel)window.Content).Children.Add(body);
-        Canvas.SetTop((FrameworkElement)window.FindName("CompositionHeader"), 82);
+        var panel = (WrapPanel)window.FindName("Candidates");
         return panel;
     }
 
@@ -50,7 +42,7 @@ internal static class CandidateLayout
             work = new Rect(transform.Transform(new Point(info.Work.Left, info.Work.Top)),
                             transform.Transform(new Point(info.Work.Right, info.Work.Bottom)));
         window.Width = Math.Min(width, work.Width);
-        panel.Width = Math.Max(100, window.Width - 42);
+        panel.Width = Math.Max(100, window.Width - 26);
         return work;
     }
 
