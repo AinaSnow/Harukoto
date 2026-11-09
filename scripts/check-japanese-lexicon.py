@@ -7,7 +7,7 @@ from pathlib import Path
 from japanese_readings import pinyin_kana
 
 resources = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('.build/Meowpuut.app/Contents/Resources')
-readings = json.loads((resources / 'native-japanese.json').read_text())
+readings = json.loads((resources / 'native-japanese.json').read_text(encoding="utf-8"))
 for reading, entries in readings.items():
     pairs = [(item['text'], item['weight']) for item in entries]
     assert len({text for text, _ in pairs}) == len(pairs), f'duplicate {reading}: {pairs}'
@@ -43,17 +43,17 @@ assert pinyin_kana('推し活', ['tui', 'huo']) == 'tuishihuo'
 
 root = Path(__file__).resolve().parent.parent
 source = root / 'DataSources/UniDic'
-manifest = json.loads((source / 'SOURCE.json').read_text())
-assert hashlib.sha256((source / 'daily.tsv').read_bytes()).hexdigest() == manifest['curated_sha256']
+manifest = json.loads((source / 'SOURCE.json').read_text(encoding="utf-8"))
+assert hashlib.sha256((source / 'daily.tsv').read_bytes().replace(bytes([13, 10]), bytes([10]))).hexdigest() == manifest['curated_sha256']
 for name, expected in manifest['license_sha256'].items():
-    assert hashlib.sha256((source / name).read_bytes()).hexdigest() == expected, name
+    assert hashlib.sha256((source / name).read_bytes().replace(bytes([13, 10]), bytes([10]))).hexdigest() == expected, name
 
 # Mixed-input adapters register the first candidate only for each reading.
 # Explicitly guard collisions so a newly merged row cannot silently shadow a
 # reviewed word. The common 優しい takes precedence over 易しい intentionally.
 reviewed_shadowed = {('yasashii', '易しい'): '優しい'}
 observed_shadowed = {}
-for line in (source / 'daily.tsv').read_text().splitlines():
+for line in (source / 'daily.tsv').read_text(encoding="utf-8").splitlines():
     if not line or line.startswith('#'): continue
     _, word, standard, syllables, _ = line.split('|')
     alias = pinyin_kana(word, syllables.split())
@@ -85,7 +85,7 @@ for dest, original in [('UniDic-BSD.txt', 'UNIDIC-BSD.txt'),
                        ('UniDic-SOURCE.json', 'SOURCE.json')]:
     assert (resources / 'Licenses' / dest).read_bytes() == (source / original).read_bytes(), dest
 
-tsv = [line.split('|') for line in (resources / 'native-japanese.tsv').read_text().splitlines()]
+tsv = [line.split('|') for line in (resources / 'native-japanese.tsv').read_text(encoding="utf-8").splitlines()]
 assert all(len(parts) == 3 for parts in tsv)
 tsv_map = {}
 for reading, word, weight in tsv:

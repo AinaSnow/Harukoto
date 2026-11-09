@@ -569,7 +569,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             const auto kind = !reading.unambiguous ? MPN_CANDIDATE_UNKNOWN :
                 (lexicon.pinyin && !fully_spelled(word) ? MPN_CANDIDATE_CORRECTION :
                  (verifiedSpelling(word) ? MPN_CANDIDATE_EXACT : MPN_CANDIDATE_UNKNOWN));
-            append(word.text(hans), {kind, MPN_SCORE_LEXICON, double(word.score(hans))});
+            append(word.text(hans), {static_cast<uint32_t>(kind), MPN_SCORE_LEXICON, double(word.score(hans))});
         }
         if (results.size() == result_limit) return results;
     }
@@ -657,7 +657,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
         const auto kind = !reading.unambiguous ? MPN_CANDIDATE_UNKNOWN :
             (!path.spelled ? MPN_CANDIDATE_CORRECTION :
              (path.verified ? MPN_CANDIDATE_PATH : MPN_CANDIDATE_UNKNOWN));
-        append(path.text, {kind, MPN_SCORE_PATH, path.score});
+        append(path.text, {static_cast<uint32_t>(kind), MPN_SCORE_PATH, path.score});
         if (results.size() == result_limit) break;
     }
     return results;
@@ -1064,7 +1064,7 @@ struct MPNSession {
         if (ranked.empty()) {
             for (auto &item : fallback(*lexicon, input, hans)) {
                 ranked.push_back({std::move(item.text), item.consumed,
-                    {item.consumed < input.size() ? MPN_CANDIDATE_PARTIAL : MPN_CANDIDATE_CORRECTION,
+                    {static_cast<uint32_t>(item.consumed < input.size() ? MPN_CANDIDATE_PARTIAL : MPN_CANDIDATE_CORRECTION),
                      MPN_SCORE_FALLBACK, item.score}});
             }
         }

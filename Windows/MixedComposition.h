@@ -8,6 +8,8 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <sstream>
+#include <tuple>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -15,21 +17,43 @@
 struct JapaneseWord {
     std::string reading, text;
     int weight;
+    std::string kana, source, chinese;
 };
 
 inline std::vector<JapaneseWord> readJapaneseWords(std::istream &file) {
     std::vector<JapaneseWord> words;
     for (std::string line; std::getline(file, line);) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
         if (line.empty() || line.front() == '#') continue;
         const auto first = line.find('|');
         if (first == line.npos) continue;
         const auto second = line.find('|', first + 1);
         if (second == line.npos) continue;
-        const auto text = line.substr(first + 1, second - first - 1);
-        const int weight = std::atoi(line.c_str() + second + 1);
+        std::vector<std::string> fields;
+        std::istringstream row(line);
+        for (std::string field; std::getline(row, field, '|');) fields.push_back(field);
+        if (fields.size() < 3 || fields.size() > 6) continue;
+        const auto &text = fields[1];
+        int weight = 0;
+        try {
+            size_t used = 0;
+            weight = std::stoi(fields[2], &used);
+            if (used != fields[2].size() || weight <= 0 || weight > 10000) continue;
+        } catch (...) { continue; }
+        const std::string kana = fields.size() > 3 ? fields[3] : "";
+        const std::string source = fields.size() > 4 ? fields[4] : "";
+        const std::string chinese = fields.size() > 5 ? fields[5] : "";
+        if (text.empty() || text.size() > 128 || kana.size() > 128 || chinese.size() > 128 ||
+            (source != "" && source != "pinyin" && source != "english")) continue;
+        if (text.find_first_of("\t\r") != text.npos || kana.find_first_of("\t\r") != kana.npos ||
+            chinese.find_first_of("\t\r") != chinese.npos || (!source.empty() && kana.empty())) continue;
         for (size_t begin = 0; begin < first;) {
             const auto comma = std::min(line.find(',', begin), first);
-            words.push_back({line.substr(begin, comma - begin), text, weight});
+            const auto reading = line.substr(begin, comma - begin);
+            if (!reading.empty() && reading.size() <= 80 &&
+                std::all_of(reading.begin(), reading.end(), [](char c) {
+                    return (c >= 'a' && c <= 'z') || c == '\'' || c == '-';
+                })) words.push_back({reading, text, weight, kana, source, chinese});
             begin = comma + 1;
         }
     }
@@ -91,6 +115,7 @@ struct WindowsCandidate {
     std::optional<size_t> coreIndex;
     bool japanese = false;
     bool strong = false;
+    std::string annotation;
 };
 
 // Mirrors the macOS mixed-reading gate: one exact Japanese word surrounded by
@@ -101,7 +126,10 @@ std::string mixedReading(const std::string &input, const std::vector<JapaneseWor
         !std::all_of(input.begin(), input.end(), [](char c) { return c >= 'a' && c <= 'z'; }))
         return {};
     std::unordered_map<std::string, const JapaneseWord *> japanese;
-    for (const auto &word : dictionary) japanese.emplace(word.reading, &word);
+    // Explicit bridge aliases are whole-word lookups until Japanese sentence
+    // decoding exists; do not treat their editorial priority as mixed evidence.
+    for (const auto &word : dictionary)
+        if (word.source.empty()) japanese.emplace(word.reading, &word);
     if (japanese.count(input)) return {};
 
     using Evidence = std::optional<std::pair<std::string, int>>;
@@ -161,15 +189,17 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
     const std::string input = mpn_input(session);
     if (input.empty()) return {};
     std::vector<WindowsCandidate> choices;
-    std::set<std::pair<std::string, size_t>> seen;
+    std::set<std::tuple<std::string, size_t, std::string>> seen;
     const auto evidence = chineseLocked ? ChineseEvidence{} : lookup(input);
-    auto append = [&](std::string text, std::optional<size_t> index, bool japanese) {
+    auto append = [&](std::string text, std::optional<size_t> index, bool japanese, std::string annotation = {}) {
         const size_t consumed = index ? mpn_candidate_consumed(session, *index) : input.size();
-        if (text.empty() || !seen.emplace(text, consumed).second)
+        if (text.empty() || !seen.emplace(text, consumed, annotation).second)
             return;
         const auto found = evidence.find(text);
         const bool strong = found != evidence.end() && found->second >= 2000;
-        choices.push_back({std::move(text), index, japanese && found == evidence.end(), strong});
+        const bool explicitJapanese = !annotation.empty();
+        choices.push_back({std::move(text), index, japanese && (explicitJapanese || found == evidence.end()),
+                           strong && !explicitJapanese, std::move(annotation)});
     };
 
     std::vector<size_t> chinese;
@@ -201,17 +231,27 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
     for (size_t i = 0; i < std::min(size_t(2), chinese.size()); ++i)
         append(mpn_candidate(session, chinese[i]), chinese[i], false);
     append(mixedReading(input, dictionary, lookup), {}, true);
+    auto appendWord = [&](const JapaneseWord &word) {
+        std::string annotation = word.kana;
+        if (word.source == "english") annotation += " · EN " + word.reading;
+        else if (word.source == "pinyin") annotation += " · 拼";
+        if (!word.chinese.empty()) annotation += " · " + word.chinese;
+        append(word.text, {}, true, std::move(annotation));
+    };
     const auto firstJapanese = std::find_if(dictionary.begin(), dictionary.end(), [&](const auto &word) {
         return word.reading == input;
     });
-    if (firstJapanese != dictionary.end()) append(firstJapanese->text, {}, true);
+    if (firstJapanese != dictionary.end()) appendWord(*firstJapanese);
     if (input.size() <= 3) append(input, {}, false);
     if (chinese.size() > 2) append(mpn_candidate(session, chinese[2]), chinese[2], false);
     if (!supplementFirst) supplement();
     for (size_t i = 3; i < chinese.size(); ++i) append(mpn_candidate(session, chinese[i]), chinese[i], false);
     for (size_t i = 7; i < additional.size(); ++i) append(additional[i].first, {}, false);
     for (const auto &word : dictionary)
-        if (word.reading == input) append(word.text, {}, true);
+        if (word.reading == input) appendWord(word);
+    if (std::any_of(dictionary.begin(), dictionary.end(), [&](const auto &word) {
+        return word.reading == input && word.source == "english";
+    })) append(input, {}, false);
     if (choices.empty()) append(input, {}, false);
     return interleaveCandidates(std::move(choices));
 }

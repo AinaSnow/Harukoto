@@ -1,3 +1,6 @@
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <msctf.h>
 #include <array>
@@ -181,6 +184,22 @@ public:
             std::ifstream file(folder / L"native-pinyin.tsv", std::ios::binary);
             std::ifstream japanese(folder / L"japanese.tsv", std::ios::binary);
             japaneseWords = readJapaneseWords(japanese);
+            wchar_t localAppData[32768];
+            const DWORD localLength = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, ARRAYSIZE(localAppData));
+            if (localLength && localLength < ARRAYSIZE(localAppData)) {
+                const auto customPath = std::filesystem::path(localAppData) / L"Meowpuut/japanese-custom.tsv";
+                std::error_code error;
+                const auto size = std::filesystem::file_size(customPath, error);
+                if (!error && size <= 32 * 1024 * 1024) {
+                    std::ifstream customFile(customPath, std::ios::binary);
+                    auto custom = readJapaneseWords(customFile);
+                    japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(custom.begin()),
+                                         std::make_move_iterator(custom.end()));
+                    std::stable_sort(japaneseWords.begin(), japaneseWords.end(), [](const auto &a, const auto &b) {
+                        return a.weight > b.weight;
+                    });
+                }
+            }
             evidence.open(folder / L"language-evidence.sqlite");
             std::string bytes((std::istreambuf_iterator<char>(file)), {});
             lexicon = mpn_lexicon_create(bytes.data(), bytes.size());
@@ -545,6 +564,7 @@ private:
     std::wstring candidateText(size_t index) const { return wide(choices[index].text.c_str()); }
 
     std::wstring candidateReading(size_t index) const {
+        if (!choices[index].annotation.empty()) return wide(choices[index].annotation.c_str());
         if (!choices[index].coreIndex) return {};
         const auto consumed = mpn_candidate_consumed(session, *choices[index].coreIndex);
         const std::string input = mpn_input(session);
@@ -686,6 +706,7 @@ private:
             display += std::wstring(i == highlighted ? L"\r\n> " : L"\r\n  ") + std::to_wstring(i + 1)
                 + L"  " + candidateText(start + i);
             if (choices[start + i].japanese) display += L"  [日]";
+            if (!choices[start + i].annotation.empty()) display += L"  " + wide(choices[start + i].annotation.c_str());
         }
 
         auto *context = activeContext;
@@ -823,7 +844,13 @@ BOOL WINAPI DllMain(HMODULE handle, DWORD reason, void *) {
     return TRUE;
 }
 
-extern "C" __declspec(dllexport) HRESULT WINAPI DllGetClassObject(REFCLSID id, REFIID iid, void **out) {
+#ifdef _MSC_VER
+#define MEOWPUUT_EXPORT STDAPI
+#else
+#define MEOWPUUT_EXPORT extern "C" __declspec(dllexport) HRESULT WINAPI
+#endif
+
+MEOWPUUT_EXPORT DllGetClassObject(REFCLSID id, REFIID iid, void **out) {
     *out = nullptr;
     if (id != serviceId) return CLASS_E_CLASSNOTAVAILABLE;
     auto *factory = new (std::nothrow) Factory;
@@ -833,11 +860,11 @@ extern "C" __declspec(dllexport) HRESULT WINAPI DllGetClassObject(REFCLSID id, R
     return result;
 }
 
-extern "C" __declspec(dllexport) HRESULT WINAPI DllCanUnloadNow() {
+MEOWPUUT_EXPORT DllCanUnloadNow() {
     return InterlockedCompareExchange(&objects, 0, 0) == 0 ? S_OK : S_FALSE;
 }
 
-extern "C" __declspec(dllexport) HRESULT WINAPI DllRegisterServer() {
+MEOWPUUT_EXPORT DllRegisterServer() {
     const auto path = modulePath();
     if (path.empty()) return E_FAIL;
     HKEY server = nullptr;
@@ -861,7 +888,7 @@ extern "C" __declspec(dllexport) HRESULT WINAPI DllRegisterServer() {
     return result;
 }
 
-extern "C" __declspec(dllexport) HRESULT WINAPI DllUnregisterServer() {
+MEOWPUUT_EXPORT DllUnregisterServer() {
     HRESULT result = registerProfile(false);
     const LSTATUS status = RegDeleteTreeW(HKEY_LOCAL_MACHINE, classKey);
     return status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND ? result : HRESULT_FROM_WIN32(status);

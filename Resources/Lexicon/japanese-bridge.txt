@@ -1,0 +1,43 @@
+# 日语辅助输入基础词表
+# 喵扑独立整理的常用词与明确触发词；不包含第三方产品词库。
+日本 | にほん | pinyin: riben
+日本語 | にほんご | pinyin: ribenyu
+東京 | とうきょう | pinyin: dongjing
+学校 | がっこう | pinyin: xuexiao
+学生 | がくせい | pinyin: xuesheng
+先生 | せんせい | pinyin: xiansheng
+図書館 | としょかん | pinyin: tushuguan
+誕生日 | たんじょうび | pinyin: danshengri
+健康保険 | けんこうほけん | pinyin: jiankangbaoxian
+新宿 | しんじゅく | pinyin: xinsu
+店長 | てんちょう | pinyin: dianzhang
+声優 | せいゆう | pinyin: shengyou
+音楽 | おんがく | pinyin: yinyue
+映画 | えいが | pinyin: yinghua
+電話 | でんわ | pinyin: dianhua
+電車 | でんしゃ | pinyin: dianche
+時間 | じかん | pinyin: shijian
+写真 | しゃしん | pinyin: xiezhen
+料理 | りょうり | pinyin: liaoli
+寿司 | すし | pinyin: shousi
+コーヒー | english: coffee
+カード | english: card
+ポイントカード | english: point card
+アイスクリーム | english: ice cream
+スケジュール | english: schedule
+スマートフォン | english: smartphone
+コンピューター | english: computer
+コンピュータ | english: computer | priority: 4900
+インターネット | english: internet
+メール | english: mail
+ホテル | english: hotel
+レストラン | english: restaurant
+メニュー | english: menu
+チケット | english: ticket
+ゲーム | english: game
+カメラ | english: camera
+ニュース | english: news
+テスト | english: test
+エリンギ | chinese: 杏鲍菇 | pinyin: xingbaogu
+チャーシュー | chinese: 叉烧 | pinyin: chashao
+ニューヨーク | chinese: 纽约 | pinyin: niuyue

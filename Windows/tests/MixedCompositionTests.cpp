@@ -158,7 +158,74 @@ static void verifyRealLexicon(const char *path) {
     mpn_lexicon_destroy(lexicon);
 }
 
+static void verifyRealBridge(const char *lexiconPath, const char *dictionaryPath) {
+    std::ifstream file(lexiconPath, std::ios::binary), dictionaryFile(dictionaryPath, std::ios::binary);
+    assert(file && dictionaryFile);
+    const std::string data{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    auto *lexicon = makeLexicon(data);
+    auto *session = mpn_session_create(lexicon);
+    mpn_set_simplified(session, 1);
+    const auto dictionary = readJapaneseWords(dictionaryFile);
+    size_t checked = 0;
+    for (const auto &word : dictionary) {
+        if (word.source.empty()) continue;
+        mpn_clear(session);
+        type(session, word.reading);
+        const auto choices = windowsCandidates(session, dictionary,
+            [](const std::string &) { return ChineseEvidence{}; }, false);
+        const auto found = std::find_if(choices.begin(), choices.end(), [&](const auto &c) {
+            return c.text == word.text && c.japanese && c.annotation.find(word.kana) == 0;
+        });
+        assert(found != choices.end() && !found->coreIndex);
+        assert(found - choices.begin() < 7);
+        ++checked;
+    }
+    assert(checked >= 41);
+    mpn_session_destroy(session);
+    mpn_lexicon_destroy(lexicon);
+}
+
+static void verifyJapaneseBridge() {
+    std::istringstream table(
+        "nihon|日本|9000\n"
+        "riben|日本|5000|にほん|pinyin|\r\n"
+        "xinsu|新宿|5000|しんじゅく|pinyin|\n"
+        "xinsu|新宿|4900|にいじゅく|pinyin|\n"
+        "coffee|コーヒー|5000|こーひー|english|\n"
+        "bad|bad|oops\n"
+        "bad|bad|5000junk\n");
+    const auto dictionary = readJapaneseWords(table);
+    assert(dictionary.size() == 5);
+    auto *lexicon = makeLexicon("MEOWPUUT-PINYIN-1\nriben\tri4ben3\t日本\t日本\t18000\n");
+    auto *session = mpn_session_create(lexicon);
+    const auto lookup = [](const std::string &input) {
+        return input == "riben" ? ChineseEvidence{{"日本", 9000}} : ChineseEvidence{};
+    };
+    type(session, "riben");
+    const auto choices = windowsCandidates(session, dictionary, lookup, false);
+    assert(choices.front().text == "日本" && !choices.front().japanese && choices.front().coreIndex);
+    const auto ja = std::find_if(choices.begin(), choices.end(), [](const auto &c) { return c.japanese; });
+    assert(ja != choices.end() && ja->text == "日本" && ja->annotation == "にほん · 拼" && !ja->coreIndex);
+    assert(ja - choices.begin() < 7);
+    const auto locked = windowsCandidates(session, dictionary, lookup, true);
+    assert(std::none_of(locked.begin(), locked.end(), [](const auto &c) { return c.japanese; }));
+    mpn_clear(session);
+    type(session, "xinsu");
+    const auto readings = windowsCandidates(session, dictionary, lookup, false);
+    assert(std::count_if(readings.begin(), readings.end(), [](const auto &c) { return c.text == "新宿" && c.japanese; }) == 2);
+    mpn_clear(session);
+    type(session, "coffee");
+    const auto english = windowsCandidates(session, dictionary, lookup, false);
+    const auto coffee = std::find_if(english.begin(), english.end(), [](const auto &c) { return c.text == "コーヒー"; });
+    assert(coffee != english.end() && coffee->annotation == "こーひー · EN coffee" && coffee->japanese);
+    assert(coffee - english.begin() < 7);
+    assert(std::any_of(english.begin(), english.end(), [](const auto &c) { return c.text == "coffee" && !c.japanese; }));
+    mpn_session_destroy(session);
+    mpn_lexicon_destroy(lexicon);
+}
+
 int main(int argc, char **argv) {
+    verifyJapaneseBridge();
     assert((pinyinEvidenceReadings("lue") == std::vector<std::string>{"lue", "lve"}));
     assert((pinyinEvidenceReadings("nue") == std::vector<std::string>{"nue", "nve"}));
     assert((pinyinEvidenceReadings("shenglue") == std::vector<std::string>{"shenglue", "shenglve"}));
@@ -167,5 +234,6 @@ int main(int argc, char **argv) {
     verifyLongCandidateList();
     verifySameTextDifferentConsumption();
     if (argc > 1) verifyRealLexicon(argv[1]);
+    if (argc > 2) verifyRealBridge(argv[1], argv[2]);
     std::puts("PASS: Windows candidate pagination, indices and distinct consumption");
 }
