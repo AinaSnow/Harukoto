@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.16'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.17'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,9 +50,11 @@ try {
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
     }
     New-Item -ItemType Directory -Force (Join-Path $stage 'docs/benchmarks') | Out-Null
+    Copy-Item -LiteralPath (Join-Path $root 'docs/HOT_RELOAD.md') -Destination (Join-Path $stage 'docs')
     Copy-Item -LiteralPath (Join-Path $root 'docs/benchmarks/chinese-alpha11-baseline.json') -Destination (Join-Path $stage 'docs/benchmarks')
     Copy-Item -LiteralPath (Join-Path $root 'docs/benchmarks/chinese-alpha15.json') -Destination (Join-Path $stage 'docs/benchmarks')
     Copy-Item -LiteralPath (Join-Path $root 'docs/benchmarks/chinese-alpha16.json') -Destination (Join-Path $stage 'docs/benchmarks')
+    Copy-Item -LiteralPath (Join-Path $root 'docs/benchmarks/chinese-alpha17.json') -Destination (Join-Path $stage 'docs/benchmarks')
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-ime.ps1') -Destination (Join-Path $stage 'Install.ps1')
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md'),(Join-Path $root 'LICENSE'),(Join-Path $root 'THIRD_PARTY.md') -Destination $stage
     $readme = Join-Path $stage 'README.md'

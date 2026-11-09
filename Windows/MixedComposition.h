@@ -120,6 +120,16 @@ struct WindowsCandidate {
     bool directJapanese = false; // Explicit bridge choices stay visible when collapsed.
 };
 
+inline void appendCandidateExpansion(MPNSession *session, std::vector<WindowsCandidate> &current,
+                                     const std::vector<WindowsCandidate> &more) {
+    std::set<std::tuple<std::string, size_t, std::string>> seen;
+    const auto key = [&](const WindowsCandidate &c) {
+        return std::make_tuple(c.text, c.coreIndex ? mpn_candidate_consumed(session, *c.coreIndex) : std::string(mpn_input(session)).size(), c.annotation);
+    };
+    for (const auto &c : current) seen.insert(key(c));
+    for (const auto &c : more) if (seen.insert(key(c)).second) current.push_back(c);
+}
+
 // Mirrors the macOS mixed-reading gate: one exact Japanese word surrounded by
 // complete, high-confidence Chinese dictionary readings.
 template<class Lookup>
@@ -268,10 +278,17 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
         if (!word.theme || word.reading != input || word.chinese.empty()) continue;
         const std::string chineseName = mpn_custom_chinese(session, word.chinese.c_str());
         if (!included.insert(chineseName).second) continue;
-        if (std::any_of(result.begin(), result.end(), [&](const auto &c) {
+        const auto existing = std::find_if(result.begin(), result.end(), [&](const auto &c) {
             return !c.japanese && c.text == chineseName && (!c.coreIndex || mpn_candidate_consumed(session, *c.coreIndex) == input.size());
-        })) continue;
-        names.push_back({chineseName, {}, false, true, "主题词库 · 中文", false});
+        });
+        // A theme name can already exist as a low-ranked composed path.
+        // Promote that selection too, retaining its native consumption index.
+        if (existing != result.end()) {
+            auto promoted = *existing;
+            promoted.strong = true;
+            names.push_back(std::move(promoted));
+            result.erase(existing);
+        } else names.push_back({chineseName, {}, false, true, "主题词库 · 中文", false});
     }
     if (!names.empty()) {
         // Keep ordinary high-confidence Chinese first. A recorded theme name

@@ -165,7 +165,8 @@ HRESULT EditSession::DoEditSession(TfEditCookie cookie) {
     return result;
 }
 
-class Service final : public ITfTextInputProcessor, public ITfKeyEventSink, public ITfThreadMgrEventSink, public RefCount {
+class Service final : public ITfTextInputProcessor, public ITfKeyEventSink, public ITfThreadMgrEventSink, public ITfThreadFocusSink, public RefCount {
+    friend struct ServiceFocusTest;
 public:
     ~Service() override { Deactivate(); }
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
@@ -176,6 +177,8 @@ public:
             *out = static_cast<ITfKeyEventSink *>(this);
         else if (id == IID_ITfThreadMgrEventSink)
             *out = static_cast<ITfThreadMgrEventSink *>(this);
+        else if (id == IID_ITfThreadFocusSink)
+            *out = static_cast<ITfThreadFocusSink *>(this);
         else return E_NOINTERFACE;
         AddRef();
         return S_OK;
@@ -222,6 +225,8 @@ public:
         if (SUCCEEDED(result)) result = manager->QueryInterface(IID_ITfSource, reinterpret_cast<void **>(&events));
         if (SUCCEEDED(result)) result = events->AdviseSink(IID_ITfThreadMgrEventSink,
             static_cast<ITfThreadMgrEventSink *>(this), &eventCookie);
+        if (SUCCEEDED(result)) result = events->AdviseSink(IID_ITfThreadFocusSink,
+            static_cast<ITfThreadFocusSink *>(this), &focusCookie);
         if (FAILED(result)) Deactivate();
         return result;
     }
@@ -237,6 +242,9 @@ public:
             const DWORD cookie = eventCookie;
             eventCookie = TF_INVALID_COOKIE;
             if (cookie != TF_INVALID_COOKIE) source->UnadviseSink(cookie);
+            const DWORD focus = focusCookie;
+            focusCookie = TF_INVALID_COOKIE;
+            if (focus != TF_INVALID_COOKIE) source->UnadviseSink(focus);
             source->Release();
         }
         if (lastForeground) sendGlass({});
@@ -272,11 +280,13 @@ public:
         return S_OK;
     }
 
-    HRESULT STDMETHODCALLTYPE OnSetFocus(BOOL) override {
-        // A late accepted edit must wait until its own context receives input
-        // again. Preserve text while another application or field has focus.
-        suspendDeliveries();
-        hideCandidates();
+    HRESULT STDMETHODCALLTYPE OnSetFocus(BOOL foreground) override {
+        if (!foreground) cancelForFocusChange();
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE OnSetThreadFocus() override { return S_OK; }
+    HRESULT STDMETHODCALLTYPE OnKillThreadFocus() override {
+        cancelForFocusChange();
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnInitDocumentMgr(ITfDocumentMgr *) override { return S_OK; }
@@ -284,15 +294,12 @@ public:
         // Each removed context is disposed through OnPopContext.
         return S_OK;
     }
-    HRESULT STDMETHODCALLTYPE OnSetFocus(ITfDocumentMgr *, ITfDocumentMgr *) override {
-        // Switching fields in the same foreground window also invalidates UI.
-        suspendDeliveries();
-        hideCandidates();
+    HRESULT STDMETHODCALLTYPE OnSetFocus(ITfDocumentMgr *next, ITfDocumentMgr *previous) override {
+        if (next != previous) cancelForFocusChange();
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnPushContext(ITfContext *) override {
-        suspendDeliveries();
-        hideCandidates();
+        cancelForFocusChange();
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnPopContext(ITfContext *context) override {
@@ -387,7 +394,10 @@ public:
                 *eaten = TRUE;
             } else if (key == VK_PRIOR || key == VK_NEXT) {
                 if (key == VK_PRIOR && page) --page;
-                if (key == VK_NEXT && (page + 1) * pageSize < total) ++page;
+                if (key == VK_NEXT) {
+                    if (!conjugationPanel.active() && (page + 1) * pageSize >= candidateCount()) expandCandidates();
+                    if ((page + 1) * pageSize < candidateCount()) ++page;
+                }
                 highlighted = 0;
                 *eaten = TRUE;
             } else if (const wchar_t mark = pinyinPunctuation(static_cast<unsigned int>(key))) {
@@ -525,7 +535,9 @@ private:
         size_t page = 0, highlighted = 0;
     };
     bool switchContext(ITfContext *context) {
-        conjugationPanel.close(choices, page, highlighted, expanded);
+        // Some hosts change the supplied context without a preceding document
+        // focus event. Never save an unfinished composition in that case.
+        cancelForFocusChange();
         auto found = suspended.find(context);
         MPNSession *next = found == suspended.end() ? (activeContext ? mpn_session_create(lexicon) : session) : found->second.session;
         if (!next) return false;
@@ -572,6 +584,22 @@ private:
         chineseLocked = expanded = false;
     }
 
+    void cancelForFocusChange() {
+        // Already-selected text still belongs to its original TSF context.
+        // Suspend its delivery queue; cancel only the unselected reading.
+        suspendDeliveries();
+        mpn_cancel_composition(session);
+        resetCandidates();
+        for (auto &entry : suspended) {
+            auto &saved = entry.second;
+            mpn_cancel_composition(saved.session);
+            saved.choices.clear();
+            saved.page = saved.highlighted = 0;
+            saved.chineseLocked = saved.expanded = false;
+        }
+        hideCandidates();
+    }
+
     void refreshCandidates() {
         conjugationPanel.clear();
         page = highlighted = 0;
@@ -585,6 +613,17 @@ private:
     }
 
     size_t candidateCount() const { return choices.size(); }
+
+    void expandCandidates() {
+        const auto before = choices.size();
+        while (choices.size() == before && mpn_candidates_can_expand(session)) {
+            mpn_expand_candidates(session);
+            const auto more = windowsCandidates(session, japaneseWords, [&](const std::string &input) {
+                return evidence.dictionary(input, simplified);
+            }, chineseLocked);
+            appendCandidateExpansion(session, choices, more);
+        }
+    }
 
     void finishCandidateText(std::wstring &text, size_t choice) {
         while (*mpn_input(session)) {
@@ -771,8 +810,9 @@ private:
         const size_t pageCount = (candidateCount() + pageSize - 1) / pageSize;
         payload += simplified ? L"\t简" : L"\t繁";
         payload += conjugationHint;
-        if (pageCount > 1)
+        if (pageCount > 1 || (!conjugationPanel.active() && mpn_candidates_can_expand(session)))
             payload += L"  ·  " + std::to_wstring(page + 1) + L" / " + std::to_wstring(pageCount);
+        if (!conjugationPanel.active() && mpn_candidates_can_expand(session)) payload += L"+";
         payload += conjugationPanel.active() ? L"\t2" : expanded ? L"\t1" : L"\t0";
         for (size_t i = 0; i < pageSize && start + i < candidateCount(); ++i)
             payload += L"\n" + candidateText(start + i) + L"\t" + candidateReading(start + i)
@@ -809,6 +849,7 @@ private:
     ITfKeystrokeMgr *keys = nullptr;
     ITfSource *events = nullptr;
     DWORD eventCookie = TF_INVALID_COOKIE;
+    DWORD focusCookie = TF_INVALID_COOKIE;
     ITfContext *activeContext = nullptr;
     TfClientId client = 0;
     MPNSession *session = nullptr;

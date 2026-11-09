@@ -30,6 +30,9 @@ void mpn_set_simplified(MPNSession *session, int simplified);
 // The returned buffer remains valid until the next call to this function on the session.
 const char *mpn_custom_chinese(MPNSession *session, const char *text);
 void mpn_clear(MPNSession *session);
+// Cancel only unselected composition; keep text already chosen by the user
+// until the host acknowledges its delivery.
+void mpn_cancel_composition(MPNSession *session);
 // Set adjacent Chinese ranking context before a new composition, or restore
 // its selected prefix while rebuilding the same partial composition. Hosts
 // must replace it at a document boundary. NULL/empty clears it; the getter
@@ -44,6 +47,10 @@ const char *mpn_preedit(const MPNSession *session);
 const char *mpn_committed(const MPNSession *session);
 void mpn_clear_commit(MPNSession *session);
 size_t mpn_candidate_count(const MPNSession *session);
+// Lazy expansion appends candidates without invalidating existing indices.
+// Exact dictionary matches are exhausted; sentence search remains bounded.
+int mpn_candidates_can_expand(const MPNSession *session);
+size_t mpn_expand_candidates(MPNSession *session);
 const char *mpn_candidate(const MPNSession *session, size_t index);
 // Raw input bytes consumed when selecting this candidate; 0 for invalid input.
 size_t mpn_candidate_consumed(const MPNSession *session, size_t index);

@@ -4,6 +4,7 @@
 #include "../JapanesePackages.h"
 #include <cassert>
 #include <array>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 
@@ -186,6 +187,28 @@ int main(int argc, char **argv) {
             auto lookup = [&](const std::string &reading) { return evidence.dictionary(reading, simplified); };
             mpn_set_simplified(session, simplified);
             if (bulk) {
+                mpn_clear(session);
+                for (char c : std::string("tejihuifuyao")) assert(mpn_key(session, c));
+                auto itemChoices = windowsCandidates(session, merged, lookup, false);
+                const std::string expectedItem = simplified ? "特级恢复药" : "特級恢復藥";
+                assert(!itemChoices.empty() && itemChoices.front().text == expectedItem);
+                assert(std::count_if(itemChoices.begin(), itemChoices.end(), [&](const auto &c) { return c.text == expectedItem && !c.japanese; }) == 1);
+                assert(itemChoices.front().coreIndex && mpn_choose(session, *itemChoices.front().coreIndex));
+                assert(std::string(mpn_committed(session)) == expectedItem && !*mpn_input(session));
+                mpn_clear_commit(session);
+                for (char c : std::string("tejihuifuyao")) assert(mpn_key(session, c));
+                itemChoices = windowsCandidates(session, merged, lookup, false);
+                const auto initialChoices = itemChoices;
+                const auto expansionStart = std::chrono::steady_clock::now();
+                while (mpn_candidates_can_expand(session)) {
+                    mpn_expand_candidates(session);
+                    appendCandidateExpansion(session, itemChoices, windowsCandidates(session, merged, lookup, false));
+                }
+                assert(itemChoices.size() > initialChoices.size());
+                std::cout << "Expansion " << (simplified ? "hans" : "hant") << ": " << initialChoices.size() << " -> " << itemChoices.size()
+                    << " choices, " << std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - expansionStart).count() << " ms" << std::endl;
+                for (size_t i = 0; i < initialChoices.size(); ++i)
+                    assert(itemChoices[i].text == initialChoices[i].text && itemChoices[i].coreIndex == initialChoices[i].coreIndex);
                 for (const auto &input : {"xinkule", "zaoshanghao"}) {
                     mpn_clear(session); for (char c : std::string(input)) assert(mpn_key(session, c));
                     const auto before = windowsCandidates(session, words, lookup, false);

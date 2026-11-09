@@ -227,7 +227,42 @@ static void verifyJapaneseBridge() {
     mpn_lexicon_destroy(lexicon);
 }
 
+static void verifyLazyExpansion() {
+    std::string data = "MEOWPUUT-PINYIN-1\n";
+    for (size_t i = 0; i < 400; ++i) {
+        const auto text = numbered("match", i);
+        data += "nihao\tni3hao3\t" + text + "\t" + text + "\t" + std::to_string(16000 - i) + "\n";
+    }
+    auto *lexicon = makeLexicon(data);
+    auto *session = mpn_session_create(lexicon);
+    type(session, "nihao");
+    const auto lookup = [](const std::string &) { return ChineseEvidence{}; };
+    const std::vector<JapaneseWord> words;
+    auto choices = windowsCandidates(session, words, lookup, false);
+    const auto before = choices;
+    assert(choices.size() == 256 && mpn_candidates_can_expand(session));
+    assert(mpn_expand_candidates(session) == 144);
+    appendCandidateExpansion(session, choices, windowsCandidates(session, words, lookup, false));
+    assert(choices.size() == 400);
+    for (size_t i = 0; i < before.size(); ++i) {
+        assert(choices[i].text == before[i].text && choices[i].coreIndex == before[i].coreIndex);
+    }
+    while (mpn_candidates_can_expand(session)) assert(mpn_expand_candidates(session) == 0);
+    const auto repeated = choices.size();
+    appendCandidateExpansion(session, choices, windowsCandidates(session, words, lookup, false));
+    assert(choices.size() == repeated && !mpn_candidates_can_expand(session));
+    assert(choices.back().coreIndex && mpn_choose(session, *choices.back().coreIndex));
+    assert(std::string(mpn_committed(session)) == "match399" && !*mpn_input(session));
+    mpn_clear_commit(session);
+    type(session, "nihao");
+    assert(mpn_candidates_can_expand(session) && mpn_candidate_count(session) == 256);
+    mpn_cancel_composition(session);
+    assert(!mpn_candidates_can_expand(session));
+    mpn_session_destroy(session); mpn_lexicon_destroy(lexicon);
+}
+
 int main(int argc, char **argv) {
+    verifyLazyExpansion();
     verifyJapaneseBridge();
     assert((pinyinEvidenceReadings("lue") == std::vector<std::string>{"lue", "lve"}));
     assert((pinyinEvidenceReadings("nue") == std::vector<std::string>{"nue", "nve"}));

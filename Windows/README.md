@@ -1,4 +1,4 @@
-# 晴词 · Harukoto 0.4.4-alpha.16 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.17 · Windows x64
 
 日常使用请先看[操作指南](../docs/USER_GUIDE.md)，包含选词、表记／假名二选一、F6 活用、繁简开关和常见问题。
 
@@ -16,7 +16,7 @@ alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.16-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.17-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -75,7 +75,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.16
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.17
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。
@@ -155,7 +155,7 @@ ctest --test-dir build/windows -C Release --output-on-failure
 
 目前源代码包含焦点切换与待上屏文字的保护实验；仅通过跨平台队列测试与 Windows x64 交叉编译，尚未在 Windows 主机验证 TSF 生命周期、异步回调或应用程序兼容性。应用关闭、服务停用、宿主持续拒绝写入时，未完成文字仍可能遗失。
 
-开发版已接入 TSF 字段移除通知，关闭字段时释放保存的会话；服务停用或字段关闭后，晚到的提交回调不再写入文字。正常焦点切换仍保留原字段的组字。这部分已通过队列测试、AddressSanitizer／UndefinedBehaviorSanitizer 及交叉编译，已包含在 0.4.3 Alpha 1 发行包中，尚未真机验证。
+开发版已接入 TSF 字段移除通知，关闭字段时释放保存的会话；服务停用或字段关闭后，晚到的提交回调不再写入文字。alpha.17 起按维护者要求，线程失焦、输入法失去前台及字段切换时取消未选中的拼音、候选和活用面板；回到原字段从空组字开始。已选词的待上屏队列单独保留。新增测试直接调用 TSF 失焦回调验证取消与重新输入；QQ 等应用的真实焦点通知仍需实机验收。
 
 
 目前源代码也会在焦点变更时暂停该字段的待上屏队列；已调度但尚未写入的异步编辑会先保留文字，回到原字段并收到下一次可处理按键后再重试。选词已清空读音、但前段还在等待上屏时，紧接的数字与空格也排入同一队列，避免跑到前段之前。此保护不涵盖所有直接交给宿主的命令，例如 Enter、删除和移动光标；完整宿主编辑生命周期仍待 Windows 实测。

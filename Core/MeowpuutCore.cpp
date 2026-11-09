@@ -7,6 +7,7 @@
 #include <cstring>
 #include <memory>
 #include <numeric>
+#include <set>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -531,7 +532,7 @@ struct Candidate {
 };
 
 std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, bool hans, bool completeOnly = false,
-                                std::vector<CandidateMetadata> *metadata = nullptr, bool *singleCharacterReading = nullptr) {
+                                std::vector<CandidateMetadata> *metadata = nullptr, bool *singleCharacterReading = nullptr, size_t expandedBeam = 0) {
     const Reading reading(input, lexicon.pinyin);
     const size_t length = reading.sounds.size();
     if (length == 0) return {};
@@ -578,7 +579,8 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                    reading.matches(word, 0, length);
         });
     if (singleCharacterReading) *singleCharacterReading = singleReading;
-    const auto result_limit = singleReading ? single_character_candidate_limit : candidate_limit;
+    const auto result_limit = expandedBeam ? std::max(candidate_limit, lexicon.words.size()) :
+        (singleReading ? single_character_candidate_limit : candidate_limit);
     for (size_t index = whole.first; index < whole.second; ++index) {
         const auto &word = lexicon.word(index, hans);
         if ((!completeOnly || fully_spelled(word)) && reading.matches(word, 0, length)) {
@@ -622,7 +624,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
     // Widen user-visible pinyin lookups within 32 letters only. Internal
     // completion probes and longer searches retain their existing bounded work.
     const size_t pathLimit = lexicon.pinyin && metadata && !completeOnly && length <= 32
-        ? (length <= 8 ? page_size * 3 : size_t(8)) : beam;
+        ? (expandedBeam ? expandedBeam : (length <= 8 ? page_size * 3 : size_t(8))) : beam;
     std::vector<std::vector<Path>> suffixes(length + 1);
     suffixes[length].push_back({"", "", 0, true, true});
     for (size_t start = length; start-- > 0;) {
@@ -906,6 +908,7 @@ struct MPNSession {
     std::vector<JapaneseWord> japanese;
     std::vector<Candidate> candidates;
     size_t page = 0;
+    unsigned expansion = 0;
     bool hans = false;
     bool requireFullCandidate = false;
     size_t sentenceCount = 0, literalTail = 0;
@@ -917,6 +920,7 @@ struct MPNSession {
         segmentContext.clear();
         sentenceCount = literalTail = 0;
         page = 0;
+        expansion = 0;
     }
 
     // While a recorded Japanese reading is still incomplete, keep the
@@ -948,6 +952,7 @@ struct MPNSession {
     }
 
     void refresh() {
+        expansion = 0;
         std::string marked;
         if (lexicon->pinyin) marked = input;
         else for (char key : input) marked += symbols[keys.find(key)];
@@ -1509,6 +1514,9 @@ void mpn_clear(MPNSession *session) {
     session->reset();
     session->committed.clear();
 }
+void mpn_cancel_composition(MPNSession *session) {
+    if (session) session->reset();
+}
 void mpn_require_full_candidate(MPNSession *session) {
     if (!session) return;
     session->requireFullCandidate = true;
@@ -1622,6 +1630,28 @@ const char *mpn_preedit(const MPNSession *session) { return session->preedit.c_s
 const char *mpn_committed(const MPNSession *session) { return session->committed.c_str(); }
 void mpn_clear_commit(MPNSession *session) { session->committed.clear(); }
 size_t mpn_candidate_count(const MPNSession *session) { return session->candidates.size(); }
+int mpn_candidates_can_expand(const MPNSession *session) {
+    return session && session->lexicon->pinyin && !session->input.empty() && session->expansion < 3;
+}
+size_t mpn_expand_candidates(MPNSession *session) {
+    if (!mpn_candidates_can_expand(session)) return 0;
+    try {
+        const size_t breadth = size_t(32) << session->expansion;
+        std::vector<CandidateMetadata> metadata;
+        auto decoded = decode(*session->lexicon, session->input, session->hans, false, &metadata, nullptr, breadth);
+        std::set<std::pair<std::string, size_t>> seen;
+        for (const auto &candidate : session->candidates) seen.emplace(candidate.text, candidate.consumed);
+        std::vector<Candidate> added;
+        for (size_t i = 0; i < decoded.size(); ++i) {
+            if (seen.emplace(decoded[i], session->input.size()).second)
+                added.push_back({std::move(decoded[i]), session->input.size(), metadata[i]});
+        }
+        const auto count = added.size();
+        session->candidates.insert(session->candidates.end(), std::make_move_iterator(added.begin()), std::make_move_iterator(added.end()));
+        ++session->expansion;
+        return count;
+    } catch (...) { session->expansion = 3; return 0; }
+}
 const char *mpn_candidate(const MPNSession *session, size_t index) {
     return session && index < session->candidates.size() ? session->candidates[index].text.c_str() : "";
 }
