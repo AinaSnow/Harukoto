@@ -207,6 +207,9 @@ static void verifyJapaneseBridge() {
     const auto ja = std::find_if(choices.begin(), choices.end(), [](const auto &c) { return c.japanese; });
     assert(ja != choices.end() && ja->text == "日本" && ja->annotation == "にほん · 拼" && !ja->coreIndex);
     assert(ja - choices.begin() < 7);
+    const auto kana = std::find_if(choices.begin(), choices.end(), [](const auto &c) { return c.text == "にほん"; });
+    assert(kana != choices.end() && kana->directJapanese && !kana->coreIndex);
+    assert(kana - choices.begin() < 7 && ja->directJapanese);
     const auto locked = windowsCandidates(session, dictionary, lookup, true);
     assert(std::none_of(locked.begin(), locked.end(), [](const auto &c) { return c.japanese; }));
     mpn_clear(session);

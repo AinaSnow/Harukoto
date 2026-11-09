@@ -142,7 +142,7 @@ internal static class GlassPreview
                     bool expanded = conjugating || (state.Length > 3 && state[3] == "1");
                     int japaneseCount = 0;
                     for (int i = 3; i < fields.Length; i++)
-                        if (IsJapanese(fields[i])) japaneseCount++;
+                        if (IsJapanese(fields[i]) && !fields[i].EndsWith("\tja-direct", StringComparison.Ordinal)) japaneseCount++;
                     if (!conjugating && (expanded || japaneseCount > 1))
                         pageIndicator.Text += (pageIndicator.Text.Length > 0 ? "   ·   " : "") + (expanded ? "F4 收起" : "F4 展开");
                     pageChip.Visibility = pageIndicator.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -179,7 +179,7 @@ internal static class GlassPreview
         for (int index = 0; index < fields.Length - 3; index++)
         {
             if (index == mainIndex) continue;
-            if (!expanded && IsJapanese(fields[index + 3])) {
+            if (!expanded && IsJapanese(fields[index + 3]) && !fields[index + 3].EndsWith("\tja-direct", StringComparison.Ordinal)) {
                 if (reservedJapanese < 0 || index == highlighted) reservedJapanese = index;
             } else {
                 indices.Add(index);
@@ -260,7 +260,7 @@ internal static class GlassPreview
 
     private static bool IsJapanese(string candidate)
     {
-        return candidate.EndsWith("	ja", StringComparison.Ordinal);
+        return candidate.EndsWith("\tja", StringComparison.Ordinal) || candidate.EndsWith("\tja-direct", StringComparison.Ordinal);
     }
 
     private static int MainCandidate(string[] fields, int highlighted)

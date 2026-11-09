@@ -53,8 +53,26 @@ class CandidateLayoutTests
             }
         }
         Console.WriteLine("PASS: 9 width/font combinations, seven visible candidates, no overlaps.");
+        string[] pair = { "0", "0", "riben", "日本", "日本\tにほん · 拼\tja-direct",
+            "にほん\t日本 · 假名\tja-direct", "日锛", "日奔", "日苯", "日笨" };
+        foreach (int highlight in new[] { 0, 1, 2 }) {
+            update.Invoke(null, new object[] { panel, pair, highlight, -1, false, paw });
+            if (panel.Children.Count != 7) throw new Exception("Direct spelling/kana pair must stay visible when collapsed.");
+        }
+        Console.WriteLine("PASS: both spelling and kana stay selectable when collapsed.");
         window.Width = 672; panel.Width = 646;
         layout.GetField("FontSize", flags).SetValue(null, 18.0);
+        ((TextBlock)window.FindName("Preedit")).Text = "riben";
+        ((TextBlock)window.FindName("PageIndicator")).Text = "简";
+        update.Invoke(null, new object[] { panel, pair, 2, -1, false, paw });
+        var pairRoot = (FrameworkElement)window.Content;
+        pairRoot.Measure(new Size(672, double.PositiveInfinity));
+        pairRoot.Arrange(new Rect(0, 0, 672, pairRoot.DesiredSize.Height));
+        pairRoot.UpdateLayout();
+        var pairImage = new RenderTargetBitmap(672, (int)Math.Ceiling(pairRoot.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+        pairImage.Render(pairRoot);
+        var pairEncoder = new PngBitmapEncoder(); pairEncoder.Frames.Add(BitmapFrame.Create(pairImage));
+        using (var file = File.Create(Path.Combine(Path.GetDirectoryName(args[1]), "kana-choice.png"))) pairEncoder.Save(file);
         ((TextBlock)window.FindName("Preedit")).Text = "chi";
         ((TextBlock)window.FindName("PageIndicator")).Text = "简 · 活用 · F6/Esc 返回 · 1 / 2";
         string[] forms = { "0", "0", "chi", "食べる\tたべる · 辞书形\tja", "食べます\tたべます · ます形\tja",

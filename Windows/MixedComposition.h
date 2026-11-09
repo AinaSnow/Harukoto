@@ -116,6 +116,7 @@ struct WindowsCandidate {
     bool japanese = false;
     bool strong = false;
     std::string annotation;
+    bool directJapanese = false; // Explicit bridge choices stay visible when collapsed.
 };
 
 // Mirrors the macOS mixed-reading gate: one exact Japanese word surrounded by
@@ -169,13 +170,16 @@ std::string mixedReading(const std::string &input, const std::vector<JapaneseWor
 inline std::vector<WindowsCandidate> interleaveCandidates(std::vector<WindowsCandidate> choices) {
     if (std::none_of(choices.begin(), choices.end(), [](const auto &choice) { return choice.japanese; }))
         return choices;
-    std::vector<WindowsCandidate> strong, weak, japanese;
+    std::vector<WindowsCandidate> strong, weak, japanese, direct;
     for (auto &choice : choices)
-        (choice.japanese ? japanese : choice.strong ? strong : weak).push_back(std::move(choice));
-    const size_t lead = strong.empty() ? std::min(size_t(2), weak.size()) : std::min(size_t(6), strong.size());
+        (choice.directJapanese ? direct : choice.japanese ? japanese : choice.strong ? strong : weak).push_back(std::move(choice));
+    const size_t lead = strong.empty() ? std::min(size_t(2), weak.size())
+        : std::min(direct.empty() ? size_t(6) : size_t(4), strong.size());
     strong.insert(strong.end(), std::make_move_iterator(weak.begin()), std::make_move_iterator(weak.end()));
     std::vector<WindowsCandidate> result;
     result.insert(result.end(), std::make_move_iterator(strong.begin()), std::make_move_iterator(strong.begin() + lead));
+    // Keep the first explicit spelling/reading pair together on the first page.
+    result.insert(result.end(), std::make_move_iterator(direct.begin()), std::make_move_iterator(direct.end()));
     for (size_t i = 0; i < japanese.size() || i + lead < strong.size(); ++i) {
         if (i < japanese.size()) result.push_back(std::move(japanese[i]));
         if (i + lead < strong.size()) result.push_back(std::move(strong[i + lead]));
@@ -191,7 +195,7 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
     std::vector<WindowsCandidate> choices;
     std::set<std::tuple<std::string, size_t, std::string>> seen;
     const auto evidence = chineseLocked ? ChineseEvidence{} : lookup(input);
-    auto append = [&](std::string text, std::optional<size_t> index, bool japanese, std::string annotation = {}) {
+    auto append = [&](std::string text, std::optional<size_t> index, bool japanese, std::string annotation = {}, bool direct = false) {
         const size_t consumed = index ? mpn_candidate_consumed(session, *index) : input.size();
         if (text.empty() || !seen.emplace(text, consumed, annotation).second)
             return;
@@ -199,7 +203,7 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
         const bool strong = found != evidence.end() && found->second >= 2000;
         const bool explicitJapanese = !annotation.empty();
         choices.push_back({std::move(text), index, japanese && (explicitJapanese || found == evidence.end()),
-                           strong && !explicitJapanese, std::move(annotation)});
+                           strong && !explicitJapanese, std::move(annotation), direct});
     };
 
     std::vector<size_t> chinese;
@@ -236,7 +240,10 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
         if (word.source == "english") annotation += " · EN " + word.reading;
         else if (word.source == "pinyin") annotation += " · 拼";
         if (!word.chinese.empty()) annotation += " · " + word.chinese;
-        append(word.text, {}, true, std::move(annotation));
+        const bool direct = !word.source.empty();
+        append(word.text, {}, true, std::move(annotation), direct);
+        if (direct && !word.kana.empty() && word.kana != word.text)
+            append(word.kana, {}, true, word.text + " · 假名", true);
     };
     const auto firstJapanese = std::find_if(dictionary.begin(), dictionary.end(), [&](const auto &word) {
         return word.reading == input;

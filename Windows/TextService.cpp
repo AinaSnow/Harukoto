@@ -736,7 +736,7 @@ private:
         popupIndices.clear();
         std::optional<size_t> japanese;
         for (size_t i = 0; i < pageSize && start + i < candidateCount(); ++i) {
-            if (!expanded && choices[start + i].japanese) {
+            if (!expanded && choices[start + i].japanese && !choices[start + i].directJapanese) {
                 if (!japanese || i == highlighted) japanese = i;
             } else {
                 popupIndices.push_back(i);
@@ -775,7 +775,7 @@ private:
         payload += conjugationPanel.active() ? L"\t2" : expanded ? L"\t1" : L"\t0";
         for (size_t i = 0; i < pageSize && start + i < candidateCount(); ++i)
             payload += L"\n" + candidateText(start + i) + L"\t" + candidateReading(start + i)
-                + (choices[start + i].japanese ? L"\tja" : L"");
+                + (choices[start + i].directJapanese ? L"\tja-direct" : choices[start + i].japanese ? L"\tja" : L"");
         if (sendGlass(payload)) {
             if (popup) ShowWindow(popup, SW_HIDE);
             return;

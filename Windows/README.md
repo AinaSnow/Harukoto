@@ -1,8 +1,10 @@
-# 晴词 · Harukoto 0.4.4-alpha.3 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.4 · Windows x64
+
+日常使用请先看[操作指南](../docs/USER_GUIDE.md)，包含选词、表记／假名二选一、F6 活用、繁简开关和常见问题。
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.3-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.4-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -61,7 +63,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.3
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.4
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。
@@ -76,7 +78,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 
 `InstallSupportTests.ps1` 的 14 项检查使用模拟注册调用和临时文件，覆盖失败恢复、锁定文件与真实入口日志，不修改系统输入法。完整 UAC、TSF 和应用兼容性验收按[Windows 验收记录](../docs/WINDOWS_VALIDATION.md)执行。
 
-开发版已加入第一阶段日语辅助输入：拼音出日文汉字、英语出片假名、候选上方显示假名读音及本地自定义词表导入。当前包含 41 组基础触发词，详见[日语辅助输入与分阶段计划](../docs/JAPANESE_INPUT_ROADMAP.md)。动词变形、敬语、完整日语整句和生词本尚未实现。
+开发版支持拼音出日文汉字、英语出片假名、表记与假名分别选词及本地自定义词表导入。包含 41 组基础触发词和十条活用示例；F6 活用面板支持整段显式触发词。敬语、完整日语整句和生词本尚未实现，详见[日语辅助输入与分阶段计划](../docs/JAPANESE_INPUT_ROADMAP.md)。
 
 已安装 Visual Studio C++ 工具、Windows SDK、CMake 和 Python 3 时，也可使用 MSVC 构建并运行测试：
 
@@ -102,7 +104,7 @@ CMake 不在 PATH 中时，可用 `-CMake C:/path/to/cmake.exe` 指定。MSVC �
 
 美式键盘布局下，直接输入逗号、句号、分号、斜线、方括号与反斜线会输出 `，。；？「」、`；组字中会先上屏候选。按住 Shift 时交给应用程序输入英文标点。
 
-可混打词库收录的日语罗马字，例如 `wosukini` 的候选包含「我好き你」。同页有日语候选时，收合版保留其中一条，依原候选顺序显示。按 F4 展开查看同页其他候选。低置信中文和其余日语候选交替排列，日语候选以读音标注识别。选取日语混合整句会直接上屏；选取局部中文词会保留后续组字。
+可混打词库收录的日语罗马字，例如 `wosukini` 的候选包含「我好き你」。明确的拼音／英语触发词优先于普通罗马字日语候选，表记和假名分别编号并始终显示，例如 riben 可选择“日本”或“にほん”。普通罗马字日语候选在收起时保留一条，按 F4 查看同页其他候选。选取日语混合整句会直接上屏；选取局部中文词会保留后续组字。
 此版本使用晴词的 C++ 中文引擎与实际词库，以 TSF 将文字送入应用程序。系统输入法会启动独立的候选渲染器，显示即时拼音与候选词。支持 TSF 文字坐标的应用程序会把候选窗贴近插入点；其余应用程序沿用 Windows 提供的光标位置。渲染器会随用户登录启动。若 Windows 应用程序控制政策阻止执行渲染器，输入服务会使用原生候选窗。两种候选窗都可用键盘选词。已开启的应用程序需重新启动才能加载新版输入服务。此构建适用于 x64 桌面应用程序。
 
 ### 安装已签名的版本
