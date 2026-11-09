@@ -16,7 +16,9 @@ internal static class GlassPreview
     [STAThread]
     private static void Main(string[] args)
     {
-        if (args.Length == 2 && args[0] == "--ime")
+        if (args.Length == 1 && args[0] == "--settings")
+            new Application().Run(CandidateSettings.Create());
+        else if (args.Length == 2 && args[0] == "--ime")
             RunCandidateHost(args[1]);
         else
             new Application().Run(CreateWindow());
@@ -82,8 +84,7 @@ internal static class GlassPreview
                 SetWindowLong(handle, extendedStyle, GetWindowLong(handle, extendedStyle) | transparentNoActivate);
             };
             ChangeWindowMessageFilterEx(receiver.Handle, 0x004A, 1, IntPtr.Zero);
-            var strip = (StackPanel)window.FindName("Candidates");
-            Canvas.SetTop(strip, 84);
+            var strip = CandidateLayout.Create(window);
             var header = (FrameworkElement)window.FindName("CompositionHeader");
             var pageChip = (Border)window.FindName("PageChip");
             var longCandidate = (Border)window.FindName("LongCandidate");
@@ -109,8 +110,10 @@ internal static class GlassPreview
                 primaryBadge.BorderBrush = SystemColors.HighlightTextBrush;
                 primaryNumber.Foreground = SystemColors.HighlightTextBrush;
             }
-            else
-                new GlassBackdrop(window);
+            // The IME must remain visible in remote desktops and screen sharing.
+            // GlassBackdrop excludes its window from capture to avoid sampling itself,
+            // which also removes candidates from the user's streamed desktop. Keep
+            // the XAML translucent glass here; live refraction is preview-only.
 
             IntPtr foreground = IntPtr.Zero;
             receiver.AddHook(delegate(IntPtr hwnd, int message, IntPtr sender, IntPtr data, ref bool handled)
@@ -165,18 +168,10 @@ internal static class GlassPreview
                     if (expanded || japaneseCount > 1)
                         pageIndicator.Text += (pageIndicator.Text.Length > 0 ? "   ·   " : "") + (expanded ? "F4 收合" : "F4 展開");
                     pageChip.Visibility = pageIndicator.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-                    int mainIndex = MainCandidate(fields, highlighted);
-                    UpdateCandidates(strip, fields, highlighted, mainIndex, expanded, paw);
-                    primaryNumber.Text = (mainIndex + 1).ToString();
-                    string main = mainIndex >= 0 ? fields[mainIndex + 3].Split('	')[0] : "";
-                    SetSentence(longCandidateText, main, state[0]);
-                    longCandidate.Visibility = main.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-                    var source = PresentationSource.FromVisual(window) as HwndSource;
-                    var scale = source == null ? Matrix.Identity : source.CompositionTarget.TransformFromDevice;
-                    var point = scale.Transform(new Point(x, y));
-                    window.Left = point.X;
-                    window.Top = point.Y;
-                    window.Show();
+                    var work = CandidateLayout.Prepare(window, strip, x, y);
+                    UpdateCandidates(strip, fields, highlighted, -1, expanded, paw);
+                    longCandidate.Visibility = Visibility.Collapsed;
+                    CandidateLayout.Show(window, work, x, y);
                 }));
                 return new IntPtr(1);
             });
@@ -196,11 +191,11 @@ internal static class GlassPreview
         }
     }
 
-    private static void UpdateCandidates(StackPanel strip, string[] fields, int highlighted,
+    private static void UpdateCandidates(Panel strip, string[] fields, int highlighted,
                                          int mainIndex, bool expanded, Geometry paw)
     {
-        const double available = 618;
-        const double minimum = 54;
+        double available = strip.Width;
+        const double minimum = 64;
         var indices = new System.Collections.Generic.List<int>();
         int reservedJapanese = -1;
         for (int index = 0; index < fields.Length - 3; index++)
@@ -221,7 +216,7 @@ internal static class GlassPreview
         var buttons = new Button[count];
         var preferred = new double[count];
 
-        double extra = 0;
+
         bool contrast = SystemParameters.HighContrast;
         var rose = new LinearGradientBrush(Color.FromRgb(143, 102, 91), Color.FromRgb(88, 58, 63), 78);
         rose.Freeze();
@@ -233,11 +228,11 @@ internal static class GlassPreview
         {
             int index = indices[i];
             string[] candidate = fields[index + 3].Split('\t');
-            var content = new DockPanel { Margin = new Thickness(9, 0, 9, 0) };
+            var content = new DockPanel { Margin = new Thickness(10, 8, 10, 8) };
             content.Children.Add(new TextBlock
             {
                 Text = (index + 1).ToString(),
-                FontSize = 15,
+                FontSize = 13,
                 Opacity = contrast || index == highlighted ? 1 : 0.72,
                 Margin = new Thickness(0, 0, 7, 0),
                 VerticalAlignment = VerticalAlignment.Center
@@ -258,22 +253,25 @@ internal static class GlassPreview
                 content.Children.Add(mark);
             }
             var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            if (IsJapanese(fields[index + 3]) && candidate.Length > 1 && candidate[1].Length > 0)
+                words.Children.Add(new TextBlock { Text = candidate[1], FontSize = Math.Max(11, CandidateLayout.FontSize * 0.6), Opacity = contrast ? 1 : 0.85, Margin = new Thickness(0, 3, 0, 3),
+                                                   TextWrapping = TextWrapping.Wrap });
             words.Children.Add(new TextBlock
             {
                 Text = candidate[0],
-                FontSize = candidate.Length > 1 && candidate[1].Length > 0 ? 18 : 23,
-                TextTrimming = TextTrimming.CharacterEllipsis
+                FontSize = CandidateLayout.FontSize,
+                TextWrapping = TextWrapping.Wrap
             });
-            if (candidate.Length > 1 && candidate[1].Length > 0)
-                words.Children.Add(new TextBlock { Text = candidate[1], FontSize = 10, Opacity = contrast ? 1 : 0.72 });
+            if (!IsJapanese(fields[index + 3]) && candidate.Length > 1 && candidate[1].Length > 0)
+                words.Children.Add(new TextBlock { Text = candidate[1], FontSize = Math.Max(11, CandidateLayout.FontSize * 0.6), Opacity = contrast ? 1 : 0.85, Margin = new Thickness(0, 3, 0, 3) });
             content.Children.Add(words);
             var button = new Button
             {
                 Content = content,
-                Height = 38,
+                Height = double.NaN, MinHeight = 44, Width = double.NaN,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Focusable = false,
-                Margin = new Thickness(0, 0, 4, 0)
+                Margin = new Thickness(0, 0, 8, 8), VerticalAlignment = VerticalAlignment.Top
             };
             if (contrast)
                 button.Foreground = index == highlighted ? SystemColors.HighlightTextBrush : SystemColors.WindowTextBrush;
@@ -286,14 +284,14 @@ internal static class GlassPreview
             strip.Children.Add(button);
             content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             double naturalWidth = content.DesiredSize.Width + 4;
-            preferred[i] = Math.Min(230, Math.Max(minimum, naturalWidth));
-            extra += preferred[i] - minimum;
+            preferred[i] = Math.Min(available - 8, Math.Max(minimum, naturalWidth));
+
             buttons[i] = button;
         }
 
-        double scale = extra > 0 ? Math.Min(1, (available - count * (minimum + 4)) / extra) : 1;
+
         for (int i = 0; i < count; i++)
-            buttons[i].Width = minimum + (preferred[i] - minimum) * scale;
+            buttons[i].Width = preferred[i];
     }
 
     private static bool IsJapanese(string candidate)
