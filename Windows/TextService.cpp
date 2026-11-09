@@ -13,6 +13,7 @@
 #include "PinyinPunctuation.h"
 #include "ScriptMode.h"
 #include "ScriptPreference.h"
+#include "JapaneseConjugation.h"
 #include <new>
 #include <string>
 #include "WordEvidence.h"
@@ -184,6 +185,8 @@ public:
         try {
             simplified = readSimplifiedPreference();
             const auto folder = std::filesystem::path(modulePath()).parent_path();
+            // Optional auxiliary data: invalid/missing tables must not disable Chinese input.
+            conjugations.loadFile(folder / L"japanese-conjugations.bin");
             std::ifstream file(folder / L"native-pinyin.tsv", std::ios::binary);
             std::ifstream japanese(folder / L"japanese.tsv", std::ios::binary);
             japaneseWords = readJapaneseWords(japanese);
@@ -780,6 +783,7 @@ private:
     std::shared_ptr<DeliveryState> delivery;
     std::unordered_map<ITfContext *, SavedContext> suspended;
     std::vector<JapaneseWord> japaneseWords;
+    JapaneseConjugations conjugations;
     WordEvidence evidence;
     std::vector<WindowsCandidate> choices;
     bool chineseLocked = false, expanded = false, simplified = true;

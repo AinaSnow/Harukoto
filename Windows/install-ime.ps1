@@ -81,6 +81,8 @@ if ($Register) {
     }
     Write-Host "Previous registered DLL: $previousDll"
     $packageFiles = $sourceDll, $sourceLexicon, $sourceJapanese, $sourceEvidence, $renderer
+    $conjugationData = Join-Path $build 'japanese-conjugations.bin'
+    if (Test-Path -LiteralPath $conjugationData -PathType Leaf) { $packageFiles += $conjugationData }
     $version = ($packageFiles | ForEach-Object { (Get-FileHash -LiteralPath $_).Hash.Substring(0, 12) }) -join '-'
     $install = Join-Path $env:ProgramFiles "Meowpuut/IME/$version"
     $dll = Join-Path $install 'MeowpuutTip.dll'

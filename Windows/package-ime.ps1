@@ -18,7 +18,7 @@ $licenses = Join-Path $stage 'Licenses'
 New-Item -ItemType Directory -Force $payload,$licenses | Out-Null
 
 try {
-    foreach ($name in 'MeowpuutTip.dll','native-pinyin.tsv','japanese.tsv','language-evidence.sqlite') {
+    foreach ($name in 'MeowpuutTip.dll','native-pinyin.tsv','japanese.tsv','language-evidence.sqlite','japanese-conjugations.bin') {
         Copy-Item -LiteralPath (Join-Path $build "ime/$name") -Destination $payload
     }
     Copy-Item -LiteralPath (Join-Path $build 'MeowpuutGlassPreview.exe') -Destination $payload

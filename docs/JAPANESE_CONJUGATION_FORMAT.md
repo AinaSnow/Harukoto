@@ -1,6 +1,6 @@
 # 活用词表 v1（开发接口）
 
-本格式为晴词自有开发接口，不是 Madamada 词表格式，也不是当前 TSF 已支持的输入格式。样例见 Resources/Lexicon/japanese-conjugation.json。
+本格式为晴词自有开发接口，不是 Madamada 词表格式。JSON 为源数据／审核格式，Windows TSF 加载由它编译的独立二进制文件，尚未提供活用候选交互。样例见 Resources/Lexicon/japanese-conjugation.json。
 
 根对象只包含 schema（整数 1）和 entries 数组。词条包含 id、text、reading、pos、triggers，可选 irregular。未知字段报错，便于发现拼写错误。
 
@@ -22,4 +22,16 @@
 
 存在义ある不生成可能／被动／使役；可愛い按普通い形容词变化，いい及相关已核对词显式指定 ii。复合词及更多不规则词仍需审核，词性由词表显式指定，本模块不自动判断一段和五段。日文语境和语义适用性不等同于词形可生成。
 
-下一步由 C++ 加载编译结果并关联候选；在接入前，本文件只用于开发和测试，不随安装加载。FF14 名词主题词库使用独立主题管理规划，不需要为每个名词填写活用规则。
+## Windows 运行时格式
+
+    python scripts/compile-japanese-conjugations.py Resources/Lexicon/japanese-conjugation.json --format binary --output .build/windows/ime/japanese-conjugations.bin
+
+Windows/compile-lexicon.py 在正常构建时生成此文件。打包包含它，安装器将它纳入版本目录与内容指纹；输入服务启动时加载一次，不在每次按键时解析文件或调用 Python。旧包没有该文件仍可安装，运行时缺失或校验失败仅停用活用辅助数据。
+
+文件以 ASCII 标记 HARUKOTO-CONJ-1 加换行开头。数字使用 32 位小端无符号整数；字符串为字节长度加 UTF-8 内容。根部记录词条数；每条依次记录 id、表记、读音、触发词数及各组来源／触发词、形式数及各组名称／表记／读音。
+
+限制：文件不超过 4 MiB、1–10000 条词条，每条 1–32 个触发项及 1–32 个形式，每个字符串 1–256 字节。拒绝重复 ID、重复触发项、重复形式标签、非法 UTF-8、非假名读音、辞书形不一致及尾部多余数据。损坏时不保留部分解析结果。
+
+C++ 提供按“表记＋读音”和“来源＋触发词”查找的接口；相同表记不同读音不会混用。同一触发词可以关联多个词条。接口返回的词条指针只在下一次加载前有效。
+
+下一步把查找结果关联候选并增加活用面板。FF14 名词主题词库仍依赖独立主题管理，不需要为每个名词填写活用规则。

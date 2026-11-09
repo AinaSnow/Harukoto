@@ -11,9 +11,25 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 COMPILER = ROOT / "scripts/compile-japanese-conjugations.py"
 compile_dictionary = runpy.run_path(str(COMPILER))["compile_dictionary"]
+serialize_binary = runpy.run_path(str(COMPILER))["serialize_binary"]
 
 
 class ConjugationDictionaryTests(unittest.TestCase):
+    def test_binary_output_and_failed_replacement(self):
+        result = compile_dictionary(ROOT / "Resources/Lexicon/japanese-conjugation.json")
+        expected = serialize_binary(result)
+        self.assertTrue(expected.startswith(b"HARUKOTO-CONJ-1\n"))
+        self.assertEqual(expected, serialize_binary(result))
+        with tempfile.TemporaryDirectory() as folder:
+            source, output = Path(folder) / "input.json", Path(folder) / "forms.bin"
+            source.write_bytes((ROOT / "Resources/Lexicon/japanese-conjugation.json").read_bytes())
+            command = [sys.executable, str(COMPILER), str(source), "--format", "binary", "--output", str(output)]
+            subprocess.run(command, check=True, capture_output=True)
+            self.assertEqual(output.read_bytes(), expected)
+            source.write_text("{}", encoding="utf-8")
+            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
+            self.assertEqual(output.read_bytes(), expected)
+
     def test_bundled_forms_and_stable_output(self):
         path = ROOT / "Resources/Lexicon/japanese-conjugation.json"
         result = compile_dictionary(path)

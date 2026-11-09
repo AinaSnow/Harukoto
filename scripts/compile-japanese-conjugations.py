@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import tempfile
+import struct
 from dataclasses import asdict
 from pathlib import Path
 
@@ -53,21 +54,54 @@ def compile_dictionary(path):
     return {"schema": 1, "entries": sorted(result, key=lambda entry: entry["id"])}
 
 
+def serialize_binary(result):
+    """Bounded, little-endian runtime format; JSON remains the review format."""
+    output = bytearray(b"HARUKOTO-CONJ-1\n")
+
+    def number(value):
+        output.extend(struct.pack("<I", value))
+
+    def string(value):
+        data = value.encode("utf-8")
+        if not 1 <= len(data) <= 256 or any(ord(c) < 32 or ord(c) == 127 for c in value):
+            raise ValueError("运行时字段须为 1–256 字节，不能包含控制字符")
+        number(len(data))
+        output.extend(data)
+
+    number(len(result["entries"]))
+    for entry in result["entries"]:
+        for field in ("id", "text", "reading"):
+            string(entry[field])
+        triggers = [(kind, value) for kind, values in sorted(entry["triggers"].items()) for value in values]
+        number(len(triggers))
+        for kind, value in triggers:
+            string(kind)
+            string(value)
+        number(len(entry["forms"]))
+        for form in entry["forms"]:
+            for field in ("name", "text", "reading"):
+                string(form[field])
+    if len(output) > 4 * 1024 * 1024:
+        raise ValueError("运行时活用数据不得超过 4 MB")
+    return bytes(output)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--format", choices=("json", "binary"), default="json")
     args = parser.parse_args()
     try:
         result = compile_dictionary(args.source)
+        payload = serialize_binary(result) if args.format == "binary" else (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             temporary = None
             try:
-                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=args.output.parent, delete=False) as stream:
+                with tempfile.NamedTemporaryFile(mode="wb", dir=args.output.parent, delete=False) as stream:
                     temporary = Path(stream.name)
-                    json.dump(result, stream, ensure_ascii=False, indent=2)
-                    stream.write("\n")
+                    stream.write(payload)
                 os.replace(temporary, args.output)
             finally:
                 if temporary:
