@@ -10,6 +10,15 @@ from japanese_dictionary import parse_word_list, trigger
 
 
 class WordListTests(unittest.TestCase):
+    def test_explicit_spelling_only_and_long_game_names(self):
+        words = self.parse('# 游戏\nリムサ・ロミンサ | - | pinyin: limusaluominsa\n')
+        self.assertEqual(words[0][3], '')
+        long_name = 'オーケストリオン譜:' + 'Song, Name ' * 5
+        words = self.parse('# 游戏\n' + long_name + ' | - | english: ' + 'longname' * 10 + '\n')
+        self.assertEqual(words[0][1], long_name.strip())
+        with self.assertRaises(ValueError): self.parse('# 游戏\n来る | - | pos: vk | pinyin: lai\n')
+        with self.assertRaises(ValueError): self.parse('# 游戏\n日本 | | pinyin: riben\n')
+
     def test_fullwidth_colon_preserved_in_names(self):
         words = self.parse('# 测试\n魔土器:自己強化 | まどきじこきょうか | chinese: 魔陶器：强化自身 | pinyin：motaqiqianghuazishen\n')
         self.assertEqual(words[0][1], '魔土器:自己強化')

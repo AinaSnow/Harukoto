@@ -36,3 +36,7 @@
 - 其他日语词条与罗马字组字器由本项目编写。Apple 平台执行时使用系统框架、系统 SQLite 和 C++ 标准库；构建时使用上述固定繁简转换快照，修订档可明确覆盖词面。图示使用自有双猫素材及系统 SF Symbols。
 
 本文件适用于本次发布的源代码与安装包。项目原创代码与随附素材见根目录 LICENSE；上游词库与转换数据分别依随附的 MIT、BSD 或 Unicode 授权声明分发。
+
+## FF14 名称与简短定型表达
+
+全量主题包从固定版本 thewakingsands/ffxiv-datamining-cn 和 xivapi/ffxiv-datamining 对齐 Item、PlaceName、Completion 的名称／简短表达，不含物品说明、任务对白、图标或游戏程序。来源链接、SHA-256 和覆盖账本随包；游戏数据权利归 SQUARE ENIX，无官方背书，不将项目 MIT 许可套用于游戏数据。构建时使用 pypinyin 0.55.0（MIT）生成拼音，运行时不打包该库；拼音自动生成状态见全量说明。

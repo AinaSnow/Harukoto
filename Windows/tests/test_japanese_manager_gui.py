@@ -28,7 +28,7 @@ class ManagerWindowTests(unittest.TestCase):
         self.window.destroy()
 
     def wait(self):
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + 60
         while self.app.busy and time.monotonic() < deadline:
             self.window.update(); time.sleep(.01)
         self.window.update()
@@ -77,7 +77,7 @@ class ManagerWindowTests(unittest.TestCase):
     def test_bundled_ff14_button_imports_disabled(self):
         self.app.buttons['ff14'].invoke(); self.wait()
         self.assertEqual(self.app.preview['manifest']['id'], 'harukoto-ff14')
-        self.assertEqual(len(self.app.preview['entries']), 431)
+        self.assertEqual(len(self.app.preview['entries']), 113463)
         self.assertFalse((self.folder / 'store').exists())
         self.app.buttons['import'].invoke(); self.wait()
         self.assertFalse(self.app.state['packages']['harukoto-ff14']['enabled'])

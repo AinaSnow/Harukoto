@@ -43,14 +43,14 @@ inline std::vector<JapaneseWord> readJapaneseWords(std::istream &file) {
         const std::string kana = fields.size() > 3 ? fields[3] : "";
         const std::string source = fields.size() > 4 ? fields[4] : "";
         const std::string chinese = fields.size() > 5 ? fields[5] : "";
-        if (text.empty() || text.size() > 128 || kana.size() > 128 || chinese.size() > 128 ||
+        if (text.empty() || text.size() > 512 || kana.size() > 512 || chinese.size() > 512 ||
             (source != "" && source != "pinyin" && source != "english")) continue;
         if (text.find_first_of("\t\r") != text.npos || kana.find_first_of("\t\r") != kana.npos ||
-            chinese.find_first_of("\t\r") != chinese.npos || (!source.empty() && kana.empty())) continue;
+            chinese.find_first_of("\t\r") != chinese.npos) continue;
         for (size_t begin = 0; begin < first;) {
             const auto comma = std::min(line.find(',', begin), first);
             const auto reading = line.substr(begin, comma - begin);
-            if (!reading.empty() && reading.size() <= 80 &&
+            if (!reading.empty() && reading.size() <= 256 &&
                 std::all_of(reading.begin(), reading.end(), [](char c) {
                     return (c >= 'a' && c <= 'z') || c == '\'' || c == '-';
                 })) words.push_back({reading, text, weight, kana, source, chinese});

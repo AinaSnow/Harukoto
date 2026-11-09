@@ -136,7 +136,7 @@ class DictionaryManager(ttk.Frame):
     def preview_ff14(self):
         path = HERE / 'ff14-manifest.json'
         if not path.exists():
-            path = HERE.parent / 'Resources/DictionaryPackages/ff14/jobs/manifest.json'
+            path = HERE.parent / 'Resources/DictionaryPackages/ff14/full/manifest.json'
         self.preview_file(path)
 
     def preview_file(self, path):

@@ -19,23 +19,23 @@ def trigger(text):
     text = ''.join(c for c in unicodedata.normalize('NFD', text)
                    if unicodedata.category(c) != 'Mn')
     text = re.sub(r'[\s-]', '', text)
-    if not re.fullmatch('[a-z]{2,40}', text):
-        raise ValueError('触发词须为 2–40 个字母，可含空格、连字符或拼音声调符号')
+    if not re.fullmatch('[a-z]{2,256}', text):
+        raise ValueError('触发词须为 2–256 个字母，可含空格、连字符或拼音声调符号')
     return text
 
 
 def label(text):
-    if not 1 <= len(text) <= 32 or text[0] in '=+-@':
-        raise ValueError('词或中文名须为 1–32 字，且不能以 = + - @ 开头')
-    if any(c in text for c in '|,"\t\r\n') or any(ord(c) < 32 for c in text):
+    if not 1 <= len(text) <= 128 or text[0] in '=+-@':
+        raise ValueError('词或中文名须为 1–128 字，且不能以 = + - @ 开头')
+    if any(c in text for c in '|\t\r\n') or any(ord(c) < 32 for c in text):
         raise ValueError('词或中文名含不支持的分隔符或控制字符')
     return text
 
 
 def parse_word_list(path):
     path = Path(path)
-    if path.stat().st_size > 8 * 1024 * 1024:
-        raise ValueError('词表不得超过 8 MB')
+    if path.stat().st_size > 32 * 1024 * 1024:
+        raise ValueError('词表不得超过 32 MB')
     lines = path.read_text(encoding='utf-8-sig').splitlines()
     if not lines or not lines[0].startswith('# ') or not 1 <= len(lines[0][2:].strip()) <= 40:
         raise ValueError('首行须为 # 加空格及 1–40 字的词库名称')
@@ -45,16 +45,18 @@ def parse_word_list(path):
         if not line.strip() or line.lstrip().startswith('#'):
             continue
         try:
-            if len(line.encode('utf-8')) > 1024:
-                raise ValueError('每行不得超过 1024 字节')
+            if len(line.encode('utf-8')) > 4096:
+                raise ValueError('每行不得超过 4096 字节')
             count += 1
             if count > 100_000:
                 raise ValueError('词表不得超过 100000 行词条')
             parts = [part.strip() for part in line.replace('｜', '|').split('|')]
             word = label(parts.pop(0))
             reading = parts.pop(0) if parts and ':' not in parts[0] and '：' not in parts[0] else kana(word)
-            if not re.fullmatch('[ぁ-ゖー]{1,32}', reading):
-                raise ValueError('含汉字的词必须填写平假名读音（最多 32 字）')
+            spelling_only = reading == '-'
+            if spelling_only: reading = ''
+            if not spelling_only and not re.fullmatch('[ぁ-ゖー]{1,128}', reading):
+                raise ValueError('须填写平假名读音（最多 128 字），或用 - 明确表示仅输出表记')
             fields = {}
             for part in parts:
                 property_parts = re.split('[:：]', part, maxsplit=1)
@@ -67,6 +69,8 @@ def parse_word_list(path):
                     raise ValueError('属性重复：' + key)
                 fields.setdefault(key, []).append(value)
             pos = fields.get('pos', ['n'])[0]
+            if spelling_only and pos not in {'n', 'other'}:
+                raise ValueError('无读音词条只能使用 n 或 other，不支持活用')
             if pos not in POS:
                 raise ValueError('未知词性：' + pos)
             endings = dict(zip(['v5k', 'v5g', 'v5s', 'v5t', 'v5n', 'v5b', 'v5m', 'v5r', 'v5u'], 'くぐすつぬぶむるう'))

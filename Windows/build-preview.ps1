@@ -14,7 +14,7 @@ foreach ($source in (Join-Path $PSScriptRoot 'dictionary-manager.pyw'),(Join-Pat
     Copy-Item -LiteralPath $source -Destination $output -Force
 }
 Write-Output (Resolve-Path $exe).Path
-$ff14 = Join-Path $PSScriptRoot '../Resources/DictionaryPackages/ff14/jobs'
+$ff14 = Join-Path $PSScriptRoot '../Resources/DictionaryPackages/ff14/full'
 Copy-Item -LiteralPath (Join-Path $ff14 'manifest.json') -Destination (Join-Path $output 'ff14-manifest.json') -Force
 Copy-Item -LiteralPath (Join-Path $ff14 'ff14-words.txt') -Destination $output -Force
 Copy-Item -LiteralPath (Join-Path $ff14 'reviewed-source.json') -Destination (Join-Path $output 'ff14-reviewed-source.json') -Force

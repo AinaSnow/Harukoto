@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
             mpn_clear(session);
             for (char c : word.reading) assert(mpn_key(session, c));
             const auto choices = windowsCandidates(session, words, [](const std::string &) { return ChineseEvidence{}; }, false);
-            for (const auto &output : {word.text, word.kana})
+            for (const auto &output : {word.text, word.kana}) if (!output.empty())
                 assert(std::any_of(choices.begin(), choices.end(), [&](const auto &c) { return c.text == output && c.directJapanese && !c.coreIndex; }));
         }
         mpn_clear(session);
@@ -40,6 +40,8 @@ int main(int argc, char **argv) {
     const auto tsv = root / generation / "enabled.tsv";
     const std::string good = "riben|日本|5000|にほん|pinyin|\n";
     write(tsv, good); assert(readEnabledJapanesePackages(root).size() == 1);
+    write(tsv, "limusa|リムサ・ロミンサ|5000||pinyin|利姆萨·罗敏萨\n");
+    assert(readEnabledJapanesePackages(root).size() == 1);
     for (const auto &bad : {std::string("../escape"), generation + "\n", std::string(32, 'z'), std::string(33, 'a')}) {
         write(root / "CURRENT", bad); assert(readEnabledJapanesePackages(root).empty());
     }

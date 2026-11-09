@@ -21,7 +21,7 @@ inline bool validPackageUnicode(const std::string &text, bool kana = false, bool
         }
         if (cp < minimum || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff) || cp < 32 || cp == 127) return false;
         if (kana && !((cp >= 0x3041 && cp <= 0x3096) || cp == 0x30fc)) return false;
-        if (++count > 32) return false;
+        if (++count > 128) return false;
     }
     return count != 0 || empty;
 }
@@ -39,7 +39,7 @@ inline std::vector<JapaneseWord> readEnabledJapanesePackages(const std::filesyst
         const auto path = root / std::string(generation, 32) / "enabled.tsv";
         std::error_code error;
         const auto size = std::filesystem::file_size(path, error);
-        if (error || size > 32 * 1024 * 1024) return {};
+        if (error || size > 256 * 1024 * 1024) return {};
         std::ifstream file(path, std::ios::binary);
         if (!file) return {};
         std::string bytes(static_cast<size_t>(size), '\0');
@@ -47,16 +47,16 @@ inline std::vector<JapaneseWord> readEnabledJapanesePackages(const std::filesyst
         std::istringstream input(bytes);
         size_t count = 0;
         for (std::string line; std::getline(input, line);) {
-            if (++count > 100000 || line.empty() || line.size() > 1024 || line.front() == '#' ||
-                std::count(line.begin(), line.end(), '|') != 5 || line.find_first_of(",\t\r") != line.npos) return {};
+            if (++count > 500000 || line.empty() || line.size() > 4096 || line.front() == '#' ||
+                std::count(line.begin(), line.end(), '|') != 5 || line.find_first_of("\t\r") != line.npos) return {};
             const auto end = line.find('|');
-            if (end < 2 || end > 40 || !std::all_of(line.begin(), line.begin() + end, [](char c) { return c >= 'a' && c <= 'z'; })) return {};
+            if (end < 2 || end > 256 || !std::all_of(line.begin(), line.begin() + end, [](char c) { return c >= 'a' && c <= 'z'; })) return {};
         }
         std::istringstream rows(bytes);
         auto words = readJapaneseWords(rows);
         if (words.size() != count || std::any_of(words.begin(), words.end(), [](const auto &word) {
             return word.source.empty() || !validPackageUnicode(word.text) ||
-                !validPackageUnicode(word.kana, true) || !validPackageUnicode(word.chinese, false, true);
+                !validPackageUnicode(word.kana, true, true) || !validPackageUnicode(word.chinese, false, true);
         })) return {};
         return words;
     } catch (...) { return {}; }

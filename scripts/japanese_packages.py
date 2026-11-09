@@ -10,8 +10,8 @@ from pathlib import Path
 
 from japanese_dictionary import parse_word_list, serialize
 
-MAX_BYTES = 32 * 1024 * 1024
-MAX_ENTRIES = 100_000
+MAX_BYTES = 256 * 1024 * 1024
+MAX_ENTRIES = 500_000
 ID = re.compile(r'[a-z][a-z0-9-]{0,63}')
 GENERATION = re.compile(r'[0-9a-f]{32}')
 MANIFEST_FIELDS = {'format', 'id', 'name', 'version', 'source', 'license', 'words'}
@@ -77,9 +77,9 @@ def validate_package(package):
             raise ValueError('主题包候选结构损坏')
         reading, text, weight, kana, source, chinese = row
         if (not all(isinstance(x, str) for x in (reading, text, kana, source, chinese))
-                or not re.fullmatch('[a-z]{2,40}', reading)
-                or not 1 <= len(text) <= 32 or not re.fullmatch('[ぁ-ゖー]{1,32}', kana)
-                or source not in {'pinyin', 'english'} or len(chinese) > 32
+                or not re.fullmatch('[a-z]{2,256}', reading)
+                or not 1 <= len(text) <= 128 or not re.fullmatch('[ぁ-ゖー]{0,128}', kana)
+                or source not in {'pinyin', 'english'} or len(chinese) > 128
                 or type(weight) is not int or not 1 <= weight <= 9999
                 or any(c in text + chinese for c in '|\t\r\n')
                 or any(ord(c) < 32 for c in text + chinese)):
@@ -106,7 +106,7 @@ def validate_state(state):
         if item['current'] is None:
             raise ValueError('主题包缺少当前版本')
     if count > MAX_ENTRIES:
-        raise ValueError('主题包总条目（含回退版本）不能超过 100000 条')
+        raise ValueError('主题包总条目（含回退版本）不能超过 500000 条')
     return state
 
 
@@ -136,7 +136,7 @@ def compiled(state):
     rows = sorted(set(tuple(row) for row in rows), key=lambda row: (-row[2], row[0], row[1:2], row[3:]))
     result = serialize(rows).encode('utf-8')
     if len(result) > MAX_BYTES:
-        raise ValueError('合并词库超过 32 MB')
+        raise ValueError('合并词库超过 256 MB')
     return result
 
 
@@ -172,7 +172,7 @@ def write_state(root, state):
     payload = compiled(state)
     metadata = (json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + '\n').encode('utf-8')
     if len(metadata) > MAX_BYTES:
-        raise ValueError('主题包状态超过 32 MB')
+        raise ValueError('主题包状态超过 256 MB')
     generation = uuid.uuid4().hex
     folder = root / generation
     folder.mkdir()

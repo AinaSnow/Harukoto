@@ -1,12 +1,15 @@
 # 开发状态与接手入口
 
-项目现名为“晴词 · Harukoto”，独立维护自 Meowpuut。仅保留 Windows 与 Android；macOS、iOS／iPadOS 代码及专用脚本已移除。当前开发构建为 0.4.4-alpha.8，升级兼容标识见[品牌说明](BRAND.md)。
+最新状态（2026-11-10）：alpha.9 随附 [FF14 全量包 0.3.0](FF14_FULL_DICTIONARY.md)，57,672 条来源记录、113,463 组触发。支持显式无假名词条与大容量主题包，完整处理 Item／PlaceName／Completion；362 条缺日文物品、4 条占位地名和 50 条动态索引排除。自动拼音、程序对齐不等同逐项人工审核。41 项 Python 测试与 16 项 CTest 验证；用户安装尚未更新。下方为此前批次记录。
+
+
+项目现名为“晴词 · Harukoto”，独立维护自 Meowpuut。仅保留 Windows 与 Android；macOS、iOS／iPadOS 代码及专用脚本已移除。当前开发构建为 0.4.4-alpha.9，升级兼容标识见[品牌说明](BRAND.md)。
 
 更新日期：2026-11-09。维护仓库：[NemophilaHare/input](https://git.hare.fun/NemophilaHare/input)，当前集成分支为 `main`。本文记录源码状态；“代码完成”“本机验证”“已发布／已安装”分别记录，不能互相替代。
 
 ## 当前进度
 
-最新 alpha.8 随附 FF14 0.2.0：204 条、431 组触发；所选制作采集与深层迷宫组已覆盖，金碟币因读音不足排除，其他全量 Item 尚未收录。修复检索后缀被误当完整读音的处理，并保留名称冒号。覆盖清单见 Resources/DictionaryPackages/ff14/coverage.json。
+历史 alpha.8 随附 FF14 0.2.0：204 条、431 组触发；所选制作采集与深层迷宫组已覆盖，金碟币因读音不足排除，其他全量 Item 尚未收录。修复检索后缀被误当完整读音的处理，并保留名称冒号。覆盖清单见 Resources/DictionaryPackages/ff14/coverage.json。
 
 历史构建 alpha.7 随附 FF14 词库 0.1.1：23 个职业和 10 个物品相关定型文术语，共 89 组触发。名称及读音已在线交叉核对；Completion 使用固定提交并按行 ID、Group、Key 对齐。管理窗口增加“预览 FF14 词库”，默认关闭导入。新增真实词库的全部触发首屏、简繁双模式、关闭与中文隔离测试；实机上屏和第二位人工复核待做。
 

@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.8'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.9'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,15 +38,15 @@ try {
     $example = Join-Path $stage 'Resources/DictionaryPackages/example'
     New-Item -ItemType Directory -Force $example | Out-Null
     Copy-Item -LiteralPath (Join-Path $root 'Resources/DictionaryPackages/example/manifest.json'),(Join-Path $root 'Resources/DictionaryPackages/example/words.txt') -Destination $example
-    $ff14 = Join-Path $stage 'Resources/DictionaryPackages/ff14/jobs'
+    $ff14 = Join-Path $stage 'Resources/DictionaryPackages/ff14/full'
     New-Item -ItemType Directory -Force $ff14 | Out-Null
     foreach ($name in 'manifest.json','ff14-words.txt','reviewed-source.json') {
-        Copy-Item -LiteralPath (Join-Path $root "Resources/DictionaryPackages/ff14/jobs/$name") -Destination $ff14
+        Copy-Item -LiteralPath (Join-Path $root "Resources/DictionaryPackages/ff14/full/$name") -Destination $ff14
     }
     foreach ($name in 'coverage.json','source-checks.json') {
-        Copy-Item -LiteralPath (Join-Path $root "Resources/DictionaryPackages/ff14/$name") -Destination $ff14
+        Copy-Item -LiteralPath (Join-Path $root "Resources/DictionaryPackages/ff14/full/$name") -Destination $ff14
     }
-    foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','FF14_DICTIONARY.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md','BRAND.md') {
+    foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','FF14_DICTIONARY.md','FF14_FULL_DICTIONARY.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','WINDOWS_VALIDATION.md','BRAND.md') {
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
     }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install-ime.ps1') -Destination (Join-Path $stage 'Install.ps1')
