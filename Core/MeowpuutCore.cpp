@@ -548,7 +548,15 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
         for (size_t end = 0; end < spelling.size(); ++end) {
             if (!is_tone(spelling[end], true)) continue;
             const auto syllable = spelling.substr(start, end - start + 1);
-            if (!std::binary_search(lexicon.singleSpellings.begin(), lexicon.singleSpellings.end(), syllable)) return false;
+            if (!std::binary_search(lexicon.singleSpellings.begin(), lexicon.singleSpellings.end(), syllable)) {
+                // Compiler-generated 儿 suffix aliases retain the base syllable's
+                // tone (hui4 + er5 -> huir4), with independent base evidence.
+                const auto text = word.text(true);
+                if (end + 1 != spelling.size() || syllable.size() < 3 || syllable[syllable.size() - 2] != 'r' ||
+                    text.size() < 3 || text.substr(text.size() - 3) != "儿") return false;
+                auto base = std::string(syllable); base.erase(base.size() - 2, 1);
+                if (!std::binary_search(lexicon.singleSpellings.begin(), lexicon.singleSpellings.end(), base)) return false;
+            }
             start = end + 1;
         }
         return start == spelling.size();
@@ -611,9 +619,10 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
 
     struct Path { std::string text, traditional; double score; bool spelled, verified; };
     // The sentence search beam is a latency bound, not a five-candidate UI cap.
-    // Widen short, user-visible pinyin lookups only; internal completion probes
-    // and longer sentence searches retain their existing bounded work.
-    const size_t pathLimit = lexicon.pinyin && metadata && !completeOnly && length <= 8 ? page_size * 3 : beam;
+    // Widen user-visible pinyin lookups within 32 letters only. Internal
+    // completion probes and longer searches retain their existing bounded work.
+    const size_t pathLimit = lexicon.pinyin && metadata && !completeOnly && length <= 32
+        ? (length <= 8 ? page_size * 3 : size_t(8)) : beam;
     std::vector<std::vector<Path>> suffixes(length + 1);
     suffixes[length].push_back({"", "", 0, true, true});
     for (size_t start = length; start-- > 0;) {
@@ -739,6 +748,19 @@ std::vector<Fallback> predictive_segments_at(const Lexicon &lexicon, std::string
         }
     }
     if (std::none_of(scored.begin(), scored.end(), [](const Scored &item) { return item.evidence > 0; })) return {};
+    // Direct, common completed words outrank suffix-only evidence. Otherwise
+    // 篮球 can promote 六篮 over 浏览 while the next q is still unfinished.
+    const Reading prefix(input.substr(0, count), lexicon.pinyin);
+    const auto prefixRange = lexicon.range(prefix.sounds);
+    for (auto &candidate : scored) {
+        for (size_t i = prefixRange.first; i < prefixRange.second; ++i) {
+            const auto &word = lexicon.word(i, hans);
+            if (word.score(hans) < 4000) break;
+            if (fully_spelled(word) && prefix.matches(word, 0, prefix.sounds.size()) && word.text(hans) == candidate.item.text) {
+                candidate.evidence += 10000; break;
+            }
+        }
+    }
     std::stable_sort(scored.begin(), scored.end(), [](const Scored &a, const Scored &b) {
         return a.evidence == b.evidence ? a.order < b.order : a.evidence > b.evidence;
     });

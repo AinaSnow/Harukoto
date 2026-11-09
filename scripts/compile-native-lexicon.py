@@ -552,6 +552,12 @@ def main(destination, converter=None):
         key = (bare, reading, hant, hans)
         previous = rows[mode].get(key, (0, 0))
         rows[mode][key] = (max(previous[0], weight), max(previous[1], hans_weight))
+    erhua = set()
+    for number, fields in authored("erhua.tsv"):
+        if len(fields) != 2 or not fields[0].endswith("兒") or not fields[1].endswith("儿") or tuple(fields) in erhua:
+            raise ValueError(f"erhua.tsv:{number}: invalid or duplicate pair")
+        erhua.add(tuple(fields))
+    erhua_matched = set()
     context = {}
     for (hant, hans, code), weight in words.items():
         if (hant, hans, code) not in native_keys: continue
@@ -561,6 +567,12 @@ def main(destination, converter=None):
         add("zhuyin", re.sub("[ 6347]", "", phonetic), phonetic, hant, hans, weight, hans_weight)
         aliases = {"".join(sounds)}
         aliases |= {re.sub(r"([nl])ve", r"\1ue", p) for p in list(aliases)}
+        # Only recorded 儿/兒 suffix words receive a contracted erhua spelling.
+        # Keep the explicit er reading too; never rewrite arbitrary user input.
+        if ((hant, hans) in erhua and len(sounds) >= 2
+                and sounds[-1][:-1] == "er" and sounds[-2][:-1] != "er"):
+            aliases.add("".join(sounds[:-2]) + sounds[-2][:-1] + "r" + sounds[-2][-1])
+            erhua_matched.add((hant, hans))
         # Full pinyin is primary. Initial abbreviations remain available with a lower prior.
         if len(sounds) > 1:
             short = "".join(s[0] + s[-1] for s in sounds)
@@ -570,6 +582,8 @@ def main(destination, converter=None):
         if len(hant) > 1:
             previous = context.get(hant, (0, 0))
             context[hant] = (max(previous[0], weight), max(previous[1], hans_weight))
+    if erhua_matched != erhua:
+        raise ValueError(f"Erhua words missing full er readings: {sorted(erhua - erhua_matched)}")
     # Context-only observations steer adjacent word segments without creating
     # artificial dictionary entries or changing the standalone word order.
     for number, fields in authored("context.tsv"):

@@ -129,6 +129,53 @@ int main(int argc, char **argv) {
             mpn_clear_commit(session);
         }
     }
+    // Erhua aliases and unfinished pinyin must preserve the exact consumed
+    // range through selection, including a single remaining raw letter.
+    for (bool simplified : {false, true}) {
+        mpn_set_simplified(session, simplified);
+        for (const auto &sample : std::vector<std::array<std::string, 4>>{
+            {"yihuir", "一会儿", "一會兒", ""},
+            {"yihuier", "一会儿", "一會兒", ""},
+            {"yi2huir4", "一会儿", "一會兒", ""},
+            {"yidianr", "一点儿", "一點兒", ""},
+            {"yidianer", "一点儿", "一點兒", ""},
+            {"yikuair", "一块儿", "一塊兒", ""},
+            {"xianxiuxiyihuir", "先休息一会儿", "先休息一會兒", ""},
+            {"dengduiyoudaoqi", "等队友到齐", "等隊友到齊", ""},
+            {"liulanq", "浏览", "瀏覽", "q"},
+            {"wenjianj", "文件", "文件", "j"},
+            {"wohuir", "我会", "我會", "r"}}) {
+            mpn_clear(session);
+            for (char c : sample[0]) assert(mpn_key(session, c));
+            const auto choices = windowsCandidates(session, words, [&](const std::string &reading) { return evidence.dictionary(reading, simplified); }, false);
+            const auto &expected = sample[simplified ? 1 : 2];
+            if (choices.empty() || choices.front().text != expected) std::cerr << "Erhua/partial: " << sample[0] << " expected " << expected << std::endl;
+            assert(!choices.empty() && choices.front().text == expected && choices.front().coreIndex);
+            assert(mpn_choose(session, *choices.front().coreIndex));
+            assert(std::string(mpn_committed(session)) == expected && std::string(mpn_input(session)) == sample[3]);
+            mpn_clear_commit(session);
+            assert(!*mpn_committed(session));
+        }
+        // This short form still has imperfect ranking; keep it selectable on
+        // the first page instead of pretending the whole sentence fixes it.
+        mpn_clear(session);
+        for (char c : std::string("duiyoudaoqi")) assert(mpn_key(session, c));
+        const auto choices = windowsCandidates(session, words, [&](const std::string &reading) { return evidence.dictionary(reading, simplified); }, false);
+        const auto end = choices.begin() + std::min(size_t(7), choices.size());
+        const auto found = std::find_if(choices.begin(), end, [&](const auto &c) { return c.text == (simplified ? "队友到齐" : "隊友到齊"); });
+        assert(found != end && found->coreIndex && mpn_choose(session, *found->coreIndex));
+        assert(std::string(mpn_committed(session)) == found->text && !*mpn_input(session));
+        mpn_clear_commit(session);
+        // An alternative partial reading remains usable beyond page one.
+        mpn_clear(session);
+        for (char c : std::string("wenjianj")) assert(mpn_key(session, c));
+        const auto partial = windowsCandidates(session, words, [&](const std::string &reading) { return evidence.dictionary(reading, simplified); }, false);
+        assert(partial.size() > 7);
+        const auto alternative = std::find_if(partial.begin() + 7, partial.end(), [&](const auto &c) { return c.text == (simplified ? "问见" : "問見"); });
+        assert(alternative != partial.end() && alternative->coreIndex && mpn_choose(session, *alternative->coreIndex));
+        assert(std::string(mpn_committed(session)) == alternative->text && std::string(mpn_input(session)) == "j");
+        mpn_clear_commit(session);
+    }
     if (argc >= 4) {
         const bool bulk = argc == 5;
         auto themes = readEnabledJapanesePackages(argv[2]);
