@@ -23,7 +23,7 @@ public:
         std::shared_ptr<const WindowsDictionary> dictionary;
     };
     using Ticket = std::shared_ptr<const Work>;
-    enum class Status { Reply, Replay, Scheduled, Pending, Rejected, Closed };
+    enum class Status { Reply, Replay, Scheduled, Pending, Rejected, Closed, Failed };
     enum class Reason { None, Malformed, Identity, Stale, Conflict, MissingSession,
                         Capacity, Busy, Composition, Candidate, InputLimit, Backend };
     struct Result {
@@ -87,8 +87,8 @@ public:
         }
         return false;
     }
-    // Local statuses are not wire error payloads. The transport must define how
-    // to close/report rejection; it must not synthesize a successful empty reply.
+    // Admission rejections are local statuses; scheduled query failures use fail().
+    // The transport must not synthesize a successful empty reply for either.
     Result receive(const Frame &request, uint64_t now, uint64_t deadline) {
         if (closed_ || expire(now)) return {Status::Closed, Reason::None, {}, {}};
         if (!valid(request)) return reject(Reason::Malformed);
@@ -178,6 +178,19 @@ public:
         }
         return reject(Reason::Malformed);
     }
+    // A terminal failure is scoped to the exact current ticket. Check ownership
+    // before expiration: late failures cannot tear down a different request.
+    Result fail(const Ticket &work, ErrorCode code, uint64_t now) {
+        if (closed_) return {Status::Closed, Reason::None, {}, {}};
+        if (!work) return reject(Reason::Stale);
+        const auto found = sessions_.find(work->request.id.session);
+        if (found == sessions_.end() || found->second.pending != work) return reject(Reason::Stale);
+        if (!valid(ErrorMessage{code})) return reject(Reason::Malformed);
+        if (now >= work->deadline) code = ErrorCode::Deadline;
+        Frame response{Kind::Error, work->request.id, encodePayload(ErrorMessage{code})};
+        disconnect();
+        return {Status::Failed, Reason::Backend, std::move(response), {}};
+    }
     Result complete(const Ticket &work, const CandidatePage &page, uint64_t now) {
         if (closed_ || expire(now)) return {Status::Closed, Reason::None, {}, {}};
         if (!work) return reject(Reason::Stale);
@@ -186,12 +199,12 @@ public:
         // IDs from another connection or a copied Work are insufficient.
         if (found == sessions_.end() || found->second.pending != work) return reject(Reason::Stale);
         auto &session = found->second;
-        if (page.input != work->input) return reject(Reason::Backend);
+        if (page.input != work->input) return fail(work, ErrorCode::Backend, now);
         auto response = reply(work->request);
         try { response.payload = encodePayload(page); }
-        catch (const std::invalid_argument &) { return reject(Reason::Backend); }
+        catch (const std::invalid_argument &) { return fail(work, ErrorCode::Backend, now); }
         auto candidates = session.candidates;
-        if (!candidates.publish(response)) return reject(Reason::Backend);
+        if (!candidates.publish(response)) return fail(work, ErrorCode::Backend, now);
         auto input = work->input;
         auto result = respond(work->request, std::move(response));
         session.input.swap(input);

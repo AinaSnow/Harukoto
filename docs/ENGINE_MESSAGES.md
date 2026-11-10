@@ -1,5 +1,7 @@
 # 引擎业务消息与候选版本
 
+第六批进度：[执行器与失败处理](ENGINE_EXECUTOR.md)新增 Error=5 载荷（code:u16），固定 4 字节；Overloaded／Backend／Deadline／Stopped／Cancelled 为 1～5，均属终止连接错误。基础编解码也在协议层供 ClientGate 校验，消息层提供统一重载。真实 Windows 合并查询已在第五批接入，认证传输和正式 TSF 仍待实现；下文记录第二批边界。
+
 后续进度：第三批已加入[服务端会话调度原型](ENGINE_SERVER.md)，覆盖隔离、取消与重复请求；本文保留第二批消息校验的范围和调用约定，真实核心与传输仍未接入。
 
 WIN-03b 第二批，2026-11-10。Windows/EngineMessages.h 在[协议头与客户端归属检查](ENGINE_PROTOCOL.md)之上增加类型化载荷和 CandidateSnapshot。当前是实验模型，未接真实核心、服务端、管道或正式 TSF；alpha.22 安装包不变。本批验证消息内容和选词一致性，不代表引擎已经独立运行。
@@ -14,6 +16,7 @@ WIN-03b 第二批，2026-11-10。Windows/EngineMessages.h 在[协议头与客户
 | Candidates=2 | input:string、more:u8、count:u16、候选数组 | more 只能为 0／1；每项为 id:u64、consumed:u32、text:string、reading:string |
 | Select=3 | sourceRequest:u64、candidate:u64 | 引用候选回复的请求号和候选 ID，两项非零 |
 | Commit=4 | sourceRequest:u64、candidate:u64、consumed:u32、text:string、remaining:string | 回复原 Select 请求，原协议头五项身份必须一致 |
+| Error=5 | code:u16 | 第六批新增；固定总长 4 字节，只有已知的 1～5 错误码有效 |
 
 本批规范化输入仅含小写 a～z、0～9、单引号，最长 256 字节；消费范围以该 ASCII 输入的前缀字节数计算，不按中文／日文文字长度计算。Text 只携带一个此范围内字节，其他 action 的 text 必须为 0。尚未定义原始虚拟键、修饰键、标点、直接 Unicode 输入和全部快捷键路由，不能据此覆盖现有输入法所有行为。
 

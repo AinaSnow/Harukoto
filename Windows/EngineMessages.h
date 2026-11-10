@@ -5,7 +5,7 @@
 
 namespace harukoto::engine {
 constexpr size_t MaxInput = 256, MaxText = 1024, MaxCandidates = 128;
-enum class Payload : uint16_t { Key = 1, Candidates = 2, Select = 3, Commit = 4 };
+enum class Payload : uint16_t { Key = 1, Candidates = 2, Select = 3, Commit = 4, Error = ErrorPayloadTag };
 enum class KeyAction : uint8_t { Text = 1, Backspace, PageNext, PagePrevious, Refresh };
 struct KeyMessage { KeyAction action = KeyAction::Text; uint8_t text = 0; bool simplified = true; };
 struct Candidate { uint64_t id = 0; uint32_t consumed = 0; std::string text, reading; };
@@ -77,6 +77,8 @@ public:
 inline void putString(std::vector<uint8_t> &bytes, const std::string &s) {
     put(bytes, s.size(), 2); bytes.insert(bytes.end(), s.begin(), s.end());
 }
+inline std::vector<uint8_t> encodePayload(const ErrorMessage &error) { return encodeError(error); }
+inline bool decodePayload(const std::vector<uint8_t> &bytes, ErrorMessage &out) { return decodeError(bytes, out); }
 inline std::vector<uint8_t> encodePayload(const KeyMessage &m) {
     if (!valid(m)) throw std::invalid_argument("invalid engine key");
     std::vector<uint8_t> b; put(b, static_cast<uint16_t>(Payload::Key), 2);

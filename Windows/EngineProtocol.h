@@ -43,6 +43,24 @@ inline uint64_t get(const uint8_t *data, size_t offset, size_t bytes) {
     for (size_t i = 0; i < bytes; ++i) result |= uint64_t(data[offset + i]) << (i * 8);
     return result;
 }
+// Errors are fixed-size protocol failures, never backend exception strings.
+constexpr uint16_t ErrorPayloadTag = 5;
+enum class ErrorCode : uint16_t { Overloaded = 1, Backend, Deadline, Stopped, Cancelled };
+struct ErrorMessage { ErrorCode code = ErrorCode::Backend; };
+inline bool valid(const ErrorMessage &error) {
+    return error.code >= ErrorCode::Overloaded && error.code <= ErrorCode::Cancelled;
+}
+inline std::vector<uint8_t> encodeError(const ErrorMessage &error) {
+    if (!valid(error)) throw std::invalid_argument("invalid engine error");
+    std::vector<uint8_t> bytes;
+    put(bytes, ErrorPayloadTag, 2); put(bytes, static_cast<uint16_t>(error.code), 2); return bytes;
+}
+inline bool decodeError(const std::vector<uint8_t> &bytes, ErrorMessage &out) {
+    if (bytes.size() != 4 || get(bytes.data(), 0, 2) != ErrorPayloadTag) return false;
+    ErrorMessage error{static_cast<ErrorCode>(get(bytes.data(), 2, 2))};
+    if (!valid(error)) return false;
+    out = error; return true;
+}
 inline std::vector<uint8_t> encode(const Frame &f) {
     if (!valid(f)) throw std::invalid_argument("invalid engine envelope");
     std::vector<uint8_t> out{'H', 'K', 'I', 'P'};
@@ -161,7 +179,11 @@ public:
         if (found == sessions_.end()) return false;
         auto &s = found->second;
         if (!s.pending || !(s.pending->id == f.id)) return false;
-        if (f.kind == Kind::Error) { disconnect(); return false; }
+        if (f.kind == Kind::Error) {
+            ErrorMessage error;
+            if (decodeError(f.payload, error)) disconnect();
+            return false;
+        }
         const auto kind = s.pending->kind;
         if ((kind == Kind::Open || kind == Kind::Cancel || kind == Kind::Close) && !f.payload.empty()) return false;
         s.pending.reset();

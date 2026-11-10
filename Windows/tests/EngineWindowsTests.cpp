@@ -1,4 +1,5 @@
 #include "../EngineWindows.h"
+#include "../EngineExecutor.h"
 #include <cassert>
 #include <future>
 #include <iostream>
@@ -82,6 +83,34 @@ static void directComparison(std::shared_ptr<const WindowsDictionary> dictionary
         assert(actual.more==(p*16+actual.words.size()<expected.size()));
     }
 }
+static void backgroundQueries(std::shared_ptr<const WindowsDictionary> dictionary) {
+    Executor executor(2,3,[](const auto &work) {
+        if (!work->dictionary) throw std::invalid_argument("missing query snapshot");
+        return work->dictionary->query(work);
+    },[] { return 0; });
+    Peer japanese(dictionary), chinese(dictionary), theme(dictionary);
+    const auto japan=japanese.query("riben"), supplement=chinese.query("ceshibuci"), ff14=theme.query("tejihuifuyao",false);
+    for(const auto &work:{japan,supplement,ff14}) assert(executor.submit(work)==Executor::Admission::Accepted);
+    for(int i=0;i<3;++i) {
+        auto result=executor.takeUntil(std::chrono::steady_clock::now()+std::chrono::seconds(10));
+        assert(result && result->page);
+        if(result->work==japan) {
+            assert(contains(*result->page,"日本") && contains(*result->page,"にほん"));
+            assert(result->deliver(japanese.server,1).response);
+        } else if(result->work==supplement) {
+            assert(contains(*result->page,"旧补词")); assert(result->deliver(chinese.server,1).response);
+        } else {
+            assert(result->work==ff14 && contains(*result->page,"特級恢復藥")); assert(result->deliver(theme.server,1).response);
+        }
+    }
+    // Actual adapter precondition failure is returned as a typed terminal error.
+    Peer missing({}); const auto invalid=missing.query("a");
+    assert(executor.submit(invalid)==Executor::Admission::Accepted);
+    auto failed=executor.takeUntil(std::chrono::steady_clock::now()+std::chrono::seconds(10));
+    assert(failed && !failed->page && failed->error==ErrorCode::Backend);
+    assert(failed->deliver(missing.server,1).status==ServerConnection::Status::Failed && missing.server.closed());
+    executor.stop(); executor.join();
+}
 int main(int argc,char **argv) {
     try {
         assert(argc==5);
@@ -100,6 +129,7 @@ int main(int argc,char **argv) {
             assert(contains(query(old,"tejihuifuyao"),"特级恢复药"));
             assert(contains(query(old,"tejihuifuyao",false),"特級恢復藥"));
             assert(contains(query(old,"testcoffee"),"珈琲"));
+            backgroundQueries(old);
             choose(old,"riben","日本"); choose(old,"riben","にほん");
             choose(old,"ceshibuci","旧补词"); choose(old,"eat","食べる");
             choose(old,"tejihuifuyao","特级恢复药"); choose(old,"tejihuifuyao","特級恢復藥",false);
@@ -148,7 +178,23 @@ int main(int argc,char **argv) {
         }
         assert(!weak.expired() && !writable(first/"language-evidence.sqlite"));
         assert(contains(retained->dictionary->query(retained),"珈琲"));
-        retained.reset(); assert(weak.expired() && writable(first/"language-evidence.sqlite"));
+        {
+            std::promise<void> entered,release; auto go=release.get_future().share();
+            Executor executor(1,1,[&](const auto &work) {
+                entered.set_value(); go.wait();
+                auto result=work->dictionary->query(work); assert(contains(result,"珈琲")); return result;
+            },[] { return 0; });
+            assert(executor.submit(retained)==Executor::Admission::Accepted);
+            assert(entered.get_future().wait_for(std::chrono::seconds(5))==std::future_status::ready);
+            retained.reset(); executor.stop();
+            assert(!weak.expired() && !writable(first/"language-evidence.sqlite"));
+            release.set_value(); executor.join();
+            {
+                auto result=executor.tryTake(); assert(result && !result->page && result->error==ErrorCode::Stopped);
+                assert(!weak.expired() && !writable(first/"language-evidence.sqlite"));
+            }
+            assert(weak.expired() && writable(first/"language-evidence.sqlite"));
+        }
         std::cout<<"PASS: Windows merge, SQLite supplements, Japanese pair, FF14, pinned generations and query-thread SQLite\n";
     } catch(const std::exception &error) { std::cerr<<error.what()<<'\n'; return 1; }
 }

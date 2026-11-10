@@ -129,7 +129,16 @@ static void reconnectAndBounds() {
     auto newer = gate.request(fresh, Kind::Key, 22, 30); assert(newer);
     assert(newer->id.connection != key->id.connection && newer->id.request > key->id.request);
     assert(!gate.accept(reply(*key, Kind::Error), 22) && gate.ready());
-    assert(!gate.accept(reply(*newer, Kind::Error), 23) && !gate.ready());
+    auto failure = reply(*newer, Kind::Error);
+    assert(!gate.accept(failure, 23) && gate.ready()); // empty error is malformed
+    failure.payload = encodeError({ErrorCode::Backend});
+    auto malformed = failure; malformed.payload.push_back(0);
+    assert(!gate.accept(malformed, 23) && gate.ready());
+    malformed = failure; malformed.payload[2] = 99;
+    assert(!gate.accept(malformed, 23) && gate.ready());
+    auto stale = failure; stale.id = key->id;
+    assert(!gate.accept(stale, 23) && gate.ready());
+    assert(!gate.accept(failure, 23) && !gate.ready());
     // Locally accepted text belongs to its retained context even after disconnect.
     PendingDelivery retained; retained.append(L"已确认"); retained.suspend();
     gate.disconnect(); assert(!retained.empty() && retained.begin() == nullptr);
