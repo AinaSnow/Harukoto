@@ -34,6 +34,8 @@ class EngineDiagnosticsTests(unittest.TestCase):
                 snapshot = before['snapshot']
                 self.assertEqual(snapshot['root']['pid'], pid)
                 self.assertEqual(snapshot['state'], 'ready')
+                self.assertIs(snapshot['deployment_required'], False)
+                self.assertIs(snapshot['deployment_verified'], False)
                 self.assertIsNone(snapshot['last_inspect'])
                 self.assertEqual(snapshot['control']['state'], 'disabled')
                 time.sleep(0.04)

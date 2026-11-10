@@ -12,13 +12,13 @@ WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内�
 
 调用者提供 Config：可执行文件与基础词库的绝对路径、可选主题／个人表绝对路径、连接数、启动和停止宽限。连接默认为 2；启动 30 秒、停止 5 秒，时长范围均为 1～300,000 毫秒，是开发值。拒绝相对路径、空必填路径、内嵌 NUL、超长命令行、非法数量或时限。缺省个人表不读取用户安装数据。
 
-绝对路径只约束传参，不等于文件可信验证。可信部署目录的权限、可执行文件与词库身份、签名、版本选择和路径替换竞争仍由后续部署层解决；模块不能接收管道对端自报的可执行路径后直接启动。启动前拒绝当前线程已有模拟令牌。
+绝对路径只约束传参，不等于文件可信验证。可选 hostSha256／ownerSha256 接入[部署身份校验](ENGINE_DEPLOYMENT.md)：独立模式要求两项配对，直接模式只需宿主哈希；可信预期值由调用方提供，固定文件与解析后的父目录，再核对真实进程的映像路径／文件 ID。默认空保持原开发行为。可信发行元数据来源、目录权限、词库身份、签名和版本选择仍待部署层解决；模块不能接收管道对端自报的路径或哈希后直接视为批准。启动前拒绝当前线程已有模拟令牌。
 
-直接调用 `CreateProcessW`，明确指定可执行文件，按 Windows argv 规则引用每个参数，不经过 shell；工作目录固定为可执行文件所在目录，环境沿用调用方。CREATE_NO_WINDOW 隐藏启动，CREATE_SUSPENDED 保证主线程先不运行。Job 使用 KILL_ON_JOB_CLOSE，成功加入后才 ResumeThread；分配 Job 或恢复线程失败时终止自己创建的挂起子进程。不搜索 PID，也不结束用户的其他输入法或应用。
+直接调用 `CreateProcessW`，明确指定可执行文件，按 Windows argv 规则引用每个参数，不经过 shell；默认工作目录为可执行文件所在目录，开启部署校验时使用 Windows 系统目录，环境沿用调用方。CREATE_NO_WINDOW 隐藏启动，CREATE_SUSPENDED 保证主线程先不运行。Job 使用 KILL_ON_JOB_CLOSE，成功加入并完成可选实际映像检查后才 ResumeThread；分配 Job、检查或恢复线程失败时终止自己创建的挂起子进程。不搜索 PID，也不结束用户的其他输入法或应用。
 
 父进程控制事件和保留的进程／Job 句柄均不可继承。静态模式仅为 ready／stop 创建短期可继承副本，通过 STARTUPINFOEX 的显式 HANDLE_LIST 传递；动态模式另加未命名映射和两个控制事件的副本。子进程创建后关闭父方的短期副本，真实宿主接管后再清除子方控制句柄的继承标记。列表中不包含其他继承句柄，避免沿用调用方原有可继承事件。
 
-指定 ownerExecutable 时先创建独立所有者，再由它按同一规则创建动态宿主；外层继承列表额外携带一次性宿主对象交接映射。外层 ready 必须等待宿主实际 ready 和可信对象复制完成；失败记 ControlIo，按原 Job 路径终止。根进程与查询对象的区分、嵌套所有权和固定句柄槽规则见[独立所有者](ENGINE_OWNER.md)。
+指定 ownerExecutable 时先创建独立所有者，再由它按同一规则创建动态宿主；外层继承列表额外携带一次性宿主对象交接映射。外层 ready 必须等待宿主实际 ready 和可信对象复制完成；交接失败记 ControlIo，启用校验后实际宿主映像不符则记 DeploymentIdentity，按原 Job 路径终止且不保留错误宿主。deploymentRequired／deploymentVerified 反映可选策略与本次 Ready 前的核对结果，不是内存持续监测。根进程与查询对象的区分、嵌套所有权和固定句柄槽规则见[独立所有者](ENGINE_OWNER.md)。
 
 构造包含进程创建、文件路径处理等系统调用；连接包含 CreateFile 和令牌检查。这些调用不能保证前台延迟。所有方法只允许在同一服务／I/O 线程使用，不得直接放进 TSF 前台回调。
 
@@ -54,7 +54,7 @@ Config 新增 `threads`（1～16，默认 2）与可选 `trace` 绝对路径，�
 
 一个随机端点只尝试一次，即使连接抛出 pipe::Error 也计为已领取，不等待管道、不重试、不复用名称。未 Ready、停止中、已退出或端点用尽返回空指针。连接失败由调用方处理，不影响其他尚未领取端点；不得自动把未确认按键转给其他连接。返回的 Channel 仍由 I/O 线程负责 Hello／ClientGate、候选快照、取消和关闭回收，claim 成功不是业务握手完成。
 
-`status()` 返回固定元数据：状态、Failure、必要的 Win32 数字、可选退出码、已领取／配置端点数量。Failure 区分 StartupExit、UnexpectedExit、StartupTimeout、StopTimeout、ControlIo、InstanceBusy；最后一项用于独立所有者启动阶段的重复实例退出码 183，不自动附着。超时原因保留到真实退出，不被终止退出码覆盖。其余未观察 ready 即退出，即使退出码 0 也算 StartupExit；已就绪后的正常退出码 0 允许作为宿主自行收尾。构造／系统检查失败抛出固定异常，不能伪造 Ready。不记录输入、候选或异常详情。
+`status()` 返回固定元数据：状态、Failure、必要的 Win32 数字、可选退出码、已领取／配置端点数量。Failure 区分 StartupExit、UnexpectedExit、StartupTimeout、StopTimeout、ControlIo、InstanceBusy、DeploymentIdentity；InstanceBusy 用于独立所有者启动阶段的重复实例退出码 183，不自动附着。超时原因保留到真实退出，不被终止退出码覆盖。其余未观察 ready 即退出，即使退出码 0 也算 StartupExit；已就绪后的正常退出码 0 允许作为宿主自行收尾。构造／系统检查失败抛出固定异常，不能伪造 Ready。不记录输入、候选或异常详情。
 
 `Config.diagnostics=true` 可选启用[只读观测映射与命令行](ENGINE_DIAGNOSTICS.md)，默认关闭。启动方在构造后、poll 及接入／控制等操作结束时发布固定元数据，包含最近实际 poll 时间；诊断创建或发布失败仅记 `status().diagnosticsWin32`，不改变原状态机。领取 Inspect 后缓存最后一份容量及时间，读取器不额外发送请求或消费回复。映射按根进程创建时间区分，销毁时释放；残留快照和 PID 都不能用于可信交接、进程认证或附着。
 

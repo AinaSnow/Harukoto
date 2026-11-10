@@ -597,6 +597,30 @@ static void diagnosticObservation(EngineProcess::Config value) {
     assert(dg::read(disabled.processHandle()).availability==dg::Availability::Unavailable);
     disabled.requestStop(ep::now()); until(disabled,State::Exited);
 }
+static void deploymentPolicy(EngineProcess::Config value) {
+    // Trusted expected bytes come from this test's build fixture only. A
+    // production launcher must supply an independently trusted manifest.
+    value.hostSha256=base_dictionary::StableFile(value.executable).read(true);
+    value.ownerSha256=base_dictionary::StableFile(value.ownerExecutable).read(true);
+    lifetime(value,true,true); // Real independent clients, queries and selection.
+    value.diagnostics=true; value.dynamicRegistrations=true;
+    value.ownerInstance=L"deployment-test-"+std::to_wstring(GetCurrentProcessId());
+    EngineProcess owner(value); until(owner,State::Ready);
+    assert(owner.status().deploymentRequired && owner.status().deploymentVerified);
+    auto observed=diagnostics::read(owner.processHandle());
+    assert(observed.record->deploymentRequired && observed.record->deploymentVerified);
+    {
+        EngineProcess loser(value); until(loser,State::Exited);
+        assert(loser.status().failure==EngineProcess::Failure::InstanceBusy && !loser.status().deploymentVerified);
+    }
+    auto port=fresh(owner); auto endpoint=request(*port,control::Operation::Allocate); assert(endpoint.endpoint);
+    Client client(endpoint.endpoint->name,endpoint.endpoint->process.get());
+    client.choose(find(client.type("nihao"),"你好"));
+    assert(owner.revokeRegistration(port->id()));
+    owner.requestStop(ep::now()); until(owner,State::Exited);
+    assert(owner.status().failure==EngineProcess::Failure::None && owner.status().deploymentVerified);
+    assert(WaitForSingleObject(owner.engineHandle(),Timeout)==WAIT_OBJECT_0);
+}
 int wmain(int argc, wchar_t **argv) {
     if (argc > 1 && std::wstring(argv[1]) == L"--liveness-worker") {
         assert(argc == 6); auto ready = inherited(argv[2]), go = inherited(argv[3]), done = inherited(argv[4]), finish = inherited(argv[5]);
@@ -608,7 +632,7 @@ int wmain(int argc, wchar_t **argv) {
         const auto value = config(argc,argv); lifetime(value); lifetime(value,true); lifetime(value,true,true);
         registrationRequests(value,false); registrationRequests(value,true); registrationRevocation(value); registrationLiveness(value);
         registrationRevocation(value,true); dynamicRegistrations(value); admissionFailures(value);
-        failures(value); singleInstance(value); diagnosticObservation(value);
+        failures(value); singleInstance(value); diagnosticObservation(value); deploymentPolicy(value);
         std::cout << "engine_owner_process: separate owner/host, private registrations, revocation, process liveness, isolated requests, query/selection and cleanup passed\n";
         return 0;
     } catch (const ep::Error &error) { std::cerr << "owner process failure=" << static_cast<int>(error.reason) << " win32=" << error.code << '\n'; return 1; }

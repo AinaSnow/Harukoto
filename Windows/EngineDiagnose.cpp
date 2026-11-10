@@ -20,7 +20,7 @@ static void json(DWORD pid, const dg::Observation &o) {
     if (!o.record) { std::cout << "null}\n"; return; }
     const auto &r=*o.record;
     constexpr const char *states[]{"starting","ready","stopping","terminating","exited"};
-    constexpr const char *failures[]{"none","startup_exit","unexpected_exit","startup_timeout","stop_timeout","control_io","instance_busy"};
+    constexpr const char *failures[]{"none","startup_exit","unexpected_exit","startup_timeout","stop_timeout","control_io","instance_busy","deployment_identity"};
     constexpr const char *ports[]{"disabled","idle","pending","ready","failed"};
     constexpr const char *errors[]{"none","closed","io","protocol","authentication","deadline"};
     const auto now=GetTickCount64();
@@ -30,6 +30,8 @@ static void json(DWORD pid, const dg::Observation &o) {
     std::cout << '{'; process("root",r.root); std::cout << ','; process("publisher",r.publisher);
     std::cout << ','; process("host",r.host);
     std::cout << ",\"owner_mode\":" << (r.owner ? "true" : "false")
+        << ",\"deployment_required\":" << (r.deploymentRequired ? "true" : "false")
+        << ",\"deployment_verified\":" << (r.deploymentVerified ? "true" : "false")
         << ",\"published_tick_ms\":" << r.published << ",\"publication_age_ms\":" << now-r.published
         << ",\"polled_tick_ms\":" << r.polled << ",\"poll_age_ms\":";
     if (r.polled) std::cout << now-r.polled; else std::cout << "null";
@@ -80,9 +82,10 @@ int wmain(int argc, wchar_t **argv) {
         if (result.record) {
             const auto &r=*result.record;
             constexpr const char *states[]{"启动中","已就绪","停止中","终止中","已退出"};
-            constexpr const char *failures[]{"无","启动时退出","意外退出","启动超时","停止超时","控制错误","实例已存在"};
+            constexpr const char *failures[]{"无","启动时退出","意外退出","启动超时","停止超时","控制错误","实例已存在","部署身份不符"};
             std::cout << "根进程 " << r.root.pid << "，发布进程 " << r.publisher.pid << "，查询宿主 " << r.host.pid
                 << "\n上次状态：" << states[r.state] << "，故障：" << failures[r.failure] << "，Win32=" << r.win32
+                << "\n部署校验：" << (!r.deploymentRequired ? "未开启" : r.deploymentVerified ? "已通过初始映像核对" : "尚未通过")
                 << "\n接入槽：有效 " << r.registrationActive << "，已绑定 " << r.registrationBound
                 << "，累计创建 " << r.registrationCreated << "，累计撤销 " << r.registrationRevoked
                 << "\n距上次发布 " << GetTickCount64()-r.published << " ms；";

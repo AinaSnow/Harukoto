@@ -31,6 +31,12 @@ int wmain(int argc, wchar_t **argv) {
             if (i+1 >= argc) throw std::invalid_argument("missing owner option");
             const std::wstring key = argv[i], value = argv[i+1];
             if (key == L"--host" && config.executable.empty()) config.executable = value;
+            else if (key == L"--host-sha256" && config.hostSha256.empty() && value.size()==64 &&
+                    std::all_of(value.begin(),value.end(),[](wchar_t c) { return (c>=L'0' && c<=L'9') || (c>=L'a' && c<=L'f') || (c>=L'A' && c<=L'F'); }))
+            {
+                for (auto c : value) config.hostSha256.push_back(static_cast<char>(c));
+                config.hostSha256=EngineDeployment::digest(config.hostSha256);
+            }
             else if (key == L"--base" && config.base.empty()) config.base = value;
             else if (key == L"--themes" && config.themes.empty()) config.themes = value;
             else if (key == L"--personal" && config.personal.empty()) config.personal = value;

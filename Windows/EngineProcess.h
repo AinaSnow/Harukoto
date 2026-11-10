@@ -6,6 +6,7 @@
 #include "EngineRegistration.h"
 #include "EngineAdmission.h"
 #include "EngineDiagnostics.h"
+#include "EngineDeployment.h"
 #include <filesystem>
 
 namespace harukoto::engine {
@@ -14,7 +15,7 @@ namespace harukoto::engine {
 class EngineProcess {
 public:
     enum class State { Starting, Ready, Stopping, Terminating, Exited };
-    enum class Failure { None, StartupExit, UnexpectedExit, StartupTimeout, StopTimeout, ControlIo, InstanceBusy };
+    enum class Failure { None, StartupExit, UnexpectedExit, StartupTimeout, StopTimeout, ControlIo, InstanceBusy, DeploymentIdentity };
     struct Config {
         std::filesystem::path executable, base, themes, personal;
         size_t connections = 2;
@@ -28,6 +29,7 @@ public:
         size_t ownerRegistrations = 0; // Bounded private client capabilities, owner mode only.
         bool dynamicRegistrations = false; // Optional private launcher admission, owner mode only.
         bool diagnostics = false; // Optional observational mapping; never trusted discovery.
+        std::string hostSha256, ownerSha256; // Optional trusted deployment policy; owner mode requires both.
     };
     struct Status {
         State state;
@@ -44,6 +46,7 @@ public:
         pipe::Failure admissionFailure = pipe::Failure::None;
         DWORD admissionWin32 = ERROR_SUCCESS;
         DWORD diagnosticsWin32 = ERROR_SUCCESS; // Publication failures never stop the engine.
+        bool deploymentRequired = false, deploymentVerified = false;
     };
     // Trusted owner-to-client handoff, never reconstructed from a public PID.
     // The retained process copy is query/wait only and non-inheritable. A trusted
@@ -52,6 +55,8 @@ public:
     struct ControlResult { control::Response metadata; std::optional<Endpoint> endpoint; };
     struct RegistrationResult { admission::Code code; uint64_t id; std::unique_ptr<EngineRegistration> registration; };
 private:
+    std::unique_ptr<EngineDeployment> hostDeployment_, ownerDeployment_;
+    bool deploymentVerified_ = false;
     pipe::Handle ready_, stop_, process_, job_;
     std::vector<std::wstring> names_;
     std::unique_ptr<control::Client> control_;
@@ -88,6 +93,7 @@ private:
             r.published = GetTickCount64(); r.polled = diagnosticPoll_;
             r.state = static_cast<uint32_t>(s.state); r.failure = static_cast<uint32_t>(s.failure);
             r.win32 = s.win32; r.exitCode = s.exitCode; r.configured = static_cast<uint32_t>(s.configured); r.claimed = s.claimed;
+            r.deploymentRequired = s.deploymentRequired; r.deploymentVerified = s.deploymentVerified;
             r.controlState = s.controlState ? 1+static_cast<uint32_t>(*s.controlState) : 0;
             r.controlFailure = static_cast<uint32_t>(s.controlFailure); r.controlWin32 = s.controlWin32;
             r.admissionState = s.admissionState ? 1+static_cast<uint32_t>(*s.admissionState) : 0;
@@ -161,6 +167,16 @@ private:
                 !config.stopMs || config.stopMs > 300000)
             throw std::invalid_argument("invalid engine process configuration");
         pipe::processIdentityOnly();
+        if (!config.hostSha256.empty() || !config.ownerSha256.empty()) {
+            EngineDeployment::digest(config.hostSha256);
+            if (!config.ownerExecutable.empty()) EngineDeployment::digest(config.ownerSha256);
+            else if (!config.ownerSha256.empty()) throw std::invalid_argument("owner digest requires owner mode");
+            hostDeployment_=std::make_unique<EngineDeployment>(config.executable,config.hostSha256);
+            if (!config.ownerExecutable.empty()) {
+                ownerDeployment_=std::make_unique<EngineDeployment>(config.ownerExecutable,config.ownerSha256);
+                if (hostDeployment_->sameFile(*ownerDeployment_)) throw std::invalid_argument("host and owner use the same file");
+            }
+        }
         stopMs_ = config.stopMs;
         configured_ = config.connections;
         deadline_ = pipe::now() + config.startupMs;
@@ -229,10 +245,12 @@ private:
         if (childLease) inherited.push_back(childLease.get());
         for (const auto &handle : childRegistrations) inherited.push_back(handle.get());
         pipe::check(UpdateProcThreadAttribute(attributes,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherited.data(),inherited.size()*sizeof(HANDLE),nullptr,nullptr));
-        const auto executable = ownerAnchor_ ? config.ownerExecutable : config.executable;
+        const auto hostExecutable = hostDeployment_ ? hostDeployment_->path() : config.executable;
+        const auto executable = ownerDeployment_ ? ownerDeployment_->path() : ownerAnchor_ ? config.ownerExecutable : hostExecutable;
         std::vector<std::wstring> arguments{executable.wstring(),L"--base",config.base.wstring()};
-        if (ownerAnchor_) arguments.insert(arguments.end(),{L"--host",config.executable.wstring(),L"--anchor",
+        if (ownerAnchor_) arguments.insert(arguments.end(),{L"--host",hostExecutable.wstring(),L"--anchor",
             std::to_wstring(reinterpret_cast<uintptr_t>(childAnchor.get()))});
+        if (ownerDeployment_) arguments.insert(arguments.end(),{L"--host-sha256",std::wstring(hostDeployment_->digest().begin(),hostDeployment_->digest().end())});
         if (!config.ownerInstance.empty()) arguments.insert(arguments.end(),{L"--instance",config.ownerInstance});
         if (admission_) {
             const wchar_t *keys[]{L"--admission-section",L"--admission-request",L"--admission-response"};
@@ -264,12 +282,22 @@ private:
         if (command.size() >= 32767) throw std::invalid_argument("engine command line too long");
         STARTUPINFOEXW startup{}; startup.StartupInfo.cb = sizeof(startup); startup.lpAttributeList = attributes;
         PROCESS_INFORMATION info{};
+        auto workingDirectory=executable.parent_path().wstring();
+        if (hostDeployment_) {
+            // All engine data paths are absolute. Verified launches use the
+            // system directory as their explicit working directory.
+            std::wstring system(32768,L'\0');
+            const auto length=GetSystemDirectoryW(system.data(),static_cast<UINT>(system.size()));
+            pipe::check(length && length<system.size()); system.resize(length); workingDirectory=std::move(system);
+        }
         pipe::check(CreateProcessW(executable.c_str(),command.data(),nullptr,nullptr,TRUE,
             EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW | CREATE_SUSPENDED,nullptr,
-            executable.parent_path().c_str(),&startup.StartupInfo,&info));
+            workingDirectory.c_str(),&startup.StartupInfo,&info));
         process_.reset(info.hProcess); pipe::Handle thread(info.hThread);
         try {
             pipe::check(AssignProcessToJobObject(job_.get(),process_.get()));
+            if (ownerDeployment_) ownerDeployment_->verify(process_.get());
+            else if (hostDeployment_) hostDeployment_->verify(process_.get());
             // Only the child's copies remain inheritable while it starts.
             childReady.reset(); childStop.reset();
             childAnchor.reset();
@@ -330,9 +358,17 @@ public:
             const auto ready = WaitForSingleObject(ready_.get(),0); pipe::check(ready != WAIT_FAILED);
             if (ready == WAIT_OBJECT_0) {
                 if (ownerAnchor_) {
-                    try { engine_ = ownerAnchor_->pin(process_.get()); }
+                    try {
+                        auto candidate = ownerAnchor_->pin(process_.get());
+                        if (hostDeployment_) {
+                            try { hostDeployment_->verify(candidate.get()); }
+                            catch (const pipe::Error &error) { terminate(Failure::DeploymentIdentity,error.code); return state_; }
+                        }
+                        engine_ = std::move(candidate);
+                    }
                     catch (const pipe::Error &error) { terminate(Failure::ControlIo,error.code); return state_; }
                 }
+                deploymentVerified_ = bool(hostDeployment_);
                 state_ = State::Ready; deadline_ = 0;
             }
         }
@@ -490,6 +526,7 @@ public:
         }
         if (admission_) { result.admissionState = admission_->state(); result.admissionFailure = admission_->failure(); result.admissionWin32 = admission_->error(); }
         result.diagnosticsWin32 = diagnosticsWin32_;
+        result.deploymentRequired = bool(hostDeployment_); result.deploymentVerified = deploymentVerified_;
         return result;
     }
     HANDLE processHandle() const { return process_.get(); } // Borrowed; never close or change it.

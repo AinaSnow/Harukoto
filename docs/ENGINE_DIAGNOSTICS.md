@@ -38,6 +38,7 @@ JSON `format=1`、`scope=experimental_engine`、`trusted_discovery=false`。顶�
 
 - 根进程、发布进程、查询宿主的 PID／创建 FILETIME，以及是否为独立所有者模式。尚未取得宿主对象时 host 为零。
 - 进程状态 starting／ready／stopping／terminating／exited、固定失败类别、Win32 数字和可选退出码。
+- `deployment_required`／`deployment_verified` 表示启动方是否配置[部署校验](ENGINE_DEPLOYMENT.md)、本次 Ready 前是否通过初始映像核对；可显示 deployment_identity 故障。这仍是自报观察，不是客户端可用的信任依据或内存完整性检查。v1 包 flags 增加两个已知位，旧读取器遇到开启策略的记录会拒绝，应配套构建。
 - 端点配置上限、启动方累计领取数量。这个累计数不含其他客户端自行分配，也不是当前连接数。
 - 私有 control／admission 的 disabled／idle／pending／ready／failed、固定失败类别和 Win32 数字。
 - 接入槽的初始配置、累计交出／创建／撤销、当前有效和已绑定进程数量，口径见[动态接入](ENGINE_ADMISSION.md)。这些是启动方已观察的数据，不是所有者内部槽位的同步实时查询。

@@ -26,7 +26,10 @@ static void packets() {
     r.capacity={r.published,17,2,0,1,1,2};
     assert(dg::decode(dg::encode(r),out) && out.capacity.generation==17 && out.registrationCreated==24);
     r.state=4; r.exitCode=77;
+    r.failure=7; r.deploymentRequired=r.deploymentVerified=true;
     assert(dg::decode(dg::encode(r),out) && out.exitCode==DWORD(77));
+    assert(out.failure==7 && out.deploymentRequired && out.deploymentVerified);
+    r.deploymentRequired=false; assert(!dg::valid(r)); r.deploymentRequired=true;
     r.capacity.jobs=257; assert(!dg::valid(r)); r.capacity.jobs=0;
     r.polled=r.published+1; assert(!dg::valid(r)); r.polled=0;
     r.admissionState=0; r.admissionFailure=5; assert(!dg::valid(r));

@@ -23,6 +23,7 @@ struct Capacity {
 struct Record {
     ProcessIdentity root, publisher, host;
     bool owner = false;
+    bool deploymentRequired = false, deploymentVerified = false;
     uint64_t published = 0, polled = 0;
     uint32_t state = 0, failure = 0, win32 = 0;
     std::optional<DWORD> exitCode;
@@ -37,7 +38,8 @@ struct Record {
 inline bool valid(const Record &r) {
     if (!r.root.pid || !r.root.created || !r.publisher.pid || !r.publisher.created ||
             bool(r.host.pid) != bool(r.host.created) || !r.published || r.polled > r.published ||
-            r.state > 4 || r.failure > 6 || (r.state == 4) != bool(r.exitCode) ||
+            r.state > 4 || r.failure > 7 || (r.state == 4) != bool(r.exitCode) ||
+            (r.deploymentVerified && !r.deploymentRequired) ||
             !r.configured || r.configured > 8 || r.controlState > 4 || r.controlFailure > 5 ||
             r.admissionState > 4 || r.admissionFailure > 5 ||
             (!r.controlState && (r.controlFailure || r.controlWin32)) ||
@@ -60,7 +62,8 @@ inline Packet encode(const Record &r) {
     for (auto c : {'H','K','D','S'}) put(c,1);
     put(1,2); put(PacketSize,2);
     for (auto id : {r.root,r.publisher,r.host}) { put(id.pid,4); put(id.created,8); }
-    put(r.owner,4); put(r.published,8); put(r.polled,8);
+    put(uint32_t(r.owner) | (uint32_t(r.deploymentRequired)<<1) | (uint32_t(r.deploymentVerified)<<2),4);
+    put(r.published,8); put(r.polled,8);
     for (auto n : std::array<uint32_t,6>{r.state,r.failure,r.win32,uint32_t(bool(r.exitCode)),r.exitCode.value_or(0),r.configured}) put(n,4);
     put(r.claimed,8);
     for (auto n : {r.controlState,r.controlFailure,r.controlWin32,r.admissionState,r.admissionFailure,r.admissionWin32}) put(n,4);
@@ -76,7 +79,8 @@ inline bool decode(const Packet &p, Record &out) {
     auto word = [&] { return static_cast<uint32_t>(take(4)); };
     Record r;
     for (auto *id : {&r.root,&r.publisher,&r.host}) { id->pid=word(); id->created=take(8); }
-    const auto owner=word(); if (owner>1) return false; r.owner=bool(owner);
+    const auto flags=word(); if (flags>7) return false;
+    r.owner=bool(flags&1); r.deploymentRequired=bool(flags&2); r.deploymentVerified=bool(flags&4);
     r.published=take(8); r.polled=take(8);
     r.state=word(); r.failure=word(); r.win32=word();
     const auto hasExit=word(), exit=word(); if (hasExit>1 || (!hasExit && exit)) return false;

@@ -62,6 +62,8 @@ class IpcBenchmarkTests(unittest.TestCase):
             self.assertIn('Windows/EngineRegistration.h', report['provenance']['sources'])
             self.assertIn('Windows/EngineAdmission.h', report['provenance']['sources'])
             self.assertIn('Windows/EngineDiagnostics.h', report['provenance']['sources'])
+            self.assertIn('Windows/EngineDeployment.h', report['provenance']['sources'])
+            self.assertIn('Windows/BaseDictionaryFiles.h', report['provenance']['sources'])
             self.assertNotIn(temporary, json.dumps(report))
             for row in report['summary']:
                 expected = (38 if row['scenario'] == 'ff14' else 26)*row['clients']
