@@ -1,6 +1,6 @@
 # 本地主题词库管理
 
-适用：Windows 0.4.4-alpha.17。图形窗口与命令行均支持多包导入、独立启停、更新和上一版回退。管理工具需要 Python 3.10 或更新版本，图形窗口还需要 tkinter；安装器内置的 PowerShell 不包含 Python。日常输入不需要 Python。
+适用：Windows 0.4.4-alpha.18。图形窗口与命令行均支持多包导入、独立启停、更新和上一版回退。管理工具需要 Python 3.10 或更新版本，图形窗口还需要 tkinter；安装器内置的 PowerShell 不包含 Python。日常输入不需要 Python。
 
 ## 图形窗口
 
@@ -9,7 +9,7 @@
 1. 点击“选择词库并预览”，选择主题包的 manifest.json。
 2. 查看来源、许可、条目数和跨主题冲突，再点击“导入此预览”。预览后文件变化时拒绝导入，需重新预览。
 3. 在主题列表选中该包，点击“启用”或“关闭”；有旧版时可以“回退上一版”。
-4. 重新打开使用输入法的应用，让修改生效。
+4. alpha.18 起，修改会在实际输入时后台加载，并在当前组字结束后的新一段输入生效。若第一段还未变化，完成或按 Esc 取消，再开始输入。首次安装新版 DLL 仍需重开应用。
 
 文件处理在后台执行，操作期间按钮暂时禁用；失败会显示原因并恢复可操作状态。来源文本仅供查看，不自动打开链接。开发者也可执行 `python Windows/dictionary-manager.pyw` 启动。
 
@@ -24,7 +24,7 @@ python Windows/manage-japanese-packages.py enable harukoto-example
 python Windows/manage-japanese-packages.py list
 ```
 
-重新打开输入应用后，输入 kafeidian，可以分别选“喫茶店”或“きっさてん”。新主题导入后默认关闭，必须显式启用；已有主题更新保留启用状态。基础词库仍可提供相同词条，所以关闭主题不会保证每个同名候选都消失。
+主题后台加载后开始新一段输入，输入 kafeidian，可以分别选“喫茶店”或“きっさてん”。新主题导入后默认关闭，必须显式启用；已有主题更新保留启用状态。基础词库仍可提供相同词条，所以关闭主题不会保证每个同名候选都消失。
 
 ```powershell
 python Windows/manage-japanese-packages.py disable harukoto-example
@@ -72,7 +72,7 @@ python Windows/manage-japanese-packages.py import C:/my-package/manifest.json
 python Windows/manage-japanese-packages.py rollback my-japanese-terms
 ```
 
-回退交换当前与上一版，保留启用状态，其他主题包及旧自定义词表不变；再次 rollback 可以切回。每次修改后重新打开输入应用。
+回退交换当前与上一版，保留启用状态，其他主题包及旧自定义词表不变；再次 rollback 可以切回。alpha.18 起，主题修改后台加载后在新一段输入生效，旧版仍需重开应用。
 
 ## 存储与失败处理
 
@@ -84,6 +84,6 @@ python Windows/manage-japanese-packages.py rollback my-japanese-terms
 
 ## FF14 接入边界
 
-当前随附 [FF14 职业与物品术语包 0.3.0](FF14_FULL_DICTIONARY.md)：57,672 条来源记录，共 113,463 组触发词，涵盖职业、道具、货币和制作采集。点击管理窗口“预览 FF14 词库”，导入后手动启用，重开输入应用生效。已定义[FF14 词条审核规范](FF14_TERMS.md)及校验／导出工具，记录词条 ID、分类、国服／日服名、玩家别名、版本与来源，只导出 verified 词条。已知专有名词辅助输入不等于任意游戏对话翻译。
+当前随附 [FF14 职业与物品术语包 0.3.0](FF14_FULL_DICTIONARY.md)：57,672 条来源记录，共 113,463 组触发词，涵盖职业、道具、货币和制作采集。点击管理窗口“预览 FF14 词库”，导入后手动启用，后台加载后在新一段输入生效（alpha.18 起）。已定义[FF14 词条审核规范](FF14_TERMS.md)及校验／导出工具，记录词条 ID、分类、国服／日服名、玩家别名、版本与来源，只导出 verified 词条。已知专有名词辅助输入不等于任意游戏对话翻译。
 
 alpha.9 起名称最长 128 字、触发最长 256 字母；每个源词表最多 32 MB、100000 行，编译后按触发展开。显式填写 `-` 表示没有可靠假名，只输出表记；不能用于活用词。省略汉字读音仍报错，不会自动猜读音。FF14 全量包必须在 alpha.9 或更新版本导入。

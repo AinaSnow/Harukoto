@@ -31,7 +31,7 @@ class DictionaryManager(ttk.Frame):
         self.rowconfigure(2, weight=2)
         self.rowconfigure(4, weight=3)
         ttk.Label(self, text='主题词库', font=('Microsoft YaHei UI', 20)).grid(row=0, column=0, sticky='w')
-        ttk.Label(self, text='先预览再导入。新主题默认关闭；修改后重新打开输入应用。', wraplength=760).grid(row=1, column=0, sticky='w', pady=(8, 16))
+        ttk.Label(self, text='先预览再导入，新主题默认关闭。alpha.18 起支持主题热更新：后台加载后在新一段输入时生效；旧版需重开应用。', wraplength=760).grid(row=1, column=0, sticky='w', pady=(8, 16))
         self.table = ttk.Treeview(self, columns=('name', 'version', 'status', 'previous'), show='headings', selectmode='browse', height=7)
         for key, label, width in [('name', '主题', 300), ('version', '版本', 130), ('status', '状态', 100), ('previous', '可回退版本', 140)]:
             self.table.heading(key, text=label); self.table.column(key, width=width, minwidth=80)
@@ -112,7 +112,7 @@ class DictionaryManager(ttk.Frame):
             previous = item['previous']['manifest']['version'] if item['previous'] else '无'
             self.table.insert('', 'end', iid=key, values=(manifest['name'], manifest['version'], '启用' if item['enabled'] else '关闭', previous))
         if selection and selection[0] in state['packages']: self.table.selection_set(selection[0])
-        self.status.set('共 %d 个主题。修改后请重新打开输入应用。' % len(state['packages']))
+        self.status.set('共 %d 个主题。主题变更后台加载后，在新一段输入时生效（alpha.18 起）。' % len(state['packages']))
 
     def refresh(self):
         self.run(lambda: read_state(self.root), self.show_state)

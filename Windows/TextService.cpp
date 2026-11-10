@@ -16,6 +16,7 @@
 #include "JapaneseConjugation.h"
 #include "ConjugationPanel.h"
 #include "JapanesePackages.h"
+#include "ThemeReload.h"
 #include <new>
 #include <string>
 #include "WordEvidence.h"
@@ -208,8 +209,10 @@ public:
                     japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(custom.begin()),
                                          std::make_move_iterator(custom.end()));
                 }
-                auto themes = readEnabledJapanesePackages(std::filesystem::path(localAppData) / L"Meowpuut/Dictionaries");
-                japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(themes.begin()), std::make_move_iterator(themes.end()));
+                const auto themeRoot = std::filesystem::path(localAppData) / L"Meowpuut/Dictionaries";
+                auto snapshot = readJapanesePackageSnapshot(themeRoot);
+                themeReload = std::make_unique<ThemeReload>(themeRoot, japaneseWords, snapshot ? snapshot->generation : std::string());
+                if (snapshot) japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(snapshot->words.begin()), std::make_move_iterator(snapshot->words.end()));
             }
             std::stable_sort(japaneseWords.begin(), japaneseWords.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
             evidence.open(folder / L"language-evidence.sqlite");
@@ -232,6 +235,7 @@ public:
     }
 
     HRESULT STDMETHODCALLTYPE Deactivate() override {
+        themeReload.reset();
         conjugationPanel.clear();
         if (delivery) delivery->queue.close();
         for (auto &entry : suspended)
@@ -348,6 +352,7 @@ public:
                 delivery->pump();
             }
             if (activeContext != context || !session || !delivery || !delivery->queue.canDeliver()) return S_OK;
+            if (themeReload) themeReload->poll(!*mpn_input(session), japaneseWords);
             const bool preference = readSimplifiedPreference();
             if (preference != simplified) conjugationPanel.close(choices, page, highlighted, expanded);
             if (applyPinyinScript(session, simplified, preference)) {
@@ -809,6 +814,7 @@ private:
             + wide(mpn_preedit(session)) + L"\t" + std::to_wstring(highlighted);
         const size_t pageCount = (candidateCount() + pageSize - 1) / pageSize;
         payload += simplified ? L"\t简" : L"\t繁";
+        if (themeReload && themeReload->failed()) payload += L" · 词库更新失败，沿用旧版";
         payload += conjugationHint;
         if (pageCount > 1 || (!conjugationPanel.active() && mpn_candidates_can_expand(session)))
             payload += L"  ·  " + std::to_wstring(page + 1) + L" / " + std::to_wstring(pageCount);
@@ -857,6 +863,7 @@ private:
     std::shared_ptr<DeliveryState> delivery;
     std::unordered_map<ITfContext *, SavedContext> suspended;
     std::vector<JapaneseWord> japaneseWords;
+    std::unique_ptr<ThemeReload> themeReload;
     JapaneseConjugations conjugations;
     ConjugationPanel conjugationPanel;
     WordEvidence evidence;

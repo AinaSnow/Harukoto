@@ -28,7 +28,12 @@ inline bool validPackageUnicode(const std::string &text, bool kana = false, bool
 
 // CURRENT is replaced only after both files in its immutable snapshot are complete.
 // A failed optional package load must never prevent the base IME from starting.
-inline std::vector<JapaneseWord> readEnabledJapanesePackages(const std::filesystem::path &root) noexcept {
+struct JapanesePackageSnapshot {
+    std::string generation;
+    std::vector<JapaneseWord> words;
+};
+
+inline std::optional<JapanesePackageSnapshot> readJapanesePackageSnapshot(const std::filesystem::path &root) noexcept {
     try {
         std::ifstream pointer(root / "CURRENT", std::ios::binary);
         char generation[33]{};
@@ -59,6 +64,11 @@ inline std::vector<JapaneseWord> readEnabledJapanesePackages(const std::filesyst
                 !validPackageUnicode(word.kana, true, true) || !validPackageUnicode(word.chinese, false, true);
         })) return {};
         for (auto &word : words) word.theme = true;
-        return words;
+        return JapanesePackageSnapshot{std::string(generation, 32), std::move(words)};
     } catch (...) { return {}; }
+}
+
+inline std::vector<JapaneseWord> readEnabledJapanesePackages(const std::filesystem::path &root) noexcept {
+    auto snapshot = readJapanesePackageSnapshot(root);
+    return snapshot ? std::move(snapshot->words) : std::vector<JapaneseWord>{};
 }
