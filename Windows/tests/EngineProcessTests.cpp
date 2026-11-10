@@ -17,7 +17,7 @@ static std::filesystem::path quotedPath() { return self().parent_path()/L"包含
 // A real child with the same control argv contract, deliberately omitting the
 // dictionary. Faults remain isolated in our own kill-on-close Job.
 static int probe(int argc, wchar_t **argv) {
-    HANDLE ready = nullptr, stop = nullptr;
+    HANDLE ready = nullptr, stop = nullptr, anchor = nullptr;
     std::filesystem::path base, themes, personal;
     for (int i=1;i<argc;i+=2) {
         assert(i+1 < argc); const std::wstring key = argv[i], value = argv[i+1];
@@ -26,6 +26,8 @@ static int probe(int argc, wchar_t **argv) {
         else if (key == L"--personal") personal = value;
         else if (key == L"--ready") ready = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(std::stoull(value)));
         else if (key == L"--stop") stop = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(std::stoull(value)));
+        else if (key == L"--anchor") anchor = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(std::stoull(value)));
+        else if (key == L"--host") assert(std::filesystem::path(value).is_absolute());
         else if (key == L"--control-section" || key == L"--control-request" || key == L"--control-response") {
             const auto handle = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(std::stoull(value)));
             DWORD flags = 0; ep::check(GetHandleInformation(handle,&flags)); assert(flags & HANDLE_FLAG_INHERIT);
@@ -38,6 +40,10 @@ static int probe(int argc, wchar_t **argv) {
     ep::check(GetHandleInformation(ready,&flags)); assert(flags & HANDLE_FLAG_INHERIT);
     ep::check(GetHandleInformation(stop,&flags)); assert(flags & HANDLE_FLAG_INHERIT);
     const auto mode = base.filename();
+    std::unique_ptr<EngineOwnerAnchor> ownerAnchor;
+    if (mode == L"owner-valid") {
+        assert(anchor); ownerAnchor = std::make_unique<EngineOwnerAnchor>(ep::Handle(anchor)); ownerAnchor->publish(GetCurrentProcess());
+    }
     if (mode == L"early-exit") return 0;
     if (mode == L"hang-start") { WaitForSingleObject(stop,INFINITE); return 0; }
     if (mode == L"controls") {
@@ -73,9 +79,38 @@ static void invalid(const EngineProcess::Config &value) {
     try { EngineProcess process(value); } catch (const std::invalid_argument &) { rejected = true; }
     assert(rejected);
 }
+static void anchors() {
+    HANDLE escrow = nullptr;
+    {
+        EngineOwnerAnchor anchor;
+        auto *view = static_cast<uint8_t *>(MapViewOfFile(anchor.section(),FILE_MAP_READ | FILE_MAP_WRITE,0,0,32));
+        ep::check(view != nullptr);
+        bool rejected = false;
+        try { anchor.pin(GetCurrentProcess()); } catch (const ep::Error &) { rejected = true; }
+        assert(rejected); // Unpublished / malformed bootstrap never becomes Ready.
+        anchor.publish(GetCurrentProcess());
+        escrow = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(get(view,8,8)));
+        DWORD flags = 0; ep::check(GetHandleInformation(escrow,&flags)); assert(!(flags & HANDLE_FLAG_INHERIT));
+        auto pinned = anchor.pin(GetCurrentProcess()); assert(GetProcessId(pinned.get()) == GetCurrentProcessId());
+        assert(!TerminateProcess(pinned.get(),77) && GetLastError() == ERROR_ACCESS_DENIED);
+        rejected = false;
+        try { anchor.publish(GetCurrentProcess()); } catch (const std::logic_error &) { rejected = true; }
+        assert(rejected && reinterpret_cast<uintptr_t>(escrow) == get(view,8,8));
+        for (size_t offset : {size_t(0),size_t(4),size_t(16),size_t(31)}) {
+            const auto before = view[offset]; view[offset] = 255; rejected = false;
+            try { anchor.pin(GetCurrentProcess()); } catch (const ep::Error &) { rejected = true; }
+            assert(rejected); view[offset] = before;
+        }
+        UnmapViewOfFile(view);
+    }
+    // Escrow slot is deliberately retained through mapping destruction and all
+    // host/owner teardown code; only OS process exit reclaims this one handle.
+    assert(GetProcessId(escrow) == GetCurrentProcessId());
+}
 int wmain(int argc, wchar_t **argv) {
     if (argc > 1) return probe(argc,argv);
     try {
+        anchors();
         auto value = config(L"normal"); value.executable = L"relative.exe"; invalid(value);
         value = config(L"normal"); value.base.clear(); invalid(value);
         value = config(L"normal"); value.connections = 0; invalid(value);
@@ -87,6 +122,9 @@ int wmain(int argc, wchar_t **argv) {
         value = config(L"normal"); value.themes = L"relative"; invalid(value);
         value = config(L"normal"); value.threads = 0; invalid(value); value.threads = 17; invalid(value);
         value = config(L"normal"); value.trace = L"relative.jsonl"; invalid(value);
+        value = config(L"normal"); value.ownerExecutable = L"relative.exe"; value.dynamicEndpoints = true; invalid(value);
+        value.ownerExecutable = self(); invalid(value); // Host and owner cannot recurse into the same executable.
+        value.executable = self().parent_path()/L"different.exe"; value.dynamicEndpoints = false; invalid(value);
         value = config(L"normal"); value.personal = std::wstring(L"C:\\valid\0hidden",15); invalid(value);
         value = config(L"normal"); value.personal = L"C:\\"+std::wstring(33000,L'a'); invalid(value);
         value = config(L"normal"); value.executable = self().parent_path()/L"missing-engine.exe";
@@ -120,6 +158,21 @@ int wmain(int argc, wchar_t **argv) {
         {
             EngineProcess process(config(L"early-exit")); until(process,State::Exited);
             assert(process.status().failure == Failure::StartupExit && process.status().exitCode == DWORD(0));
+        }
+        {
+            value = config(L"owner-valid"); value.dynamicEndpoints = true; value.ownerExecutable = self();
+            value.executable = self().parent_path()/L"different.exe";
+            EngineProcess process(value); assert(!process.engineHandle()); until(process,State::Ready);
+            assert(process.engineHandle() && GetProcessId(process.engineHandle()) == GetProcessId(process.processHandle()));
+            DWORD flags = 0; ep::check(GetHandleInformation(process.engineHandle(),&flags)); assert(!(flags & HANDLE_FLAG_INHERIT));
+            assert(!TerminateProcess(process.engineHandle(),77) && GetLastError() == ERROR_ACCESS_DENIED);
+            process.requestStop(ep::now()); until(process,State::Exited);
+        }
+        {
+            value = config(L"normal"); value.dynamicEndpoints = true; value.ownerExecutable = self();
+            value.executable = self().parent_path()/L"different.exe";
+            EngineProcess process(value); until(process,State::Exited); // Probe signals ready without publishing an anchor.
+            assert(process.status().failure == Failure::ControlIo && !process.engineHandle() && !process.takeControl(ep::now()));
         }
         {
             value = config(L"normal"); value.dynamicEndpoints = true;

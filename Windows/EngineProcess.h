@@ -1,6 +1,7 @@
 #pragma once
 #include "EnginePipe.h"
 #include "EngineControl.h"
+#include "EngineOwnerAnchor.h"
 #include <filesystem>
 
 namespace harukoto::engine {
@@ -17,6 +18,7 @@ public:
         size_t threads = 2;
         std::filesystem::path trace;
         bool dynamicEndpoints = false;
+        std::filesystem::path ownerExecutable;
     };
     struct Status {
         State state;
@@ -37,6 +39,8 @@ private:
     pipe::Handle ready_, stop_, process_, job_;
     std::vector<std::wstring> names_;
     std::unique_ptr<control::Client> control_;
+    std::unique_ptr<EngineOwnerAnchor> ownerAnchor_;
+    pipe::Handle engine_;
     State state_ = State::Starting;
     Failure failure_ = Failure::None;
     DWORD win32_ = ERROR_SUCCESS;
@@ -66,6 +70,7 @@ private:
         if (!absolute(config.executable) || !absolute(config.base) ||
                 (!config.themes.empty() && !absolute(config.themes)) ||
                 (!config.personal.empty() && !absolute(config.personal)) ||
+                (!config.ownerExecutable.empty() && (!absolute(config.ownerExecutable) || !config.dynamicEndpoints || config.ownerExecutable == config.executable)) ||
                 (!config.trace.empty() && !absolute(config.trace)) || !config.threads || config.threads > 16 ||
                 !config.connections || config.connections > 8 || !config.startupMs || config.startupMs > 300000 ||
                 !config.stopMs || config.stopMs > 300000)
@@ -76,6 +81,7 @@ private:
         deadline_ = pipe::now() + config.startupMs;
         if (config.dynamicEndpoints) control_ = std::make_unique<control::Client>();
         else for (size_t i = 0; i < config.connections; ++i) names_.push_back(pipe::newName());
+        if (!config.ownerExecutable.empty()) ownerAnchor_ = std::make_unique<EngineOwnerAnchor>();
         ready_.reset(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(ready_));
         stop_.reset(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(stop_));
         job_.reset(CreateJobObjectW(nullptr,nullptr)); pipe::check(bool(job_));
@@ -89,6 +95,11 @@ private:
         pipe::check(DuplicateHandle(GetCurrentProcess(),stop_.get(),GetCurrentProcess(),&raw,0,TRUE,DUPLICATE_SAME_ACCESS));
         childStop.reset(raw);
         std::array<pipe::Handle,3> childControl;
+        pipe::Handle childAnchor;
+        if (ownerAnchor_) {
+            pipe::check(DuplicateHandle(GetCurrentProcess(),ownerAnchor_->section(),GetCurrentProcess(),&raw,0,TRUE,DUPLICATE_SAME_ACCESS));
+            childAnchor.reset(raw);
+        }
         if (control_) {
             const auto handles = control_->handles();
             for (size_t i=0;i<handles.size();++i) {
@@ -103,8 +114,12 @@ private:
         struct Delete { LPPROC_THREAD_ATTRIBUTE_LIST p; ~Delete() { DeleteProcThreadAttributeList(p); } } cleanup{attributes};
         std::vector<HANDLE> inherited{childReady.get(),childStop.get()};
         if (control_) for (const auto &handle : childControl) inherited.push_back(handle.get());
+        if (childAnchor) inherited.push_back(childAnchor.get());
         pipe::check(UpdateProcThreadAttribute(attributes,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherited.data(),inherited.size()*sizeof(HANDLE),nullptr,nullptr));
-        std::vector<std::wstring> arguments{config.executable.wstring(),L"--base",config.base.wstring()};
+        const auto executable = ownerAnchor_ ? config.ownerExecutable : config.executable;
+        std::vector<std::wstring> arguments{executable.wstring(),L"--base",config.base.wstring()};
+        if (ownerAnchor_) arguments.insert(arguments.end(),{L"--host",config.executable.wstring(),L"--anchor",
+            std::to_wstring(reinterpret_cast<uintptr_t>(childAnchor.get()))});
         if (!config.themes.empty()) { arguments.push_back(L"--themes"); arguments.push_back(config.themes.wstring()); }
         if (!config.personal.empty()) { arguments.push_back(L"--personal"); arguments.push_back(config.personal.wstring()); }
         if (config.threads != 2) { arguments.push_back(L"--threads"); arguments.push_back(std::to_wstring(config.threads)); }
@@ -124,14 +139,15 @@ private:
         if (command.size() >= 32767) throw std::invalid_argument("engine command line too long");
         STARTUPINFOEXW startup{}; startup.StartupInfo.cb = sizeof(startup); startup.lpAttributeList = attributes;
         PROCESS_INFORMATION info{};
-        pipe::check(CreateProcessW(config.executable.c_str(),command.data(),nullptr,nullptr,TRUE,
+        pipe::check(CreateProcessW(executable.c_str(),command.data(),nullptr,nullptr,TRUE,
             EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW | CREATE_SUSPENDED,nullptr,
-            config.executable.parent_path().c_str(),&startup.StartupInfo,&info));
+            executable.parent_path().c_str(),&startup.StartupInfo,&info));
         process_.reset(info.hProcess); pipe::Handle thread(info.hThread);
         try {
             pipe::check(AssignProcessToJobObject(job_.get(),process_.get()));
             // Only the child's copies remain inheritable while it starts.
             childReady.reset(); childStop.reset();
+            childAnchor.reset();
             for (auto &handle : childControl) handle.reset();
             if (ResumeThread(thread.get()) == DWORD(-1)) throw pipe::Error(pipe::Failure::Io,GetLastError());
         } catch (...) {
@@ -167,7 +183,13 @@ public:
         }
         if (state_ == State::Starting) {
             const auto ready = WaitForSingleObject(ready_.get(),0); pipe::check(ready != WAIT_FAILED);
-            if (ready == WAIT_OBJECT_0) { state_ = State::Ready; deadline_ = 0; }
+            if (ready == WAIT_OBJECT_0) {
+                if (ownerAnchor_) {
+                    try { engine_ = ownerAnchor_->pin(process_.get()); }
+                    catch (const pipe::Error &error) { terminate(Failure::ControlIo,error.code); return state_; }
+                }
+                state_ = State::Ready; deadline_ = 0;
+            }
         }
         if (state_ == State::Ready && control_) control_->poll(time);
         return state_;
@@ -205,7 +227,7 @@ public:
         ControlResult result{std::move(*response),{}};
         if (result.metadata.request.operation == control::Operation::Allocate && result.metadata.code == control::Code::Ok) {
             HANDLE raw = nullptr;
-            pipe::check(DuplicateHandle(GetCurrentProcess(),process_.get(),GetCurrentProcess(),&raw,
+            pipe::check(DuplicateHandle(GetCurrentProcess(),engineHandle(),GetCurrentProcess(),&raw,
                 PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE,FALSE,0));
             result.endpoint = Endpoint{result.metadata.name,pipe::Handle(raw)}; ++claimed_;
         }
@@ -227,5 +249,9 @@ public:
             control_ ? control_->failure() : pipe::Failure::None,control_ ? control_->error() : ERROR_SUCCESS};
     }
     HANDLE processHandle() const { return process_.get(); } // Borrowed; never close or change it.
+    // In owner mode the managed root above is the broker; query authentication
+    // always pins the separate host object. Never give clients the broker's
+    // PROCESS_DUP_HANDLE capability or its control/Job handles.
+    HANDLE engineHandle() const { return engine_ ? engine_.get() : ownerAnchor_ ? nullptr : process_.get(); }
 };
 } // namespace harukoto::engine
