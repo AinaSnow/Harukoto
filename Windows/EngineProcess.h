@@ -3,6 +3,7 @@
 #include "EngineControl.h"
 #include "EngineOwnerAnchor.h"
 #include "EngineInstance.h"
+#include "EngineRegistration.h"
 #include <filesystem>
 
 namespace harukoto::engine {
@@ -22,6 +23,7 @@ public:
         std::filesystem::path ownerExecutable;
         std::wstring ownerInstance; // Optional stable deployment scope, independent of version/path.
         HANDLE ownerLease = nullptr; // Borrowed only during direct dynamic host launch.
+        size_t ownerRegistrations = 0; // Bounded private client capabilities, owner mode only.
     };
     struct Status {
         State state;
@@ -44,6 +46,8 @@ private:
     std::unique_ptr<control::Client> control_;
     std::unique_ptr<EngineOwnerAnchor> ownerAnchor_;
     pipe::Handle engine_;
+    std::vector<std::unique_ptr<control::Client>> registrations_;
+    size_t registration_ = 0;
     State state_ = State::Starting;
     Failure failure_ = Failure::None;
     DWORD win32_ = ERROR_SUCCESS;
@@ -76,6 +80,7 @@ private:
                 (!config.ownerExecutable.empty() && (!absolute(config.ownerExecutable) || !config.dynamicEndpoints || config.ownerExecutable == config.executable)) ||
                 (!config.ownerInstance.empty() && (config.ownerExecutable.empty() || !EngineInstance::validScope(config.ownerInstance))) ||
                 (config.ownerLease && (!config.ownerExecutable.empty() || !config.dynamicEndpoints || !config.ownerInstance.empty())) ||
+                (config.ownerRegistrations && (config.ownerExecutable.empty() || config.ownerRegistrations > 8)) ||
                 (!config.trace.empty() && !absolute(config.trace)) || !config.threads || config.threads > 16 ||
                 !config.connections || config.connections > 8 || !config.startupMs || config.startupMs > 300000 ||
                 !config.stopMs || config.stopMs > 300000)
@@ -87,6 +92,7 @@ private:
         if (config.dynamicEndpoints) control_ = std::make_unique<control::Client>();
         else for (size_t i = 0; i < config.connections; ++i) names_.push_back(pipe::newName());
         if (!config.ownerExecutable.empty()) ownerAnchor_ = std::make_unique<EngineOwnerAnchor>();
+        for (size_t i=0;i<config.ownerRegistrations;++i) registrations_.push_back(std::make_unique<control::Client>());
         ready_.reset(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(ready_));
         stop_.reset(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(stop_));
         job_.reset(CreateJobObjectW(nullptr,nullptr)); pipe::check(bool(job_));
@@ -100,6 +106,11 @@ private:
         pipe::check(DuplicateHandle(GetCurrentProcess(),stop_.get(),GetCurrentProcess(),&raw,0,TRUE,DUPLICATE_SAME_ACCESS));
         childStop.reset(raw);
         std::array<pipe::Handle,3> childControl;
+        std::vector<pipe::Handle> childRegistrations;
+        for (const auto &registration : registrations_) for (auto handle : registration->handles()) {
+            pipe::check(DuplicateHandle(GetCurrentProcess(),handle,GetCurrentProcess(),&raw,0,TRUE,DUPLICATE_SAME_ACCESS));
+            childRegistrations.emplace_back(raw);
+        }
         pipe::Handle childAnchor;
         pipe::Handle childLease;
         if (config.ownerLease) {
@@ -127,6 +138,7 @@ private:
         if (control_) for (const auto &handle : childControl) inherited.push_back(handle.get());
         if (childAnchor) inherited.push_back(childAnchor.get());
         if (childLease) inherited.push_back(childLease.get());
+        for (const auto &handle : childRegistrations) inherited.push_back(handle.get());
         pipe::check(UpdateProcThreadAttribute(attributes,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherited.data(),inherited.size()*sizeof(HANDLE),nullptr,nullptr));
         const auto executable = ownerAnchor_ ? config.ownerExecutable : config.executable;
         std::vector<std::wstring> arguments{executable.wstring(),L"--base",config.base.wstring()};
@@ -134,6 +146,11 @@ private:
             std::to_wstring(reinterpret_cast<uintptr_t>(childAnchor.get()))});
         if (!config.ownerInstance.empty()) arguments.insert(arguments.end(),{L"--instance",config.ownerInstance});
         if (childLease) arguments.insert(arguments.end(),{L"--owner-lease",std::to_wstring(reinterpret_cast<uintptr_t>(childLease.get()))});
+        for (size_t i=0;i<childRegistrations.size();i+=3) {
+            std::wstring value;
+            for (size_t j=0;j<3;++j) { if (j) value += L','; value += std::to_wstring(reinterpret_cast<uintptr_t>(childRegistrations[i+j].get())); }
+            arguments.insert(arguments.end(),{L"--registration",value});
+        }
         if (!config.themes.empty()) { arguments.push_back(L"--themes"); arguments.push_back(config.themes.wstring()); }
         if (!config.personal.empty()) { arguments.push_back(L"--personal"); arguments.push_back(config.personal.wstring()); }
         if (config.threads != 2) { arguments.push_back(L"--threads"); arguments.push_back(std::to_wstring(config.threads)); }
@@ -163,6 +180,7 @@ private:
             childReady.reset(); childStop.reset();
             childAnchor.reset();
             childLease.reset();
+            childRegistrations.clear();
             for (auto &handle : childControl) handle.reset();
             if (ResumeThread(thread.get()) == DWORD(-1)) throw pipe::Error(pipe::Failure::Io,GetLastError());
         } catch (...) {
@@ -230,6 +248,13 @@ public:
     std::unique_ptr<pipe::Channel> claim(uint64_t time) {
         auto endpoint = takeEndpoint(time);
         return endpoint ? pipe::Channel::connect(endpoint->name,endpoint->process.get()) : nullptr;
+    }
+    // A fixed preallocated slot is handed out once; it is not the launcher's
+    // upstream stop/control port. The client allocates its own query endpoint.
+    std::unique_ptr<EngineRegistration> takeRegistration(uint64_t time) {
+        if (poll(time) != State::Ready || registration_ >= registrations_.size()) return {};
+        auto client = std::move(registrations_[registration_++]);
+        return std::make_unique<EngineRegistration>(std::move(client),process_.get(),engineHandle());
     }
     // Single in-flight private control request, with no retry/replay. Full and
     // backend failure are explicit results; a timeout retires only the mailbox.

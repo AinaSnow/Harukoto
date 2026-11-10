@@ -133,6 +133,9 @@ int wmain(int argc, wchar_t **argv) {
         value = config(L"normal"); value.ownerLease = GetCurrentProcess(); invalid(value); // Lease requires direct dynamic mode.
         value.dynamicEndpoints = true; value.ownerExecutable = self().parent_path()/L"owner.exe"; invalid(value);
         value.ownerExecutable.clear(); value.ownerInstance = L"test"; invalid(value);
+        value = config(L"normal"); value.ownerRegistrations = 1; invalid(value);
+        value.dynamicEndpoints = true; value.ownerExecutable = self().parent_path()/L"owner.exe";
+        value.ownerRegistrations = 9; invalid(value);
         value = config(L"normal"); value.personal = std::wstring(L"C:\\valid\0hidden",15); invalid(value);
         value = config(L"normal"); value.personal = L"C:\\"+std::wstring(33000,L'a'); invalid(value);
         value = config(L"normal"); value.executable = self().parent_path()/L"missing-engine.exe";

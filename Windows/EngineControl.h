@@ -109,6 +109,8 @@ class Client {
         state_ = State::Failed; failure_ = failure; error_ = error; deadline_ = 0; response_.reset();
     }
 public:
+    Client() = default;
+    explicit Client(std::array<pipe::Handle,3> handles) : port_(std::move(handles)) {}
     std::array<HANDLE,3> handles() const { return port_.handles(); }
     bool begin(Operation operation, uint64_t time, uint64_t timeoutMs) {
         if (state_ != State::Idle) return false;

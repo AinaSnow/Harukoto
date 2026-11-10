@@ -2,7 +2,7 @@
 
 WIN-03b，2026-11-10。新增 C++ 开发程序 `harukoto_engine_owner.exe` 与 `Windows/EngineOwner.h`，把[动态引擎宿主](ENGINE_HOST.md)的启动、控制和退出监督放入独立进程。查询客户端直接连接宿主，首个客户端退出不会销毁所有者或共享词库。当前发行和本机安装仍为 Windows 0.4.4-alpha.22、FF14 0.3.0，没有安装、注册或自动启动这个程序。
 
-已完成受控启动链、跨进程动态端点交接，以及显式部署标识下的[可选单实例竞争](ENGINE_INSTANCE.md)。普通应用仍不能自行发现或注册到所有者：分配请求来自一个可信启动方的私有单槽接口，启动方再把端点及宿主对象交给自己创建的测试客户端。正式发现与可信接手、客户端注册与认证、诊断入口、版本管理和 TSF 均未实现。不能把这个实验程序直接当成已完成的常驻服务。
+已完成受控启动链、跨进程动态端点交接、显式部署标识下的[可选单实例竞争](ENGINE_INSTANCE.md)，以及[受控客户端接入](ENGINE_REGISTRATION.md)。可信启动方可预先交接每客户端私有能力，客户端自行申请端点；普通应用仍不能自行发现所有者或取得注册能力。正式发现与可信接手、动态注册／回收、诊断入口、版本管理和 TSF 均未实现。不能把这个实验程序直接当成已完成的常驻服务。
 
 ## 进程与寿命
 
@@ -10,11 +10,12 @@ WIN-03b，2026-11-10。新增 C++ 开发程序 `harukoto_engine_owner.exe` 与 `
 flowchart LR
     L[可信启动方] -->|私有控制| O[独立所有者]
     O -->|启动与私有控制| H[查询宿主与共享词库]
-    L -->|一次端点和只读宿主句柄| C[独立客户端]
+    L -->|端点或独立注册能力和受限对象| C[独立客户端]
+    C -->|私有 Allocate／Inspect| O
     C -->|认证查询管道| H
 ```
 
-所有者只监督自己创建的一个宿主，不加载词库、不缓存候选、不转发按键或文字。每次 Allocate／Inspect 最多一个在途任务，按原操作转交宿主；回复对应外层请求的精确序号和操作。查询仍沿用原 ClientGate、候选快照和 Ticket 归属检查，不经过所有者的控制路径。端点和后台任务容量规则见[私有控制说明](ENGINE_CONTROL.md)。
+所有者只监督自己创建的一个宿主，不加载词库、不缓存候选、不转发按键或文字。一个启动方端口和最多八个预分配客户端端口轮转处理 Allocate／Inspect，向宿主仍最多一个在途任务；回复对应原端口请求的精确序号和操作，坏客户端请求只停用对应端口。查询仍沿用原 ClientGate、候选快照和 Ticket 归属检查，不经过所有者的控制路径。调度与固定槽边界见[受控接入](ENGINE_REGISTRATION.md)，端点和后台任务容量规则见[私有控制说明](ENGINE_CONTROL.md)。
 
 可信启动方的 EngineProcess 拥有包含所有者进程树的 kill-on-close Job；所有者内部另用 EngineProcess 拥有宿主及自己的 Job。挂起创建、显式继承、加入 Job、恢复线程的顺序不变。客户端不是这条所有权链的根，可以由其他测试进程分别创建和回收。首个客户端退出后，宿主回收其端点，其他客户端的组字继续保留，同一个所有者可以申请新的随机端点。
 
@@ -28,6 +29,7 @@ config.dynamicEndpoints = true;
 config.ownerExecutable = ownerExecutable;
 config.ownerInstance = L"harukoto-main"; // 可选；同一部署跨版本使用同一标识。
 config.connections = 8;
+config.ownerRegistrations = 4; // 可选预分配客户端通道，范围 0～8。
 EngineProcess process(config);
 // 合并 waitHandles()／deadline()，poll 至 Ready，再 requestControl／takeControl。
 ```
@@ -38,7 +40,7 @@ ownerInstance 非空时，所有者先竞争当前登录身份下的部署占位
 
 管理器将基础／主题／个人路径、线程数、端点上限及可选追踪路径交给所有者，再由所有者交给宿主；不改变默认 2 线程和查询期限。所有者自身不创建追踪文件。构造、启动和句柄复制包含系统调用，所有方法仍属于服务／I/O 线程，不允许直接进入 TSF 前台回调。
 
-`processHandle()` 在该模式返回受管理的所有者进程对象，用于外层退出监督；`engineHandle()` 返回启动时固定保留的查询宿主对象，Ready 前为空。成功 Allocate 返回的 Endpoint 使用宿主对象的非继承 query／wait 副本，不能拿所有者进程来认证查询管道。客户端只接收端点和这个受限对象，不接收所有者控制、Job、映射或 PROCESS_DUP_HANDLE 能力。
+`processHandle()` 在该模式返回受管理的所有者进程对象，用于外层退出监督；`engineHandle()` 返回启动时固定保留的查询宿主对象，Ready 前为空。成功 Allocate 返回的 Endpoint 使用宿主对象的非继承 query／wait 副本，不能拿所有者进程来认证查询管道。受控注册客户端额外接收自己的私有控制映射／事件及所有者 query／wait 副本，不接收启动方的上游控制、stop、Job、宿主交接映射或 PROCESS_DUP_HANDLE 能力。
 
 ## 启动时固定宿主对象
 
@@ -68,4 +70,4 @@ cmake --build .build/windows/msvc --config Release
 ctest --test-dir .build/windows/msvc -C Release -R '^(engine_process|engine_owner_process|engine_owner_full)$' --output-on-failure
 ```
 
-下一步在可选竞争基础上明确可信部署／登录会话下的发现与竞争失败后的可信交接、启动方交接或正式生命周期、客户端注册及只读诊断入口；再接 TSF、组字边界换代和失败回退。真实应用兼容性、混合 DPI、游戏上屏与安装升级仍按验收表单独执行。
+下一步在可选竞争与受控接入基础上明确可信部署／登录会话下的发现与竞争失败后的可信交接、启动方交接或正式生命周期、动态注册／退出回收及只读诊断入口；再接 TSF、组字边界换代和失败回退。真实应用兼容性、混合 DPI、游戏上屏与安装升级仍按验收表单独执行。

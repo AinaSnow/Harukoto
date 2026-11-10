@@ -2,19 +2,24 @@
 #include "EngineProcess.h"
 
 namespace harukoto::engine {
-// Independent owner process's I/O loop. The trusted launcher has ONE private
-// request slot; client registration/discovery belongs to a later broker layer.
+// Independent owner's I/O loop. One launcher port and up to eight separately
+// provisioned client ports share one bounded host request fairly. No discovery.
 class EngineOwner {
     EngineProcess engine_;
     control::Server &upstream_;
     EngineOwnerAnchor &anchor_;
+    std::vector<std::unique_ptr<control::Server>> clients_;
     static EngineProcess::Config validate(EngineProcess::Config config) {
         if (!config.dynamicEndpoints || !config.ownerExecutable.empty()) throw std::invalid_argument("invalid engine owner configuration");
         return config;
     }
 public:
-    EngineOwner(EngineProcess::Config config, control::Server &upstream, EngineOwnerAnchor &anchor)
-        : engine_(validate(std::move(config))), upstream_(upstream), anchor_(anchor) {}
+    EngineOwner(EngineProcess::Config config, control::Server &upstream, EngineOwnerAnchor &anchor,
+            std::vector<std::unique_ptr<control::Server>> clients = {})
+        : engine_(validate(std::move(config))), upstream_(upstream), anchor_(anchor), clients_(std::move(clients)) {
+        if (clients_.size() > 8 || std::any_of(clients_.begin(),clients_.end(),[](const auto &port) { return !port; }))
+            throw std::invalid_argument("invalid owner registrations");
+    }
     EngineOwner(const EngineOwner &) = delete;
     EngineOwner &operator=(const EngineOwner &) = delete;
     // No query clients, text, candidate caches or TSF objects are owned here.
@@ -22,7 +27,11 @@ public:
     bool run(HANDLE stop, HANDLE ready) {
         if (!stop || !ready || stop == ready) throw std::invalid_argument("invalid engine owner events");
         bool stopping = false, failed = false, announced = false;
-        std::optional<control::Request> pending;
+        struct Pending { size_t port; control::Request request; };
+        std::optional<Pending> pending;
+        std::vector<control::Server *> ports{&upstream_};
+        for (const auto &port : clients_) ports.push_back(port.get());
+        std::vector<bool> active(ports.size(),true); size_t next = 0;
         auto stopHost = [&] {
             if (!stopping) { stopping = true; pending.reset(); engine_.requestStop(pipe::now()); }
         };
@@ -42,18 +51,32 @@ public:
                     if (auto result = engine_.takeControl(pipe::now())) {
                         // Correlate the outer request independently of the host's
                         // private sequence. Never forward the local HANDLE value.
-                        result->metadata.request = *pending; upstream_.respond(result->metadata); pending.reset();
+                        result->metadata.request = pending->request;
+                        ports[pending->port]->respond(result->metadata); pending.reset();
                     }
                 }
                 if (engine_.status().controlState == control::State::Failed) { failed = true; stopHost(); }
                 if (!stopping && !pending) {
-                    pending = upstream_.take();
-                    if (pending && !engine_.requestControl(pending->operation,pipe::now())) { failed = true; stopHost(); }
+                    for (size_t offset=0;offset<ports.size();++offset) {
+                        const auto index = (next+offset)%ports.size();
+                        if (!active[index]) continue;
+                        std::optional<control::Request> request;
+                        try { request = ports[index]->take(); }
+                        catch (const std::invalid_argument &) {
+                            if (!index) throw; // Preserve the trusted supervisor's failure contract.
+                            active[index] = false; continue; // Retire only this malformed client.
+                        }
+                        if (!request) continue;
+                        pending = Pending{index,*request}; next = (index+1)%ports.size();
+                        if (!engine_.requestControl(request->operation,pipe::now())) { failed = true; stopHost(); }
+                        break;
+                    }
                 }
             }
             auto events = engine_.waitHandles();
             if (!stopping) events.push_back(stop);
-            if (announced && !stopping && !pending) events.push_back(upstream_.event());
+            if (announced && !stopping && !pending)
+                for (size_t i=0;i<ports.size();++i) if (active[i]) events.push_back(ports[i]->event());
             const auto time = pipe::now(), deadline = engine_.deadline();
             const auto timeout = deadline ? static_cast<DWORD>(deadline > time ? deadline-time : 0) : INFINITE;
             const auto status = WaitForMultipleObjects(static_cast<DWORD>(events.size()),events.data(),FALSE,timeout);

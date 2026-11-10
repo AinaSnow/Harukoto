@@ -18,7 +18,7 @@ MODES = ('local', 'isolated', 'shared')
 WORKLOADS = ('uniform', 'mixed')
 IDENTITY = ('engine', 'connection', 'session', 'composition', 'request')
 TIMES = ('submitted', 'started', 'finished', 'published', 'taken', 'enqueued')
-TRACKED = ('Windows/EngineProcess.h', 'Windows/EngineHost.h', 'Windows/EngineHost.cpp', 'Windows/EngineControl.h', 'Windows/EngineOwnerAnchor.h', 'Windows/EngineInstance.h',
+TRACKED = ('Windows/EngineProcess.h', 'Windows/EngineHost.h', 'Windows/EngineHost.cpp', 'Windows/EngineControl.h', 'Windows/EngineOwnerAnchor.h', 'Windows/EngineInstance.h', 'Windows/EngineRegistration.h',
            'Windows/EnginePipe.h', 'Windows/EngineProtocol.h', 'Windows/EngineMessages.h',
            'Windows/EngineExecutor.h', 'Windows/EngineTrace.h', 'Windows/EngineServer.h', 'Windows/EngineWindows.h',
            'Windows/tests/EngineHostTestClient.h', 'Windows/tests/EngineIpcBenchmark.cpp',

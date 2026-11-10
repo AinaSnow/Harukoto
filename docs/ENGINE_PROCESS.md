@@ -1,6 +1,6 @@
 # 独立引擎的受控启动与端点领取
 
-最新进度：[受控独立所有者](ENGINE_OWNER.md)已支持独立进程监督、可信宿主对象交接和三个真实客户端的退出／重新接入，并加入[可选单实例竞争](ENGINE_INSTANCE.md)。可选 ownerExecutable 要求开启[动态端点](ENGINE_CONTROL.md)，ownerInstance 指定稳定部署范围，ownerLease 仅供所有者向直接动态宿主借用传递占位。默认直接模式及[多进程竞争测量](ENGINE_IPC_PERFORMANCE.md)保持原契约。正式常驻生命周期、可信发现／应用注册和 TSF 仍待接入；以下启动批次的验证记录按历史范围阅读。
+最新进度：[受控独立所有者](ENGINE_OWNER.md)已支持独立进程监督、可信宿主对象交接和三个真实客户端的退出／重新接入，并加入[可选单实例竞争](ENGINE_INSTANCE.md)及[受控客户端接入](ENGINE_REGISTRATION.md)。可选 ownerExecutable 要求开启[动态端点](ENGINE_CONTROL.md)，ownerInstance 指定稳定部署范围，ownerLease 仅供所有者向直接动态宿主借用传递占位；ownerRegistrations 预分配 0～8 个独立客户端通道，Ready 后用 takeRegistration 一次交接。默认直接模式及[多进程竞争测量](ENGINE_IPC_PERFORMANCE.md)保持原契约。正式常驻生命周期、可信发现／动态应用注册和 TSF 仍待接入；以下启动批次的验证记录按历史范围阅读。
 
 WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内的启动逻辑提取为可复用模块，管理一个自己创建的引擎进程、1～8 个随机单次连接端点和退出状态。真实微型／全量词库测试已改用该模块；宿主业务仍见[查询宿主](ENGINE_HOST.md)。发行基线保持 Windows 0.4.4-alpha.22、FF14 0.3.0，不安装或自动启动新程序。
 
