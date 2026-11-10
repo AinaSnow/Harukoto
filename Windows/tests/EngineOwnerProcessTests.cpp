@@ -523,6 +523,80 @@ static void singleInstance(EngineProcess::Config value) {
     { EngineProcess successor(value); until(successor,State::Ready); successor.requestStop(ep::now()); until(successor,State::Exited); }
     assert(writable(value.base/L"language-evidence.sqlite"));
 }
+static void diagnosticObservation(EngineProcess::Config value) {
+    namespace dg = harukoto::engine::diagnostics;
+    value.diagnostics=true; value.ownerRegistrations=1; value.dynamicRegistrations=true;
+    ep::Handle retained, reader;
+    {
+        EngineProcess owner(value);
+        assert(owner.status().diagnosticsWin32==ERROR_SUCCESS);
+        auto observation=dg::read(owner.processHandle());
+        assert(observation.availability==dg::Availability::Observed && observation.record->state==0 && !observation.record->polled);
+        until(owner,State::Ready);
+        observation=dg::read(owner.processHandle());
+        assert(observation.availability==dg::Availability::Observed);
+        assert(observation.record->owner && observation.record->host.pid==GetProcessId(owner.engineHandle()));
+        assert(observation.record->root.pid!=observation.record->host.pid && observation.record->publisher.pid==GetCurrentProcessId());
+        assert(observation.record->registrationActive==1 && observation.record->registrationCreated==1);
+        auto registration=owner.takeRegistration(ep::now()); assert(registration);
+        assert(owner.bindRegistration(registration->id(),GetCurrentProcess()));
+        observation=dg::read(owner.processHandle());
+        assert(observation.record->registrationIssued==1 && observation.record->registrationBound==1);
+        assert(owner.requestControl(control::Operation::Inspect,ep::now(),Timeout));
+        assert(dg::read(owner.processHandle()).record->controlState==2);
+        while (owner.poll(ep::now())==State::Ready && owner.status().controlState==control::State::Pending)
+            wait(owner.waitHandles(),owner.deadline());
+        for (int i=0;i<3;++i) {
+            observation=dg::read(owner.processHandle());
+            assert(observation.record->controlState==3 && !observation.record->capacity.tick);
+        }
+        // The diagnostic reader never consumes the Ready reply or allocates.
+        auto response=owner.takeControl(ep::now()); assert(response && !response->endpoint);
+        observation=dg::read(owner.processHandle());
+        assert(observation.record->controlState==1 && observation.record->capacity.tick);
+        assert(observation.record->capacity.generation==response->metadata.generation && !observation.record->capacity.listening);
+        const auto before=*observation.record;
+        observation=dg::read(owner.processHandle());
+        assert(observation.record->published==before.published && observation.record->polled==before.polled);
+        auto dynamic=fresh(owner);
+        observation=dg::read(owner.processHandle());
+        assert(observation.record->registrationCreated==2 && observation.record->registrationIssued==2 && observation.record->registrationActive==2);
+        auto endpoint=request(owner,control::Operation::Allocate); assert(endpoint.endpoint);
+        Client client(endpoint.endpoint->name,endpoint.endpoint->process.get());
+        auto page=client.type("nihao"); client.choose(find(page,"你好"));
+        request(owner,control::Operation::Inspect);
+        observation=dg::read(owner.processHandle());
+        assert(observation.record->claimed==1 && observation.record->capacity.connected==1);
+        assert(owner.revokeRegistration(registration->id()));
+        observation=dg::read(owner.processHandle());
+        assert(observation.record->registrationRevoked==1 && !observation.record->registrationBound && observation.record->registrationActive==1);
+        retained=retain(owner.processHandle());
+        reader.reset(OpenFileMappingW(FILE_MAP_READ,FALSE,dg::name(dg::identity(retained.get())).c_str())); assert(reader);
+        owner.requestStop(ep::now());
+        assert(dg::read(owner.processHandle()).record->state==2);
+        until(owner,State::Exited);
+        observation=dg::read(owner.processHandle());
+        assert(observation.availability==dg::Availability::ProcessExited && observation.record->state==4 && observation.record->exitCode==DWORD(0));
+        assert(!observation.record->registrationActive && owner.status().diagnosticsWin32==ERROR_SUCCESS);
+    }
+    // A retained read mapping cannot resurrect a dead root or become discovery.
+    assert(dg::read(retained.get()).availability==dg::Availability::ProcessExited);
+    reader.reset(); assert(dg::read(retained.get()).availability==dg::Availability::Unavailable);
+    {
+        EngineProcess crashed(value); until(crashed,State::Ready);
+        ep::check(TerminateProcess(crashed.processHandle(),77));
+        assert(WaitForSingleObject(crashed.processHandle(),Timeout)==WAIT_OBJECT_0);
+        auto o=dg::read(crashed.processHandle());
+        assert(o.availability==dg::Availability::ProcessExited && o.record->state==1); // No poll yet.
+        until(crashed,State::Exited); o=dg::read(crashed.processHandle());
+        assert(o.record->state==4 && o.record->failure==2 && o.record->exitCode==DWORD(77));
+        assert(WaitForSingleObject(crashed.engineHandle(),Timeout)==WAIT_OBJECT_0);
+    }
+    value.diagnostics=false;
+    EngineProcess disabled(value); until(disabled,State::Ready);
+    assert(dg::read(disabled.processHandle()).availability==dg::Availability::Unavailable);
+    disabled.requestStop(ep::now()); until(disabled,State::Exited);
+}
 int wmain(int argc, wchar_t **argv) {
     if (argc > 1 && std::wstring(argv[1]) == L"--liveness-worker") {
         assert(argc == 6); auto ready = inherited(argv[2]), go = inherited(argv[3]), done = inherited(argv[4]), finish = inherited(argv[5]);
@@ -534,7 +608,7 @@ int wmain(int argc, wchar_t **argv) {
         const auto value = config(argc,argv); lifetime(value); lifetime(value,true); lifetime(value,true,true);
         registrationRequests(value,false); registrationRequests(value,true); registrationRevocation(value); registrationLiveness(value);
         registrationRevocation(value,true); dynamicRegistrations(value); admissionFailures(value);
-        failures(value); singleInstance(value);
+        failures(value); singleInstance(value); diagnosticObservation(value);
         std::cout << "engine_owner_process: separate owner/host, private registrations, revocation, process liveness, isolated requests, query/selection and cleanup passed\n";
         return 0;
     } catch (const ep::Error &error) { std::cerr << "owner process failure=" << static_cast<int>(error.reason) << " win32=" << error.code << '\n'; return 1; }

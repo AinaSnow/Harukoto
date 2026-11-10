@@ -54,7 +54,9 @@ Config 新增 `threads`（1～16，默认 2）与可选 `trace` 绝对路径，�
 
 一个随机端点只尝试一次，即使连接抛出 pipe::Error 也计为已领取，不等待管道、不重试、不复用名称。未 Ready、停止中、已退出或端点用尽返回空指针。连接失败由调用方处理，不影响其他尚未领取端点；不得自动把未确认按键转给其他连接。返回的 Channel 仍由 I/O 线程负责 Hello／ClientGate、候选快照、取消和关闭回收，claim 成功不是业务握手完成。
 
-`status()` 返回固定元数据：状态、Failure、必要的 Win32 数字、可选退出码、已领取／配置端点数量。Failure 区分 StartupExit、UnexpectedExit、StartupTimeout、StopTimeout、ControlIo、InstanceBusy；最后一项用于独立所有者启动阶段的重复实例退出码 183，不自动附着。超时原因保留到真实退出，不被终止退出码覆盖。其余未观察 ready 即退出，即使退出码 0 也算 StartupExit；已就绪后的正常退出码 0 允许作为宿主自行收尾。构造／系统检查失败抛出固定异常，不能伪造 Ready。当前没有用户可见的持久诊断入口，不记录输入、候选或异常详情。
+`status()` 返回固定元数据：状态、Failure、必要的 Win32 数字、可选退出码、已领取／配置端点数量。Failure 区分 StartupExit、UnexpectedExit、StartupTimeout、StopTimeout、ControlIo、InstanceBusy；最后一项用于独立所有者启动阶段的重复实例退出码 183，不自动附着。超时原因保留到真实退出，不被终止退出码覆盖。其余未观察 ready 即退出，即使退出码 0 也算 StartupExit；已就绪后的正常退出码 0 允许作为宿主自行收尾。构造／系统检查失败抛出固定异常，不能伪造 Ready。不记录输入、候选或异常详情。
+
+`Config.diagnostics=true` 可选启用[只读观测映射与命令行](ENGINE_DIAGNOSTICS.md)，默认关闭。启动方在构造后、poll 及接入／控制等操作结束时发布固定元数据，包含最近实际 poll 时间；诊断创建或发布失败仅记 `status().diagnosticsWin32`，不改变原状态机。领取 Inspect 后缓存最后一份容量及时间，读取器不额外发送请求或消费回复。映射按根进程创建时间区分，销毁时释放；残留快照和 PID 都不能用于可信交接、进程认证或附着。
 
 `processHandle()` 是受管理根进程的借用句柄，用于退出监督；直接模式是宿主，独立所有者模式是所有者进程。查询认证使用 `engineHandle()`：直接模式与根相同，独立模式在 Ready 前为空，之后是固定的只读宿主对象。成功分配返回的 Endpoint 自动选用这个查询对象，不能把所有者对象当成查询服务端。借用句柄不得关闭或修改；跨越模块寿命须自行 DuplicateHandle，它们不能替代文件签名校验。模块不可复制／移动，不能跨线程并发调用。
 

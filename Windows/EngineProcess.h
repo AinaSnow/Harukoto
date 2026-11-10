@@ -5,6 +5,7 @@
 #include "EngineInstance.h"
 #include "EngineRegistration.h"
 #include "EngineAdmission.h"
+#include "EngineDiagnostics.h"
 #include <filesystem>
 
 namespace harukoto::engine {
@@ -26,6 +27,7 @@ public:
         HANDLE ownerLease = nullptr; // Borrowed only during direct dynamic host launch.
         size_t ownerRegistrations = 0; // Bounded private client capabilities, owner mode only.
         bool dynamicRegistrations = false; // Optional private launcher admission, owner mode only.
+        bool diagnostics = false; // Optional observational mapping; never trusted discovery.
     };
     struct Status {
         State state;
@@ -41,6 +43,7 @@ public:
         std::optional<admission::State> admissionState;
         pipe::Failure admissionFailure = pipe::Failure::None;
         DWORD admissionWin32 = ERROR_SUCCESS;
+        DWORD diagnosticsWin32 = ERROR_SUCCESS; // Publication failures never stop the engine.
     };
     // Trusted owner-to-client handoff, never reconstructed from a public PID.
     // The retained process copy is query/wait only and non-inheritable. A trusted
@@ -72,6 +75,34 @@ private:
     std::optional<DWORD> exitCode_;
     size_t claimed_ = 0, configured_ = 0;
     uint64_t deadline_ = 0, stopMs_ = 0;
+    std::unique_ptr<diagnostics::Writer> diagnostics_;
+    diagnostics::Record diagnosticRecord_;
+    DWORD diagnosticsWin32_ = ERROR_SUCCESS;
+    uint64_t diagnosticPoll_ = 0;
+    void publishDiagnostics() noexcept {
+        if (!diagnostics_) return;
+        try {
+            const auto s = status();
+            auto &r = diagnosticRecord_;
+            if (!r.host.pid && engineHandle()) r.host = diagnostics::identity(engineHandle());
+            r.published = GetTickCount64(); r.polled = diagnosticPoll_;
+            r.state = static_cast<uint32_t>(s.state); r.failure = static_cast<uint32_t>(s.failure);
+            r.win32 = s.win32; r.exitCode = s.exitCode; r.configured = static_cast<uint32_t>(s.configured); r.claimed = s.claimed;
+            r.controlState = s.controlState ? 1+static_cast<uint32_t>(*s.controlState) : 0;
+            r.controlFailure = static_cast<uint32_t>(s.controlFailure); r.controlWin32 = s.controlWin32;
+            r.admissionState = s.admissionState ? 1+static_cast<uint32_t>(*s.admissionState) : 0;
+            r.admissionFailure = static_cast<uint32_t>(s.admissionFailure); r.admissionWin32 = s.admissionWin32;
+            r.registrationConfigured = s.registrationConfigured; r.registrationIssued = s.registrationIssued;
+            r.registrationBound = s.registrationBound; r.registrationRevoked = s.registrationRevoked;
+            r.registrationCreated = s.registrationCreated; r.registrationActive = s.registrationActive;
+            diagnostics_->publish(r);
+        } catch (const pipe::Error &error) { diagnosticsWin32_ = error.code; diagnostics_.reset(); }
+        catch (...) { diagnosticsWin32_ = ERROR_INVALID_DATA; diagnostics_.reset(); }
+    }
+    struct DiagnosticObservation {
+        EngineProcess *process;
+        ~DiagnosticObservation() { process->publishDiagnostics(); }
+    };
     void revoke(RegistrationSlot &slot) {
         if (slot.retired) return;
         pipe::check(SetEvent(slot.revoked.get())); slot.retired = true; slot.process.reset(); ++registrationRevoked_;
@@ -253,13 +284,27 @@ private:
         }
     }
 public:
-    explicit EngineProcess(const Config &config) { launch(config); }
+    explicit EngineProcess(const Config &config) {
+        launch(config);
+        if (config.diagnostics) {
+            try {
+                diagnosticRecord_.root = diagnostics::identity(process_.get());
+                diagnosticRecord_.publisher = diagnostics::identity(GetCurrentProcess());
+                diagnosticRecord_.owner = bool(ownerAnchor_);
+                diagnostics_ = std::make_unique<diagnostics::Writer>(diagnosticRecord_.root);
+                publishDiagnostics();
+            } catch (const pipe::Error &error) { diagnosticsWin32_ = error.code; }
+            catch (...) { diagnosticsWin32_ = ERROR_NOT_ENOUGH_MEMORY; }
+        }
+    }
     EngineProcess(const EngineProcess &) = delete;
     EngineProcess &operator=(const EngineProcess &) = delete;
     // No blocking wait. Explicit stop/poll until Exited is the normal release
     // path; abandonment closes our own Job and kills only its child tree.
     ~EngineProcess() { job_.reset(); }
     State poll(uint64_t time) {
+        DiagnosticObservation observation{this};
+        if (diagnostics_) diagnosticPoll_ = GetTickCount64();
         if (state_ == State::Exited) return state_;
         observeRegistrations();
         const auto exited = WaitForSingleObject(process_.get(),0);
@@ -298,6 +343,7 @@ public:
         return state_;
     }
     void requestStop(uint64_t time) {
+        DiagnosticObservation observation{this};
         poll(time);
         if (state_ != State::Starting && state_ != State::Ready) return;
         if (!SetEvent(stop_.get())) { const auto code = GetLastError(); terminate(Failure::ControlIo,code); return; }
@@ -308,6 +354,7 @@ public:
     // Single attempt per random endpoint, consumed even if connect throws.
     // No WaitNamedPipe/sleep/retry; Hello remains the client's responsibility.
     std::optional<Endpoint> takeEndpoint(uint64_t time) {
+        DiagnosticObservation observation{this};
         if (poll(time) != State::Ready || claimed_ >= names_.size()) return {};
         const auto index = claimed_++;
         HANDLE raw = nullptr;
@@ -323,6 +370,7 @@ public:
     // A fixed preallocated slot is handed out once; it is not the launcher's
     // upstream stop/control port. The client allocates its own query endpoint.
     std::unique_ptr<EngineRegistration> takeRegistration(uint64_t time) {
+        DiagnosticObservation observation{this};
         if (poll(time) != State::Ready) return {};
         for (auto &slot : registrations_) if (!slot->issued && !slot->retired) {
             auto result = std::make_unique<EngineRegistration>(std::move(slot->client),process_.get(),engineHandle(),slot->revoked.get(),slot->id);
@@ -331,6 +379,7 @@ public:
         return {};
     }
     bool requestRegistration(uint64_t time, uint64_t timeoutMs = 5000) {
+        DiagnosticObservation observation{this};
         if (poll(time) != State::Ready || !admission_ || admission_->state() != admission::State::Idle) return false;
         if (!timeoutMs || timeoutMs > 300000 || time > UINT64_MAX-timeoutMs || registrationNext_ == UINT64_MAX)
             throw std::invalid_argument("invalid registration deadline or id");
@@ -345,6 +394,7 @@ public:
         transfer.release(); offered_ = std::move(slot); return true;
     }
     std::optional<RegistrationResult> takeRegistrationResult(uint64_t time) {
+        DiagnosticObservation observation{this};
         if (poll(time) != State::Ready || !admission_) return {};
         auto response = admission_->take(time); if (!response) return {};
         if (!offered_ || response->id != offered_->id) throw std::logic_error("missing registration offer");
@@ -363,6 +413,7 @@ public:
     // Bind only a retained process object from a trusted launch/handoff, never
     // an OpenProcess(public PID) reconstruction. A slot cannot be rebound.
     bool bindRegistration(uint64_t id, HANDLE process) {
+        DiagnosticObservation observation{this};
         auto *found = registration(id);
         if (state_ != State::Ready || !found) return false;
         auto &slot = *found;
@@ -381,6 +432,7 @@ public:
         slot.bound = true; slot.process = std::move(retained); return true;
     }
     bool revokeRegistration(uint64_t id) {
+        DiagnosticObservation observation{this};
         auto *found = registration(id); if (!found) return false;
         auto &slot = *found;
         if (slot.retired) return false;
@@ -389,12 +441,18 @@ public:
     // Single in-flight private control request, with no retry/replay. Full and
     // backend failure are explicit results; a timeout retires only the mailbox.
     bool requestControl(control::Operation operation, uint64_t time, uint64_t timeoutMs = 5000) {
+        DiagnosticObservation observation{this};
         return poll(time) == State::Ready && control_ && control_->begin(operation,time,timeoutMs);
     }
     std::optional<ControlResult> takeControl(uint64_t time) {
+        DiagnosticObservation observation{this};
         if (poll(time) != State::Ready || !control_) return {};
         auto response = control_->take(time); if (!response) return {};
         ControlResult result{std::move(*response),{}};
+        if (diagnostics_ && result.metadata.request.operation == control::Operation::Inspect) {
+            const auto &m = result.metadata;
+            diagnosticRecord_.capacity = {GetTickCount64(),m.generation,m.limit,m.listening,m.connected,m.retiring,m.jobs};
+        }
         if (result.metadata.request.operation == control::Operation::Allocate && result.metadata.code == control::Code::Ok) {
             HANDLE raw = nullptr;
             pipe::check(DuplicateHandle(GetCurrentProcess(),engineHandle(),GetCurrentProcess(),&raw,
@@ -431,6 +489,7 @@ public:
             result.registrationBound += bool(slot->process); result.registrationActive += !slot->retired;
         }
         if (admission_) { result.admissionState = admission_->state(); result.admissionFailure = admission_->failure(); result.admissionWin32 = admission_->error(); }
+        result.diagnosticsWin32 = diagnosticsWin32_;
         return result;
     }
     HANDLE processHandle() const { return process_.get(); } // Borrowed; never close or change it.

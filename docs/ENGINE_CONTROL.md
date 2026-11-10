@@ -78,4 +78,4 @@ cmake --build .build/windows/msvc --config Release
 ctest --test-dir .build/windows/msvc -C Release -R '^(engine_control|engine_process|engine_host|engine_host_process|engine_host_full|engine_pipe|engine_ipc_benchmark)$' --output-on-failure
 ```
 
-受控独立所有者的启动、可信宿主对象交接与退出监督已在[后续批次](ENGINE_OWNER.md)完成。接下来落实正式常驻生命周期、可信服务发现／单实例竞争、应用注册与诊断入口，再接 TSF；版本及快照切换继续要求组字边界和失败回退。私有控制句柄不暴露给任意应用，也没有自动重连或按键重放。
+受控独立所有者的启动、可信宿主对象交接与退出监督已在[后续批次](ENGINE_OWNER.md)完成，单实例竞争和动态接入亦已增加。另有默认关闭的[只读诊断入口](ENGINE_DIAGNOSTICS.md)，缓存启动方最后自行领取的 Inspect；读取不会消费本控制槽，也不假装获得最新容量。接下来落实正式常驻生命周期和可信服务发现／交接，再接 TSF；版本及快照切换继续要求组字边界和失败回退。私有控制句柄不暴露给任意应用，也没有自动重连或按键重放。

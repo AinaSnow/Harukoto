@@ -1,5 +1,7 @@
 # 安装、旧进程与词库生效状态诊断
 
+本文用于已安装的 TSF 输入法。开发中的独立引擎另有[只读诊断命令](ENGINE_DIAGNOSTICS.md)，需启动方显式开启，尚未接入 alpha.22 安装版；两种报告不能互相替代。
+
 仓库内执行（PowerShell 7）：
 
 ~~~powershell

@@ -75,4 +75,6 @@ cmake --build .build/windows/msvc --config Release
 ctest --test-dir .build/windows/msvc -C Release -R '^(engine_process|engine_owner_process|engine_owner_full)$' --output-on-failure
 ```
 
-下一步在可选竞争、受控接入及动态补充基础上明确可信部署／登录会话下的发现与竞争失败后的可信交接、启动方交接或正式生命周期及只读诊断入口；再接 TSF、组字边界换代和失败回退。真实应用兼容性、混合 DPI、游戏上屏与安装升级仍按验收表单独执行。
+启动方另可显式开启[只读诊断入口](ENGINE_DIAGNOSTICS.md)，映射由持有外层 EngineProcess 的可信启动进程发布，按所有者根进程 PID／创建时间读取。它同时标出固定查询宿主、外层控制／接入状态及累计／当前计数；内层状态仍通过已有外层失败或最后领取的 Inspect 反映，不伪造实时分层健康检查。真实所有者的诊断回归检查未领取回复不被消费、实际选词、正常停止和崩溃后的旧映射识别。
+
+下一步在可选竞争、受控接入及动态补充基础上明确可信部署／登录会话下的发现与竞争失败后的可信交接、启动方交接或正式生命周期，并量化所有者与调度成本；再接 TSF、组字边界换代和失败回退。真实应用兼容性、混合 DPI、游戏上屏与安装升级仍按验收表单独执行。
