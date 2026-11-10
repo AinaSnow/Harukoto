@@ -1,5 +1,7 @@
 # 引擎服务端会话调度原型
 
+第五批进度：[Windows 候选合并](ENGINE_WINDOWS.md)已接入实验查询，连接和 Work 可共同持有固定词库代次，并保留部分选择后的中文锁定。连接内自动切换词库、后台执行器和传输尚未实现。
+
 后续进度：第四批已加入[真实中文核心适配器](ENGINE_CORE.md)，Work 增加分页号和已选片段上下文，服务端保存其状态。本文其余固定候选／分页未实现描述记录第三批边界；当前支持范围和限制以适配器说明为准。
 
 WIN-03b 第三批，2026-11-10。Windows/EngineServer.h 新增 ServerConnection，把[协议](ENGINE_PROTOCOL.md)和[候选消息](ENGINE_MESSAGES.md)接入服务端状态模型。现有输入法运行时、alpha.22 安装包及本机配置没有变化。

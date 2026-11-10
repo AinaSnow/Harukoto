@@ -5,6 +5,7 @@
 #include <memory>
 
 namespace harukoto::engine {
+class WindowsDictionary;
 // One owner-thread object per authenticated transport, NOT per numeric connection
 // ID. Workers receive immutable input and return a page; they never mutate sessions.
 class ServerConnection {
@@ -18,6 +19,8 @@ public:
         uint64_t deadline = 0;
         uint32_t page = 0;
         std::string context;
+        bool chineseLocked = false;
+        std::shared_ptr<const WindowsDictionary> dictionary;
     };
     using Ticket = std::shared_ptr<const Work>;
     enum class Status { Reply, Replay, Scheduled, Pending, Rejected, Closed };
@@ -35,11 +38,13 @@ private:
         std::string input;
         uint32_t page = 0;
         std::string context;
+        bool chineseLocked = false;
         CandidateSnapshot candidates;
         Ticket pending;
     };
     struct Cached { Frame request, response; };
     const uint64_t engine_;
+    const std::shared_ptr<const WindowsDictionary> dictionary_;
     uint64_t connection_ = 0, lastRequest_ = 0, lastSession_ = 0;
     bool closed_ = false;
     std::unordered_map<uint64_t, Session> sessions_;
@@ -64,7 +69,8 @@ private:
     }
     static Frame reply(const Frame &request) { return {Kind::Reply, request.id, {}}; }
 public:
-    explicit ServerConnection(uint64_t engine) : engine_(engine) {
+    explicit ServerConnection(uint64_t engine, std::shared_ptr<const WindowsDictionary> dictionary = {})
+        : engine_(engine), dictionary_(std::move(dictionary)) {
         if (!engine) throw std::invalid_argument("zero engine generation");
     }
     ServerConnection(const ServerConnection &) = delete;
@@ -127,6 +133,7 @@ public:
             if (request.kind == Kind::Close) sessions_.erase(found);
             else {
                 session.pending.reset(); session.input.clear(); session.context.clear(); session.page = 0; session.candidates.invalidate();
+                session.chineseLocked = false;
                 session.composition = request.id.composition;
             }
             return result;
@@ -151,7 +158,8 @@ public:
                 ++page;
             }
             if (key.action == KeyAction::PagePrevious && page) --page;
-            Ticket work = std::make_shared<const Work>(Work{request, std::move(input), key, deadline, page, session.context});
+            Ticket work = std::make_shared<const Work>(Work{request, std::move(input), key, deadline, page,
+                session.context, session.chineseLocked, dictionary_});
             outstanding_.push_back(work); // Includes canceled work still held by the executor.
             session.pending = work; session.candidates.invalidate(); lastRequest_ = request.id.request;
             return {Status::Scheduled, Reason::None, {}, std::move(work)};
@@ -165,6 +173,7 @@ public:
             auto response = reply(request); response.payload = encodePayload(*expected);
             auto result = respond(request, std::move(response));
             session.input.swap(remaining); session.context.swap(context); session.page = 0; session.candidates.invalidate();
+            session.chineseLocked = !session.input.empty();
             return result;
         }
         return reject(Reason::Malformed);
@@ -187,7 +196,7 @@ public:
         auto result = respond(work->request, std::move(response));
         session.input.swap(input);
         session.page = work->page;
-        if (session.input.empty()) session.context.clear();
+        if (session.input.empty()) { session.context.clear(); session.chineseLocked = false; }
         session.candidates = std::move(candidates); session.pending.reset();
         return result;
     }

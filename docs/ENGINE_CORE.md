@@ -1,5 +1,7 @@
 # 真实中文核心适配器
 
+后续进度：第五批已加入[正式 Windows 候选合并适配器](ENGINE_WINDOWS.md)，接入 SQLite、基础日语、FF14／个人表及快照归属。本文仍记录第四批纯核心适配器，后续的迁移范围与限制见新文档。
+
 WIN-03b 第四批，2026-11-10。Windows/EngineCore.h 的 CoreDictionary 将真实原生拼音核心接入[服务端任务模型](ENGINE_SERVER.md)。测试可以从 .build/windows/ime/native-pinyin.tsv 加载全量基础词库；不注册输入法、不修改用户词库，不改变 alpha.22 安装包。
 
 ## 实现范围

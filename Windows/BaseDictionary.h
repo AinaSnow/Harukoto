@@ -40,8 +40,9 @@ inline std::vector<JapaneseWord> japanese(const std::string &bytes) {
     return result;
 }
 
-// One prepared generation. Not shared for concurrent queries: SQLite statements
-// and sessions belong to one consumer thread after a synchronized handoff.
+// One prepared generation. evidence() is mutable and belongs to one consumer
+// thread after synchronized handoff. Concurrent consumers may use only the
+// immutable words/session factory and open separate guarded SQLite connections.
 // Declaration order keeps all file guards alive until SQLite has closed.
 class Snapshot {
     std::vector<std::unique_ptr<StableFile>> guards;
@@ -50,6 +51,7 @@ class Snapshot {
     JapaneseConjugations conjugations_;
     std::vector<JapaneseWord> words_;
     std::string generation_, version_;
+    std::filesystem::path databasePath_;
     Snapshot() = default;
 public:
     Snapshot(const Snapshot &) = delete;
@@ -59,6 +61,8 @@ public:
     const std::vector<JapaneseWord> &words() const { return words_; }
     const JapaneseConjugations &conjugations() const { return conjugations_; }
     const WordEvidence &evidence() const { return evidence_; }
+    // Guarded immutable file; concurrent consumers must open their own connection.
+    const std::filesystem::path &databasePath() const { return databasePath_; }
     Session session(bool simplified) const {
         Session result(mpn_session_create(lexicon.get()), &mpn_session_destroy);
         if (!result) throw std::runtime_error("base session allocation failed");
@@ -114,6 +118,7 @@ public:
         // Sidecars can otherwise change what SQLite sees without changing the
         // main file's manifest hash. Never perform journal recovery here.
         const auto database = folder / files[1];
+        result->databasePath_ = std::filesystem::absolute(database);
         for (const auto *suffix : {"-wal", "-shm", "-journal"})
             if (std::filesystem::exists(std::filesystem::path(database.native() + std::filesystem::path(suffix).native())))
                 throw std::runtime_error("SQLite sidecar in base snapshot");
