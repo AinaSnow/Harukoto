@@ -1,6 +1,6 @@
 # 本地主题词库管理
 
-适用：Windows 0.4.4-alpha.18。图形窗口与命令行均支持多包导入、独立启停、更新和上一版回退。管理工具需要 Python 3.10 或更新版本，图形窗口还需要 tkinter；安装器内置的 PowerShell 不包含 Python。日常输入不需要 Python。
+适用：Windows 0.4.4-alpha.19。图形窗口与命令行均支持多包导入、独立启停、更新和上一版回退。管理工具需要 Python 3.10 或更新版本，图形窗口还需要 tkinter；安装器内置的 PowerShell 不包含 Python。日常输入不需要 Python。
 
 ## 图形窗口
 
@@ -80,7 +80,7 @@ python Windows/manage-japanese-packages.py rollback my-japanese-terms
 
 快照不可变，旧快照暂不自动清理，可能占用额外磁盘空间。该机制用于避免部分写入，不能替代断电恢复或文件系统备份。不要手动改写快照文件；备份时保存整个 Dictionaries 目录。缺失、超过限制或格式损坏的运行时词表会被忽略，基础中文输入仍能加载。
 
-旧导入入口 Windows/import-japanese-dictionary.py 及 japanese-custom.tsv 继续单独工作。主题管理不会覆盖它，用户别名可以保留在旧自定义词表中。卸载保持原有保留用户数据的行为。
+旧导入入口 Windows/import-japanese-dictionary.py 及 japanese-custom.tsv 继续单独工作。alpha.19 起个人表也支持后台加载后在新组字生效；主题管理不会覆盖它。个人导入是整表替换，`--clear` 发布空个人表，不影响主题包。意外删除／损坏文件会保留当前进程已加载的旧版，需恢复有效词表或显式清空；不是磁盘备份。卸载保持保留用户数据的行为。
 
 ## FF14 接入边界
 

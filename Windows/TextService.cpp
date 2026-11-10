@@ -201,17 +201,11 @@ public:
             const DWORD localLength = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, ARRAYSIZE(localAppData));
             if (localLength && localLength < ARRAYSIZE(localAppData)) {
                 const auto customPath = std::filesystem::path(localAppData) / L"Meowpuut/japanese-custom.tsv";
-                std::error_code error;
-                const auto size = std::filesystem::file_size(customPath, error);
-                if (!error && size <= 32 * 1024 * 1024) {
-                    std::ifstream customFile(customPath, std::ios::binary);
-                    auto custom = readJapaneseWords(customFile);
-                    japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(custom.begin()),
-                                         std::make_move_iterator(custom.end()));
-                }
+                auto personal = readPersonalDictionary(customPath);
                 const auto themeRoot = std::filesystem::path(localAppData) / L"Meowpuut/Dictionaries";
                 auto snapshot = readJapanesePackageSnapshot(themeRoot);
-                themeReload = std::make_unique<ThemeReload>(themeRoot, japaneseWords, snapshot ? snapshot->generation : std::string());
+                themeReload = std::make_unique<ThemeReload>(themeRoot, japaneseWords, snapshot ? snapshot->generation : std::string(), customPath, personal);
+                if (personal) japaneseWords.insert(japaneseWords.end(), personal->words.begin(), personal->words.end());
                 if (snapshot) japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(snapshot->words.begin()), std::make_move_iterator(snapshot->words.end()));
             }
             std::stable_sort(japaneseWords.begin(), japaneseWords.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });

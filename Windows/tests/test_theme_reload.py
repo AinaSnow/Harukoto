@@ -13,4 +13,7 @@ if __name__ == '__main__':
         root = Path(folder)
         change(root, 'import', ROOT / 'Resources/DictionaryPackages/ff14/full/manifest.json')
         change(root, 'enable', 'harukoto-ff14')
-        subprocess.run([sys.argv[1], str(root), sys.argv[2]], check=True, timeout=60)
+        source, personal = root / 'personal.txt', root / 'personal.tsv'
+        source.write_text('# 测试\nコーヒー | english: testcoffee\n', encoding='utf-8')
+        subprocess.run([sys.executable, str(ROOT / 'Windows/import-japanese-dictionary.py'), str(source), '--output', str(personal)], check=True, capture_output=True)
+        subprocess.run([sys.argv[1], str(root), sys.argv[2], str(personal)], check=True, timeout=60)

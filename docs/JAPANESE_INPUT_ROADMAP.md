@@ -38,7 +38,7 @@ python Windows/import-japanese-dictionary.py C:/path/to/words.txt --check
 python Windows/import-japanese-dictionary.py C:/path/to/words.txt
 ```
 
-编译结果写入 `%LOCALAPPDATA%/Meowpuut/japanese-custom.tsv`，无需管理员权限。此旧入口会替换当前用户的一个自定义词表；需要多个主题独立启停和回退时，使用新增的[主题包管理](DICTIONARY_PACKAGES.md)。两种入口可共存。校验失败时不会覆盖旧文件。重新打开使用输入法的应用后加载新词表。也可用 `--output` 导出到指定文件。
+编译结果写入 `%LOCALAPPDATA%/Meowpuut/japanese-custom.tsv`，无需管理员权限。此入口会替换当前用户的一个自定义词表；需要多个主题独立启停和回退时，使用[主题包管理](DICTIONARY_PACKAGES.md)。两种入口可共存。校验失败时不会覆盖旧文件。alpha.19 起后台加载后在新组字时生效，首次安装新 DLL 或旧版应用仍需重开。`--clear` 显式发布空个人表，`--check` 可搭配它只校验操作不写文件。也可用 `--output` 导出到指定文件；导出到其他路径不会自动更新输入法。
 
 支持 `pinyin`、`english`、`chinese`、`priority`，以及同字形多读音。`pinyin`、`english` 可重复；全角分隔符、拼音声调符号、空格、连字符会规范化。含汉字的词须显式填写平假名读音；alpha.9 起可用 - 表示没有可靠读音，仅输出表记。未知属性忽略；`pos` 校验合法性，但本阶段不产生语法变形。仅有读音而没有显式触发词的自定义行不会加入索引。全部转换在本地完成。
 

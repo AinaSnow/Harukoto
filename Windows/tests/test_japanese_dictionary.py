@@ -67,6 +67,19 @@ class WordListTests(unittest.TestCase):
         self.assertTrue(any(w[0] == 'tushuguan' and w[1] == '図書館' for w in words))
         self.assertTrue(any(w[0] == 'coffee' and w[1] == 'コーヒー' for w in words))
 
+    def test_explicit_clear_and_argument_validation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / 'personal.tsv'
+            output.write_bytes(b'previous')
+            command = [sys.executable, str(ROOT / 'Windows/import-japanese-dictionary.py'), '--output', str(output)]
+            self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
+            self.assertNotEqual(subprocess.run(command + ['--clear', 'input.txt'], capture_output=True).returncode, 0)
+            self.assertEqual(output.read_bytes(), b'previous')
+            subprocess.run(command + ['--clear', '--check'], check=True, capture_output=True)
+            self.assertEqual(output.read_bytes(), b'previous')
+            subprocess.run(command + ['--clear'], check=True, capture_output=True)
+            self.assertEqual(output.read_bytes(), b'')
+
 
 if __name__ == '__main__':
     unittest.main()

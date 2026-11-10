@@ -11,13 +11,16 @@ from japanese_dictionary import parse_word_list, serialize
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('dictionary', type=Path)
+    parser.add_argument('dictionary', type=Path, nargs='?')
+    parser.add_argument('--clear', action='store_true', help='发布空个人词表，清空此前导入的个人触发词；不影响主题包')
     parser.add_argument('--check', action='store_true', help='只校验，不写入')
     parser.add_argument('--output', type=Path, help='导出编译结果到指定文件')
     args = parser.parse_args()
+    if (args.dictionary is None) == (not args.clear):
+        parser.error('请指定词表文件，或单独使用 --clear')
     try:
-        entries = parse_word_list(args.dictionary)
-        if not entries:
+        entries = [] if args.clear else parse_word_list(args.dictionary)
+        if not entries and not args.clear:
             raise ValueError('没有可导入的 pinyin 或 english 触发词；本阶段不生成罗马字或动词变形')
         if not args.check:
             if args.output:
@@ -35,7 +38,7 @@ def main():
                 os.replace(temporary, destination)
             finally:
                 temporary.unlink(missing_ok=True)
-            print(f'已写入 {destination}；请重新打开使用输入法的应用。')
+            print(f'已写入 {destination}；alpha.19 起后台加载后在新一段输入时生效，旧版需重开应用。')
         print(f'校验通过：{len(entries)} 组触发词／日语读音。')
     except (OSError, ValueError) as error:
         parser.error(str(error))

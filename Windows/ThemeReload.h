@@ -1,6 +1,7 @@
 #pragma once
 #include <windows.h>
 #include "JapanesePackages.h"
+#include "PersonalDictionary.h"
 #include <atomic>
 #include <memory>
 
@@ -13,6 +14,8 @@ class ThemeReload {
         std::filesystem::path root;
         std::shared_ptr<const std::vector<JapaneseWord>> base;
         std::string previous;
+        std::filesystem::path personalPath;
+        std::shared_ptr<const PersonalDictionarySnapshot> previousPersonal, personal;
         std::optional<JapanesePackageSnapshot> result;
         bool failed = false;
         std::atomic<bool> done{false};
@@ -29,14 +32,20 @@ class ThemeReload {
     static void load(Job &job) noexcept {
         try {
             const auto current = generation(job.root);
+            job.personal = readPersonalDictionary(job.personalPath, !job.previousPersonal || !job.previousPersonal->present, job.previousPersonal);
+            if (!job.personal) { job.failed = true; job.done.store(true, std::memory_order_release); return; }
+            const bool personalChanged = !job.previousPersonal ||
+                job.personal->present != job.previousPersonal->present || job.personal->bytes != job.previousPersonal->bytes;
             if (current.empty()) {
                 // No theme configuration on a fresh installation is normal.
                 job.failed = !job.previous.empty() || std::filesystem::exists(job.root / "CURRENT");
-            } else if (current != job.previous) {
-                auto next = readJapanesePackageSnapshot(job.root);
+            }
+            if (!job.failed && (current != job.previous || personalChanged)) {
+                auto next = current.empty() ? std::optional<JapanesePackageSnapshot>(JapanesePackageSnapshot{}) : readJapanesePackageSnapshot(job.root);
                 if (!next) job.failed = true;
                 else if (next->generation == current && generation(job.root) == current) {
                     auto merged = *job.base;
+                    merged.insert(merged.end(), job.personal->words.begin(), job.personal->words.end());
                     merged.insert(merged.end(), std::make_move_iterator(next->words.begin()), std::make_move_iterator(next->words.end()));
                     std::stable_sort(merged.begin(), merged.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
                     next->words = std::move(merged);
@@ -56,8 +65,10 @@ class ThemeReload {
         FreeLibraryAndExitThread(module, 0);
     }
 public:
-    ThemeReload(std::filesystem::path root, std::vector<JapaneseWord> base, std::string active)
-        : root_(std::move(root)), base_(std::make_shared<const std::vector<JapaneseWord>>(std::move(base))), active_(std::move(active)) {}
+    ThemeReload(std::filesystem::path root, std::vector<JapaneseWord> base, std::string active,
+                std::filesystem::path personalPath = {}, std::shared_ptr<const PersonalDictionarySnapshot> personal = {})
+        : root_(std::move(root)), base_(std::make_shared<const std::vector<JapaneseWord>>(std::move(base))), active_(std::move(active)),
+          personalPath_(std::move(personalPath)), personal_(personal ? std::move(personal) : std::make_shared<PersonalDictionarySnapshot>()) {}
     // Called only from the owning TSF thread, before handling an actual key.
     // Queries (OnTestKeyDown) must never load or publish a dictionary.
     bool poll(bool boundary, std::vector<JapaneseWord> &words, ULONGLONG now = GetTickCount64()) {
@@ -67,6 +78,7 @@ public:
             if (job_->result) {
                 words.swap(job_->result->words);
                 active_ = job_->result->generation;
+                personal_ = job_->personal;
                 changed = true;
             }
             job_.reset();
@@ -78,6 +90,7 @@ public:
             try {
                 auto job = std::make_shared<Job>();
                 job->root = root_; job->base = base_; job->previous = active_;
+                job->personalPath = personalPath_; job->previousPersonal = personal_;
                 auto start = std::make_unique<Start>(Start{job, module});
                 HANDLE thread = CreateThread(nullptr, 0, worker, start.get(), 0, nullptr);
                 if (thread) { start.release(); CloseHandle(thread); job_ = std::move(job); }
@@ -93,6 +106,8 @@ private:
     std::shared_ptr<const std::vector<JapaneseWord>> base_;
     std::shared_ptr<Job> job_;
     std::string active_;
+    std::filesystem::path personalPath_;
+    std::shared_ptr<const PersonalDictionarySnapshot> personal_;
     ULONGLONG nextPoll_ = 0;
     bool failed_ = false;
 };

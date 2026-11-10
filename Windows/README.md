@@ -1,10 +1,12 @@
-# 晴词 · Harukoto 0.4.4-alpha.18 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.19 · Windows x64
 
 日常使用请先看[操作指南](../docs/USER_GUIDE.md)，包含选词、表记／假名二选一、F6 活用、繁简开关和常见问题。
 
 alpha.15 改善“我们明天见”“组队时间”“我断线了”等组合句首选，避免 FF14 扩写抢在“辛苦了”“早上好”前面。固定评测、改动依据和未解决问题见[中文评测](../docs/CHINESE_EVALUATION.md)，FF14 仍为 0.3.0。
 
 alpha.18 支持主题包后台热更新：组字期间候选不变，加载完成后新组字切换；坏快照继续用旧词库并提示。首次安装新 DLL 仍需重开应用；基础词库和引擎热替换尚未实现，见 [热更新计划](../docs/HOT_RELOAD.md)。
+
+alpha.19 追加个人日语触发词表热更新，导入工具支持 `--clear` 显式清空；意外丢失或坏行不覆盖当前内存词库。个人表和主题一起在组字边界发布，首次升级后仍需重开应用加载新版 DLL。
 
 alpha.12 设置页新增真实候选布局预览：字号／宽度实时更新，可切换六类示例并预览高亮和日语展开。恢复默认只重置布局，保存前不影响输入；详细范围见 [布局编辑器](../docs/UI_LAYOUT_EDITOR.md)。
 
@@ -18,7 +20,7 @@ alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.18-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.19-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -77,7 +79,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.18
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.19
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。

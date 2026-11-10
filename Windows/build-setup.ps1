@@ -3,7 +3,7 @@ param(
     [string]$PowerShellSHA256 = 'ce7484804c0f0ad4dda10c958e71acdaf7eebfb22505c1b480f89e0e9f1da94d'
 )
 $ErrorActionPreference = 'Stop'
-$version = '0.4.4-alpha.18'
+$version = '0.4.4-alpha.19'
 $root = Split-Path $PSScriptRoot
 $dist = Join-Path $root '.build/windows/dist'
 & (Join-Path $PSScriptRoot 'build-preview.ps1')
