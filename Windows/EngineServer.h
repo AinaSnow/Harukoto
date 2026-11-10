@@ -16,6 +16,8 @@ public:
         std::string input;
         KeyMessage key;
         uint64_t deadline = 0;
+        uint32_t page = 0;
+        std::string context;
     };
     using Ticket = std::shared_ptr<const Work>;
     enum class Status { Reply, Replay, Scheduled, Pending, Rejected, Closed };
@@ -31,6 +33,8 @@ private:
     struct Session {
         uint64_t composition = 1;
         std::string input;
+        uint32_t page = 0;
+        std::string context;
         CandidateSnapshot candidates;
         Ticket pending;
     };
@@ -122,7 +126,7 @@ public:
             purge(request.id.session, request.id.request); // no replay of old candidate/commit after cancel
             if (request.kind == Kind::Close) sessions_.erase(found);
             else {
-                session.pending.reset(); session.input.clear(); session.candidates.invalidate();
+                session.pending.reset(); session.input.clear(); session.context.clear(); session.page = 0; session.candidates.invalidate();
                 session.composition = request.id.composition;
             }
             return result;
@@ -140,7 +144,14 @@ public:
                 if (input.size() == MaxInput) return reject(Reason::InputLimit);
                 input.push_back(static_cast<char>(key.text));
             } else if (key.action == KeyAction::Backspace && !input.empty()) input.pop_back();
-            Ticket work = std::make_shared<const Work>(Work{request, std::move(input), key, deadline});
+            auto page = session.page;
+            if (key.action == KeyAction::Text || key.action == KeyAction::Backspace) page = 0;
+            if (key.action == KeyAction::PageNext) {
+                if (page == 4095) return reject(Reason::InputLimit);
+                ++page;
+            }
+            if (key.action == KeyAction::PagePrevious && page) --page;
+            Ticket work = std::make_shared<const Work>(Work{request, std::move(input), key, deadline, page, session.context});
             outstanding_.push_back(work); // Includes canceled work still held by the executor.
             session.pending = work; session.candidates.invalidate(); lastRequest_ = request.id.request;
             return {Status::Scheduled, Reason::None, {}, std::move(work)};
@@ -149,9 +160,11 @@ public:
             const auto expected = session.candidates.preview(request);
             if (!expected) return reject(Reason::Candidate);
             auto remaining = expected->remaining;
+            auto context = session.context + expected->text;
+            if (remaining.empty() || context.size() > 64) context.clear();
             auto response = reply(request); response.payload = encodePayload(*expected);
             auto result = respond(request, std::move(response));
-            session.input.swap(remaining); session.candidates.invalidate();
+            session.input.swap(remaining); session.context.swap(context); session.page = 0; session.candidates.invalidate();
             return result;
         }
         return reject(Reason::Malformed);
@@ -173,6 +186,8 @@ public:
         auto input = work->input;
         auto result = respond(work->request, std::move(response));
         session.input.swap(input);
+        session.page = work->page;
+        if (session.input.empty()) session.context.clear();
         session.candidates = std::move(candidates); session.pending.reset();
         return result;
     }

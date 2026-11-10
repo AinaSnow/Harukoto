@@ -1658,6 +1658,9 @@ const char *mpn_candidate(const MPNSession *session, size_t index) {
 size_t mpn_candidate_consumed(const MPNSession *session, size_t index) {
     return session && index < session->candidates.size() ? session->candidates[index].consumed : 0;
 }
+size_t mpn_candidate_literal_tail(const MPNSession *session, size_t index) {
+    return session && index < session->candidates.size() ? session->candidates[index].literalTail : 0;
+}
 int mpn_candidate_info(const MPNSession *session, size_t index, MPNCandidateInfo *info, size_t info_size) {
     if (!session || !info || !info_size || index >= session->candidates.size()) return 0;
     const auto &candidate = session->candidates[index];

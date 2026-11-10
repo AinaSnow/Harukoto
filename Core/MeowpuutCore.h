@@ -54,6 +54,8 @@ size_t mpn_expand_candidates(MPNSession *session);
 const char *mpn_candidate(const MPNSession *session, size_t index);
 // Raw input bytes consumed when selecting this candidate; 0 for invalid input.
 size_t mpn_candidate_consumed(const MPNSession *session, size_t index);
+// Display-only literal suffix bytes, excluded by mpn_choose from committed text.
+size_t mpn_candidate_literal_tail(const MPNSession *session, size_t index);
 // Provenance describes how a candidate was generated, not its confidence.
 // A fully spelled path is an exact reading, but may not be a plausible phrase.
 typedef enum {
