@@ -63,4 +63,4 @@ cmake --build .build/windows/msvc --config Release
 ctest --test-dir .build/windows/msvc -C Release -R '^(engine_process|engine_host|engine_host_process|engine_host_full)$' --output-on-failure
 ```
 
-下一步明确可信所有者与多客户端端点交接，补共享宿主的竞争延迟／总内存对照，再评估正式时限和诊断入口。服务发现不得从公开 PID 自认证。版本更新、组字边界换代／回退和 TSF 仍按 WIN-03 后续计划推进。
+一次性端点交接、多客户端竞争／总私有量与 2／4 线程分段对照已完成。下一步明确正式共享所有者、动态端点和可信服务发现，补只读诊断；发现不得从公开 PID 自认证。当前实验进程仍属于创建它的 Job，不能直接作为跨应用常驻服务；版本更新、组字边界换代／回退和 TSF 继续按 WIN-03 推进。
