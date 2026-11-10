@@ -1,6 +1,6 @@
 # 实验独立查询宿主
 
-最新测量入口：[多进程逐键与内存对照](ENGINE_IPC_PERFORMANCE.md)使用真实独立客户端，通过受控启动方显式交接端点和只读进程对象。已实现测量工具与微型矩阵，正式服务发现、TSF 和更新换代仍待做。
+最新测量入口：[多进程逐键与内存对照](ENGINE_IPC_PERFORMANCE.md)使用真实独立客户端，通过受控启动方显式交接端点和只读进程对象。微型矩阵与干净提交的完整词库基线均已归档，保留共享内存收益和四客户端竞争延迟；正式服务发现、TSF 和更新换代仍待做。
 
 WIN-03b，2026-11-10。新增 `Windows/EngineHost.h` 和开发程序 `harukoto_engine_host.exe`，将[认证管道](ENGINE_PIPE.md)、[连接会话](ENGINE_SERVER.md)、[有界执行器](ENGINE_EXECUTOR.md)和[正式 Windows 合并查询](ENGINE_WINDOWS.md)连接到一个真实进程。每个宿主准备一次固定只读词库，多个连接共用；查询线程继续各自创建核心会话和 SQLite 连接。
 

@@ -1,5 +1,7 @@
 # 实验引擎逐键性能测量
 
+最新结果：[完整词库多进程报告](ENGINE_IPC_PERFORMANCE.md)已从干净 61a25e3 归档。四客户端 FF14 共享总私有提交采样峰值约 183.43 MiB，本地冻结查询约 693.73 MiB；共享往返中位／最大约 7.73／124.69 ms。后续优先量化竞争开销，再接 TSF。
+
 后续进度：[多进程共享引擎对照](ENGINE_IPC_PERFORMANCE.md)已提供真实独立客户端的 local／isolated／shared 三模式、1／2／4 人数测量，区分完整管道往返与本地查询，按同轮采样求总私有内存。本页以下记录此前进程内分阶段测量，不能直接与新口径作数值对照。
 
 WIN-03b／CN-02，2026-11-10。新增 harukoto_engine_benchmark 与 scripts/benchmark-engine.py，测量[Windows 合并查询](ENGINE_WINDOWS.md)每一次实际按键的核心重建、SQLite 打开、候选合并和[单工作线程](ENGINE_EXECUTOR.md)往返，不把此前“中间按键返回空候选”的功能测试当逐键性能。
