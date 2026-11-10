@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import subprocess
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import base_dictionary as bundle
@@ -18,6 +19,7 @@ def main():
     create.add_argument('--version', required=True)
     verify = commands.add_parser('verify', help='检查文件完整性与容器格式')
     verify.add_argument('snapshot', type=Path)
+    verify.add_argument('--native-loader', type=Path, help='额外运行已构建的 harukoto_base_dictionary_check.exe')
     stage = commands.add_parser('stage', help='暂存完整快照并更新开发仓库指针')
     stage.add_argument('snapshot', type=Path)
     stage.add_argument('--store', type=Path, required=True)
@@ -30,6 +32,16 @@ def main():
             result = bundle.create(args.source, args.destination, args.version)
         elif args.command == 'verify':
             result = bundle.verify(args.snapshot)
+            if args.native_loader:
+                checked = subprocess.run([str(args.native_loader.resolve()), '--snapshot', str(args.snapshot.resolve())],
+                                         capture_output=True, encoding='utf-8', errors='replace', timeout=120)
+                if checked.returncode:
+                    raise ValueError('原生加载失败：' + checked.stderr.strip())
+                native = json.loads(checked.stdout)
+                if (not isinstance(native, dict) or native.get('generation') != bundle.identity(result) or native.get('native_loaded') is not True
+                        or native.get('runtime_activated') is not False):
+                    raise ValueError('原生加载结果与快照不一致')
+                result = dict(manifest=result, native=native)
         elif args.command == 'stage':
             result = bundle.stage(args.snapshot, args.store)
         elif args.command == 'rollback':
@@ -39,7 +51,7 @@ def main():
             for key in ('current', 'previous'):
                 if result[key]:
                     bundle.check_generation(args.store, result[key])
-    except (OSError, ValueError, TypeError) as error:
+    except (OSError, ValueError, TypeError, subprocess.TimeoutExpired) as error:
         parser.error(str(error))
     print(json.dumps(dict(result=result, runtime_activated=False), ensure_ascii=False, indent=2))
 

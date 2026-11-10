@@ -13,6 +13,20 @@ public:
     WordEvidence &operator=(const WordEvidence &) = delete;
     ~WordEvidence() { close(); }
 
+    bool ready() const { return db && queries[0] && queries[1]; }
+
+    // Snapshot preparation only; never run this full database scan on a key.
+    bool integrityCheck() const {
+        if (!ready()) return false;
+        void *query = nullptr;
+        if (prepare(db, "PRAGMA integrity_check", -1, &query, nullptr) != 0) return false;
+        const bool row = step(query) == 100;
+        const auto *value = row ? reinterpret_cast<const char *>(text(query, 0)) : nullptr;
+        const bool ok = value && std::strcmp(value, "ok") == 0 && step(query) == 101;
+        finalize(query);
+        return ok;
+    }
+
     void open(const std::filesystem::path &path) {
         close();
         library = LoadLibraryExW(L"winsqlite3.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);

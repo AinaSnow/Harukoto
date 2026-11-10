@@ -27,7 +27,14 @@ def digest(path):
 def read_json(path):
     if path.stat().st_size > 65536:
         raise ValueError('元数据超过大小限制')
-    return json.loads(path.read_text(encoding='utf-8'))
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('元数据包含重复字段：' + key)
+            result[key] = value
+        return result
+    return json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=unique)
 
 
 def identity(manifest):
@@ -41,6 +48,7 @@ def verify(folder):
             or type(manifest['format']) is not int or manifest['format'] != 1
             or type(manifest['engine_abi']) is not int or manifest['engine_abi'] != 1
             or not isinstance(manifest['version'], str)
+            or len(manifest['version']) > 128
             or not VERSION.fullmatch(manifest['version'])
             or not isinstance(manifest['files'], dict) or set(manifest['files']) != set(FILES)):
         raise ValueError('基础词库清单格式、兼容版本或文件集合不正确')

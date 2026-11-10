@@ -12,7 +12,7 @@ import base_dictionary as bundle
 
 
 def main():
-    source, reader, probe = map(Path, sys.argv[1:])
+    source, reader, probe, checker, native_reader = map(Path, sys.argv[1:])
     with tempfile.TemporaryDirectory(prefix='harukoto-base-production-') as temporary:
         root = Path(temporary)
         first, second, store = root / 'first', root / 'second', root / 'store'
@@ -24,6 +24,10 @@ def main():
         assert bundle.rollback(store) == ka
         snapshot = store / ka
         bundle.check_generation(store, ka)
+        native = subprocess.run([str(checker), '--store', str(store)], capture_output=True,
+                                encoding='utf-8', check=True, timeout=60)
+        assert json.loads(native.stdout)['generation'] == ka
+        subprocess.run([str(native_reader), '--production', str(snapshot)], check=True, timeout=60)
         with closing(sqlite3.connect((snapshot / 'language-evidence.sqlite').as_uri() + '?mode=ro', uri=True)) as db:
             assert db.execute('PRAGMA integrity_check').fetchall() == [('ok',)]
         subprocess.run([str(reader), str(snapshot)], check=True, timeout=60)
