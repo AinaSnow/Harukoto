@@ -135,6 +135,14 @@ int main(int argc,char **argv) {
             choose(old,"tejihuifuyao","特级恢复药"); choose(old,"tejihuifuyao","特級恢復藥",false);
             for(const auto &input:{"riben","ceshibuci","tejihuifuyao","nihaoz"})
                 directComparison(old,input,true);
+            // Controlled source-empty aliases exercise mixed-prefix/suffix/
+            // middle indexing, equal-weight first-match order and excluded EN aliases.
+            assert(contains(query(old,"ceshibuciabc"),"旧补词世界"));
+            assert(contains(query(old,"abcceshibuci"),"世界旧补词"));
+            assert(contains(query(old,"ceshibuciabcceshibuci"),"旧补词世界旧补词"));
+            for(const auto &input:{"ceshibuciabc","abcceshibuci","ceshibuciabcceshibuci",
+                                  "ceshibuciabcd","ceshibuciab","ni'hao","ni3hao3"})
+                directComparison(old,input,true);
             directComparison(old,"tejihuifuyao",false);
             directComparison(old,"riben",true,true);
             Peer peer(old); auto pending=peer.query("testcoffee"); retained=pending;

@@ -19,6 +19,13 @@ with tempfile.TemporaryDirectory(prefix='harukoto-engine-windows-') as temporary
     data.mkdir()
     for name in bundle.FILES:
         shutil.copy2(source / name, data / name)
+    # Source-empty mixed aliases belong to the base romaji table. Personal
+    # triggers deliberately require an explicit pinyin/english source.
+    with (data / 'japanese.tsv').open('a', encoding='utf-8', newline='\n') as words:
+        words.write('\nabc|世界|5000\n'
+                    'abc|世間|5000\n'
+                    'abcd|光|4500\n'
+                    'ab|英語|6000|えいご|english|英语\n')
     first, second = root / 'first', root / 'second'
     with closing(sqlite3.connect(data / 'language-evidence.sqlite')) as db:
         db.execute('INSERT INTO lexicon(reading,phonetic,bare,hant,hans,weight,toned,hans_weight) VALUES(?,?,?,?,?,?,?,?)',

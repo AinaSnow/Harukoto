@@ -13,6 +13,7 @@ namespace harukoto::engine {
 class WindowsDictionary {
     std::unique_ptr<base_dictionary::Snapshot> base_;
     std::vector<JapaneseWord> words_;
+    std::unordered_map<std::string, std::vector<size_t>> readings_;
     std::string generation_;
     WindowsDictionary() = default;
 public:
@@ -43,6 +44,8 @@ public:
             result->words_.insert(result->words_.end(), source->words.begin(), source->words.end());
         }
         std::stable_sort(result->words_.begin(), result->words_.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
+        for (size_t i = 0; i < result->words_.size(); ++i)
+            result->readings_[result->words_[i].reading].push_back(i);
         base_dictionary::Sha256 digest;
         auto field = [&](const std::string &value) {
             const auto length = std::to_string(value.size()) + ":";
@@ -71,6 +74,32 @@ public:
         return result;
     }
 private:
+    // windowsCandidates uses whole-input matches; mixedReading additionally
+    // uses source-empty substrings of length 3..10 for all-letter inputs 5..24.
+    // Original row indices preserve every tie/order/first-match decision.
+    std::vector<JapaneseWord> queryWords(const ServerConnection::Work &work) const {
+        if (work.chineseLocked) return {};
+        std::vector<size_t> indices;
+        auto include = [&](const std::string &reading, bool mixedOnly) {
+            const auto found = readings_.find(reading);
+            if (found == readings_.end()) return;
+            for (auto index : found->second)
+                if (!mixedOnly || words_[index].source.empty()) indices.push_back(index);
+        };
+        include(work.input, false);
+        if (work.input.size() >= 5 && work.input.size() <= 24 &&
+            std::all_of(work.input.begin(), work.input.end(), [](char c) { return c >= 'a' && c <= 'z'; })) {
+            for (size_t start = 0; start + 3 <= work.input.size(); ++start)
+                for (size_t length = 3; length <= 10 && start + length <= work.input.size(); ++length)
+                    include(work.input.substr(start, length), true);
+        }
+        std::sort(indices.begin(), indices.end());
+        indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
+        std::vector<JapaneseWord> result;
+        result.reserve(indices.size());
+        for (auto index : indices) result.push_back(words_[index]);
+        return result;
+    }
     CandidatePage queryImpl(const ServerConnection::Ticket &ticket, QueryTimings *timings) const {
         auto previous = timings ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         auto mark = [&](double QueryTimings::*field) {
@@ -97,12 +126,13 @@ private:
         if (!evidence.ready()) throw std::runtime_error("snapshot SQLite unavailable");
         mark(&QueryTimings::sqlite_open_ms);
         auto lookup = [&](const std::string &reading) { return evidence.dictionary(reading, work.key.simplified); };
-        auto choices = windowsCandidates(session.get(), words_, lookup, work.chineseLocked);
+        const auto relevant = queryWords(work);
+        auto choices = windowsCandidates(session.get(), relevant, lookup, work.chineseLocked);
         mark(&QueryTimings::merge_ms);
         // Reproduce formal append semantics: existing choices keep their order.
         for (int i=0; i<3 && mpn_candidates_can_expand(session.get()); ++i) {
             mpn_expand_candidates(session.get());
-            appendCandidateExpansion(session.get(), choices, windowsCandidates(session.get(), words_, lookup, work.chineseLocked));
+            appendCandidateExpansion(session.get(), choices, windowsCandidates(session.get(), relevant, lookup, work.chineseLocked));
         }
         mark(&QueryTimings::expansion_ms);
         std::vector<Candidate> converted;
