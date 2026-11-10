@@ -2,6 +2,7 @@
 #include "EnginePipe.h"
 #include "EngineControl.h"
 #include "EngineOwnerAnchor.h"
+#include "EngineInstance.h"
 #include <filesystem>
 
 namespace harukoto::engine {
@@ -10,7 +11,7 @@ namespace harukoto::engine {
 class EngineProcess {
 public:
     enum class State { Starting, Ready, Stopping, Terminating, Exited };
-    enum class Failure { None, StartupExit, UnexpectedExit, StartupTimeout, StopTimeout, ControlIo };
+    enum class Failure { None, StartupExit, UnexpectedExit, StartupTimeout, StopTimeout, ControlIo, InstanceBusy };
     struct Config {
         std::filesystem::path executable, base, themes, personal;
         size_t connections = 2;
@@ -19,6 +20,8 @@ public:
         std::filesystem::path trace;
         bool dynamicEndpoints = false;
         std::filesystem::path ownerExecutable;
+        std::wstring ownerInstance; // Optional stable deployment scope, independent of version/path.
+        HANDLE ownerLease = nullptr; // Borrowed only during direct dynamic host launch.
     };
     struct Status {
         State state;
@@ -71,6 +74,8 @@ private:
                 (!config.themes.empty() && !absolute(config.themes)) ||
                 (!config.personal.empty() && !absolute(config.personal)) ||
                 (!config.ownerExecutable.empty() && (!absolute(config.ownerExecutable) || !config.dynamicEndpoints || config.ownerExecutable == config.executable)) ||
+                (!config.ownerInstance.empty() && (config.ownerExecutable.empty() || !EngineInstance::validScope(config.ownerInstance))) ||
+                (config.ownerLease && (!config.ownerExecutable.empty() || !config.dynamicEndpoints || !config.ownerInstance.empty())) ||
                 (!config.trace.empty() && !absolute(config.trace)) || !config.threads || config.threads > 16 ||
                 !config.connections || config.connections > 8 || !config.startupMs || config.startupMs > 300000 ||
                 !config.stopMs || config.stopMs > 300000)
@@ -96,6 +101,12 @@ private:
         childStop.reset(raw);
         std::array<pipe::Handle,3> childControl;
         pipe::Handle childAnchor;
+        pipe::Handle childLease;
+        if (config.ownerLease) {
+            pipe::check(DuplicateHandle(GetCurrentProcess(),config.ownerLease,GetCurrentProcess(),&raw,
+                SYNCHRONIZE | READ_CONTROL,TRUE,0));
+            childLease.reset(raw);
+        }
         if (ownerAnchor_) {
             pipe::check(DuplicateHandle(GetCurrentProcess(),ownerAnchor_->section(),GetCurrentProcess(),&raw,0,TRUE,DUPLICATE_SAME_ACCESS));
             childAnchor.reset(raw);
@@ -115,11 +126,14 @@ private:
         std::vector<HANDLE> inherited{childReady.get(),childStop.get()};
         if (control_) for (const auto &handle : childControl) inherited.push_back(handle.get());
         if (childAnchor) inherited.push_back(childAnchor.get());
+        if (childLease) inherited.push_back(childLease.get());
         pipe::check(UpdateProcThreadAttribute(attributes,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherited.data(),inherited.size()*sizeof(HANDLE),nullptr,nullptr));
         const auto executable = ownerAnchor_ ? config.ownerExecutable : config.executable;
         std::vector<std::wstring> arguments{executable.wstring(),L"--base",config.base.wstring()};
         if (ownerAnchor_) arguments.insert(arguments.end(),{L"--host",config.executable.wstring(),L"--anchor",
             std::to_wstring(reinterpret_cast<uintptr_t>(childAnchor.get()))});
+        if (!config.ownerInstance.empty()) arguments.insert(arguments.end(),{L"--instance",config.ownerInstance});
+        if (childLease) arguments.insert(arguments.end(),{L"--owner-lease",std::to_wstring(reinterpret_cast<uintptr_t>(childLease.get()))});
         if (!config.themes.empty()) { arguments.push_back(L"--themes"); arguments.push_back(config.themes.wstring()); }
         if (!config.personal.empty()) { arguments.push_back(L"--personal"); arguments.push_back(config.personal.wstring()); }
         if (config.threads != 2) { arguments.push_back(L"--threads"); arguments.push_back(std::to_wstring(config.threads)); }
@@ -148,6 +162,7 @@ private:
             // Only the child's copies remain inheritable while it starts.
             childReady.reset(); childStop.reset();
             childAnchor.reset();
+            childLease.reset();
             for (auto &handle : childControl) handle.reset();
             if (ResumeThread(thread.get()) == DWORD(-1)) throw pipe::Error(pipe::Failure::Io,GetLastError());
         } catch (...) {
@@ -170,7 +185,7 @@ public:
         if (exited == WAIT_OBJECT_0) {
             DWORD code = 0; pipe::check(GetExitCodeProcess(process_.get(),&code)); exitCode_ = code;
             if (failure_ == Failure::None) {
-                if (state_ == State::Starting) failure_ = Failure::StartupExit;
+                if (state_ == State::Starting) failure_ = ownerAnchor_ && code == ERROR_ALREADY_EXISTS ? Failure::InstanceBusy : Failure::StartupExit;
                 else if (code != 0) failure_ = Failure::UnexpectedExit;
             }
             state_ = State::Exited; deadline_ = 0;

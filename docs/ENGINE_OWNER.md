@@ -2,7 +2,7 @@
 
 WIN-03b，2026-11-10。新增 C++ 开发程序 `harukoto_engine_owner.exe` 与 `Windows/EngineOwner.h`，把[动态引擎宿主](ENGINE_HOST.md)的启动、控制和退出监督放入独立进程。查询客户端直接连接宿主，首个客户端退出不会销毁所有者或共享词库。当前发行和本机安装仍为 Windows 0.4.4-alpha.22、FF14 0.3.0，没有安装、注册或自动启动这个程序。
 
-本批完成的是受控启动链和跨进程动态端点交接。普通应用仍不能自行发现或注册到所有者：分配请求来自一个可信启动方的私有单槽接口，启动方再把端点及宿主对象交给自己创建的测试客户端。正式单实例竞争、公开发现、客户端注册与认证、诊断入口、版本管理和 TSF 均未实现。不能把这个实验程序直接当成已完成的常驻服务。
+已完成受控启动链、跨进程动态端点交接，以及显式部署标识下的[可选单实例竞争](ENGINE_INSTANCE.md)。普通应用仍不能自行发现或注册到所有者：分配请求来自一个可信启动方的私有单槽接口，启动方再把端点及宿主对象交给自己创建的测试客户端。正式发现与可信接手、客户端注册与认证、诊断入口、版本管理和 TSF 均未实现。不能把这个实验程序直接当成已完成的常驻服务。
 
 ## 进程与寿命
 
@@ -26,12 +26,15 @@ flowchart LR
 EngineProcess::Config config{hostExecutable, base, themes, personal};
 config.dynamicEndpoints = true;
 config.ownerExecutable = ownerExecutable;
+config.ownerInstance = L"harukoto-main"; // 可选；同一部署跨版本使用同一标识。
 config.connections = 8;
 EngineProcess process(config);
 // 合并 waitHandles()／deadline()，poll 至 Ready，再 requestControl／takeControl。
 ```
 
 `executable` 仍是查询宿主的可信绝对路径；可选 `ownerExecutable` 是独立所有者的可信绝对路径，要求开启 dynamicEndpoints，拒绝相对路径、内嵌 NUL 及与宿主相同的路径值。空 ownerExecutable 保持原直接宿主模式。源码不会搜索 PATH、查找公开 PID、从对端自报路径启动，或猜测某个已运行进程可信；测试中的固定同目录宿主路径仅用于 CTest 夹具。
+
+ownerInstance 非空时，所有者先竞争当前登录身份下的部署占位，再启动宿主。竞争失败返回 InstanceBusy，不自动连接已有实例；宿主通过显式继承保留同一占位直到实际退出，避免所有者崩溃后的回收空档。空标识不启用竞争，范围、权限、固定句柄寿命及失败边界见[单实例说明](ENGINE_INSTANCE.md)。
 
 管理器将基础／主题／个人路径、线程数、端点上限及可选追踪路径交给所有者，再由所有者交给宿主；不改变默认 2 线程和查询期限。所有者自身不创建追踪文件。构造、启动和句柄复制包含系统调用，所有方法仍属于服务／I/O 线程，不允许直接进入 TSF 前台回调。
 
@@ -65,4 +68,4 @@ cmake --build .build/windows/msvc --config Release
 ctest --test-dir .build/windows/msvc -C Release -R '^(engine_process|engine_owner_process|engine_owner_full)$' --output-on-failure
 ```
 
-下一步明确可信部署／登录会话下的单实例竞争和发现、启动方交接或正式生命周期、客户端注册及只读诊断入口；再接 TSF、组字边界换代和失败回退。真实应用兼容性、混合 DPI、游戏上屏与安装升级仍按验收表单独执行。
+下一步在可选竞争基础上明确可信部署／登录会话下的发现与竞争失败后的可信交接、启动方交接或正式生命周期、客户端注册及只读诊断入口；再接 TSF、组字边界换代和失败回退。真实应用兼容性、混合 DPI、游戏上屏与安装升级仍按验收表单独执行。

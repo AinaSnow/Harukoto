@@ -125,6 +125,14 @@ int wmain(int argc, wchar_t **argv) {
         value = config(L"normal"); value.ownerExecutable = L"relative.exe"; value.dynamicEndpoints = true; invalid(value);
         value.ownerExecutable = self(); invalid(value); // Host and owner cannot recurse into the same executable.
         value.executable = self().parent_path()/L"different.exe"; value.dynamicEndpoints = false; invalid(value);
+        value = config(L"normal"); value.ownerInstance = L"test"; invalid(value); // Scope requires an independent owner.
+        value.dynamicEndpoints = true; value.ownerExecutable = self().parent_path()/L"owner.exe";
+        value.ownerInstance = L"bad/scope"; invalid(value);
+        value.ownerInstance = std::wstring(65,L'a'); invalid(value);
+        value.ownerInstance = std::wstring(L"a\0b",3); invalid(value);
+        value = config(L"normal"); value.ownerLease = GetCurrentProcess(); invalid(value); // Lease requires direct dynamic mode.
+        value.dynamicEndpoints = true; value.ownerExecutable = self().parent_path()/L"owner.exe"; invalid(value);
+        value.ownerExecutable.clear(); value.ownerInstance = L"test"; invalid(value);
         value = config(L"normal"); value.personal = std::wstring(L"C:\\valid\0hidden",15); invalid(value);
         value = config(L"normal"); value.personal = L"C:\\"+std::wstring(33000,L'a'); invalid(value);
         value = config(L"normal"); value.executable = self().parent_path()/L"missing-engine.exe";

@@ -203,11 +203,50 @@ static void failures(const EngineProcess::Config &value) {
     }
     assert(writable(value.base/L"language-evidence.sqlite"));
 }
+static void singleInstance(EngineProcess::Config value) {
+    const auto random = ep::newName(); value.ownerInstance = L"test-"+random.substr(random.size()-32);
+    std::vector<std::unique_ptr<EngineProcess>> contenders;
+    for (size_t i=0;i<4;++i) {
+        auto contender = value; contender.trace = value.base.parent_path()/(L"instance-race-"+std::to_wstring(i)+L".jsonl");
+        contenders.push_back(std::make_unique<EngineProcess>(contender));
+    }
+    const auto deadline = ep::now()+Timeout; EngineProcess *winner = nullptr;
+    for (;;) {
+        size_t settled = 0; std::vector<HANDLE> handles;
+        for (auto &candidate : contenders) {
+            const auto state = candidate->poll(ep::now());
+            if (state == State::Ready) { assert(!winner || winner == candidate.get()); winner = candidate.get(); ++settled; }
+            else if (state == State::Exited) {
+                assert(candidate->status().failure == EngineProcess::Failure::InstanceBusy && candidate->status().exitCode == DWORD(ERROR_ALREADY_EXISTS));
+                assert(!candidate->engineHandle()); ++settled;
+            } else { const auto events = candidate->waitHandles(); handles.insert(handles.end(),events.begin(),events.end()); }
+        }
+        if (settled == contenders.size()) break;
+        assert(ep::now() < deadline && !handles.empty()); wait(handles,deadline);
+    }
+    assert(winner && request(*winner,control::Operation::Inspect).metadata.limit == 2);
+    for (size_t i=0;i<contenders.size();++i)
+        assert(std::filesystem::exists(value.base.parent_path()/(L"instance-race-"+std::to_wstring(i)+L".jsonl")) == (contenders[i].get() == winner));
+    // Existing object is only a refusal, never evidence for a trusted handoff.
+    { EngineProcess blocked(value); until(blocked,State::Exited); assert(blocked.status().failure == EngineProcess::Failure::InstanceBusy); }
+    auto otherValue = value; otherValue.ownerInstance += L"-other";
+    { EngineProcess other(otherValue); until(other,State::Ready); other.requestStop(ep::now()); until(other,State::Exited); }
+    winner->requestStop(ep::now()); until(*winner,State::Exited);
+    assert(winner->status().failure == EngineProcess::Failure::None && WaitForSingleObject(winner->engineHandle(),0) == WAIT_OBJECT_0);
+    // Old management and exited process objects remain retained during reuse.
+    { EngineProcess successor(value); until(successor,State::Ready);
+      ep::check(TerminateProcess(successor.processHandle(),77)); until(successor,State::Exited);
+      assert(WaitForSingleObject(successor.engineHandle(),Timeout) == WAIT_OBJECT_0); }
+    { auto invalid = value; invalid.base /= L"missing"; EngineProcess bad(invalid); until(bad,State::Exited);
+      assert(bad.status().failure == EngineProcess::Failure::StartupExit); }
+    { EngineProcess successor(value); until(successor,State::Ready); successor.requestStop(ep::now()); until(successor,State::Exited); }
+    assert(writable(value.base/L"language-evidence.sqlite"));
+}
 int wmain(int argc, wchar_t **argv) {
     if (argc > 1 && std::wstring(argv[1]) == L"--worker") return worker(argc,argv);
     if (argc > 1 && std::wstring(argv[1]) == L"--base") return faultHost(argc,argv);
     try {
-        const auto value = config(argc,argv); lifetime(value); failures(value);
+        const auto value = config(argc,argv); lifetime(value); failures(value); singleInstance(value);
         std::cout << "engine_owner_process: separate owner/host, independent client exit/rejoin, restricted handoff, query/selection, stop/crash and Job cleanup passed\n";
         return 0;
     } catch (const ep::Error &error) { std::cerr << "owner process failure=" << static_cast<int>(error.reason) << " win32=" << error.code << '\n'; return 1; }

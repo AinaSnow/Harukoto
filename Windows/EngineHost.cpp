@@ -10,7 +10,7 @@ int wmain(int argc, wchar_t **argv) {
         std::filesystem::path base, themes, personal, tracePath;
         Host::Options options; bool threadsSet = false, connectionsSet = false;
         std::vector<std::wstring> names;
-        pipe::Handle ready, stop;
+        pipe::Handle ready, stop, ownerLease;
         std::array<pipe::Handle,3> privateControl;
         auto control = [](const std::wstring &value) {
             if (value.empty() || value.find_first_not_of(L"0123456789") != std::wstring::npos)
@@ -24,7 +24,7 @@ int wmain(int argc, wchar_t **argv) {
         };
         auto ownControl = [&](pipe::Handle &slot, const std::wstring &value) {
             const auto handle = control(value);
-            if (slot || handle == ready.get() || handle == stop.get() ||
+            if (slot || handle == ready.get() || handle == stop.get() || handle == ownerLease.get() ||
                     std::any_of(privateControl.begin(),privateControl.end(),[&](const auto &entry) { return entry.get() == handle; }))
                 throw std::invalid_argument("duplicate host control");
             slot.reset(handle);
@@ -53,6 +53,7 @@ int wmain(int argc, wchar_t **argv) {
             }
             else if (option == L"--ready") ownControl(ready,value);
             else if (option == L"--stop") ownControl(stop,value);
+            else if (option == L"--owner-lease") ownControl(ownerLease,value);
             else if (option == L"--control-section") ownControl(privateControl[0],value);
             else if (option == L"--control-request") ownControl(privateControl[1],value);
             else if (option == L"--control-response") ownControl(privateControl[2],value);
@@ -62,7 +63,8 @@ int wmain(int argc, wchar_t **argv) {
                 (!personal.empty() && !personal.is_absolute()) || !ready || !stop || ready.get() == stop.get())
             throw std::invalid_argument("invalid host startup");
         const auto controlCount = std::count_if(privateControl.begin(),privateControl.end(),[](const auto &handle) { return bool(handle); });
-        if ((controlCount != 0 && controlCount != 3) || connectionsSet != (controlCount == 3) || (controlCount && !names.empty()))
+        if ((controlCount != 0 && controlCount != 3) || connectionsSet != (controlCount == 3) || (controlCount && !names.empty()) ||
+                (ownerLease && controlCount != 3))
             throw std::invalid_argument("invalid private host control");
         std::unique_ptr<control::Server> endpointControl;
         if (controlCount) endpointControl = std::make_unique<control::Server>(std::move(privateControl));
@@ -78,6 +80,13 @@ int wmain(int argc, wchar_t **argv) {
         // these command-line handle values as a substitute for caller trust.
         pipe::check(SetHandleInformation(ready.get(),HANDLE_FLAG_INHERIT,0));
         pipe::check(SetHandleInformation(stop.get(),HANDLE_FLAG_INHERIT,0));
+        if (ownerLease) {
+            pipe::check(SetHandleInformation(ownerLease.get(),HANDLE_FLAG_INHERIT,0));
+            // Exactly one inherited existence lease is escrowed until actual
+            // process termination, even on exceptions or owner Job teardown.
+            // Closing at stack unwind would permit a new host before we exit.
+            (void)ownerLease.release();
+        }
         uint64_t generation = 0;
         do {
             if (BCryptGenRandom(nullptr,reinterpret_cast<PUCHAR>(&generation),sizeof(generation),BCRYPT_USE_SYSTEM_PREFERRED_RNG) < 0)

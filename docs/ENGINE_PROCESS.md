@@ -1,6 +1,6 @@
 # 独立引擎的受控启动与端点领取
 
-最新进度：[受控独立所有者](ENGINE_OWNER.md)已支持独立进程监督、可信宿主对象交接和三个真实客户端的退出／重新接入。可选 ownerExecutable 要求开启[动态端点](ENGINE_CONTROL.md)，默认直接模式及[多进程竞争测量](ENGINE_IPC_PERFORMANCE.md)保持原契约。正式常驻生命周期、单实例发现／应用注册和 TSF 仍待接入；以下启动批次的验证记录按历史范围阅读。
+最新进度：[受控独立所有者](ENGINE_OWNER.md)已支持独立进程监督、可信宿主对象交接和三个真实客户端的退出／重新接入，并加入[可选单实例竞争](ENGINE_INSTANCE.md)。可选 ownerExecutable 要求开启[动态端点](ENGINE_CONTROL.md)，ownerInstance 指定稳定部署范围，ownerLease 仅供所有者向直接动态宿主借用传递占位。默认直接模式及[多进程竞争测量](ENGINE_IPC_PERFORMANCE.md)保持原契约。正式常驻生命周期、可信发现／应用注册和 TSF 仍待接入；以下启动批次的验证记录按历史范围阅读。
 
 WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内的启动逻辑提取为可复用模块，管理一个自己创建的引擎进程、1～8 个随机单次连接端点和退出状态。真实微型／全量词库测试已改用该模块；宿主业务仍见[查询宿主](ENGINE_HOST.md)。发行基线保持 Windows 0.4.4-alpha.22、FF14 0.3.0，不安装或自动启动新程序。
 
@@ -48,7 +48,7 @@ Config 新增 `threads`（1～16，默认 2）与可选 `trace` 绝对路径，�
 
 一个随机端点只尝试一次，即使连接抛出 pipe::Error 也计为已领取，不等待管道、不重试、不复用名称。未 Ready、停止中、已退出或端点用尽返回空指针。连接失败由调用方处理，不影响其他尚未领取端点；不得自动把未确认按键转给其他连接。返回的 Channel 仍由 I/O 线程负责 Hello／ClientGate、候选快照、取消和关闭回收，claim 成功不是业务握手完成。
 
-`status()` 返回固定元数据：状态、Failure、必要的 Win32 数字、可选退出码、已领取／配置端点数量。Failure 区分 StartupExit、UnexpectedExit、StartupTimeout、StopTimeout、ControlIo；超时原因保留到真实退出，不被终止退出码覆盖。未观察 ready 即退出，即使退出码 0 也算 StartupExit；已就绪后的正常退出码 0 允许作为宿主自行收尾。构造／系统检查失败抛出固定异常，不能伪造 Ready。当前没有用户可见的持久诊断入口，不记录输入、候选或异常详情。
+`status()` 返回固定元数据：状态、Failure、必要的 Win32 数字、可选退出码、已领取／配置端点数量。Failure 区分 StartupExit、UnexpectedExit、StartupTimeout、StopTimeout、ControlIo、InstanceBusy；最后一项用于独立所有者启动阶段的重复实例退出码 183，不自动附着。超时原因保留到真实退出，不被终止退出码覆盖。其余未观察 ready 即退出，即使退出码 0 也算 StartupExit；已就绪后的正常退出码 0 允许作为宿主自行收尾。构造／系统检查失败抛出固定异常，不能伪造 Ready。当前没有用户可见的持久诊断入口，不记录输入、候选或异常详情。
 
 `processHandle()` 是受管理根进程的借用句柄，用于退出监督；直接模式是宿主，独立所有者模式是所有者进程。查询认证使用 `engineHandle()`：直接模式与根相同，独立模式在 Ready 前为空，之后是固定的只读宿主对象。成功分配返回的 Endpoint 自动选用这个查询对象，不能把所有者对象当成查询服务端。借用句柄不得关闭或修改；跨越模块寿命须自行 DuplicateHandle，它们不能替代文件签名校验。模块不可复制／移动，不能跨线程并发调用。
 
@@ -67,4 +67,4 @@ cmake --build .build/windows/msvc --config Release
 ctest --test-dir .build/windows/msvc -C Release -R '^(engine_process|engine_host|engine_host_process|engine_host_full)$' --output-on-failure
 ```
 
-一次性端点交接、多客户端竞争／总私有量、动态端点和私有诊断已完成；[受控独立所有者](ENGINE_OWNER.md)新增三个独立客户端、可信对象交接及故障回归。本批完整 Release 构建与 9 项相关 CTest 通过，当前共 47 项。下一步明确正式常驻生命周期、单实例竞争、可信服务发现／应用注册；不得从公开 PID 自认证。实验根进程仍属于可信启动方的 Job，不能直接作为正式常驻服务；版本更新、组字边界换代／回退和 TSF 继续按 WIN-03 推进。
+一次性端点交接、多客户端竞争／总私有量、动态端点和私有诊断已完成；[受控独立所有者](ENGINE_OWNER.md)新增三个独立客户端、可信对象交接及故障回归。最新可选实例竞争和验证见[单实例说明](ENGINE_INSTANCE.md)及[开发状态](DEVELOPMENT_STATUS.md)。下一步明确正式常驻生命周期、可信服务发现／应用注册；不得从公开 PID 自认证。实验根进程仍属于可信启动方的 Job，不能直接作为正式常驻服务；版本更新、组字边界换代／回退和 TSF 继续按 WIN-03 推进。
