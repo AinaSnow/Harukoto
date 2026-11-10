@@ -1,4 +1,5 @@
 #include "../EngineExecutor.h"
+#include "../EngineTrace.h"
 #include "../PendingDelivery.h"
 #include <atomic>
 #include <cassert>
@@ -52,7 +53,7 @@ static void boundedMailbox() {
     assert(executor.waitUntilReady(deadline()) && executor.completed() == 1);
     // Completed but uncollected results still occupy capacity.
     assert(executor.outstanding() == 1 && executor.submit(other) == Admission::Full);
-    auto result = take(executor); assert(result.work == first && result.page);
+    auto result = take(executor); assert(result.work == first && result.page && !result.timings);
     assert(executor.outstanding() == 0 && !executor.tryTake());
     executor.stop(); executor.join(); assert(executor.submit(other) == Admission::Stopped);
     assert(!executor.waitUntilReady(deadline()));
@@ -192,8 +193,26 @@ static void parallelAndClientFailure() {
     assert(!client.accept(*failed.response,1) && !client.ready() && client.size() == 0);
     assert(!client.accept(*failed.response,1) && *retained.begin() == L"已确认");
 }
+static std::atomic<uint64_t> traceTick{1};
+static uint64_t traceClock() noexcept { return traceTick.fetch_add(10); }
+static void optionalTimings() {
+    Block blocked;
+    Executor executor(1,3,[&](const Ticket &work) { blocked.run(); return page(work); },[] { return 0; },{},traceClock);
+    auto first = ticket(), cancelled = ticket('b'), stopped = ticket('c');
+    assert(executor.submit(first) == Admission::Accepted); blocked.wait();
+    assert(executor.submit(cancelled) == Admission::Accepted && executor.submit(stopped) == Admission::Accepted);
+    assert(executor.cancel(cancelled));
+    const auto removed = take(executor); const auto &c = *removed.timings;
+    assert(!c.started && !c.finished && c.submitted < c.published && c.published < c.taken);
+    executor.stop(); const auto skipped = take(executor); const auto &s = *skipped.timings;
+    assert(!s.started && !s.finished && s.submitted < s.published && s.published < s.taken);
+    blocked.release.set_value(); executor.join(); const auto done = take(executor); const auto &t = *done.timings;
+    assert(t.submitted < t.started && t.started < t.finished && t.finished < t.published && t.published < t.taken);
+    EngineTraceBuffer buffer(1); buffer.append({}); buffer.append({});
+    assert(buffer.rows().size() == 1 && buffer.dropped() == 1);
+}
 int main() {
     boundedMailbox(); queueCancellationAndDeadline(); cancellationAndOwnerIsolation();
-    failuresAndWorkerSurvival(); runningDeadlineAndShutdown(); parallelAndClientFailure();
+    failuresAndWorkerSurvival(); runningDeadlineAndShutdown(); parallelAndClientFailure(); optionalTimings();
     std::cout << "PASS: bounded workers/results, cancellation, deadlines, terminal errors, isolation and shutdown\n";
 }

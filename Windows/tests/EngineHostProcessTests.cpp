@@ -103,6 +103,16 @@ int wmain(int argc, wchar_t **argv) {
                 host.manager.status().exitCode == DWORD(77) && !host.manager.claim(ep::now()));
         }
         { Child invalid(executable,base/L"missing",themes,personal,false); }
+        {
+            EngineProcess::Config config{executable,base,themes,personal};
+            config.trace = base/L"native-pinyin.tsv"; // Existing data must never become trace output.
+            EngineProcess process(config);
+            while (process.poll(ep::now()) == EngineProcess::State::Starting)
+                wait(process.waitHandles(),process.deadline());
+            assert(process.status().state == EngineProcess::State::Exited &&
+                process.status().failure == EngineProcess::Failure::StartupExit &&
+                process.status().exitCode && *process.status().exitCode != 0);
+        }
         assert(writable(base/L"language-evidence.sqlite"));
         std::cout << "engine_host_process: real per-key Chinese/Japanese/FF14, pagination, partial/replayed selection, stop/crash and startup failure passed\n";
         return 0;

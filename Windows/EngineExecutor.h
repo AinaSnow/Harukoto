@@ -15,11 +15,16 @@ public:
     using Query = std::function<CandidatePage(const Ticket &)>;
     using Clock = std::function<uint64_t()>;
     using Wake = std::function<void()>;
+    using TraceClock = uint64_t (*)() noexcept;
+    struct Timings {
+        uint64_t submitted = 0, started = 0, finished = 0, published = 0, taken = 0;
+    };
     enum class Admission { Accepted, Full, Stopped, Duplicate, Invalid };
     struct Completion {
         Ticket work;
         std::optional<CandidatePage> page;
         ErrorCode error = ErrorCode::Backend;
+        std::optional<Timings> timings;
         // Owner-thread only. Server checks exact ticket ownership again.
         ServerConnection::Result deliver(ServerConnection &server, uint64_t now) const {
             return page ? server.complete(work, *page, now) : server.fail(work, error, now);
@@ -27,6 +32,11 @@ public:
     };
     static uint64_t now() {
         return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count());
+    }
+    // Optional profiling clock, distinct from the millisecond deadline clock.
+    static uint64_t traceNow() noexcept {
+        return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count());
     }
 private:
@@ -39,6 +49,7 @@ private:
     Query query_;
     Clock clock_;
     Wake wake_;
+    TraceClock traceClock_;
     std::vector<Slot> slots_;
     std::vector<std::thread> workers_;
     std::mutex mutex_;
@@ -54,6 +65,7 @@ private:
     std::optional<Completion> takeLocked() {
         for (auto &slot : slots_) if (slot.state == State::Complete) {
             auto result = std::move(slot.result);
+            if (result.timings) result.timings->taken = traceClock_();
             slot = Slot{}; --occupied_; --finished_; return result;
         }
         return {};
@@ -71,6 +83,7 @@ private:
                 index = cursor_; cursor_ = (cursor_ + 1) % slots_.size();
                 slots_[index].state = State::Running; --queued_;
                 work = slots_[index].result.work;
+                if (slots_[index].result.timings) slots_[index].result.timings->started = traceClock_();
             }
             std::optional<CandidatePage> page;
             ErrorCode error = ErrorCode::Backend;
@@ -85,6 +98,7 @@ private:
                     else page = std::move(result);
                 }
             } catch (...) { page.reset(); error = ErrorCode::Backend; }
+            const auto finished = traceClock_ ? traceClock_() : 0;
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 auto &slot = slots_[index];
@@ -92,6 +106,10 @@ private:
                     page.reset(); error = stopping_ ? ErrorCode::Stopped : ErrorCode::Cancelled;
                 }
                 slot.result.page = std::move(page); slot.result.error = error;
+                if (slot.result.timings) {
+                    slot.result.timings->finished = finished;
+                    slot.result.timings->published = traceClock_();
+                }
                 slot.state = State::Complete; ++finished_;
                 notifyCompleted();
             }
@@ -100,8 +118,8 @@ private:
 public:
     // Query and Clock must support concurrent calls and return. They must not
     // capture a connection, TSF context or thread-affine database connection.
-    explicit Executor(size_t threads, size_t capacity, Query query, Clock clock = now, Wake wake = {})
-        : query_(std::move(query)), clock_(std::move(clock)), wake_(std::move(wake)) {
+    explicit Executor(size_t threads, size_t capacity, Query query, Clock clock = now, Wake wake = {}, TraceClock traceClock = nullptr)
+        : query_(std::move(query)), clock_(std::move(clock)), wake_(std::move(wake)), traceClock_(traceClock) {
         if (!threads || threads > 16 || !capacity || capacity > 256 || threads > capacity || !query_ || !clock_)
             throw std::invalid_argument("invalid engine executor limits");
         slots_.resize(capacity); workers_.reserve(threads);
@@ -120,6 +138,7 @@ public:
             if (slot.state != State::Free && slot.result.work == work) return Admission::Duplicate;
         if (occupied_ == slots_.size()) return Admission::Full;
         for (auto &slot : slots_) if (slot.state == State::Free) {
+            if (traceClock_) { slot.result.timings = Timings{}; slot.result.timings->submitted = traceClock_(); }
             slot.result.work = work; slot.state = State::Queued; ++occupied_; ++queued_; break;
         }
         ready_.notify_one(); return Admission::Accepted;
@@ -132,6 +151,7 @@ public:
         for (auto &slot : slots_) if (slot.state != State::Free && slot.result.work == work) {
             slot.cancelled = true;
             if (slot.state != State::Running) {
+                if (slot.state == State::Queued && slot.result.timings) slot.result.timings->published = traceClock_();
                 if (slot.state == State::Queued) { --queued_; ++finished_; }
                 slot.state = State::Complete; slot.result.page.reset(); slot.result.error = ErrorCode::Cancelled;
                 notifyCompleted();
@@ -167,6 +187,7 @@ public:
         if (stopping_) return;
         stopping_ = true;
         for (auto &slot : slots_) if (slot.state == State::Queued || slot.state == State::Complete) {
+            if (slot.state == State::Queued && slot.result.timings) slot.result.timings->published = traceClock_();
             if (slot.state == State::Queued) { --queued_; ++finished_; }
             slot.state = State::Complete; slot.result.page.reset(); slot.result.error = ErrorCode::Stopped;
         }

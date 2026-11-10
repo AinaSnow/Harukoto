@@ -1,12 +1,13 @@
 #pragma once
 #include "EnginePipe.h"
-#include "EngineExecutor.h"
+#include "EngineTrace.h"
 
 namespace harukoto::engine {
 // Experimental service owner. Endpoints are supplied by a trusted launcher;
 // each is single-use. No TSF/COM, discovery, restart, or dictionary publication.
 class Host {
 public:
+    using Observer = std::function<void(const EngineTrace &)>;
     static constexpr size_t MaxConnections = 8;
     struct Options {
         size_t threads = 2, capacity = 32, replies = 8;
@@ -20,7 +21,9 @@ private:
         std::deque<Frame> replies;
         uint64_t listenDeadline = 0, readDeadline = 0, writeDeadline = 0, terminalDeadline = 0;
         bool reading = false, writing = false, ending = false, closed = false;
-        Endpoint(uint64_t generation, std::shared_ptr<const WindowsDictionary> dictionary) : server(generation,std::move(dictionary)) {}
+        size_t index;
+        Endpoint(uint64_t generation, std::shared_ptr<const WindowsDictionary> dictionary, size_t number)
+            : server(generation,std::move(dictionary)), index(number) {}
     };
     struct Job { Endpoint *owner; ServerConnection::Ticket work; bool cancelled = false; };
     Options options_;
@@ -28,6 +31,7 @@ private:
         pipe::Handle event(CreateEventW(nullptr,FALSE,FALSE,nullptr)); pipe::check(bool(event)); return event;
     }
     pipe::Handle completed_ = completionEvent();
+    Observer observer_;
     Executor executor_;
     std::vector<std::unique_ptr<Endpoint>> endpoints_;
     std::vector<Job> jobs_;
@@ -134,14 +138,15 @@ private:
     }
 public:
     Host(const std::vector<std::wstring> &names, std::shared_ptr<const WindowsDictionary> dictionary,
-            uint64_t generation, Executor::Query query, Options options)
-        : options_(validate(options,names)), executor_(options_.threads,options_.capacity,std::move(query),Executor::now,
-            [event = completed_.get()] { pipe::check(SetEvent(event)); }) {
+            uint64_t generation, Executor::Query query, Options options, Observer observer = {})
+        : options_(validate(options,names)), observer_(std::move(observer)),
+          executor_(options_.threads,options_.capacity,std::move(query),Executor::now,
+            [event = completed_.get()] { pipe::check(SetEvent(event)); },observer_ ? Executor::traceNow : nullptr) {
         pipe::check(bool(completed_));
         jobs_.reserve(options_.capacity);
         const auto time = pipe::now();
         for (const auto &name : names) {
-            auto endpoint = std::make_unique<Endpoint>(generation,dictionary);
+            auto endpoint = std::make_unique<Endpoint>(generation,dictionary,endpoints_.size());
             endpoint->listenDeadline = time + options_.listenMs;
             endpoint->listener = std::make_unique<pipe::Listener>(name,time,endpoint->listenDeadline);
             endpoints_.push_back(std::move(endpoint));
@@ -174,7 +179,17 @@ public:
                     if (found == jobs_.end()) throw std::logic_error("unowned engine completion");
                     const auto job = *found; jobs_.erase(found); progress = true;
                     if (!job.cancelled && !job.owner->closed && !job.owner->ending) {
-                        try { result(*job.owner,completion->deliver(job.owner->server,pipe::now()),pipe::now(),true); }
+                        try {
+                            auto received = completion->deliver(job.owner->server,pipe::now());
+                            const bool replied = received.status == ServerConnection::Status::Reply;
+                            result(*job.owner,std::move(received),pipe::now(),true);
+                            if (observer_ && completion->timings && replied && !job.owner->closed) {
+                                const EngineTrace trace{job.owner->index,job.work->request.id,*completion->timings,Executor::traceNow()};
+                                // Like Wake, the optional observer must not block,
+                                // throw, re-enter Host or access TSF objects.
+                                try { observer_(trace); } catch (...) { std::terminate(); }
+                            }
+                        }
                         catch (...) { close(*job.owner); }
                     }
                 }

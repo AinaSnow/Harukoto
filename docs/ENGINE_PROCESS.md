@@ -38,6 +38,8 @@ WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内�
 
 ## 端点与诊断接口
 
+Config 新增 `threads`（1～16，默认 2）与可选 `trace` 绝对路径，传给开发宿主的 `--threads`／`--trace`；空路径关闭计时。相对路径、内嵌 NUL 或非法线程数在启动前拒绝。追踪文件存在时真实宿主拒绝启动，管理器观察为 StartupExit，不覆盖文件；计时说明见[进程间测量](ENGINE_IPC_PERFORMANCE.md#可选服务计时与混合负载)。
+
 `takeEndpoint(time)` 仅在 Ready 领取下一个端点，返回随机名称及一份非继承、仅 PROCESS_QUERY_LIMITED_INFORMATION／SYNCHRONIZE 权限的保留进程句柄；领取即消费，即使之后没有连接或交接失败也不归还。可信启动方可明确复制到自己创建的客户端句柄列表，不得只传 PID 后重新打开。`claim(time)` 复用该接口，并在当前 I/O 线程用返回的进程 HANDLE 调用 Channel::connect。Channel 再复制该内核对象、核验进程令牌和实际管道服务端进程。模块不从数字 PID 重新打开进程作为信任依据。
 
 一个随机端点只尝试一次，即使连接抛出 pipe::Error 也计为已领取，不等待管道、不重试、不复用名称。未 Ready、停止中、已退出或端点用尽返回空指针。连接失败由调用方处理，不影响其他尚未领取端点；不得自动把未确认按键转给其他连接。返回的 Channel 仍由 I/O 线程负责 Hello／ClientGate、候选快照、取消和关闭回收，claim 成功不是业务握手完成。

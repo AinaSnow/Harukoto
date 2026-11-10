@@ -48,6 +48,8 @@ python -X utf8 scripts/benchmark-engine-ipc.py --reader .build/windows/msvc/Rele
 
 ## 完整词库基线
 
+以下基线保留格式 1 原始报告；新增工具使用格式 2，增加线程数、负载、完整请求身份和可选服务计时，不改写旧数据。分段计时与混合负载方法见本文末尾。
+
 工具从干净提交 61a25e3 运行，source_dirty=false；[完整原始报告](benchmarks/engine-ipc-baseline.json)保留 18 组、4,032 个逐键样本、693 次选择与 42 个客户端记录。两个程序、17 个相关源码文件、基础四文件与 FF14 文件前后哈希一致。MSVC Release、Windows 11 10.0.26300、16 个逻辑 CPU；测量时未并行构建或运行 CTest，没有控制系统其他负载。每组只运行一次三轮固定样本，不是多次独立组实验。
 
 下表总私有量包含协调器、全部客户端和相应宿主，是就绪后观测到的同轮采样峰值，MiB=1,048,576 字节；不是物理内存、启动峰值或精确历史峰值。中位和最大跨本组不同前缀／客户端／轮次汇总，具体热点应查原始样本。
@@ -90,3 +92,33 @@ python -X utf8 scripts/benchmark-engine-ipc.py --reader .build/windows/msvc/Rele
 四客户端共享组的全员工作区间共同重叠，基础约 558.65 ms、FF14 约 1,812.18 ms；全矩阵最大的客户端唤醒时间差约 0.097 ms。确实使用了不同客户端进程参与竞争，但仍是固定文本驱动，不等于多个人工应用同时输入。最大单轮内存读取约 0.064 ms，实际采样次数与三个阶段的分项保留在报告中，不能据此保证采样捕获所有短暂峰值。
 
 下一批优先补服务端排队／执行时长，比较 2／4 工作线程和长短请求混合负载，在同等条件下确认延迟及额外内存，再决定线程与超时预算。之后推进共享所有者寿命、可信服务发现／正式诊断和组字边界更新，最后接 TSF、候选渲染和真实应用验收。当前安装未修改，尚未默认启用共享引擎。
+
+## 可选服务计时与混合负载
+
+开发宿主新增 `--threads 1..16`（默认仍为 2）和 `--trace` 绝对文件路径。EngineProcess 的 Config 传递这两个选项。计时默认关闭，不调用额外计时时钟、不分配追踪缓冲区、不写计时文件；Completion 结构保留可选时间字段。开启时预分配 8,192 条固定记录，只保存端点、完整请求身份和单调纳秒时间，无输入／候选文字、路径或异常详情。Host 所属线程写入内存，正常收尾后才统一写 JSONL；文件用 CREATE_NEW 打开，已有文件拒绝覆盖。缓冲区满时不影响候选回复，但计数 dropped，测量验证器会拒绝该组。异常结束可能只留下空文件或不完整记录，不能作为成功报告。
+
+每个成功存入原连接回复队列的 Key 记录六个时间点；取消、迟到、失败和关闭时回收的结果不作为成功计时。时间字段只在同一宿主内相减，不比较不同进程时钟的绝对值：
+
+| 分段 ms | 时间差 | 包含范围 |
+| --- | --- | --- |
+| queue | started − submitted | 提交后等待工作线程，含线程唤醒和取任务 |
+| execution | finished − started | 真实完整查询、候选载荷复验和截止时间检查 |
+| publication | published − finished | 等待结果锁、存入结果槽 |
+| mailbox | taken − published | 发布后等待所属线程领取 |
+| owner | enqueued − taken | 查找原任务、ServerConnection 完成校验／编码及存入回复队列 |
+| total | enqueued − submitted | 上述五段之和，不包括写入管道完成 |
+| remainder | request_ms − total | 提交前接收／业务处理、编码、管道、排队后发送、客户端校验和其他未覆盖部分；不是纯 IPC 时间 |
+
+客户端逐键记录完整 engine／connection／session／composition／request，验证器再用 engine_index＋endpoint 联合匹配，不用相同数字身份跨连接猜测归属。必须每键恰有一条服务记录、每宿主恰有一条状态，记录数一致、dropped=0、时间单调且服务总时长不超出客户端往返（允许输出精度 0.001 ms）。原始报告保留全部时间点；汇总按各键先计算分段，再分别求中位／最大／合计，不能相加各段中位或最大来代替总时长。
+
+`--workloads uniform mixed` 扩展两类负载。uniform 保留所有客户端相同词序。mixed 让客户端 0 只打长词，其他客户端只打其余词：基础长词为 xinkule，FF14 为 tejihuifuyao。四客户端每轮基础 mixed 为 64 键／13 次选择，FF14 为 90 键／16 次选择；长短任务数量不同，完成后客户端不会继续补发，不能认为整个工作区间始终有四个活跃请求。汇总另列 long／short 两组；uniform 也用同样词组划分，方便对照。1 客户端 mixed 只有长词，不构成竞争。
+
+同一份完整词库比较 2／4 工作线程：
+
+```powershell
+python -X utf8 scripts/benchmark-engine-ipc.py --reader .build/windows/msvc/Release/harukoto_engine_ipc_benchmark.exe --host .build/windows/msvc/Release/harukoto_engine_host.exe --lexicon .build/windows/ime --counts 4 --modes shared --threads 2 4 --profile --workloads uniform mixed --runs 3 --output .build/windows/engine-ipc-thread-profile.json
+```
+
+省略 `--profile` 可生成同配置的无计时对照；local 总是 threads=0／profile=false，多线程列表不会重复运行 local。格式 2 中组身份是 scenario／mode／clients／threads／profile／workload。运行顺序为基础／FF14、人数、模式、线程数、负载；仍是固定顺序和未控制缓存／其他系统负载的实验，计时时钟、缓冲区和内存采样也有成本。不得把一次开关计时差值解释为精确探针开销，或用单组最大值当分位数保证。
+
+回归保留默认 18 组、1,344 键／231 次选择；新增微型基础＋完整 FF14 的 20 组线程／负载矩阵（local 只执行一次线程配置），2,050 键，其中 1,640 键与服务时间逐一对应。覆盖 2／4 线程、共享／独占端点归属、缺失／重复／错代次／反向时间／丢记录／超出往返时间拒绝，并检查分段合计。执行器用受控计时验证正常与取消／停止时间，真实宿主回归验证追踪路径已存在时启动失败且词库未变。

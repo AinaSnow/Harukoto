@@ -13,6 +13,8 @@ public:
         std::filesystem::path executable, base, themes, personal;
         size_t connections = 2;
         uint64_t startupMs = 30000, stopMs = 5000;
+        size_t threads = 2;
+        std::filesystem::path trace;
     };
     struct Status {
         State state;
@@ -56,6 +58,7 @@ private:
         if (!absolute(config.executable) || !absolute(config.base) ||
                 (!config.themes.empty() && !absolute(config.themes)) ||
                 (!config.personal.empty() && !absolute(config.personal)) ||
+                (!config.trace.empty() && !absolute(config.trace)) || !config.threads || config.threads > 16 ||
                 !config.connections || config.connections > 8 || !config.startupMs || config.startupMs > 300000 ||
                 !config.stopMs || config.stopMs > 300000)
             throw std::invalid_argument("invalid engine process configuration");
@@ -85,6 +88,8 @@ private:
         std::vector<std::wstring> arguments{config.executable.wstring(),L"--base",config.base.wstring()};
         if (!config.themes.empty()) { arguments.push_back(L"--themes"); arguments.push_back(config.themes.wstring()); }
         if (!config.personal.empty()) { arguments.push_back(L"--personal"); arguments.push_back(config.personal.wstring()); }
+        if (config.threads != 2) { arguments.push_back(L"--threads"); arguments.push_back(std::to_wstring(config.threads)); }
+        if (!config.trace.empty()) { arguments.push_back(L"--trace"); arguments.push_back(config.trace.wstring()); }
         for (const auto &name : names_) { arguments.push_back(L"--pipe"); arguments.push_back(name); }
         arguments.insert(arguments.end(),{L"--ready",std::to_wstring(reinterpret_cast<uintptr_t>(childReady.get())),
             L"--stop",std::to_wstring(reinterpret_cast<uintptr_t>(childStop.get()))});

@@ -80,6 +80,8 @@ int wmain(int argc, wchar_t **argv) {
         value = config(L"normal"); value.stopMs = 0; invalid(value);
         value.stopMs = 300001; invalid(value);
         value = config(L"normal"); value.themes = L"relative"; invalid(value);
+        value = config(L"normal"); value.threads = 0; invalid(value); value.threads = 17; invalid(value);
+        value = config(L"normal"); value.trace = L"relative.jsonl"; invalid(value);
         value = config(L"normal"); value.personal = std::wstring(L"C:\\valid\0hidden",15); invalid(value);
         value = config(L"normal"); value.personal = L"C:\\"+std::wstring(33000,L'a'); invalid(value);
         value = config(L"normal"); value.executable = self().parent_path()/L"missing-engine.exe";

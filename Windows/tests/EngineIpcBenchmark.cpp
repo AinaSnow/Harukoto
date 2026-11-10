@@ -32,14 +32,15 @@ static pipe::Handle inherited(const wchar_t *text) {
     ep::check(SetHandleInformation(handle,HANDLE_FLAG_INHERIT,0)); return pipe::Handle(handle);
 }
 struct Case { const char *input, *expected, *remaining; };
-struct Sample { const char *input; int round; size_t key; double ms; };
+struct Sample { const char *input; int round; size_t key; double ms; Identity id; };
 static int worker(int argc, wchar_t **argv) {
-    require(argc == 13);
+    require(argc == 14);
     const std::filesystem::path base = argv[2], themes = std::wstring(argv[3]) == L"-" ? L"" : argv[3];
     const bool remote = std::wstring(argv[4]) != L"-";
     auto engine = remote ? inherited(argv[5]) : pipe::Handle{};
     auto start = inherited(argv[6]), ready = inherited(argv[7]), done = inherited(argv[8]), release = inherited(argv[9]);
     const auto runs = std::stoi(argv[10]), index = std::stoi(argv[11]);
+    const std::wstring workload = argv[13]; require(workload == L"uniform" || workload == L"mixed");
     require(runs >= 1 && runs <= 20 && index >= 0 && index < 4);
     std::shared_ptr<const WindowsDictionary> dictionary;
     std::unique_ptr<ServerConnection> server;
@@ -62,6 +63,12 @@ static int worker(int argc, wchar_t **argv) {
     std::vector<Case> cases{{"nihao","你好",""},{"xinkule","辛苦了",""},{"riben","日本",""},
         {"eat","食べる",""},{"nihaoz","你好","z"}};
     if (!themes.empty()) cases.push_back({"tejihuifuyao","特级恢复药",""});
+    if (workload == L"mixed") {
+        const std::string longCase = themes.empty() ? "xinkule" : "tejihuifuyao";
+        cases.erase(std::remove_if(cases.begin(),cases.end(),[&](const Case &sample) {
+            return index == 0 ? sample.input != longCase : sample.input == longCase;
+        }),cases.end());
+    }
     std::vector<Sample> samples; samples.reserve(38*runs);
     uint64_t generation = 0; std::vector<std::pair<const char *,int>> commits;
     for (int round=0;round<runs;++round) for (const auto &sample : cases) {
@@ -72,7 +79,7 @@ static int worker(int argc, wchar_t **argv) {
             require(client->current.input == input.substr(0,key+1));
             if (!generation) generation = client->last.id.engine;
             require(generation == client->last.id.engine);
-            samples.push_back({sample.input,round,key+1,ms});
+            samples.push_back({sample.input,round,key+1,ms,client->last.id});
         }
         const auto commit = client->choose(find(client->current,sample.expected));
         require(commit.text == sample.expected && commit.remaining == sample.remaining &&
@@ -80,9 +87,13 @@ static int worker(int argc, wchar_t **argv) {
     }
     const auto finishedCounter = counter();
     std::ofstream output{std::filesystem::path(argv[12])}; require(bool(output)); output << std::setprecision(10);
-    for (const auto &sample : samples) output << "{\"type\":\"sample\",\"client\":" << index
-        << ",\"case\":\"" << sample.input << "\",\"run\":" << sample.round << ",\"key\":" << sample.key
-        << ",\"request_ms\":" << sample.ms << "}\n";
+    for (const auto &sample : samples) {
+        const auto &id = sample.id;
+        output << "{\"type\":\"sample\",\"client\":" << index
+            << ",\"case\":\"" << sample.input << "\",\"run\":" << sample.round << ",\"key\":" << sample.key
+            << ",\"request_ms\":" << sample.ms << ",\"engine\":" << id.engine << ",\"connection\":" << id.connection
+            << ",\"session\":" << id.session << ",\"composition\":" << id.composition << ",\"request\":" << id.request << "}\n";
+    }
     for (const auto &commit : commits) output << "{\"type\":\"commit\",\"client\":" << index
         << ",\"case\":\"" << commit.first << "\",\"run\":" << commit.second << ",\"verified\":true}\n";
     output << "{\"type\":\"client\",\"client\":" << index << ",\"engine\":" << generation
@@ -98,7 +109,7 @@ struct Worker {
     std::filesystem::path output;
     Worker(const std::filesystem::path &base, const std::filesystem::path &themes,
             std::optional<EngineProcess::Endpoint> endpoint, HANDLE start, HANDLE release,
-            int runs, int index, const std::filesystem::path &folder) : output(folder/(std::to_wstring(index)+L".jsonl")) {
+            int runs, int index, const std::filesystem::path &folder, const std::wstring &workload) : output(folder/(std::to_wstring(index)+L".jsonl")) {
         job.reset(CreateJobObjectW(nullptr,nullptr)); ep::check(bool(job));
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{}; limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
         ep::check(SetInformationJobObject(job.get(),JobObjectExtendedLimitInformation,&limits,sizeof(limits)));
@@ -123,7 +134,7 @@ struct Worker {
         std::vector<std::wstring> args{executable.wstring(),L"--worker",base.wstring(),themes.empty() ? L"-" : themes.wstring(),
             endpoint ? endpoint->name : L"-",endpoint ? std::to_wstring(reinterpret_cast<uintptr_t>(handles[4])) : L"0"};
         for (size_t i=0;i<4;++i) args.push_back(std::to_wstring(reinterpret_cast<uintptr_t>(handles[i])));
-        args.insert(args.end(),{std::to_wstring(runs),std::to_wstring(index),output.wstring()});
+        args.insert(args.end(),{std::to_wstring(runs),std::to_wstring(index),output.wstring(),workload});
         std::wstring command; for (const auto &arg : args) { if (!command.empty()) command += L' '; command += quote(arg); }
         STARTUPINFOEXW startup{}; startup.StartupInfo.cb = sizeof(startup); startup.lpAttributeList = attributes;
         PROCESS_INFORMATION info{};
@@ -160,12 +171,16 @@ static void waitEngine(EngineProcess &engine) {
     require(engine.status().state == EngineProcess::State::Ready);
 }
 static int coordinator(int argc, wchar_t **argv) {
-    require(argc == 8);
+    require(argc == 11);
     const std::filesystem::path host = argv[1], base = argv[2], themes = std::wstring(argv[3]) == L"-" ? L"" : argv[3], folder = argv[7];
     const auto count = std::stoi(argv[4]), runs = std::stoi(argv[5]); const std::wstring mode = argv[6];
+    const auto threads = std::stoi(argv[8]); const bool profile = std::wstring(argv[9]) == L"1";
+    const std::wstring workload = argv[10]; require(workload == L"uniform" || workload == L"mixed");
     require(host.is_absolute() && base.is_absolute() && folder.is_absolute() && (themes.empty() || themes.is_absolute()));
     require((count == 1 || count == 2 || count == 4) && runs >= 1 && runs <= 20);
     require(mode == L"local" || mode == L"isolated" || mode == L"shared");
+    require(mode == L"local" ? threads == 0 && !profile : threads >= 1 && threads <= 16);
+    require(std::wstring(argv[9]) == L"0" || std::wstring(argv[9]) == L"1");
     const auto began = Clock::now();
     auto start = event(), release = event();
     std::vector<std::unique_ptr<EngineProcess>> engines;
@@ -173,13 +188,15 @@ static int coordinator(int argc, wchar_t **argv) {
     for (int i=0;i<engineCount;++i) {
         EngineProcess::Config config{host,base,themes,{}};
         config.connections = mode == L"shared" ? count : 1;
+        config.threads = static_cast<size_t>(threads);
+        if (profile) config.trace = folder/(L"engine-"+std::to_wstring(i)+L".jsonl");
         engines.push_back(std::make_unique<EngineProcess>(config)); waitEngine(*engines.back());
     }
     std::vector<std::unique_ptr<Worker>> workers;
     for (int i=0;i<count;++i) {
         std::optional<EngineProcess::Endpoint> endpoint;
         if (engineCount) { endpoint = engines[mode == L"shared" ? 0 : i]->takeEndpoint(ep::now()); require(endpoint.has_value()); }
-        workers.push_back(std::make_unique<Worker>(base,themes,std::move(endpoint),start.get(),release.get(),runs,i,folder));
+        workers.push_back(std::make_unique<Worker>(base,themes,std::move(endpoint),start.get(),release.get(),runs,i,folder,workload));
     }
     auto memory = [&] {
         Memory result; result.controller = privateBytes(GetCurrentProcess());
@@ -214,9 +231,9 @@ static int coordinator(int argc, wchar_t **argv) {
     };
     waitWorkers(false,false); const auto prepareMs = elapsed(began); const auto ready = sweep();
     LARGE_INTEGER frequency{}; ep::check(QueryPerformanceFrequency(&frequency));
-    const auto workload = Clock::now(); const auto releaseCounter = counter();
+    const auto workloadStart = Clock::now(); const auto releaseCounter = counter();
     ep::check(SetEvent(start.get())); waitWorkers(true,true);
-    const auto wallMs = elapsed(workload); const auto held = sweep();
+    const auto wallMs = elapsed(workloadStart); const auto held = sweep();
     ep::check(SetEvent(release.get()));
     for (const auto &w : workers) {
         require(WaitForSingleObject(w->process.get(),10000) == WAIT_OBJECT_0);
@@ -232,14 +249,25 @@ static int coordinator(int argc, wchar_t **argv) {
         require(e->status().failure == EngineProcess::Failure::None && e->status().exitCode == DWORD(0));
     }
     const char *modeName = mode == L"local" ? "local" : mode == L"isolated" ? "isolated" : "shared";
+    const char *workloadName = workload == L"uniform" ? "uniform" : "mixed";
     std::cout << std::setprecision(10) << "{\"type\":\"group\",\"mode\":\"" << modeName
         << "\",\"clients\":" << count << ",\"runs\":" << runs << ",\"engine_processes\":" << engineCount
+        << ",\"threads\":" << threads << ",\"profile\":" << (profile ? "true" : "false") << ",\"workload\":\"" << workloadName << '"'
         << ",\"prepare_ms\":" << prepareMs << ",\"wall_ms\":" << wallMs << ",\"release_counter\":" << releaseCounter
         << ",\"counter_frequency\":" << frequency.QuadPart << ",\"memory\":{\"ready\":";
     print(ready); std::cout << ",\"sampled_peak\":"; print(peak); std::cout << ",\"held\":"; print(held);
     std::cout << ",\"samples\":" << samples << ",\"interval_ms\":10,\"max_sweep_ms\":" << maxSweep << "}}\n";
     for (const auto &w : workers) {
         std::ifstream input(w->output); require(bool(input)); std::cout << input.rdbuf(); require(!input.bad());
+    }
+    if (profile) for (int i=0;i<engineCount;++i) {
+        std::ifstream input(folder/(L"engine-"+std::to_wstring(i)+L".jsonl")); require(bool(input));
+        std::string line;
+        while (std::getline(input,line)) {
+            require(!line.empty() && line.front() == '{');
+            std::cout << "{\"engine_index\":" << i << ',' << line.substr(1) << '\n';
+        }
+        require(!input.bad());
     }
     require(bool(std::cout)); return 0;
 }
