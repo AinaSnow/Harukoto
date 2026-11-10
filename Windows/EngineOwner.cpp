@@ -6,7 +6,7 @@ using namespace harukoto::engine;
 int wmain(int argc, wchar_t **argv) {
     try {
         EngineProcess::Config config; config.dynamicEndpoints = true;
-        std::array<pipe::Handle,6> inherited; // ready, stop, section, request, response, anchor
+        std::array<pipe::Handle,9> inherited; // ready, stop, control3, anchor, optional admission3
         std::vector<std::array<pipe::Handle,4>> registrations;
         bool threadsSet = false, connectionsSet = false;
         std::wstring instanceScope;
@@ -68,12 +68,20 @@ int wmain(int argc, wchar_t **argv) {
             else if (key == L"--control-request") own(3,value);
             else if (key == L"--control-response") own(4,value);
             else if (key == L"--anchor") own(5,value);
+            else if (key == L"--admission-section") own(6,value);
+            else if (key == L"--admission-request") own(7,value);
+            else if (key == L"--admission-response") own(8,value);
             else throw std::invalid_argument("invalid owner option");
         }
-        if (!connectionsSet || std::any_of(inherited.begin(),inherited.end(),[](const auto &entry) { return !entry; }))
+        const bool admissionSet = bool(inherited[6]) || bool(inherited[7]) || bool(inherited[8]);
+        if (!connectionsSet || std::any_of(inherited.begin(),inherited.begin()+6,[](const auto &entry) { return !entry; }) ||
+                (admissionSet && std::any_of(inherited.begin()+6,inherited.end(),[](const auto &entry) { return !entry; })))
             throw std::invalid_argument("incomplete owner startup");
         pipe::processIdentityOnly();
-        for (auto &handle : inherited) pipe::check(SetHandleInformation(handle.get(),HANDLE_FLAG_INHERIT,0));
+        for (auto &handle : inherited) if (handle) pipe::check(SetHandleInformation(handle.get(),HANDLE_FLAG_INHERIT,0));
+        std::unique_ptr<admission::Server> admissionPort;
+        if (admissionSet) admissionPort = std::make_unique<admission::Server>(std::array<pipe::Handle,3>{
+            std::move(inherited[6]),std::move(inherited[7]),std::move(inherited[8])},registrations.size());
         std::vector<EngineOwner::Registration> clientPorts;
         for (auto &port : registrations) {
             pipe::check(SetHandleInformation(port[3].get(),HANDLE_FLAG_INHERIT,0));
@@ -87,7 +95,7 @@ int wmain(int argc, wchar_t **argv) {
         }
         control::Server upstream({std::move(inherited[2]),std::move(inherited[3]),std::move(inherited[4])});
         EngineOwnerAnchor anchor(std::move(inherited[5]));
-        EngineOwner owner(std::move(config),upstream,anchor,std::move(clientPorts));
+        EngineOwner owner(std::move(config),upstream,anchor,std::move(clientPorts),admissionPort.get());
         return owner.run(inherited[1].get(),inherited[0].get()) ? 0 : 1;
     } catch (const EngineInstance::Busy &) {
         std::cerr << "engine_owner: instance already exists\n"; return ERROR_ALREADY_EXISTS;

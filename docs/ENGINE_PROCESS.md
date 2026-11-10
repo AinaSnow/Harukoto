@@ -2,6 +2,8 @@
 
 最新进度：[受控独立所有者](ENGINE_OWNER.md)已支持独立进程监督、可信宿主对象交接和三个真实客户端的退出／重新接入，并加入[可选单实例竞争](ENGINE_INSTANCE.md)及[受控客户端接入](ENGINE_REGISTRATION.md)。可选 ownerExecutable 要求开启[动态端点](ENGINE_CONTROL.md)，ownerInstance 指定稳定部署范围，ownerLease 仅供所有者向直接动态宿主借用传递占位；ownerRegistrations 预分配 0～8 个独立客户端通道，Ready 后用 takeRegistration 一次交接。默认直接模式及[多进程竞争测量](ENGINE_IPC_PERFORMANCE.md)保持原契约。正式常驻生命周期、可信发现／动态应用注册和 TSF 仍待接入；以下启动批次的验证记录按历史范围阅读。
 
+2026-11-11：[动态创建与补充注册槽](ENGINE_ADMISSION.md)已实现。dynamicRegistrations 默认关闭，开启后由可信启动方 requestRegistration／takeRegistrationResult 异步交接全新能力；预分配与动态槽共享同时 8 个上限，退出后可补充新对象与新编号。新增 engine_admission 后共 49 项 CTest；普通应用自助发现／注册和正式常驻仍待实现。
+
 WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内的启动逻辑提取为可复用模块，管理一个自己创建的引擎进程、1～8 个随机单次连接端点和退出状态。真实微型／全量词库测试已改用该模块；宿主业务仍见[查询宿主](ENGINE_HOST.md)。发行基线保持 Windows 0.4.4-alpha.22、FF14 0.3.0，不安装或自动启动新程序。
 
 启动所有权及基础退出监督已完成，后续增补了可选动态模式和受控独立所有者。没有跨应用服务发现、签名／版本选择、正式常驻服务、自动重启、快照换代或 TSF 接入。不能把某个应用各自创建一个 EngineProcess 当成多应用共享引擎。
@@ -36,7 +38,9 @@ WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内�
 
 动态模式在 Ready 有 Pending 控制请求时另加入回复事件和控制期限；超时仅让控制槽进入 Failed，不自动终止已就绪宿主，原查询连接可继续使用。停止和实际退出均撤销未领取控制回复，固定失败原因保留。接口、单槽规则、容量与信任边界见[私有控制说明](ENGINE_CONTROL.md#调用和等待)。
 
-预分配注册槽可在交接后用 bindRegistration(id, trustedProcessHandle) 一次绑定真实客户端进程对象，或用 revokeRegistration(id) 主动撤销。Ready 时 waitHandles 包含未退役槽的撤销事件及已绑定进程对象；唤醒后 poll 观察退出并触发撤销，同时关闭自己的受限进程副本。所有者回收对应端口，迟到回复丢弃，客户端尚未领取的结果失效；现有查询连接继续按原契约运行。槽不复用／补充，编号仅在此所有者有效。status 的 registrationConfigured／Issued／Bound／Revoked 统计配置、已发出、当前保留绑定、已退役数，需要持续 poll 才刷新；完整权限与交接步骤见[注册寿命说明](ENGINE_REGISTRATION.md#撤销与客户端寿命)。
+预分配或动态注册槽可在交接后用 bindRegistration(id, trustedProcessHandle) 一次绑定真实客户端进程对象，或用 revokeRegistration(id) 主动撤销。Ready 时 waitHandles 包含未退役槽的撤销事件及已绑定进程对象；唤醒后 poll 观察退出并触发撤销，同时关闭自己的受限进程副本。所有者回收对应端口，迟到回复丢弃，客户端尚未领取的结果失效；现有查询连接继续按原契约运行。旧对象／编号不复用，启用动态模式后可补充全新能力，编号仅在此所有者有效。status 的 registrationConfigured／Issued／Bound／Revoked 统计初始预分配、累计已发出、当前保留绑定和累计退役数；动态失败申请也计入退役，新增 Created／Active 与 admissionState／admissionFailure／admissionWin32 的[完整口径](ENGINE_ADMISSION.md#容量与状态口径)需要持续 poll 才刷新。权限与交接步骤见[注册寿命说明](ENGINE_REGISTRATION.md#撤销与客户端寿命)。
+
+动态接入在 Ready／Pending 时向 waitHandles 增加回复事件；deadline 合并管理、原控制及动态接入的最近期限。Pending 或未领取 Ready 占用单槽，超时永久停用动态接入并撤销未交出能力，但不自动终止就绪所有者或原查询。stop／实际退出使未领取结果失效，固定首错保持；不得按公开 PID 重建目标进程对象，也不得在发布成功后按旧远端句柄数字再次回收。
 
 `requestStop(time)` 在 Starting／Ready 发送 stop，进入停止宽限；重复调用不延长期限。超时通过 TerminateJobObject 仅终止自己的子进程树。析构不等待退出，关闭自己的 Job 作为放弃所有权时的终止保护。正常释放应先 requestStop、继续等待并 poll 至 Exited，再销毁；只有观察退出才能断言词库文件保护已释放。即使后端永久阻塞导致 Host 的 join 不返回，独立拥有者仍可到期终止宿主。
 

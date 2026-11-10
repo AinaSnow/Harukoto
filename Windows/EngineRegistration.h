@@ -80,6 +80,6 @@ public:
     HANDLE ownerHandle() const { return owner_.get(); }
     HANDLE engineHandle() const { return engine_.get(); }
     HANDLE revocationHandle() const { return revoked_.get(); }
-    uint64_t id() const { return registration_; } // Local to this owner's preallocated slots.
+    uint64_t id() const { return registration_; } // Monotonic and local to this owner; never reused.
 };
 } // namespace harukoto::engine

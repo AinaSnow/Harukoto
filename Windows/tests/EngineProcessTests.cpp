@@ -134,6 +134,7 @@ int wmain(int argc, wchar_t **argv) {
         value.dynamicEndpoints = true; value.ownerExecutable = self().parent_path()/L"owner.exe"; invalid(value);
         value.ownerExecutable.clear(); value.ownerInstance = L"test"; invalid(value);
         value = config(L"normal"); value.ownerRegistrations = 1; invalid(value);
+        value = config(L"normal"); value.dynamicRegistrations = true; invalid(value);
         value.dynamicEndpoints = true; value.ownerExecutable = self().parent_path()/L"owner.exe";
         value.ownerRegistrations = 9; invalid(value);
         value = config(L"normal"); value.personal = std::wstring(L"C:\\valid\0hidden",15); invalid(value);

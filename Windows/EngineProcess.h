@@ -4,6 +4,7 @@
 #include "EngineOwnerAnchor.h"
 #include "EngineInstance.h"
 #include "EngineRegistration.h"
+#include "EngineAdmission.h"
 #include <filesystem>
 
 namespace harukoto::engine {
@@ -24,6 +25,7 @@ public:
         std::wstring ownerInstance; // Optional stable deployment scope, independent of version/path.
         HANDLE ownerLease = nullptr; // Borrowed only during direct dynamic host launch.
         size_t ownerRegistrations = 0; // Bounded private client capabilities, owner mode only.
+        bool dynamicRegistrations = false; // Optional private launcher admission, owner mode only.
     };
     struct Status {
         State state;
@@ -35,26 +37,35 @@ public:
         pipe::Failure controlFailure = pipe::Failure::None;
         DWORD controlWin32 = ERROR_SUCCESS;
         size_t registrationConfigured = 0, registrationIssued = 0, registrationBound = 0, registrationRevoked = 0;
+        size_t registrationCreated = 0, registrationActive = 0;
+        std::optional<admission::State> admissionState;
+        pipe::Failure admissionFailure = pipe::Failure::None;
+        DWORD admissionWin32 = ERROR_SUCCESS;
     };
     // Trusted owner-to-client handoff, never reconstructed from a public PID.
     // The retained process copy is query/wait only and non-inheritable. A trusted
     // launcher may explicitly duplicate it into its own client's handle list.
     struct Endpoint { std::wstring name; pipe::Handle process; };
     struct ControlResult { control::Response metadata; std::optional<Endpoint> endpoint; };
+    struct RegistrationResult { admission::Code code; uint64_t id; std::unique_ptr<EngineRegistration> registration; };
 private:
     pipe::Handle ready_, stop_, process_, job_;
     std::vector<std::wstring> names_;
     std::unique_ptr<control::Client> control_;
+    std::unique_ptr<admission::Client> admission_;
     std::unique_ptr<EngineOwnerAnchor> ownerAnchor_;
     pipe::Handle engine_;
     struct RegistrationSlot {
         std::unique_ptr<control::Client> client = std::make_unique<control::Client>();
         pipe::Handle revoked{CreateEventW(nullptr,TRUE,FALSE,nullptr)}, process;
-        bool bound = false, retired = false;
-        RegistrationSlot() { pipe::check(bool(revoked)); }
+        uint64_t id;
+        bool issued = false, bound = false, retired = false;
+        explicit RegistrationSlot(uint64_t value) : id(value) { pipe::check(bool(revoked)); }
     };
     std::vector<std::unique_ptr<RegistrationSlot>> registrations_;
-    size_t registration_ = 0;
+    std::unique_ptr<RegistrationSlot> offered_;
+    uint64_t registrationNext_ = 0;
+    size_t registrationConfigured_ = 0, registrationIssued_ = 0, registrationRevoked_ = 0;
     State state_ = State::Starting;
     Failure failure_ = Failure::None;
     DWORD win32_ = ERROR_SUCCESS;
@@ -63,17 +74,27 @@ private:
     uint64_t deadline_ = 0, stopMs_ = 0;
     void revoke(RegistrationSlot &slot) {
         if (slot.retired) return;
-        pipe::check(SetEvent(slot.revoked.get())); slot.retired = true; slot.process.reset();
+        pipe::check(SetEvent(slot.revoked.get())); slot.retired = true; slot.process.reset(); ++registrationRevoked_;
     }
     void observeRegistrations() {
-        for (auto &slot : registrations_) if (!slot->retired) {
+        auto observe = [&](auto &slot) { if (slot && !slot->retired) {
             const auto revoked = WaitForSingleObject(slot->revoked.get(),0); pipe::check(revoked != WAIT_FAILED);
-            if (revoked == WAIT_OBJECT_0) { slot->retired = true; slot->process.reset(); continue; }
+            if (revoked == WAIT_OBJECT_0) { slot->retired = true; slot->process.reset(); ++registrationRevoked_; return; }
             if (slot->process) {
                 const auto exited = WaitForSingleObject(slot->process.get(),0); pipe::check(exited != WAIT_FAILED);
                 if (exited == WAIT_OBJECT_0) revoke(*slot);
             }
-        }
+        }};
+        for (auto &slot : registrations_) observe(slot);
+        observe(offered_);
+    }
+    RegistrationSlot *registration(uint64_t id) {
+        for (auto &slot : registrations_) if (slot->id == id && slot->issued) return slot.get();
+        return nullptr;
+    }
+    void closeAdmission() {
+        if (admission_) admission_->abandon();
+        if (offered_) { revoke(*offered_); offered_.reset(); }
     }
 
     static std::wstring quote(const std::wstring &value) {
@@ -93,6 +114,7 @@ private:
         pipe::check(TerminateJobObject(job_.get(),ERROR_PROCESS_ABORTED));
         failure_ = failure; win32_ = win32; deadline_ = 0; state_ = State::Terminating;
         if (control_) control_->abandon();
+        closeAdmission();
     }
     void launch(const Config &config) {
         if (!absolute(config.executable) || !absolute(config.base) ||
@@ -102,6 +124,7 @@ private:
                 (!config.ownerInstance.empty() && (config.ownerExecutable.empty() || !EngineInstance::validScope(config.ownerInstance))) ||
                 (config.ownerLease && (!config.ownerExecutable.empty() || !config.dynamicEndpoints || !config.ownerInstance.empty())) ||
                 (config.ownerRegistrations && (config.ownerExecutable.empty() || config.ownerRegistrations > 8)) ||
+                (config.dynamicRegistrations && config.ownerExecutable.empty()) ||
                 (!config.trace.empty() && !absolute(config.trace)) || !config.threads || config.threads > 16 ||
                 !config.connections || config.connections > 8 || !config.startupMs || config.startupMs > 300000 ||
                 !config.stopMs || config.stopMs > 300000)
@@ -113,7 +136,9 @@ private:
         if (config.dynamicEndpoints) control_ = std::make_unique<control::Client>();
         else for (size_t i = 0; i < config.connections; ++i) names_.push_back(pipe::newName());
         if (!config.ownerExecutable.empty()) ownerAnchor_ = std::make_unique<EngineOwnerAnchor>();
-        for (size_t i=0;i<config.ownerRegistrations;++i) registrations_.push_back(std::make_unique<RegistrationSlot>());
+        if (config.dynamicRegistrations) admission_ = std::make_unique<admission::Client>();
+        registrationConfigured_ = config.ownerRegistrations;
+        for (size_t i=0;i<config.ownerRegistrations;++i) registrations_.push_back(std::make_unique<RegistrationSlot>(++registrationNext_));
         ready_.reset(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(ready_));
         stop_.reset(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(stop_));
         job_.reset(CreateJobObjectW(nullptr,nullptr)); pipe::check(bool(job_));
@@ -127,6 +152,7 @@ private:
         pipe::check(DuplicateHandle(GetCurrentProcess(),stop_.get(),GetCurrentProcess(),&raw,0,TRUE,DUPLICATE_SAME_ACCESS));
         childStop.reset(raw);
         std::array<pipe::Handle,3> childControl;
+        std::array<pipe::Handle,3> childAdmission;
         std::vector<pipe::Handle> childRegistrations;
         for (const auto &registration : registrations_) {
             const auto port = registration->client->handles();
@@ -153,6 +179,13 @@ private:
                 childControl[i].reset(raw);
             }
         }
+        if (admission_) {
+            const auto handles = admission_->handles();
+            for (size_t i=0;i<handles.size();++i) {
+                pipe::check(DuplicateHandle(GetCurrentProcess(),handles[i],GetCurrentProcess(),&raw,0,TRUE,DUPLICATE_SAME_ACCESS));
+                childAdmission[i].reset(raw);
+            }
+        }
         SIZE_T size = 0; InitializeProcThreadAttributeList(nullptr,1,0,&size);
         std::vector<uint8_t> bytes(size);
         auto *attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(bytes.data());
@@ -160,6 +193,7 @@ private:
         struct Delete { LPPROC_THREAD_ATTRIBUTE_LIST p; ~Delete() { DeleteProcThreadAttributeList(p); } } cleanup{attributes};
         std::vector<HANDLE> inherited{childReady.get(),childStop.get()};
         if (control_) for (const auto &handle : childControl) inherited.push_back(handle.get());
+        if (admission_) for (const auto &handle : childAdmission) inherited.push_back(handle.get());
         if (childAnchor) inherited.push_back(childAnchor.get());
         if (childLease) inherited.push_back(childLease.get());
         for (const auto &handle : childRegistrations) inherited.push_back(handle.get());
@@ -169,6 +203,11 @@ private:
         if (ownerAnchor_) arguments.insert(arguments.end(),{L"--host",config.executable.wstring(),L"--anchor",
             std::to_wstring(reinterpret_cast<uintptr_t>(childAnchor.get()))});
         if (!config.ownerInstance.empty()) arguments.insert(arguments.end(),{L"--instance",config.ownerInstance});
+        if (admission_) {
+            const wchar_t *keys[]{L"--admission-section",L"--admission-request",L"--admission-response"};
+            for (size_t i=0;i<childAdmission.size();++i)
+                arguments.insert(arguments.end(),{keys[i],std::to_wstring(reinterpret_cast<uintptr_t>(childAdmission[i].get()))});
+        }
         if (childLease) arguments.insert(arguments.end(),{L"--owner-lease",std::to_wstring(reinterpret_cast<uintptr_t>(childLease.get()))});
         for (size_t i=0;i<childRegistrations.size();i+=4) {
             std::wstring value;
@@ -206,6 +245,7 @@ private:
             childLease.reset();
             childRegistrations.clear();
             for (auto &handle : childControl) handle.reset();
+            for (auto &handle : childAdmission) handle.reset();
             if (ResumeThread(thread.get()) == DWORD(-1)) throw pipe::Error(pipe::Failure::Io,GetLastError());
         } catch (...) {
             // Even assignment failure must not leave our suspended child behind.
@@ -234,6 +274,7 @@ public:
             state_ = State::Exited; deadline_ = 0;
             for (auto &slot : registrations_) revoke(*slot);
             if (control_) control_->abandon();
+            closeAdmission();
             return state_;
         }
         if (deadline_ && time >= deadline_) {
@@ -251,6 +292,9 @@ public:
             }
         }
         if (state_ == State::Ready && control_) control_->poll(time);
+        if (state_ == State::Ready && admission_ && admission_->poll(time) == admission::State::Failed && offered_) {
+            revoke(*offered_); offered_.reset(); // Remote copies belong to the owner after publication.
+        }
         return state_;
     }
     void requestStop(uint64_t time) {
@@ -259,6 +303,7 @@ public:
         if (!SetEvent(stop_.get())) { const auto code = GetLastError(); terminate(Failure::ControlIo,code); return; }
         state_ = State::Stopping; deadline_ = time + stopMs_;
         if (control_) control_->abandon();
+        closeAdmission();
     }
     // Single attempt per random endpoint, consumed even if connect throws.
     // No WaitNamedPipe/sleep/retry; Hello remains the client's responsibility.
@@ -278,17 +323,49 @@ public:
     // A fixed preallocated slot is handed out once; it is not the launcher's
     // upstream stop/control port. The client allocates its own query endpoint.
     std::unique_ptr<EngineRegistration> takeRegistration(uint64_t time) {
-        if (poll(time) != State::Ready || registration_ >= registrations_.size()) return {};
-        const auto index = registration_++;
-        auto &slot = *registrations_[index];
-        if (slot.retired) return {};
-        return std::make_unique<EngineRegistration>(std::move(slot.client),process_.get(),engineHandle(),slot.revoked.get(),index+1);
+        if (poll(time) != State::Ready) return {};
+        for (auto &slot : registrations_) if (!slot->issued && !slot->retired) {
+            auto result = std::make_unique<EngineRegistration>(std::move(slot->client),process_.get(),engineHandle(),slot->revoked.get(),slot->id);
+            slot->issued = true; ++registrationIssued_; return result;
+        }
+        return {};
+    }
+    bool requestRegistration(uint64_t time, uint64_t timeoutMs = 5000) {
+        if (poll(time) != State::Ready || !admission_ || admission_->state() != admission::State::Idle) return false;
+        if (!timeoutMs || timeoutMs > 300000 || time > UINT64_MAX-timeoutMs || registrationNext_ == UINT64_MAX)
+            throw std::invalid_argument("invalid registration deadline or id");
+        registrations_.erase(std::remove_if(registrations_.begin(),registrations_.end(),[](const auto &slot) { return slot->retired; }),registrations_.end());
+        // Keep at most eight admitted slots plus one single-flight offer. The
+        // owner returns Full explicitly; no local queue or automatic retry.
+        registrations_.reserve(admission::Limit);
+        auto slot = std::make_unique<RegistrationSlot>(++registrationNext_);
+        const auto port = slot->client->handles();
+        admission::Transfer transfer(process_.get(),{port[0],port[1],port[2],slot->revoked.get()});
+        if (!admission_->begin(slot->id,transfer.handles(),time,timeoutMs)) return false;
+        transfer.release(); offered_ = std::move(slot); return true;
+    }
+    std::optional<RegistrationResult> takeRegistrationResult(uint64_t time) {
+        if (poll(time) != State::Ready || !admission_) return {};
+        auto response = admission_->take(time); if (!response) return {};
+        if (!offered_ || response->id != offered_->id) throw std::logic_error("missing registration offer");
+        RegistrationResult result{response->code,response->id,{}};
+        if (result.code == admission::Code::Ok && !offered_->retired) {
+            registrations_.erase(std::remove_if(registrations_.begin(),registrations_.end(),[](const auto &slot) { return slot->retired; }),registrations_.end());
+            try { result.registration = std::make_unique<EngineRegistration>(std::move(offered_->client),process_.get(),engineHandle(),offered_->revoked.get(),offered_->id); }
+            catch (...) { revoke(*offered_); offered_.reset(); throw; }
+            offered_->issued = true; ++registrationIssued_; registrations_.push_back(std::move(offered_));
+        } else {
+            if (result.code == admission::Code::Ok) result.code = admission::Code::Closed;
+            revoke(*offered_); offered_.reset();
+        }
+        return result;
     }
     // Bind only a retained process object from a trusted launch/handoff, never
     // an OpenProcess(public PID) reconstruction. A slot cannot be rebound.
     bool bindRegistration(uint64_t id, HANDLE process) {
-        if (state_ != State::Ready || !id || id > registration_) return false;
-        auto &slot = *registrations_[static_cast<size_t>(id-1)];
+        auto *found = registration(id);
+        if (state_ != State::Ready || !found) return false;
+        auto &slot = *found;
         if (slot.retired || slot.bound) return false;
         pipe::processIdentityOnly();
         HANDLE raw = nullptr;
@@ -304,8 +381,8 @@ public:
         slot.bound = true; slot.process = std::move(retained); return true;
     }
     bool revokeRegistration(uint64_t id) {
-        if (!id || id > registration_) return false;
-        auto &slot = *registrations_[static_cast<size_t>(id-1)];
+        auto *found = registration(id); if (!found) return false;
+        auto &slot = *found;
         if (slot.retired) return false;
         revoke(slot); return true;
     }
@@ -331,6 +408,7 @@ public:
         if (state_ == State::Starting) return {process_.get(),ready_.get()};
         std::vector<HANDLE> handles{process_.get()};
         if (state_ == State::Ready && control_ && control_->event()) handles.push_back(control_->event());
+        if (state_ == State::Ready && admission_ && admission_->event()) handles.push_back(admission_->event());
         if (state_ == State::Ready) for (const auto &slot : registrations_) if (!slot->retired) {
             handles.push_back(slot->revoked.get());
             if (slot->process) handles.push_back(slot->process.get());
@@ -339,15 +417,20 @@ public:
     }
     uint64_t deadline() const {
         const auto controlDeadline = state_ == State::Ready && control_ ? control_->deadline() : 0;
-        return deadline_ && controlDeadline ? std::min(deadline_,controlDeadline) : deadline_ ? deadline_ : controlDeadline;
+        const auto admissionDeadline = state_ == State::Ready && admission_ ? admission_->deadline() : 0;
+        uint64_t result = deadline_;
+        for (auto value : {controlDeadline,admissionDeadline}) if (value && (!result || value < result)) result = value;
+        return result;
     } // Zero means no manager deadline.
     Status status() const {
         Status result{state_,failure_,win32_,exitCode_,claimed_,configured_,control_ ? std::optional<control::State>(control_->state()) : std::nullopt,
             control_ ? control_->failure() : pipe::Failure::None,control_ ? control_->error() : ERROR_SUCCESS};
-        result.registrationConfigured = registrations_.size(); result.registrationIssued = registration_;
+        result.registrationConfigured = registrationConfigured_; result.registrationIssued = registrationIssued_;
+        result.registrationCreated = static_cast<size_t>(registrationNext_); result.registrationRevoked = registrationRevoked_;
         for (const auto &slot : registrations_) {
-            result.registrationBound += bool(slot->process); result.registrationRevoked += slot->retired;
+            result.registrationBound += bool(slot->process); result.registrationActive += !slot->retired;
         }
+        if (admission_) { result.admissionState = admission_->state(); result.admissionFailure = admission_->failure(); result.admissionWin32 = admission_->error(); }
         return result;
     }
     HANDLE processHandle() const { return process_.get(); } // Borrowed; never close or change it.
