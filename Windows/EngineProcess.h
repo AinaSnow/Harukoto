@@ -51,11 +51,11 @@ public:
     // Trusted owner-to-client handoff, never reconstructed from a public PID.
     // The retained process copy is query/wait only and non-inheritable. A trusted
     // launcher may explicitly duplicate it into its own client's handle list.
-    struct Endpoint { std::wstring name; pipe::Handle process; };
+    using Endpoint = EngineRegistration::Endpoint;
     struct ControlResult { control::Response metadata; std::optional<Endpoint> endpoint; };
     struct RegistrationResult { admission::Code code; uint64_t id; std::unique_ptr<EngineRegistration> registration; };
 private:
-    std::unique_ptr<EngineDeployment> hostDeployment_, ownerDeployment_;
+    std::shared_ptr<const EngineDeployment> hostDeployment_, ownerDeployment_;
     bool deploymentVerified_ = false;
     pipe::Handle ready_, stop_, process_, job_;
     std::vector<std::wstring> names_;
@@ -171,9 +171,9 @@ private:
             EngineDeployment::digest(config.hostSha256);
             if (!config.ownerExecutable.empty()) EngineDeployment::digest(config.ownerSha256);
             else if (!config.ownerSha256.empty()) throw std::invalid_argument("owner digest requires owner mode");
-            hostDeployment_=std::make_unique<EngineDeployment>(config.executable,config.hostSha256);
+            hostDeployment_=std::make_shared<EngineDeployment>(config.executable,config.hostSha256);
             if (!config.ownerExecutable.empty()) {
-                ownerDeployment_=std::make_unique<EngineDeployment>(config.ownerExecutable,config.ownerSha256);
+                ownerDeployment_=std::make_shared<EngineDeployment>(config.ownerExecutable,config.ownerSha256);
                 if (hostDeployment_->sameFile(*ownerDeployment_)) throw std::invalid_argument("host and owner use the same file");
             }
         }
@@ -397,11 +397,11 @@ public:
         pipe::check(DuplicateHandle(GetCurrentProcess(),process_.get(),GetCurrentProcess(),&raw,
             PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE,FALSE,0));
         pipe::Handle process(raw);
-        return Endpoint{names_[index],std::move(process)};
+        return Endpoint{names_[index],std::move(process),hostDeployment_};
     }
     std::unique_ptr<pipe::Channel> claim(uint64_t time) {
         auto endpoint = takeEndpoint(time);
-        return endpoint ? pipe::Channel::connect(endpoint->name,endpoint->process.get()) : nullptr;
+        return endpoint ? endpoint->connect() : nullptr;
     }
     // A fixed preallocated slot is handed out once; it is not the launcher's
     // upstream stop/control port. The client allocates its own query endpoint.
@@ -409,7 +409,10 @@ public:
         DiagnosticObservation observation{this};
         if (poll(time) != State::Ready) return {};
         for (auto &slot : registrations_) if (!slot->issued && !slot->retired) {
-            auto result = std::make_unique<EngineRegistration>(std::move(slot->client),process_.get(),engineHandle(),slot->revoked.get(),slot->id);
+            std::unique_ptr<EngineRegistration> result;
+            try { result = std::make_unique<EngineRegistration>(std::move(slot->client),process_.get(),engineHandle(),slot->revoked.get(),slot->id,
+                EngineRegistration::DeploymentPolicy{ownerDeployment_,hostDeployment_}); }
+            catch (...) { revoke(*slot); throw; } // A consumed import is never reissued.
             slot->issued = true; ++registrationIssued_; return result;
         }
         return {};
@@ -437,7 +440,8 @@ public:
         RegistrationResult result{response->code,response->id,{}};
         if (result.code == admission::Code::Ok && !offered_->retired) {
             registrations_.erase(std::remove_if(registrations_.begin(),registrations_.end(),[](const auto &slot) { return slot->retired; }),registrations_.end());
-            try { result.registration = std::make_unique<EngineRegistration>(std::move(offered_->client),process_.get(),engineHandle(),offered_->revoked.get(),offered_->id); }
+            try { result.registration = std::make_unique<EngineRegistration>(std::move(offered_->client),process_.get(),engineHandle(),offered_->revoked.get(),offered_->id,
+                EngineRegistration::DeploymentPolicy{ownerDeployment_,hostDeployment_}); }
             catch (...) { revoke(*offered_); offered_.reset(); throw; }
             offered_->issued = true; ++registrationIssued_; registrations_.push_back(std::move(offered_));
         } else {
@@ -493,7 +497,7 @@ public:
             HANDLE raw = nullptr;
             pipe::check(DuplicateHandle(GetCurrentProcess(),engineHandle(),GetCurrentProcess(),&raw,
                 PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE,FALSE,0));
-            result.endpoint = Endpoint{result.metadata.name,pipe::Handle(raw)}; ++claimed_;
+            result.endpoint = Endpoint{result.metadata.name,pipe::Handle(raw),hostDeployment_}; ++claimed_;
         }
         return result;
     }

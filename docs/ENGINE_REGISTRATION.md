@@ -40,13 +40,14 @@ registration->request(control::Operation::Allocate, pipe::now());
 // 合并 registration->waitHandles() 和 deadline()，唤醒／到期后 poll。
 auto result = registration->take(pipe::now());
 if (result && result->endpoint) {
-    auto channel = pipe::Channel::connect(result->endpoint->name,
-                                         result->endpoint->process.get());
+    auto channel = result->endpoint->connect();
     // 继续原查询 Hello／ClientGate 握手，然后处理输入和选择。
 }
 ```
 
 request 支持 Allocate／Inspect，默认期限 5 秒，沿用控制层的范围与精确到期规则；Pending 或未领取 Ready 回复占用本客户端槽，不接受新请求。take 至多领取一次，Full／Backend 也是正式结果；Allocate 成功附上宿主 query／wait 副本，Inspect 不创建端点。运行代次、操作和请求序号按[私有控制格式](ENGINE_CONTROL.md)校验，既有查询协议与 Kind 不变。
+
+可选 DeploymentPolicy 在第一条请求前独立核对所有者和宿主的实际映像；启用部署校验的 EngineProcess 自动给本地注册保留双程序策略，跨进程接收方从自己的可信元数据构造。Endpoint::connect 复核宿主并使连接继续持有文件保护；未启用策略时保持原行为。部署校验不证明公开控制对象的来源，原私有交接要求保持。配置、失败与引用寿命见[客户端独立校验](ENGINE_VERIFIED_PEER.md)。
 
 撤销事件或所有者、宿主任一实际退出都让注册通道进入 Failed／Closed，即使回复事件已触发，也撤销未领取结果；已经保留的首个失败不被覆盖。超时、坏回复或运行代次变化永久退役客户端包装；客户端只有等待权限，这些本地失败不会自行通知所有者，可信启动方须主动撤销或依靠绑定进程退出监测。不自动重放、重新注册或连接别的宿主。已有查询连接仍由自己的管道与 ClientGate 管理，客户端控制超时本身不清空其他客户端组字。
 
@@ -68,7 +69,7 @@ EngineProcess::status().claimed 只统计由启动方自身领取的查询端点
 - 实际独立客户端的正常退出与强制退出触发受限进程对象唤醒；已退出对象绑定立即撤销，错误事件对象被拒绝，重复绑定／撤销和未发出编号被拒绝。未领取 Ready 撤销后无法领取，原查询组字／选词仍正常；新鲜剩余槽可用，旧槽不复用。独立客户端不能设置／重置撤销事件。
 - 正常停止与所有者崩溃分别覆盖 Idle、Pending 及未领取 Ready 回复撤销；故障宿主在注册请求期间退出，通道失败。检查注册进程对象不能 TerminateProcess、预分配槽用尽及错误配置拒绝。原单实例竞争、直接宿主、认证管道与静态基准继续回归。
 
-此接口依赖可信启动方交接能力；它现在可以预分配或运行中动态创建。普通应用尚不能自行查找所有者、获得注册槽或验证部署身份；不是公开服务发现或正式多应用注册系统。可信发现、竞争失败后的交接、正式常驻生命周期和用户诊断入口仍待实现。原性能报告没有测这条注册调度路径，本批也未修改安装、用户词库或发行版本。
+此接口依赖可信启动方交接能力；它现在可以预分配或运行中动态创建，接收方可独立验证私有交接进程的部署身份。普通应用尚不能自行查找所有者或获得注册槽；不是公开服务发现或正式多应用注册系统。可信发现、竞争失败后的交接和正式常驻生命周期仍待实现，只读开发诊断见[诊断入口](ENGINE_DIAGNOSTICS.md)。原性能报告没有测这条注册调度与校验路径，本批也未修改安装、用户词库或发行版本。
 
 ```powershell
 cmake --build .build/windows/msvc --config Release

@@ -28,15 +28,31 @@ static EngineRegistration::Result request(EngineRegistration &registration, cont
     auto result = registration.take(ep::now()); assert(result); return std::move(*result);
 }
 static int worker(int argc, wchar_t **argv) {
-    const bool registered = std::wstring(argv[1]) == L"--registered-worker";
-    assert(argc == (registered ? 15 : 10)); const std::wstring mode = argv[2];
+    const bool verified = std::wstring(argv[1]) == L"--verified-worker";
+    const bool registered = verified || std::wstring(argv[1]) == L"--registered-worker";
+    const int extra = verified ? 4 : 0;
+    assert(argc == (registered ? 15+extra : 10)); const std::wstring mode = argv[2];
     std::unique_ptr<EngineRegistration> registration;
+    std::unique_ptr<ep::Channel> connection;
     ep::Handle engine; std::wstring name;
     const auto generation = std::stoull(argv[registered ? 3 : 4]);
     if (registered) {
-        std::array<ep::Handle,3> port{inherited(argv[5]),inherited(argv[6]),inherited(argv[7])};
-        auto owner = inherited(argv[8]), host = inherited(argv[9]), revoked = inherited(argv[10]);
-        registration = std::make_unique<EngineRegistration>(std::move(port),owner.get(),host.get(),revoked.get(),std::stoull(argv[4]));
+        EngineRegistration::DeploymentPolicy policy;
+        if (verified) {
+            auto digest=[](const wchar_t *value) {
+                std::string result;
+                for (;*value;++value) { assert(*value<=127); result+=static_cast<char>(*value); }
+                return result;
+            };
+            // Paths and expected hashes are supplied privately by the trusted
+            // fixture launcher, never read from the candidate or diagnostics.
+            policy.owner=std::make_shared<EngineDeployment>(argv[5],digest(argv[6]));
+            policy.engine=std::make_shared<EngineDeployment>(argv[7],digest(argv[8]));
+        }
+        std::array<ep::Handle,3> port{inherited(argv[5+extra]),inherited(argv[6+extra]),inherited(argv[7+extra])};
+        auto owner = inherited(argv[8+extra]), host = inherited(argv[9+extra]), revoked = inherited(argv[10+extra]);
+        registration = std::make_unique<EngineRegistration>(std::move(port),owner.get(),host.get(),revoked.get(),std::stoull(argv[4]),std::move(policy));
+        assert(registration->deploymentVerified()==verified);
         assert(registration->id() == std::stoull(argv[4]));
         DWORD flags = 0; ep::check(GetHandleInformation(registration->revocationHandle(),&flags)); assert(!(flags & HANDLE_FLAG_INHERIT));
         assert(!SetEvent(registration->revocationHandle()) && GetLastError() == ERROR_ACCESS_DENIED);
@@ -44,12 +60,13 @@ static int worker(int argc, wchar_t **argv) {
         assert(!TerminateProcess(registration->ownerHandle(),1) && GetLastError() == ERROR_ACCESS_DENIED);
         const auto status = request(*registration,control::Operation::Inspect); assert(status.metadata.generation == generation);
         auto allocated = request(*registration,control::Operation::Allocate); assert(allocated.endpoint);
+        connection=allocated.endpoint->connect();
         name = allocated.endpoint->name; engine = std::move(allocated.endpoint->process);
     } else { name = argv[3]; engine = inherited(argv[5]); }
-    const auto offset = registered ? 11 : 6;
+    const auto offset = registered ? 11+extra : 6;
     auto ready = inherited(argv[offset]), go = inherited(argv[offset+1]), done = inherited(argv[offset+2]), finish = inherited(argv[offset+3]);
     assert(!TerminateProcess(engine.get(),1) && GetLastError() == ERROR_ACCESS_DENIED);
-    Client client(name,engine.get()); assert(client.key(KeyAction::Refresh).input.empty());
+    Client client(connection ? std::move(connection) : ep::Channel::connect(name,engine.get())); assert(client.key(KeyAction::Refresh).input.empty());
     assert(client.last.id.engine == generation);
     if (mode == L"first") client.type("zhongguo");
     else if (mode == L"survivor") client.type("riben");
@@ -117,8 +134,18 @@ struct Worker {
     ep::Handle ready = event(), go = event(), done = event(), finish = event(), process, job;
     Worker(EngineProcess::Endpoint endpoint, uint64_t generation, const wchar_t *mode)
         : Worker({L"--worker",mode,endpoint.name,std::to_wstring(generation)},{endpoint.process.get()}) {}
-    Worker(std::unique_ptr<EngineRegistration> registration, uint64_t generation, const wchar_t *mode)
-        : Worker({L"--registered-worker",mode,std::to_wstring(generation),std::to_wstring(registration->id())},registrationHandles(*registration)) {}
+    Worker(std::unique_ptr<EngineRegistration> registration, uint64_t generation, const wchar_t *mode,
+            const EngineProcess::Config *policy=nullptr)
+        : Worker(registrationArguments(*registration,generation,mode,policy),registrationHandles(*registration)) {}
+    static std::vector<std::wstring> registrationArguments(const EngineRegistration &registration, uint64_t generation,
+            const wchar_t *mode, const EngineProcess::Config *policy) {
+        std::vector<std::wstring> result{policy ? L"--verified-worker" : L"--registered-worker",mode,
+            std::to_wstring(generation),std::to_wstring(registration.id())};
+        if (policy) result.insert(result.end(),{policy->ownerExecutable.wstring(),
+            std::wstring(policy->ownerSha256.begin(),policy->ownerSha256.end()),policy->executable.wstring(),
+            std::wstring(policy->hostSha256.begin(),policy->hostSha256.end())});
+        return result;
+    }
     static std::vector<HANDLE> registrationHandles(const EngineRegistration &registration) {
         const auto port = registration.handles();
         return {port[0],port[1],port[2],registration.ownerHandle(),registration.engineHandle(),registration.revocationHandle()};
@@ -224,7 +251,8 @@ static void lifetime(EngineProcess::Config value, bool registered = false, bool 
     auto launch = [&](const wchar_t *mode) {
         if (registered) {
             auto &port = registrations[next++]; const auto id = port->id();
-            auto worker = std::make_unique<Worker>(std::move(port),initial.metadata.generation,mode);
+            auto worker = std::make_unique<Worker>(std::move(port),initial.metadata.generation,mode,
+                value.hostSha256.empty() ? nullptr : &value);
             assert(owner.bindRegistration(id,worker->process.get()));
             assert(!owner.bindRegistration(id,worker->process.get())); return worker;
         }
@@ -603,18 +631,22 @@ static void deploymentPolicy(EngineProcess::Config value) {
     value.hostSha256=base_dictionary::StableFile(value.executable).read(true);
     value.ownerSha256=base_dictionary::StableFile(value.ownerExecutable).read(true);
     lifetime(value,true,true); // Real independent clients, queries and selection.
-    value.diagnostics=true; value.dynamicRegistrations=true;
+    value.diagnostics=true; value.dynamicRegistrations=true; value.ownerRegistrations=1;
     value.ownerInstance=L"deployment-test-"+std::to_wstring(GetCurrentProcessId());
     EngineProcess owner(value); until(owner,State::Ready);
     assert(owner.status().deploymentRequired && owner.status().deploymentVerified);
     auto observed=diagnostics::read(owner.processHandle());
     assert(observed.record->deploymentRequired && observed.record->deploymentVerified);
+    auto preallocated=owner.takeRegistration(ep::now()); assert(preallocated && preallocated->deploymentVerified());
+    assert(request(*preallocated,control::Operation::Inspect).metadata.generation);
+    assert(owner.revokeRegistration(preallocated->id()));
     {
         EngineProcess loser(value); until(loser,State::Exited);
         assert(loser.status().failure==EngineProcess::Failure::InstanceBusy && !loser.status().deploymentVerified);
     }
-    auto port=fresh(owner); auto endpoint=request(*port,control::Operation::Allocate); assert(endpoint.endpoint);
-    Client client(endpoint.endpoint->name,endpoint.endpoint->process.get());
+    auto port=fresh(owner); assert(port->deploymentVerified());
+    auto endpoint=request(*port,control::Operation::Allocate); assert(endpoint.endpoint && endpoint.endpoint->deployment);
+    Client client(endpoint.endpoint->connect());
     client.choose(find(client.type("nihao"),"你好"));
     assert(owner.revokeRegistration(port->id()));
     owner.requestStop(ep::now()); until(owner,State::Exited);
@@ -626,7 +658,8 @@ int wmain(int argc, wchar_t **argv) {
         assert(argc == 6); auto ready = inherited(argv[2]), go = inherited(argv[3]), done = inherited(argv[4]), finish = inherited(argv[5]);
         ep::check(SetEvent(ready.get())); assert(WaitForSingleObject(go.get(),Timeout) == WAIT_OBJECT_0); return 0;
     }
-    if (argc > 1 && (std::wstring(argv[1]) == L"--worker" || std::wstring(argv[1]) == L"--registered-worker")) return worker(argc,argv);
+    if (argc > 1 && (std::wstring(argv[1]) == L"--worker" || std::wstring(argv[1]) == L"--registered-worker" ||
+            std::wstring(argv[1]) == L"--verified-worker")) return worker(argc,argv);
     if (argc > 1 && std::wstring(argv[1]) == L"--base") return faultHost(argc,argv);
     try {
         const auto value = config(argc,argv); lifetime(value); lifetime(value,true); lifetime(value,true,true);

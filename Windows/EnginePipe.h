@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 
+namespace harukoto::engine { class EngineDeployment; class EngineVerifiedPeer; }
 namespace harukoto::engine::pipe {
 enum class Failure { None, Closed, Io, Protocol, Authentication, Deadline };
 class Error : public std::runtime_error {
@@ -118,6 +119,10 @@ class Listener;
 // One service I/O owner thread. Nonmovable: kernel OVERLAPPED pointers stay stable.
 class Channel {
     friend class Listener;
+    friend class harukoto::engine::EngineVerifiedPeer;
+    // Declared first so the approved file and directories outlive pipe I/O and
+    // the retained server object, even if the registration has been destroyed.
+    std::shared_ptr<const EngineDeployment> deployment_;
     Handle pipe_, serverProcess_;
     LogonIdentity local_;
     Operation read_, write_;

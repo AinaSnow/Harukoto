@@ -1,11 +1,16 @@
 #pragma once
 #include "EngineControl.h"
+#include "EngineVerifiedPeer.h"
 
 namespace harukoto::engine {
 // One capability-provisioned client, one private mailbox. No public discovery,
 // owner control/Job capability, process lookup by PID, or automatic replay.
 // All methods run on the client's service/I/O thread, never a TSF callback.
 class EngineRegistration {
+public:
+    struct DeploymentPolicy { std::shared_ptr<const EngineDeployment> owner, engine; };
+private:
+    DeploymentPolicy deployment_;
     std::unique_ptr<control::Client> client_;
     pipe::Handle owner_, engine_, revoked_;
     uint64_t registration_ = 0;
@@ -21,13 +26,29 @@ class EngineRegistration {
         return result;
     }
 public:
-    struct Endpoint { std::wstring name; pipe::Handle process; };
+    struct Endpoint {
+        std::wstring name;
+        pipe::Handle process;
+        std::shared_ptr<const EngineDeployment> deployment;
+        std::unique_ptr<pipe::Channel> connect() const {
+            if (deployment) return EngineVerifiedPeer(deployment,process.get()).connect(name);
+            return pipe::Channel::connect(name,process.get());
+        }
+    };
     struct Result { control::Response metadata; std::optional<Endpoint> endpoint; };
     EngineRegistration(std::unique_ptr<control::Client> client, HANDLE owner, HANDLE engine,
-            HANDLE revoked = nullptr, uint64_t registration = 0)
-        : client_(std::move(client)), owner_(retain(owner)), engine_(retain(engine)), registration_(registration) {
+            HANDLE revoked = nullptr, uint64_t registration = 0, DeploymentPolicy deployment = {})
+        : deployment_(std::move(deployment)), client_(std::move(client)), owner_(retain(owner)), engine_(retain(engine)), registration_(registration) {
         if (!client_ || client_->state() != control::State::Idle || bool(revoked) != bool(registration))
             throw std::invalid_argument("invalid engine registration");
+        if (bool(deployment_.owner) != bool(deployment_.engine))
+            throw std::invalid_argument("registration requires both deployment policies");
+        if (deployment_.owner) {
+            if (deployment_.owner->sameFile(*deployment_.engine))
+                throw std::invalid_argument("registration owner and engine must be distinct files");
+            EngineVerifiedPeer ownerPeer(deployment_.owner,owner_.get());
+            EngineVerifiedPeer enginePeer(deployment_.engine,engine_.get());
+        }
         if (revoked) {
             HANDLE raw = nullptr;
             pipe::check(DuplicateHandle(GetCurrentProcess(),revoked,GetCurrentProcess(),&raw,SYNCHRONIZE,FALSE,0));
@@ -37,8 +58,8 @@ public:
     // Import only fresh handles handed off by a trusted launcher. Numeric
     // values from a public source do not establish this contract.
     EngineRegistration(std::array<pipe::Handle,3> handles, HANDLE owner, HANDLE engine,
-            HANDLE revoked = nullptr, uint64_t registration = 0)
-        : EngineRegistration(std::make_unique<control::Client>(std::move(handles)),owner,engine,revoked,registration) {}
+            HANDLE revoked = nullptr, uint64_t registration = 0, DeploymentPolicy deployment = {})
+        : EngineRegistration(std::make_unique<control::Client>(std::move(handles)),owner,engine,revoked,registration,std::move(deployment)) {}
     control::State poll(uint64_t time) {
         if (client_->state() != control::State::Failed) {
             if (revoked_) {
@@ -61,7 +82,7 @@ public:
         auto response = client_->take(time); if (!response) return {};
         Result result{std::move(*response),{}};
         if (result.metadata.request.operation == control::Operation::Allocate && result.metadata.code == control::Code::Ok)
-            result.endpoint = Endpoint{result.metadata.name,retain(engine_.get())};
+            result.endpoint = Endpoint{result.metadata.name,retain(engine_.get()),deployment_.engine};
         return result;
     }
     std::vector<HANDLE> waitHandles() const {
@@ -75,6 +96,7 @@ public:
     control::State state() const { return client_->state(); }
     pipe::Failure failure() const { return client_->failure(); }
     DWORD error() const { return client_->error(); }
+    bool deploymentVerified() const { return bool(deployment_.engine); } // Initial import, not a heartbeat.
     // Export for one explicit trusted handoff BEFORE the first request only.
     std::array<HANDLE,3> handles() const { return client_->handles(); }
     HANDLE ownerHandle() const { return owner_.get(); }

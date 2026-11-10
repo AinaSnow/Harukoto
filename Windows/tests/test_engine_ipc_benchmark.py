@@ -63,6 +63,7 @@ class IpcBenchmarkTests(unittest.TestCase):
             self.assertIn('Windows/EngineAdmission.h', report['provenance']['sources'])
             self.assertIn('Windows/EngineDiagnostics.h', report['provenance']['sources'])
             self.assertIn('Windows/EngineDeployment.h', report['provenance']['sources'])
+            self.assertIn('Windows/EngineVerifiedPeer.h', report['provenance']['sources'])
             self.assertIn('Windows/BaseDictionaryFiles.h', report['provenance']['sources'])
             self.assertNotIn(temporary, json.dumps(report))
             for row in report['summary']:
