@@ -36,6 +36,8 @@ WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内�
 
 动态模式在 Ready 有 Pending 控制请求时另加入回复事件和控制期限；超时仅让控制槽进入 Failed，不自动终止已就绪宿主，原查询连接可继续使用。停止和实际退出均撤销未领取控制回复，固定失败原因保留。接口、单槽规则、容量与信任边界见[私有控制说明](ENGINE_CONTROL.md#调用和等待)。
 
+预分配注册槽可在交接后用 bindRegistration(id, trustedProcessHandle) 一次绑定真实客户端进程对象，或用 revokeRegistration(id) 主动撤销。Ready 时 waitHandles 包含未退役槽的撤销事件及已绑定进程对象；唤醒后 poll 观察退出并触发撤销，同时关闭自己的受限进程副本。所有者回收对应端口，迟到回复丢弃，客户端尚未领取的结果失效；现有查询连接继续按原契约运行。槽不复用／补充，编号仅在此所有者有效。status 的 registrationConfigured／Issued／Bound／Revoked 统计配置、已发出、当前保留绑定、已退役数，需要持续 poll 才刷新；完整权限与交接步骤见[注册寿命说明](ENGINE_REGISTRATION.md#撤销与客户端寿命)。
+
 `requestStop(time)` 在 Starting／Ready 发送 stop，进入停止宽限；重复调用不延长期限。超时通过 TerminateJobObject 仅终止自己的子进程树。析构不等待退出，关闭自己的 Job 作为放弃所有权时的终止保护。正常释放应先 requestStop、继续等待并 poll 至 Exited，再销毁；只有观察退出才能断言词库文件保护已释放。即使后端永久阻塞导致 Host 的 join 不返回，独立拥有者仍可到期终止宿主。
 
 模块不自动重启，停止期间迟到的 ready 不恢复 Ready；不重放 Key／Select，也不改变 PendingDelivery 对已确认文字和原 TSF context 的归属。正式升级／回退还需设计组字边界、未确认选择、旧连接寿命与旧版保留。

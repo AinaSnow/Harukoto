@@ -29,20 +29,24 @@ static EngineRegistration::Result request(EngineRegistration &registration, cont
 }
 static int worker(int argc, wchar_t **argv) {
     const bool registered = std::wstring(argv[1]) == L"--registered-worker";
-    assert(argc == (registered ? 13 : 10)); const std::wstring mode = argv[2];
+    assert(argc == (registered ? 15 : 10)); const std::wstring mode = argv[2];
     std::unique_ptr<EngineRegistration> registration;
     ep::Handle engine; std::wstring name;
     const auto generation = std::stoull(argv[registered ? 3 : 4]);
     if (registered) {
-        std::array<ep::Handle,3> port{inherited(argv[4]),inherited(argv[5]),inherited(argv[6])};
-        auto owner = inherited(argv[7]), host = inherited(argv[8]);
-        registration = std::make_unique<EngineRegistration>(std::move(port),owner.get(),host.get());
+        std::array<ep::Handle,3> port{inherited(argv[5]),inherited(argv[6]),inherited(argv[7])};
+        auto owner = inherited(argv[8]), host = inherited(argv[9]), revoked = inherited(argv[10]);
+        registration = std::make_unique<EngineRegistration>(std::move(port),owner.get(),host.get(),revoked.get(),std::stoull(argv[4]));
+        assert(registration->id() == std::stoull(argv[4]));
+        DWORD flags = 0; ep::check(GetHandleInformation(registration->revocationHandle(),&flags)); assert(!(flags & HANDLE_FLAG_INHERIT));
+        assert(!SetEvent(registration->revocationHandle()) && GetLastError() == ERROR_ACCESS_DENIED);
+        assert(!ResetEvent(registration->revocationHandle()) && GetLastError() == ERROR_ACCESS_DENIED);
         assert(!TerminateProcess(registration->ownerHandle(),1) && GetLastError() == ERROR_ACCESS_DENIED);
         const auto status = request(*registration,control::Operation::Inspect); assert(status.metadata.generation == generation);
         auto allocated = request(*registration,control::Operation::Allocate); assert(allocated.endpoint);
         name = allocated.endpoint->name; engine = std::move(allocated.endpoint->process);
     } else { name = argv[3]; engine = inherited(argv[5]); }
-    const auto offset = registered ? 9 : 6;
+    const auto offset = registered ? 11 : 6;
     auto ready = inherited(argv[offset]), go = inherited(argv[offset+1]), done = inherited(argv[offset+2]), finish = inherited(argv[offset+3]);
     assert(!TerminateProcess(engine.get(),1) && GetLastError() == ERROR_ACCESS_DENIED);
     Client client(name,engine.get()); assert(client.key(KeyAction::Refresh).input.empty());
@@ -70,10 +74,11 @@ static int worker(int argc, wchar_t **argv) {
     if (registration) assert(registration->poll(ep::now()) == control::State::Failed && !registration->take(ep::now()));
     return 0;
 }
-// A real fault child speaking only the inherited startup contract. Exit after
-// the first control request, so the owner must notice host death without a reply.
+// Test-only host. By default it exits on the first request; the trace-named
+// fixture gates one request to make in-flight revocation deterministic.
 static int faultHost(int argc, wchar_t **argv) {
     ep::Handle ready, stop; std::array<ep::Handle,3> handles;
+    std::wstring gate;
     for (int i=1;i<argc;i+=2) {
         assert(i+1 < argc); const std::wstring key = argv[i];
         if (key == L"--ready") ready = inherited(argv[i+1]);
@@ -81,22 +86,42 @@ static int faultHost(int argc, wchar_t **argv) {
         else if (key == L"--control-section") handles[0] = inherited(argv[i+1]);
         else if (key == L"--control-request") handles[1] = inherited(argv[i+1]);
         else if (key == L"--control-response") handles[2] = inherited(argv[i+1]);
+        else if (key == L"--trace") gate = std::filesystem::path(argv[i+1]).filename().wstring();
+    }
+    ep::Handle seen, release;
+    if (gate.rfind(L"registration-gate-",0) == 0) {
+        seen.reset(OpenEventW(EVENT_MODIFY_STATE,FALSE,(L"Local\\harukoto-"+gate+L"-seen").c_str()));
+        release.reset(OpenEventW(SYNCHRONIZE,FALSE,(L"Local\\harukoto-"+gate+L"-release").c_str()));
+        assert(seen && release);
     }
     assert(ready && stop); control::Server channel(std::move(handles)); ep::check(SetEvent(ready.get()));
     const HANDLE events[]{stop.get(),channel.event()};
-    const auto status = WaitForMultipleObjects(2,events,FALSE,Timeout);
-    if (status == WAIT_OBJECT_0) return 0;
-    assert(status == WAIT_OBJECT_0+1 && channel.take()); return 88;
+    uint32_t requests = 0;
+    for (;;) {
+        const auto status = WaitForMultipleObjects(2,events,FALSE,Timeout);
+        if (status == WAIT_OBJECT_0) return 0;
+        assert(status == WAIT_OBJECT_0+1); auto request = channel.take(); assert(request);
+        if (!seen) return 88;
+        if (!requests) {
+            ep::check(SetEvent(seen.get())); const HANDLE blocked[]{stop.get(),release.get()};
+            const auto released = WaitForMultipleObjects(2,blocked,FALSE,Timeout);
+            if (released == WAIT_OBJECT_0) return 0;
+            assert(released == WAIT_OBJECT_0+1);
+        }
+        assert(request->operation == control::Operation::Inspect);
+        control::Response response; response.request = *request; response.generation = 42; response.limit = 2;
+        response.jobs = ++requests; channel.respond(response);
+    }
 }
 struct Worker {
     ep::Handle ready = event(), go = event(), done = event(), finish = event(), process, job;
     Worker(EngineProcess::Endpoint endpoint, uint64_t generation, const wchar_t *mode)
         : Worker({L"--worker",mode,endpoint.name,std::to_wstring(generation)},{endpoint.process.get()}) {}
     Worker(std::unique_ptr<EngineRegistration> registration, uint64_t generation, const wchar_t *mode)
-        : Worker({L"--registered-worker",mode,std::to_wstring(generation)},registrationHandles(*registration)) {}
+        : Worker({L"--registered-worker",mode,std::to_wstring(generation),std::to_wstring(registration->id())},registrationHandles(*registration)) {}
     static std::vector<HANDLE> registrationHandles(const EngineRegistration &registration) {
         const auto port = registration.handles();
-        return {port[0],port[1],port[2],registration.ownerHandle(),registration.engineHandle()};
+        return {port[0],port[1],port[2],registration.ownerHandle(),registration.engineHandle(),registration.revocationHandle()};
     }
     Worker(std::vector<std::wstring> arguments, std::vector<HANDLE> sources) {
         job.reset(CreateJobObjectW(nullptr,nullptr)); ep::check(bool(job));
@@ -185,7 +210,12 @@ static void lifetime(EngineProcess::Config value, bool registered = false) {
     if (registered) for (size_t i=0;i<4;++i) { auto port = owner.takeRegistration(ep::now()); assert(port); registrations.push_back(std::move(port)); }
     assert(!owner.takeRegistration(ep::now())); size_t next = 0; std::wstring firstName;
     auto launch = [&](const wchar_t *mode) {
-        if (registered) return std::make_unique<Worker>(std::move(registrations[next++]),initial.metadata.generation,mode);
+        if (registered) {
+            auto &port = registrations[next++]; const auto id = port->id();
+            auto worker = std::make_unique<Worker>(std::move(port),initial.metadata.generation,mode);
+            assert(owner.bindRegistration(id,worker->process.get()));
+            assert(!owner.bindRegistration(id,worker->process.get())); return worker;
+        }
         auto endpoint = request(owner,control::Operation::Allocate); assert(endpoint.endpoint);
         if (firstName.empty()) firstName = endpoint.endpoint->name;
         else if (std::wstring(mode) == L"replacement") assert(firstName != endpoint.endpoint->name);
@@ -197,15 +227,17 @@ static void lifetime(EngineProcess::Config value, bool registered = false) {
         const auto handles = registrations[3]->handles();
         auto *view = static_cast<uint8_t *>(MapViewOfFile(handles[0],FILE_MAP_WRITE,0,0,control::PacketSize)); assert(view);
         std::fill_n(view,control::PacketSize,uint8_t(0)); UnmapViewOfFile(view); ep::check(SetEvent(handles[1]));
-        inspectUntil(owner,[&](const auto &) { return WaitForSingleObject(handles[1],0) == WAIT_TIMEOUT; });
-        assert(registrations[3]->request(control::Operation::Inspect,ep::now(),Timeout));
-        assert(registrations[3]->poll(registrations[3]->deadline()) == control::State::Failed);
-        assert(registrations[3]->failure() == ep::Failure::Deadline && !registrations[3]->take(ep::now()));
+        inspectUntil(owner,[&](const auto &) { return WaitForSingleObject(registrations[3]->revocationHandle(),0) == WAIT_OBJECT_0; });
+        assert(!registrations[3]->request(control::Operation::Inspect,ep::now(),Timeout));
+        assert(registrations[3]->poll(ep::now()) == control::State::Failed);
+        assert(registrations[3]->failure() == ep::Failure::Closed && !registrations[3]->take(ep::now()));
+        assert(owner.status().registrationBound == 2 && owner.status().registrationRevoked == 1);
     }
     const auto full = request(owner,control::Operation::Allocate);
     assert(full.metadata.code == control::Code::Full && !full.endpoint && full.metadata.connected == 2);
     ep::check(SetEvent(one->go.get())); one->exited();
     inspectUntil(owner,[](const auto &r) { return r.connected == 1 && !r.retiring && !r.listening && !r.jobs; });
+    if (registered) assert(owner.status().registrationBound == 1 && owner.status().registrationRevoked == 2);
     assert(owner.poll(ep::now()) == State::Ready && !writable(value.base/L"language-evidence.sqlite"));
     auto three = launch(L"replacement"); three->await(three->ready.get());
     ep::check(SetEvent(two->go.get())); two->await(two->done.get());
@@ -261,6 +293,78 @@ static void registrationRequests(EngineProcess::Config value, bool crash) {
         assert(!port->take(ep::now()) && !port->request(control::Operation::Inspect,ep::now()) && port->waitHandles().empty());
     }
     assert(WaitForSingleObject(owner.engineHandle(),Timeout) == WAIT_OBJECT_0);
+}
+static void registrationRevocation(EngineProcess::Config value) {
+    const auto random = ep::newName(); const auto gate = L"registration-gate-"+random.substr(random.size()-32);
+    ep::Handle seen(CreateEventW(nullptr,TRUE,FALSE,(L"Local\\harukoto-"+gate+L"-seen").c_str()));
+    ep::Handle release(CreateEventW(nullptr,TRUE,FALSE,(L"Local\\harukoto-"+gate+L"-release").c_str()));
+    assert(seen && release);
+    value.executable = self(); value.trace = value.base.parent_path()/gate; value.ownerRegistrations = 2;
+    EngineProcess owner(value); until(owner,State::Ready);
+    auto running = owner.takeRegistration(ep::now()), queued = owner.takeRegistration(ep::now()); assert(running && queued);
+    assert(running->request(control::Operation::Inspect,ep::now(),Timeout));
+    assert(WaitForSingleObject(seen.get(),Timeout) == WAIT_OBJECT_0); // Host really owns this request.
+    assert(queued->request(control::Operation::Allocate,ep::now(),Timeout));
+    assert(!owner.revokeRegistration(0) && !owner.revokeRegistration(3));
+    for (auto *port : {running.get(),queued.get()}) {
+        assert(owner.revokeRegistration(port->id()) && !owner.revokeRegistration(port->id()));
+        assert(port->poll(ep::now()) == control::State::Failed && port->failure() == ep::Failure::Closed);
+        assert(!port->take(ep::now()) && !port->request(control::Operation::Inspect,ep::now()) && port->waitHandles().empty());
+    }
+    ep::check(SetEvent(release.get()));
+    // The first late reply must be drained without touching a retired port;
+    // the queued Allocate must never reach this Inspect-only test host.
+    const auto result = request(owner,control::Operation::Inspect);
+    assert(result.metadata.jobs == 2 && result.metadata.generation == 42);
+    // Retained stale mailbox handles cannot reactivate either old slot.
+    const auto handles = queued->handles();
+    auto *view = static_cast<uint8_t *>(MapViewOfFile(handles[0],FILE_MAP_WRITE,0,0,control::PacketSize)); assert(view);
+    const auto packet = control::packet(control::Request{2,control::Operation::Allocate});
+    std::copy(packet.begin(),packet.end(),view); UnmapViewOfFile(view); ep::check(SetEvent(handles[1]));
+    assert(request(owner,control::Operation::Inspect).metadata.jobs == 3);
+    assert(owner.status().registrationConfigured == 2 && owner.status().registrationIssued == 2 && owner.status().registrationRevoked == 2);
+    assert(!owner.takeRegistration(ep::now())); owner.requestStop(ep::now()); until(owner,State::Exited);
+    assert(owner.status().failure == EngineProcess::Failure::None && owner.status().exitCode == DWORD(0));
+}
+static void registrationLiveness(EngineProcess::Config value) {
+    value.ownerRegistrations = 4; EngineProcess owner(value); until(owner,State::Ready);
+    auto ready = owner.takeRegistration(ep::now()), live = owner.takeRegistration(ep::now()), exited = owner.takeRegistration(ep::now());
+    assert(ready && live && exited);
+    assert(!owner.bindRegistration(0,GetCurrentProcess()) && !owner.bindRegistration(4,GetCurrentProcess()));
+    auto wrong = event(); ep::check(SetEvent(wrong.get()));
+    bool rejected = false;
+    try { owner.bindRegistration(live->id(),wrong.get()); } catch (const ep::Error &e) { rejected = e.reason == ep::Failure::Authentication; }
+    assert(rejected && !owner.status().registrationBound && !owner.status().registrationRevoked);
+    auto allocation = request(*ready,control::Operation::Allocate); assert(allocation.endpoint);
+    Client client(allocation.endpoint->name,allocation.endpoint->process.get()); client.type("riben");
+    assert(ready->request(control::Operation::Inspect,ep::now(),Timeout));
+    while (ready->poll(ep::now()) == control::State::Pending) wait(ready->waitHandles(),ready->deadline());
+    assert(ready->state() == control::State::Ready && owner.revokeRegistration(ready->id()));
+    assert(ready->poll(ep::now()) == control::State::Failed && !ready->take(ep::now()));
+    assert(!owner.bindRegistration(ready->id(),GetCurrentProcess()));
+    // Revocation withdraws control capability, preserving an existing query.
+    assert(client.key(KeyAction::Refresh).input == "riben");
+    assert(client.choose(find(client.current,"にほん")).text == "にほん");
+    Worker active({L"--liveness-worker"},{}); active.await(active.ready.get());
+    assert(owner.bindRegistration(live->id(),active.process.get()) && !owner.bindRegistration(live->id(),active.process.get()));
+    assert(owner.status().registrationBound == 1);
+    ep::check(TerminateProcess(active.process.get(),77));
+    wait(owner.waitHandles(),ep::now()+Timeout); assert(owner.poll(ep::now()) == State::Ready);
+    assert(live->poll(ep::now()) == control::State::Failed && live->failure() == ep::Failure::Closed);
+    assert(owner.status().registrationBound == 0 && owner.status().registrationRevoked == 2);
+    const auto waits = owner.waitHandles();
+    assert(WaitForMultipleObjects(static_cast<DWORD>(waits.size()),waits.data(),FALSE,0) == WAIT_TIMEOUT);
+    Worker finished({L"--liveness-worker"},{}); finished.await(finished.ready.get());
+    ep::check(SetEvent(finished.go.get())); finished.exited();
+    assert(owner.bindRegistration(exited->id(),finished.process.get()));
+    assert(exited->poll(ep::now()) == control::State::Failed && !owner.bindRegistration(exited->id(),finished.process.get()));
+    assert(owner.status().registrationRevoked == 3);
+    // Issuing the remaining fresh slot works, but retired slots are never reused.
+    auto fresh = owner.takeRegistration(ep::now()); assert(fresh && fresh->id() == 4);
+    assert(request(*fresh,control::Operation::Inspect).metadata.connected == 1 && !owner.takeRegistration(ep::now()));
+    assert(owner.status().registrationIssued == 4);
+    owner.requestStop(ep::now()); until(owner,State::Exited); client.closed();
+    assert(owner.status().registrationRevoked == 4 && owner.status().failure == EngineProcess::Failure::None);
 }
 static void failures(const EngineProcess::Config &value) {
     {
@@ -336,12 +440,17 @@ static void singleInstance(EngineProcess::Config value) {
     assert(writable(value.base/L"language-evidence.sqlite"));
 }
 int wmain(int argc, wchar_t **argv) {
+    if (argc > 1 && std::wstring(argv[1]) == L"--liveness-worker") {
+        assert(argc == 6); auto ready = inherited(argv[2]), go = inherited(argv[3]), done = inherited(argv[4]), finish = inherited(argv[5]);
+        ep::check(SetEvent(ready.get())); assert(WaitForSingleObject(go.get(),Timeout) == WAIT_OBJECT_0); return 0;
+    }
     if (argc > 1 && (std::wstring(argv[1]) == L"--worker" || std::wstring(argv[1]) == L"--registered-worker")) return worker(argc,argv);
     if (argc > 1 && std::wstring(argv[1]) == L"--base") return faultHost(argc,argv);
     try {
         const auto value = config(argc,argv); lifetime(value); lifetime(value,true);
-        registrationRequests(value,false); registrationRequests(value,true); failures(value); singleInstance(value);
-        std::cout << "engine_owner_process: separate owner/host, private registrations, isolated requests, independent exit/rejoin, query/selection and cleanup passed\n";
+        registrationRequests(value,false); registrationRequests(value,true); registrationRevocation(value); registrationLiveness(value);
+        failures(value); singleInstance(value);
+        std::cout << "engine_owner_process: separate owner/host, private registrations, revocation, process liveness, isolated requests, query/selection and cleanup passed\n";
         return 0;
     } catch (const ep::Error &error) { std::cerr << "owner process failure=" << static_cast<int>(error.reason) << " win32=" << error.code << '\n'; return 1; }
 }
