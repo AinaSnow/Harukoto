@@ -1,6 +1,6 @@
-# 基础词库版本快照（开发工具）
+# 基础词库版本快照与热更新
 
-WIN-03a 的基础数据准备阶段。工具需要 Python 3.11 或更高版本，仅使用标准库。目前安装器和运行中的输入法都不读取这里的 STATE.json；命令成功输出始终包含 runtime_activated: false。发行基线继续为 Windows 0.4.4-alpha.19。
+适用 Windows 0.4.4-alpha.20。工具需要 Python 3.11 或更高版本，仅使用标准库。通用 TSF 输入服务读取当前用户的 %LOCALAPPDATA%/Meowpuut/BaseDictionaries/STATE.json；所有加载新版接入层的应用均使用同一机制，各自加载和切换。工具输出 runtime_activation_confirmed: false，表示工具未确认各应用的实际生效状态，不表示发布不会生效。首次升级接入层仍需重开输入应用。
 
 ## 整包内容
 
@@ -19,7 +19,7 @@ verify 检查精确文件集合、大小上限（每项 512 MiB）、哈希及�
 
 ## 操作示例
 
-在仓库根目录使用 PowerShell 7。路径均显式指定，推荐使用独立开发目录；目标快照必须不存在。版本号表示词库构建版本，不自动改变安装器版本。
+在仓库根目录使用 PowerShell 7。路径均显式指定，开发验证推荐独立目录；目标快照必须不存在。版本号表示词库构建版本，不自动改变安装器版本。以下 alpha19 是示例词库版本，新版引擎可加载兼容格式的旧快照。
 
 ```powershell
 python -X utf8 Windows/manage-base-dictionary.py create .build/windows/ime .build/base-snapshots/alpha19 --version 0.4.4-alpha.19
@@ -56,9 +56,29 @@ python -X utf8 Windows/manage-base-dictionary.py verify .build/base-snapshots/al
 
 SQLite 必须是关闭写入并使用普通回滚日志格式的独立数据库；拒绝 WAL 格式及 -wal／-shm／-journal 边车文件。活用表原生上限为 4 MiB，严格于通用存储层的 512 MiB。原生加载期间持有清单与成员文件的只读句柄，拒绝写入、删除或替换；多个只读加载器可同时使用。对象销毁时先关闭 SQLite，再释放文件句柄。不要对已加载快照原地修补，应发布新目录。
 
---store 读取 current、检查目录与清单标识，并在准备完成后复查指针；中途变更会失败，调用者可重试。当前工具不会后台自动重试、启动监控、修改 STATE.json 或激活 TSF。成功结果 native_loaded=true 只代表原生加载通过，runtime_activated 仍为 false。
+检查器的 --store 读取 current、检查目录与清单标识，并在准备完成后复查指针；中途变更会失败，调用者可重试。独立检查器不会后台自动重试、启动监控、修改 STATE.json 或激活 TSF。检查器结果 native_loaded=true 只代表原生加载通过，runtime_activated 仍为 false；管理工具外层则使用 runtime_activation_confirmed 字段。
 
-Snapshot 与 SQLite 查询语句只供单个消费线程使用；未来后台线程准备完成后必须通过同步交接，不能同时查询。主题／个人表尚未合并到这个对象。原生核心会话可独立保留其词库，但使用日语、活用和 SQLite 引用的代码仍须持有 Snapshot，不能只留裸引用。
+Snapshot 与 SQLite 查询语句只供单个消费线程使用；后台准备完成后通过原子完成标记交接给 TSF 线程，不能同时查询。主题／个人表与新基础表在同一后台任务中合并，并和 Snapshot 同步发布。原生核心会话可独立保留其词库，但使用日语、活用和 SQLite 引用的代码仍须持有 Snapshot，不能只留裸引用。
+
+## 发布到正在使用的输入法
+
+先完成 create 和原生 verify，再将已验证快照发布到当前用户的运行时仓库。以下命令会影响所有已加载 alpha.20 的输入应用，不限定 QQ，也不需要管理员权限：
+
+~~~powershell
+$baseStore = Join-Path $env:LOCALAPPDATA 'Meowpuut/BaseDictionaries'
+python -X utf8 Windows/manage-base-dictionary.py stage .build/base-snapshots/alpha19 --store $baseStore
+python -X utf8 Windows/manage-base-dictionary.py status --store $baseStore
+# 发布过两个有效版本后可回退
+python -X utf8 Windows/manage-base-dictionary.py rollback --store $baseStore
+~~~
+
+输入服务在实际可处理按键时至多每秒启动一次后台检查，空闲时不持续轮询。正在组字、活用面板开启或任一挂起会话还有引擎未取走的已选文字时不切换；完成或取消后，在下一次实际按键前发布准备好的版本。若第一段仍是旧候选，完成或取消后再输入。各应用独立生效，不保证同一时刻切换，也不保证发布后的第一个按键立即使用新版。
+
+切换前先创建全部活动／挂起上下文的替代会话，保留各自繁简模式及片段上下文；全部成功后才交换。已经进入 TSF 上屏队列的文字、队列状态和原字段归属均保持。基础、主题或个人表任一失败都保留当前整套结果，后续新组字提示“词库更新失败，沿用旧版”，之后继续重试。有效空个人表仍表示显式清空；删除基础 STATE.json 不表示恢复出厂词库，已加载实例会保留内存旧版并报更新失败。
+
+启动时先使用安装目录内的基础词库，之后按上述流程读取用户仓库；已发布的用户基础快照会覆盖安装包基础词库，因此后续升级安装包也应检查用户仓库版本。重启后遇到坏用户快照会继续用安装目录版本，内存旧版不是跨进程备份。通过运行时仓库更新无需替换宿主 DLL；引擎代码和 TSF 接入层更新仍需重开应用。
+
+MSVC 安装包／ZIP 附带 Windows/manage-base-dictionary.py、scripts/base_dictionary.py 和根目录的 harukoto_base_dictionary_check.exe。从解压目录执行时原生校验器路径改为 ./harukoto_base_dictionary_check.exe；工具没有图形入口。安装器不会自动发布或覆盖用户基础快照。
 
 ## 验证与下一步
 
@@ -68,4 +88,4 @@ Snapshot 与 SQLite 查询语句只供单个消费线程使用；未来后台线
 
 原生加载器与开发检查入口已实现；test_base_dictionary_native.py 覆盖 Python／C++ 内容标识一致、格式拒绝、有效哈希下的坏内容、SQLite schema／WAL、只读文件占用释放及不同代次并存，生产测试也通过新 Snapshot 对象查询简繁候选。
 
-下一步接入后台加载与 TSF 空组字边界切换，同时处理活动及挂起会话、已选待投递文字和主题／个人表的合并代次。失败保留旧对象，不能把新基础表与旧合并结果混用。此接入尚未实现，不宣称普通中文词库已支持热更新。
+alpha.20 已接入通用 TSF 后台加载和空组字边界切换。service_dictionary_reload 使用两个独立进程运行生产服务代码，覆盖输入中更新、活动／挂起已选文字、队列身份、繁简保持、失焦、主题／个人表一致性、坏更新恢复与回退；service_dictionary_reload_full 使用真实全量词库。自动测试不替代记事本、浏览器、VS Code、QQ、FF14 和远程环境的实际 TSF 投递验收。下一步补各应用生效版本诊断、性能测量及独立引擎方案。

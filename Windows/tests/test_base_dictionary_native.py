@@ -14,8 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import base_dictionary as bundle
 
-CHECKER, READER = map(Path, sys.argv[1:3])
-del sys.argv[1:3]
+CHECKER = READER = None
 
 
 def string(value):
@@ -204,4 +203,6 @@ class NativeTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    CHECKER, READER = map(Path, sys.argv[1:3])
+    del sys.argv[1:3]
     unittest.main()

@@ -168,6 +168,7 @@ HRESULT EditSession::DoEditSession(TfEditCookie cookie) {
 
 class Service final : public ITfTextInputProcessor, public ITfKeyEventSink, public ITfThreadMgrEventSink, public ITfThreadFocusSink, public RefCount {
     friend struct ServiceFocusTest;
+    friend struct ServiceReloadTest;
 public:
     ~Service() override { Deactivate(); }
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
@@ -204,7 +205,8 @@ public:
                 auto personal = readPersonalDictionary(customPath);
                 const auto themeRoot = std::filesystem::path(localAppData) / L"Meowpuut/Dictionaries";
                 auto snapshot = readJapanesePackageSnapshot(themeRoot);
-                themeReload = std::make_unique<ThemeReload>(themeRoot, japaneseWords, snapshot ? snapshot->generation : std::string(), customPath, personal);
+                themeReload = std::make_unique<ThemeReload>(themeRoot, japaneseWords, snapshot ? snapshot->generation : std::string(),
+                    customPath, personal, std::filesystem::path(localAppData) / L"Meowpuut/BaseDictionaries");
                 if (personal) japaneseWords.insert(japaneseWords.end(), personal->words.begin(), personal->words.end());
                 if (snapshot) japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(snapshot->words.begin()), std::make_move_iterator(snapshot->words.end()));
             }
@@ -275,6 +277,8 @@ public:
         delivery.reset();
         mpn_lexicon_destroy(lexicon);
         lexicon = nullptr;
+        baseSnapshot.reset();
+        evidence.disconnect();
         return S_OK;
     }
 
@@ -346,7 +350,7 @@ public:
                 delivery->pump();
             }
             if (activeContext != context || !session || !delivery || !delivery->queue.canDeliver()) return S_OK;
-            if (themeReload) themeReload->poll(!*mpn_input(session), japaneseWords);
+            pollDictionaries();
             const bool preference = readSimplifiedPreference();
             if (preference != simplified) conjugationPanel.close(choices, page, highlighted, expanded);
             if (applyPinyinScript(session, simplified, preference)) {
@@ -364,7 +368,7 @@ public:
             if (key == VK_F6 || (conjugationPanel.active() && (key == VK_ESCAPE || key == VK_BACK))) {
                 if (!(static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30))) {
                     if (conjugationPanel.active()) conjugationPanel.close(choices, page, highlighted, expanded);
-                    else conjugationPanel.open(conjugations, choices, mpn_input(session), page, highlighted, expanded);
+                    else conjugationPanel.open(currentConjugations(), choices, mpn_input(session), page, highlighted, expanded);
                 }
                 *eaten = TRUE;
             } else if (conjugationPanel.active() && key == VK_F4) {
@@ -518,7 +522,7 @@ private:
         if (key == VK_F6) {
             if (context != activeContext) return false;
             const size_t index = page * pageSize + highlighted;
-            return conjugationPanel.active() || (index < choices.size() && conjugationFor(conjugations, choices[index], mpn_input(current)));
+            return conjugationPanel.active() || (index < choices.size() && conjugationFor(currentConjugations(), choices[index], mpn_input(current)));
         }
         if (key >= '0' && key <= '9') return true;
         if (navigation(key) || key == VK_F4)
@@ -533,12 +537,66 @@ private:
         bool chineseLocked = false, expanded = false, simplified = true;
         size_t page = 0, highlighted = 0;
     };
+    const JapaneseConjugations &currentConjugations() const {
+        return baseSnapshot ? baseSnapshot->conjugations() : conjugations;
+    }
+    const WordEvidence &currentEvidence() const {
+        return baseSnapshot ? baseSnapshot->evidence() : evidence;
+    }
+    MPNSession *newSession() const {
+        return baseSnapshot ? baseSnapshot->session(simplified).release() : mpn_session_create(lexicon);
+    }
+    bool dictionaryBoundary() const {
+        const auto idle = [](MPNSession *value) {
+            return value && !*mpn_input(value) && !*mpn_committed(value);
+        };
+        if (!idle(session) || conjugationPanel.active()) return false;
+        for (const auto &entry : suspended) if (!idle(entry.second.session)) return false;
+        return true;
+    }
+    bool adoptBase(std::unique_ptr<base_dictionary::Snapshot> &next) {
+        if (!next || !dictionaryBoundary()) return false;
+        // Allocate every replacement before changing anything. Pending TSF
+        // delivery queues belong to contexts, not engine sessions, and remain
+        // untouched. Uncollected engine commits above postpone the swap.
+        auto active = next->session(simplified);
+        mpn_set_segment_context(active.get(), mpn_segment_context(session));
+        std::vector<base_dictionary::Session> replacements;
+        replacements.reserve(suspended.size());
+        for (const auto &entry : suspended) {
+            auto replacement = next->session(entry.second.simplified);
+            mpn_set_segment_context(replacement.get(), mpn_segment_context(entry.second.session));
+            replacements.push_back(std::move(replacement));
+        }
+        // From here on only non-throwing ownership swaps and cleanup.
+        mpn_session_destroy(session);
+        session = active.release();
+        size_t index = 0;
+        for (auto &entry : suspended) {
+            auto &saved = entry.second;
+            mpn_session_destroy(saved.session);
+            saved.session = replacements[index++].release();
+            saved.choices.clear(); saved.page = saved.highlighted = 0;
+            saved.chineseLocked = saved.expanded = false;
+        }
+        resetCandidates();
+        baseSnapshot.swap(next);
+        // All contexts now own sessions from the new base. Release the original
+        // installation's large lexicon rather than retaining it indefinitely.
+        mpn_lexicon_destroy(lexicon); lexicon = nullptr;
+        evidence.disconnect();
+        return true;
+    }
+    bool pollDictionaries(ULONGLONG now = GetTickCount64()) {
+        return themeReload && themeReload->poll(dictionaryBoundary(), japaneseWords,
+            [this](auto &next) { return adoptBase(next); }, now);
+    }
     bool switchContext(ITfContext *context) {
         // Some hosts change the supplied context without a preceding document
         // focus event. Never save an unfinished composition in that case.
         cancelForFocusChange();
         auto found = suspended.find(context);
-        MPNSession *next = found == suspended.end() ? (activeContext ? mpn_session_create(lexicon) : session) : found->second.session;
+        MPNSession *next = found == suspended.end() ? (activeContext ? newSession() : session) : found->second.session;
         if (!next) return false;
         // A popped active context leaves a cleared reusable session. Restoring
         // another saved context replaces it, so release that idle session.
@@ -607,7 +665,7 @@ private:
             return;
         }
         choices = windowsCandidates(session, japaneseWords, [&](const std::string &input) {
-            return evidence.dictionary(input, simplified);
+            return currentEvidence().dictionary(input, simplified);
         }, chineseLocked);
     }
 
@@ -618,7 +676,7 @@ private:
         while (choices.size() == before && mpn_candidates_can_expand(session)) {
             mpn_expand_candidates(session);
             const auto more = windowsCandidates(session, japaneseWords, [&](const std::string &input) {
-                return evidence.dictionary(input, simplified);
+                return currentEvidence().dictionary(input, simplified);
             }, chineseLocked);
             appendCandidateExpansion(session, choices, more);
         }
@@ -768,7 +826,7 @@ private:
         }
         auto display = wide(mpn_preedit(session)) + (simplified ? L"  简" : L"  繁");
         const bool canConjugate = !conjugationPanel.active() && page * pageSize + highlighted < choices.size() &&
-            conjugationFor(conjugations, choices[page * pageSize + highlighted], mpn_input(session));
+            conjugationFor(currentConjugations(), choices[page * pageSize + highlighted], mpn_input(session));
         const std::wstring conjugationHint = conjugationPanel.active() ? L"  活用 · F6/Esc 返回" : canConjugate ? L"  F6 活用" : L"";
         display += conjugationHint;
         const auto start = page * pageSize;
@@ -858,6 +916,7 @@ private:
     std::unordered_map<ITfContext *, SavedContext> suspended;
     std::vector<JapaneseWord> japaneseWords;
     std::unique_ptr<ThemeReload> themeReload;
+    std::unique_ptr<base_dictionary::Snapshot> baseSnapshot;
     JapaneseConjugations conjugations;
     ConjugationPanel conjugationPanel;
     WordEvidence evidence;

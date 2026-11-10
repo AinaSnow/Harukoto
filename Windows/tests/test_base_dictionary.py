@@ -144,7 +144,7 @@ class SnapshotTests(unittest.TestCase):
         command = [sys.executable, '-X', 'utf8', str(REPO / 'Windows/manage-base-dictionary.py')]
         result = subprocess.run(command + ['stage', str(self.a), '--store', str(self.store)],
                                 capture_output=True, encoding='utf-8', check=True)
-        self.assertEqual(json.loads(result.stdout), dict(result=self.ka, runtime_activated=False))
+        self.assertEqual(json.loads(result.stdout), dict(result=self.ka, runtime_activation_confirmed=False))
         result = subprocess.run(command + ['verify', str(self.root / 'missing')],
                                 capture_output=True, encoding='utf-8')
         self.assertNotEqual(result.returncode, 0)

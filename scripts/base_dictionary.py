@@ -1,4 +1,4 @@
-"""开发用基础词库快照：成套校验、暂存与回退，不修改运行中输入法。"""
+"""基础词库快照：成套校验、发布与回退；运行时仓库由输入法异步读取。"""
 import contextlib
 import hashlib
 import json

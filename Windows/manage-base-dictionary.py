@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""开发用基础词库快照管理，不改变已安装或运行中的输入法。"""
+"""基础词库快照管理；发布到运行时仓库后，各应用可在新组字边界加载。"""
 import argparse
 import json
 from pathlib import Path
@@ -20,7 +20,7 @@ def main():
     verify = commands.add_parser('verify', help='检查文件完整性与容器格式')
     verify.add_argument('snapshot', type=Path)
     verify.add_argument('--native-loader', type=Path, help='额外运行已构建的 harukoto_base_dictionary_check.exe')
-    stage = commands.add_parser('stage', help='暂存完整快照并更新开发仓库指针')
+    stage = commands.add_parser('stage', help='发布完整快照到指定仓库；使用运行时路径时输入法可自动加载')
     stage.add_argument('snapshot', type=Path)
     stage.add_argument('--store', type=Path, required=True)
     for name in ('rollback', 'status'):
@@ -53,7 +53,7 @@ def main():
                     bundle.check_generation(args.store, result[key])
     except (OSError, ValueError, TypeError, subprocess.TimeoutExpired) as error:
         parser.error(str(error))
-    print(json.dumps(dict(result=result, runtime_activated=False), ensure_ascii=False, indent=2))
+    print(json.dumps(dict(result=result, runtime_activation_confirmed=False), ensure_ascii=False, indent=2))
 
 
 if __name__ == '__main__':

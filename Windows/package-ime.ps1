@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.19'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.20'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,6 +33,11 @@ try {
     New-Item -ItemType Directory -Force (Join-Path $stage 'Windows'),(Join-Path $stage 'scripts'),(Join-Path $stage 'docs') | Out-Null
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'import-japanese-dictionary.py') -Destination (Join-Path $stage 'Windows')
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'manage-japanese-packages.py') -Destination (Join-Path $stage 'Windows')
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'manage-base-dictionary.py') -Destination (Join-Path $stage 'Windows')
+    Copy-Item -LiteralPath (Join-Path $root 'scripts/base_dictionary.py') -Destination (Join-Path $stage 'scripts')
+    if ($MSVC) {
+        Copy-Item -LiteralPath (Join-Path $build 'msvc/Release/harukoto_base_dictionary_check.exe') -Destination $stage
+    }
     Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_dictionary.py') -Destination (Join-Path $stage 'scripts')
     Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_packages.py') -Destination (Join-Path $stage 'scripts')
     $example = Join-Path $stage 'Resources/DictionaryPackages/example'
@@ -51,6 +56,7 @@ try {
     }
     New-Item -ItemType Directory -Force (Join-Path $stage 'docs/benchmarks') | Out-Null
     Copy-Item -LiteralPath (Join-Path $root 'docs/HOT_RELOAD.md') -Destination (Join-Path $stage 'docs')
+    Copy-Item -LiteralPath (Join-Path $root 'docs/BASE_DICTIONARY_SNAPSHOTS.md') -Destination (Join-Path $stage 'docs')
     Copy-Item -LiteralPath (Join-Path $root 'docs/benchmarks/chinese-alpha11-baseline.json') -Destination (Join-Path $stage 'docs/benchmarks')
     Copy-Item -LiteralPath (Join-Path $root 'docs/benchmarks/chinese-alpha15.json') -Destination (Join-Path $stage 'docs/benchmarks')
     Copy-Item -LiteralPath (Join-Path $root 'docs/benchmarks/chinese-alpha16.json') -Destination (Join-Path $stage 'docs/benchmarks')

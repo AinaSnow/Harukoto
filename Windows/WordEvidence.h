@@ -14,6 +14,7 @@ public:
     ~WordEvidence() { close(); }
 
     bool ready() const { return db && queries[0] && queries[1]; }
+    void disconnect() { close(); }
 
     // Snapshot preparation only; never run this full database scan on a key.
     bool integrityCheck() const {
