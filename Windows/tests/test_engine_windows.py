@@ -19,6 +19,17 @@ with tempfile.TemporaryDirectory(prefix='harukoto-engine-windows-') as temporary
     data.mkdir()
     for name in bundle.FILES:
         shutil.copy2(source / name, data / name)
+    # More than two exact pages guarantee late-page selection independently of
+    # the production dictionary's homophone count. Preserve context and ties.
+    native = data / 'native-pinyin.tsv'
+    header, *rows = native.read_text(encoding='utf-8').splitlines()
+    trailer = []
+    if '# context' in rows:
+        index = rows.index('# context')
+        rows, trailer = rows[:index], rows[index:]
+    rows += [f'fanyeceshi\tfan1ye4ce4shi4\t翻頁測試{i}\t翻页测试{i}\t5000\t5000' for i in range(45)]
+    rows.sort(key=lambda row: (row.split('\t')[0], -int(row.split('\t')[-2])))
+    native.write_text(header+'\n'+'\n'.join(rows+trailer)+'\n', encoding='utf-8', newline='\n')
     # Source-empty mixed aliases belong to the base romaji table. Personal
     # triggers deliberately require an explicit pinyin/english source.
     with (data / 'japanese.tsv').open('a', encoding='utf-8', newline='\n') as words:

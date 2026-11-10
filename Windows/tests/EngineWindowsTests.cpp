@@ -82,6 +82,33 @@ static void directComparison(std::shared_ptr<const WindowsDictionary> dictionary
         }
         assert(actual.more==(p*16+actual.words.size()<expected.size()));
     }
+    // Exactly past the final page and the protocol's last legal page must not
+    // invent more results when earlier pages stopped after a lookahead choice.
+    for (const auto p : {static_cast<uint32_t>((expected.size()+15)/16), uint32_t(4095)}) {
+        auto work=std::make_shared<ServerConnection::Work>(*ticketCopy); work->page=p;
+        const auto actual=dictionary->query(work); assert(actual.words.empty() && !actual.more);
+    }
+}
+static void latePageSelection(std::shared_ptr<const WindowsDictionary> dictionary) {
+    Peer peer(dictionary); auto work=peer.query("fanyeceshi");
+    auto page=dictionary->query(work); assert(page.more);
+    assert(peer.server.complete(work,page,1).response);
+    size_t pages=1; std::set<uint64_t> ids;
+    for (;;) {
+        for (const auto &word : page.words) assert(ids.insert(word.id).second);
+        if (!page.more) break;
+        auto next=peer.frame(Kind::Key); next.payload=encodePayload(KeyMessage{KeyAction::PageNext,0,true});
+        const auto scheduled=peer.server.receive(next,2,100); assert(scheduled.work);
+        work=scheduled.work; page=dictionary->query(work);
+        assert(peer.server.complete(work,page,3).response); assert(++pages<100);
+    }
+    assert(pages>=3 && !page.words.empty());
+    const auto word=page.words.back();
+    auto select=peer.frame(Kind::Select); select.payload=encodePayload(Selection{work->request.id.request,word.id});
+    const auto selected=peer.server.receive(select,4,100); Commit commit;
+    assert(selected.response && decodePayload(selected.response->payload,commit));
+    assert(commit.text==word.text && commit.consumed==word.consumed && commit.remaining==work->input.substr(word.consumed));
+    assert(peer.server.receive(select,5,100).status==ServerConnection::Status::Replay);
 }
 static void backgroundQueries(std::shared_ptr<const WindowsDictionary> dictionary) {
     Executor executor(2,3,[](const auto &work) {
@@ -133,8 +160,10 @@ int main(int argc,char **argv) {
             choose(old,"riben","日本"); choose(old,"riben","にほん");
             choose(old,"ceshibuci","旧补词"); choose(old,"eat","食べる");
             choose(old,"tejihuifuyao","特级恢复药"); choose(old,"tejihuifuyao","特級恢復藥",false);
-            for(const auto &input:{"riben","ceshibuci","tejihuifuyao","nihaoz"})
+            for(const auto &input:{"riben","ceshibuci","tejihuifuyao","nihaoz","nihao","fanyeceshi"})
                 directComparison(old,input,true);
+            directComparison(old,"fanyeceshi",false);
+            latePageSelection(old);
             // Controlled source-empty aliases exercise mixed-prefix/suffix/
             // middle indexing, equal-weight first-match order and excluded EN aliases.
             assert(contains(query(old,"ceshibuciabc"),"旧补词世界"));

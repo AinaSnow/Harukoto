@@ -105,7 +105,7 @@ private:
         auto mark = [&](double QueryTimings::*field) {
             if (!timings) return;
             const auto current = std::chrono::steady_clock::now();
-            timings->*field = std::chrono::duration<double, std::milli>(current - previous).count();
+            timings->*field += std::chrono::duration<double, std::milli>(current - previous).count();
             previous = current;
         };
         if (!ticket || ticket->dictionary.get() != this) throw std::invalid_argument("query snapshot mismatch");
@@ -129,28 +129,37 @@ private:
         const auto relevant = queryWords(work);
         auto choices = windowsCandidates(session.get(), relevant, lookup, work.chineseLocked);
         mark(&QueryTimings::merge_ms);
-        // Reproduce formal append semantics: existing choices keep their order.
-        for (int i=0; i<3 && mpn_candidates_can_expand(session.get()); ++i) {
+        std::vector<Candidate> converted;
+        size_t convertedChoices = 0;
+        auto convert = [&] {
+            for (; convertedChoices<choices.size(); ++convertedChoices) {
+                const auto &choice = choices[convertedChoices];
+                auto text = choice.text;
+                size_t consumed = work.input.size();
+                if (choice.coreIndex) {
+                    const auto tail = mpn_candidate_literal_tail(session.get(), *choice.coreIndex);
+                    if (tail > text.size()) throw std::runtime_error("invalid candidate tail");
+                    text.resize(text.size() - tail);
+                    consumed = mpn_candidate_consumed(session.get(), *choice.coreIndex);
+                }
+                if (text.empty() || !consumed) continue;
+                converted.push_back({convertedChoices + 1, static_cast<uint32_t>(consumed), std::move(text), choice.annotation});
+            }
+        };
+        const auto start = size_t(work.page) * PageSize;
+        // Expansion only appends, and native indices remain stable. Once we
+        // have this page plus one valid choice, neither its contents/IDs nor
+        // more=true can change. Later pages rebuild the same prefix and expand
+        // further as needed, retaining the original three-round search budget.
+        const auto required = start + PageSize + (work.page < 4095 ? 1 : 0);
+        convert(); mark(&QueryTimings::conversion_ms);
+        for (int i=0; converted.size()<required && i<3 && mpn_candidates_can_expand(session.get()); ++i) {
             mpn_expand_candidates(session.get());
             appendCandidateExpansion(session.get(), choices, windowsCandidates(session.get(), relevant, lookup, work.chineseLocked));
-        }
-        mark(&QueryTimings::expansion_ms);
-        std::vector<Candidate> converted;
-        for (size_t index=0; index<choices.size(); ++index) {
-            const auto &choice = choices[index];
-            auto text = choice.text;
-            size_t consumed = work.input.size();
-            if (choice.coreIndex) {
-                const auto tail = mpn_candidate_literal_tail(session.get(), *choice.coreIndex);
-                if (tail > text.size()) throw std::runtime_error("invalid candidate tail");
-                text.resize(text.size() - tail);
-                consumed = mpn_candidate_consumed(session.get(), *choice.coreIndex);
-            }
-            if (text.empty() || !consumed) continue;
-            converted.push_back({index + 1, static_cast<uint32_t>(consumed), std::move(text), choice.annotation});
+            mark(&QueryTimings::expansion_ms);
+            convert(); mark(&QueryTimings::conversion_ms);
         }
         CandidatePage page{work.input, false, {}};
-        const auto start = size_t(work.page) * PageSize;
         if (start < converted.size()) {
             const auto end = std::min(converted.size(), start + PageSize);
             page.words.assign(converted.begin() + start, converted.begin() + end);
