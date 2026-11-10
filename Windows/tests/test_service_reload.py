@@ -111,6 +111,12 @@ class ServiceReloadTests(unittest.TestCase):
         self.assertFalse(updated['failed']); self.assertEqual(updated['generation'], self.kb)
         self.assertIn('珈琲', updated['words']); self.assertIn('東京', updated['words']); self.assertIn('恋', updated['words'])
         self.assertNotIn('コーヒー', updated['words']); self.assertNotIn('愛', updated['words'])
+        self.send(host, 'cleanup')
+        # Old generation's read guards must be released by detached cleanup.
+        with (self.store / self.ka / 'language-evidence.sqlite').open('r+b'):
+            pass
+        with self.assertRaises(PermissionError):
+            (self.store / self.kb / 'language-evidence.sqlite').open('r+b')
         # Later personal-only changes must keep the newest base, not resurrect A.
         personal.write_text('', encoding='utf-8')
         updated = self.send(host, 'poll')
@@ -142,6 +148,20 @@ class ServiceReloadTests(unittest.TestCase):
         fresh = self.start()
         _, error = fresh.communicate('start-exit\n', timeout=15)
         self.assertEqual(fresh.returncode, 0, error)
+
+    def test_measurement_boundaries_and_no_change(self):
+        host = self.start()
+        bundle.stage(self.a, self.store)
+        first = self.send(host, 'measure')
+        self.assertEqual(first['generation'], self.ka)
+        self.assertTrue(first['changed'])
+        second = self.send(host, 'measure')
+        self.assertFalse(second['changed'])
+        for sample in (first, second):
+            for key in ('dispatch_ms', 'background_wait_ms', 'apply_ms'):
+                self.assertGreaterEqual(sample[key], 0)
+            self.assertGreater(sample['private_before'], 0)
+            self.assertGreaterEqual(sample['sampled_peak_private'], max(sample['private_before'], sample['private_ready'], sample['private_after']))
 
     @unittest.skipUnless(PRODUCTION, 'production lexicon not supplied')
     def test_production_dictionary(self):

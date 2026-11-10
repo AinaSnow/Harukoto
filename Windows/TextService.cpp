@@ -557,7 +557,7 @@ private:
         for (const auto &entry : suspended) if (!idle(entry.second.session)) return false;
         return true;
     }
-    bool adoptBase(std::unique_ptr<base_dictionary::Snapshot> &next) {
+    bool adoptBase(std::unique_ptr<base_dictionary::Snapshot> &next, base_dictionary::Lexicon &retiredInstallation) {
         if (!next || !dictionaryBoundary()) return false;
         // Allocate every replacement before changing anything. Pending TSF
         // delivery queues belong to contexts, not engine sessions, and remain
@@ -586,20 +586,20 @@ private:
         baseSnapshot.swap(next);
         // All contexts now own sessions from the new base. Release the original
         // installation's large lexicon rather than retaining it indefinitely.
-        mpn_lexicon_destroy(lexicon); lexicon = nullptr;
+        retiredInstallation.reset(lexicon); lexicon = nullptr;
         evidence.disconnect();
         return true;
     }
     bool pollDictionaries(ULONGLONG now = GetTickCount64()) {
         const bool changed = themeReload && themeReload->poll(dictionaryBoundary(), japaneseWords,
-            [this](auto &next) { return adoptBase(next); }, now);
+            [this](auto &next, auto &retired) { return adoptBase(next, retired); }, now);
         reportRuntimeStatus();
         return changed;
     }
     void reportRuntimeStatus() noexcept {
         try {
             using base_dictionary::Metadata;
-            runtimeStatus.publish("\"service_version\":\"0.4.4-alpha.21\",\"base_version\":" +
+            runtimeStatus.publish("\"service_version\":\"0.4.4-alpha.22\",\"base_version\":" +
                 Metadata::quote(baseSnapshot ? baseSnapshot->version() : std::string()) + "," +
                 (themeReload ? themeReload->diagnosticFields() :
                     "\"base_generation\":\"\",\"theme_generation\":\"\",\"pending_base_generation\":\"\",\"phase\":\"unavailable\",\"last_apply_failed\":false"));

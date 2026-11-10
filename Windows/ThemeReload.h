@@ -12,6 +12,9 @@
 class ThemeReload {
     friend struct ThemeReloadTests;
     struct Job {
+        std::shared_ptr<Job> retired;
+        base_dictionary::Lexicon retiredInstallation{nullptr, &mpn_lexicon_destroy};
+        bool cleanupOnly = false;
         std::filesystem::path baseRoot;
         std::string previousBase, baseGeneration;
         std::unique_ptr<base_dictionary::Snapshot> preparedBase;
@@ -35,6 +38,10 @@ class ThemeReload {
         return std::string(buffer, 32);
     }
     static void load(Job &job) noexcept {
+        // A completed publication leaves old snapshots/merged rows in the old
+        // job. Free them here, never in the key-processing publication path.
+        job.retired.reset();
+        if (job.cleanupOnly) { job.done.store(true, std::memory_order_release); return; }
         try {
             if (!job.baseRoot.empty()) {
                 if (std::filesystem::exists(job.baseRoot / "STATE.json")) {
@@ -89,7 +96,7 @@ public:
     // Called only from the owning TSF thread, before handling an actual key.
     // Queries (OnTestKeyDown) must never load or publish a dictionary.
     bool poll(bool boundary, std::vector<JapaneseWord> &words, ULONGLONG now = GetTickCount64()) {
-        return poll(boundary, words, [](auto &) { return false; }, now);
+        return poll(boundary, words, [](auto &, auto &) { return false; }, now);
     }
     // adopt must prepare all sessions before changing service state. On success
     // it swaps ownership without throwing; words and all generation markers
@@ -102,7 +109,7 @@ public:
             try {
                 if (!failed_ && job_->result) {
                     if (job_->preparedBase) {
-                        if (!adopt(job_->preparedBase)) throw std::runtime_error("base session replacement failed");
+                        if (!adopt(job_->preparedBase, job_->retiredInstallation)) throw std::runtime_error("base session replacement failed");
                         base_.swap(job_->preparedWords);
                         activeBase_.swap(job_->baseGeneration);
                     }
@@ -112,9 +119,28 @@ public:
                     changed = true;
                 }
             } catch (...) { failed_ = true; }
-            job_.reset();
+            if (job_->result || job_->preparedBase) retired_ = std::move(job_);
+            else job_.reset();
         }
-        if (!job_ && now >= nextPoll_) {
+        if (retired_) {
+            HMODULE workerModule = nullptr;
+            if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&worker), &workerModule)) {
+                try {
+                    auto cleanup = std::make_shared<Job>();
+                    cleanup->cleanupOnly = true;
+                    auto start = std::make_unique<Start>(Start{cleanup, workerModule});
+                    // Transfer the last foreground reference before starting:
+                    // a fast worker must not leave foreground as last owner.
+                    cleanup->retired = std::move(retired_);
+                    HANDLE thread = CreateThread(nullptr, 0, worker, start.get(), 0, nullptr);
+                    if (thread) { start.release(); CloseHandle(thread); cleanup_ = std::move(cleanup); }
+                    else { retired_ = std::move(cleanup->retired); FreeLibrary(workerModule); }
+                } catch (...) { FreeLibrary(workerModule); }
+            }
+        }
+        // If cleanup cannot start, retain the old object and retry on a later
+        // key. Do not overwrite it or destroy it on the foreground thread.
+        if (!job_ && !retired_ && now >= nextPoll_) {
             nextPoll_ = now + 1000;
             HMODULE workerModule = nullptr;
             if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&worker), &workerModule)) return changed;
@@ -155,6 +181,8 @@ private:
     std::filesystem::path root_;
     std::shared_ptr<const std::vector<JapaneseWord>> base_;
     std::shared_ptr<Job> job_;
+    std::shared_ptr<Job> retired_;
+    std::shared_ptr<Job> cleanup_; // Tiny completion handle; payload is released by its worker.
     std::string active_;
     std::filesystem::path personalPath_;
     std::shared_ptr<const PersonalDictionarySnapshot> personal_;

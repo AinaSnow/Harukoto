@@ -2,6 +2,20 @@
 #include "../TextService.cpp"
 #include <cassert>
 #include <iostream>
+#include <chrono>
+#include <iomanip>
+#include <psapi.h>
+
+using ReloadClock = std::chrono::steady_clock;
+static double elapsedMs(ReloadClock::time_point start) {
+    return std::chrono::duration<double, std::milli>(ReloadClock::now() - start).count();
+}
+static size_t privateBytes() {
+    PROCESS_MEMORY_COUNTERS_EX info{};
+    if (!GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&info), sizeof(info)))
+        throw std::runtime_error("cannot sample process private bytes");
+    return info.PrivateUsage;
+}
 
 struct ThemeReloadTests {
     static void wait(ThemeReload &reload) {
@@ -11,6 +25,21 @@ struct ThemeReloadTests {
         assert(reload.job_->done.load(std::memory_order_acquire));
     }
     static bool started(const ThemeReload &reload) { return bool(reload.job_); }
+    static void waitCleanup(ThemeReload &reload) {
+        const auto limit = GetTickCount64() + 30000;
+        while (reload.cleanup_ && !reload.cleanup_->done.load(std::memory_order_acquire) && GetTickCount64() < limit) Sleep(1);
+        assert(!reload.cleanup_ || reload.cleanup_->done.load(std::memory_order_acquire));
+    }
+    static size_t sampleUntilReady(ThemeReload &reload) {
+        const auto limit = GetTickCount64() + 30000;
+        size_t peak = privateBytes();
+        assert(reload.job_);
+        while (!reload.job_->done.load(std::memory_order_acquire) && GetTickCount64() < limit) {
+            peak = std::max(peak, privateBytes()); Sleep(1);
+        }
+        assert(reload.job_->done.load(std::memory_order_acquire));
+        return std::max(peak, privateBytes());
+    }
 };
 
 namespace {
@@ -48,6 +77,8 @@ struct ServiceReloadTest {
             std::ifstream input(initial / "native-pinyin.tsv", std::ios::binary);
             std::string bytes{std::istreambuf_iterator<char>(input), {}};
             service.lexicon = mpn_lexicon_create(bytes.data(), bytes.size()); assert(service.lexicon);
+            // The production Activate local buffer is gone before the first key.
+            std::string().swap(bytes); input.close();
             service.session = mpn_session_create(service.lexicon); assert(service.session);
             mpn_set_simplified(service.session, true);
             service.evidence.open(initial / "language-evidence.sqlite");
@@ -77,7 +108,41 @@ struct ServiceReloadTest {
             for (std::string command; std::getline(std::cin, command);) {
                 auto &background = service.suspended.at(&savedContext);
                 if (command == "exit") break;
-                if (command == "poll") {
+                if (command == "measure") {
+                    assert(service.dictionaryBoundary());
+                    ThemeReloadTests::waitCleanup(*service.themeReload);
+                    now += 1000;
+                    const auto before = privateBytes();
+                    auto start = ReloadClock::now();
+                    service.pollDictionaries(now);
+                    const auto dispatch = elapsedMs(start);
+                    start = ReloadClock::now();
+                    const auto peak = ThemeReloadTests::sampleUntilReady(*service.themeReload);
+                    const auto wait = elapsedMs(start);
+                    const auto ready = privateBytes();
+                    start = ReloadClock::now();
+                    const bool changed = service.pollDictionaries(now);
+                    const auto apply = elapsedMs(start);
+                    const auto after = privateBytes();
+                    start = ReloadClock::now();
+                    ThemeReloadTests::waitCleanup(*service.themeReload);
+                    const auto cleanup = elapsedMs(start);
+                    const auto settled = privateBytes();
+                    assert(!service.themeReload->failed());
+                    assert(service.delivery == activeDelivery && background.delivery == savedDelivery);
+                    assert(service.delivery->queue.inFlight() && !background.delivery->queue.empty());
+                    using base_dictionary::Metadata;
+                    std::cout << std::fixed << std::setprecision(4)
+                        << "{\"generation\":" << Metadata::quote(service.themeReload->activeBaseGeneration())
+                        << ",\"changed\":" << (changed ? "true" : "false")
+                        << ",\"dispatch_ms\":" << dispatch << ",\"background_wait_ms\":" << wait
+                        << ",\"apply_ms\":" << apply << ",\"private_before\":" << before
+                        << ",\"private_ready\":" << ready << ",\"private_after\":" << after
+                        << ",\"cleanup_wait_ms\":" << cleanup << ",\"private_settled\":" << settled
+                        << ",\"sampled_peak_private\":" << std::max({before, peak, ready, after})
+                        << ",\"merged_rows\":" << service.japaneseWords.size() << "}" << std::endl;
+                    continue;
+                } else if (command == "poll") {
                     now += 1000;
                     service.pollDictionaries(now); ThemeReloadTests::wait(*service.themeReload);
                     service.pollDictionaries(now);
@@ -96,6 +161,8 @@ struct ServiceReloadTest {
                     mpn_clear(background.session); mpn_clear_commit(background.session);
                 } else if (command == "focus") {
                     service.OnKillThreadFocus();
+                } else if (command == "cleanup") {
+                    ThemeReloadTests::waitCleanup(*service.themeReload);
                 } else if (command == "query") {
                     const bool started = ThemeReloadTests::started(*service.themeReload);
                     BOOL eaten = FALSE;

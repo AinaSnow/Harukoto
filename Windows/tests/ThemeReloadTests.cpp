@@ -5,6 +5,26 @@
 #include <iostream>
 
 struct ThemeReloadTests {
+    static void cleanupThread() {
+        const auto caller = GetCurrentThreadId();
+        for (int i = 0; i < 64; ++i) {
+            std::atomic<DWORD> destroyedOn{0};
+            ThemeReload reload({}, {}, "");
+            reload.nextPoll_ = 1000;
+            auto old = std::make_shared<ThemeReload::Job>();
+            old->previousPersonal = std::shared_ptr<PersonalDictionarySnapshot>(new PersonalDictionarySnapshot,
+                [&](auto *value) { delete value; destroyedOn.store(GetCurrentThreadId(), std::memory_order_release); });
+            reload.retired_ = std::move(old);
+            std::vector<JapaneseWord> words;
+            assert(!reload.poll(false, words, 0));
+            const auto deadline = GetTickCount64() + 10000;
+            assert(reload.cleanup_);
+            while (!reload.cleanup_->done.load(std::memory_order_acquire) && GetTickCount64() < deadline) Sleep(1);
+            assert(reload.cleanup_->done.load(std::memory_order_acquire));
+            assert(destroyedOn.load(std::memory_order_acquire) && destroyedOn.load() != caller);
+            assert(!reload.retired_ && !reload.failed());
+        }
+    }
     static void personal() {
         const auto root = std::filesystem::temp_directory_path() / ("harukoto-personal-" + std::to_string(GetCurrentProcessId()) + "-" + std::to_string(GetTickCount64()));
         std::filesystem::create_directories(root);
@@ -195,6 +215,6 @@ struct ThemeReloadTests {
 };
 int main(int argc, char **argv) {
     if (argc == 4) ThemeReloadTests::bulk(argv[1], argv[2], argv[3]);
-    else { assert(argc == 1); ThemeReloadTests::run(); ThemeReloadTests::personal(); }
+    else { assert(argc == 1); ThemeReloadTests::run(); ThemeReloadTests::personal(); ThemeReloadTests::cleanupThread(); }
     std::cout << "PASS: background theme reload checks\n";
 }
