@@ -14,6 +14,7 @@ public:
     using Ticket = ServerConnection::Ticket;
     using Query = std::function<CandidatePage(const Ticket &)>;
     using Clock = std::function<uint64_t()>;
+    using Wake = std::function<void()>;
     enum class Admission { Accepted, Full, Stopped, Duplicate, Invalid };
     struct Completion {
         Ticket work;
@@ -37,12 +38,19 @@ private:
     };
     Query query_;
     Clock clock_;
+    Wake wake_;
     std::vector<Slot> slots_;
     std::vector<std::thread> workers_;
     std::mutex mutex_;
     std::condition_variable ready_, completed_;
     size_t occupied_ = 0, queued_ = 0, finished_ = 0, cursor_ = 0;
     bool stopping_ = false;
+    // Called with mutex_ held after publication. A wake hook must be nonblocking,
+    // must not throw or re-enter Executor, and must outlive every worker.
+    void notifyCompleted() noexcept {
+        completed_.notify_all();
+        if (wake_) { try { wake_(); } catch (...) { std::terminate(); } }
+    }
     std::optional<Completion> takeLocked() {
         for (auto &slot : slots_) if (slot.state == State::Complete) {
             auto result = std::move(slot.result);
@@ -85,15 +93,15 @@ private:
                 }
                 slot.result.page = std::move(page); slot.result.error = error;
                 slot.state = State::Complete; ++finished_;
+                notifyCompleted();
             }
-            completed_.notify_one();
         }
     }
 public:
     // Query and Clock must support concurrent calls and return. They must not
     // capture a connection, TSF context or thread-affine database connection.
-    explicit Executor(size_t threads, size_t capacity, Query query, Clock clock = now)
-        : query_(std::move(query)), clock_(std::move(clock)) {
+    explicit Executor(size_t threads, size_t capacity, Query query, Clock clock = now, Wake wake = {})
+        : query_(std::move(query)), clock_(std::move(clock)), wake_(std::move(wake)) {
         if (!threads || threads > 16 || !capacity || capacity > 256 || threads > capacity || !query_ || !clock_)
             throw std::invalid_argument("invalid engine executor limits");
         slots_.resize(capacity); workers_.reserve(threads);
@@ -126,7 +134,7 @@ public:
             if (slot.state != State::Running) {
                 if (slot.state == State::Queued) { --queued_; ++finished_; }
                 slot.state = State::Complete; slot.result.page.reset(); slot.result.error = ErrorCode::Cancelled;
-                completed_.notify_one();
+                notifyCompleted();
             }
             return true;
         }
@@ -162,7 +170,7 @@ public:
             if (slot.state == State::Queued) { --queued_; ++finished_; }
             slot.state = State::Complete; slot.result.page.reset(); slot.result.error = ErrorCode::Stopped;
         }
-        ready_.notify_all(); completed_.notify_all();
+        ready_.notify_all(); notifyCompleted();
     }
     // Owner shutdown only, serialized with destruction/other join calls.
     void join() { for (auto &worker : workers_) if (worker.joinable()) worker.join(); }

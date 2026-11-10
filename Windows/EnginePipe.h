@@ -244,6 +244,7 @@ public:
     Failure failure() const { return failure_; }
     DWORD error() const { return error_; }
     bool writeDone() const { return writeDone_; }
+    bool needsPoll() const { return !closed() && (received_ || (reading_ && !read_.pending) || (writing_ && !write_.pending)); }
     HANDLE readEvent() const { return read_.pending ? read_.event.get() : nullptr; }
     HANDLE writeEvent() const { return write_.pending ? write_.event.get() : nullptr; }
     HANDLE nativeHandle() const { return pipe_.get(); } // Borrowed for diagnostics/fault-injection tests.

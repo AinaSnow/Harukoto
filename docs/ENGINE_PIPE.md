@@ -1,5 +1,7 @@
 # Windows 认证本地管道
 
+后续进度：[实验查询宿主](ENGINE_HOST.md)已连接真实词库、ServerConnection 与 Executor，并通过全量进程间回归；本页其余“尚未接查询”等描述记录管道批次边界，正式启动管理与 TSF 仍未接入。
+
 WIN-03b，2026-11-10。`Windows/EnginePipe.h` 提供实验传输层，真实句柄与子进程测试在 `Windows/tests/EnginePipeTests.cpp`。本批完成管道连接认证、异步分帧和取消回收，尚未连接 ServerConnection、Executor、真实词库查询或 TSF；子进程只做固定消息往返。发行仍为 0.4.4-alpha.22，没有生成或安装新包。
 
 ## 端点与信任来源
