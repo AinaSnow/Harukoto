@@ -1,10 +1,10 @@
 # 独立引擎的受控启动与端点领取
 
-后续进度：[多进程竞争测量](ENGINE_IPC_PERFORMANCE.md)已使用一次性 takeEndpoint 将端点及 query／wait 权限的可信进程对象显式交给独立客户端。完整矩阵工具、微型回归和干净提交的全量基线均已完成，正式服务发现与 TSF 仍未接入；以下保留受控启动批次的验证边界。
+最新进度：[私有控制与动态端点](ENGINE_CONTROL.md)已支持按需分配、容量回收和只读状态；开启 `Config.dynamicEndpoints` 后宿主在查询连接全部断开时继续存活，由启动所有者停止。默认静态端点及[多进程竞争测量](ENGINE_IPC_PERFORMANCE.md)保持原契约。跨应用可信所有者／服务发现和 TSF 仍待接入；以下启动批次的验证记录按历史范围阅读。
 
 WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内的启动逻辑提取为可复用模块，管理一个自己创建的引擎进程、1～8 个随机单次连接端点和退出状态。真实微型／全量词库测试已改用该模块；宿主业务仍见[查询宿主](ENGINE_HOST.md)。发行基线保持 Windows 0.4.4-alpha.22、FF14 0.3.0，不安装或自动启动新程序。
 
-本批完成启动所有权及基础退出监督。没有跨应用服务发现、端点动态增补、签名／版本选择、常驻代理、自动重启、快照换代或 TSF 接入。不能把某个应用各自创建一个 EngineProcess 当成多应用共享引擎。
+启动所有权及基础退出监督已完成，后续增补了可选动态模式。没有跨应用服务发现、签名／版本选择、常驻代理、自动重启、快照换代或 TSF 接入。不能把某个应用各自创建一个 EngineProcess 当成多应用共享引擎。
 
 ## 可信配置与启动
 
@@ -14,7 +14,7 @@ WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内�
 
 直接调用 `CreateProcessW`，明确指定可执行文件，按 Windows argv 规则引用每个参数，不经过 shell；工作目录固定为可执行文件所在目录，环境沿用调用方。CREATE_NO_WINDOW 隐藏启动，CREATE_SUSPENDED 保证主线程先不运行。Job 使用 KILL_ON_JOB_CLOSE，成功加入后才 ResumeThread；分配 Job 或恢复线程失败时终止自己创建的挂起子进程。不搜索 PID，也不结束用户的其他输入法或应用。
 
-父进程控制事件和保留的进程／Job 句柄均不可继承。仅为 ready／stop 创建短期可继承副本，通过 STARTUPINFOEX 的显式 HANDLE_LIST 传递；子进程创建后关闭父方的短期副本。真实宿主接管后再清除子方控制句柄的继承标记。列表中不包含其他继承句柄，避免沿用调用方原有可继承事件。
+父进程控制事件和保留的进程／Job 句柄均不可继承。静态模式仅为 ready／stop 创建短期可继承副本，通过 STARTUPINFOEX 的显式 HANDLE_LIST 传递；动态模式另加未命名映射和两个控制事件的副本。子进程创建后关闭父方的短期副本，真实宿主接管后再清除子方控制句柄的继承标记。列表中不包含其他继承句柄，避免沿用调用方原有可继承事件。
 
 构造包含进程创建、文件路径处理等系统调用；连接包含 CreateFile 和令牌检查。这些调用不能保证前台延迟。所有方法只允许在同一服务／I/O 线程使用，不得直接放进 TSF 前台回调。
 
@@ -32,6 +32,8 @@ WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内�
 
 外层事件循环合并 `waitHandles()`、其他通道／完成事件，取非零 `deadline()` 和业务期限中最近者作为等待上限。每次唤醒或到期调用 poll；Ready／Stopping 不再等待已经触发的 ready，避免忙循环。模块没有后台定时器，调用者若停止 poll，超时不会自行执行。Terminating 仍须等待真实进程对象触发，不能把发出终止请求当成已经退出。
 
+动态模式在 Ready 有 Pending 控制请求时另加入回复事件和控制期限；超时仅让控制槽进入 Failed，不自动终止已就绪宿主，原查询连接可继续使用。停止和实际退出均撤销未领取控制回复，固定失败原因保留。接口、单槽规则、容量与信任边界见[私有控制说明](ENGINE_CONTROL.md#调用和等待)。
+
 `requestStop(time)` 在 Starting／Ready 发送 stop，进入停止宽限；重复调用不延长期限。超时通过 TerminateJobObject 仅终止自己的子进程树。析构不等待退出，关闭自己的 Job 作为放弃所有权时的终止保护。正常释放应先 requestStop、继续等待并 poll 至 Exited，再销毁；只有观察退出才能断言词库文件保护已释放。即使后端永久阻塞导致 Host 的 join 不返回，独立拥有者仍可到期终止宿主。
 
 模块不自动重启，停止期间迟到的 ready 不恢复 Ready；不重放 Key／Select，也不改变 PendingDelivery 对已确认文字和原 TSF context 的归属。正式升级／回退还需设计组字边界、未确认选择、旧连接寿命与旧版保留。
@@ -40,7 +42,7 @@ WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内�
 
 Config 新增 `threads`（1～16，默认 2）与可选 `trace` 绝对路径，传给开发宿主的 `--threads`／`--trace`；空路径关闭计时。相对路径、内嵌 NUL 或非法线程数在启动前拒绝。追踪文件存在时真实宿主拒绝启动，管理器观察为 StartupExit，不覆盖文件；计时说明见[进程间测量](ENGINE_IPC_PERFORMANCE.md#可选服务计时与混合负载)。
 
-`takeEndpoint(time)` 仅在 Ready 领取下一个端点，返回随机名称及一份非继承、仅 PROCESS_QUERY_LIMITED_INFORMATION／SYNCHRONIZE 权限的保留进程句柄；领取即消费，即使之后没有连接或交接失败也不归还。可信启动方可明确复制到自己创建的客户端句柄列表，不得只传 PID 后重新打开。`claim(time)` 复用该接口，并在当前 I/O 线程用返回的进程 HANDLE 调用 Channel::connect。Channel 再复制该内核对象、核验进程令牌和实际管道服务端进程。模块不从数字 PID 重新打开进程作为信任依据。
+静态模式的 `takeEndpoint(time)` 仅在 Ready 领取下一个端点，返回随机名称及一份非继承、仅 PROCESS_QUERY_LIMITED_INFORMATION／SYNCHRONIZE 权限的保留进程句柄；领取即消费，即使之后没有连接或交接失败也不归还。可信启动方可明确复制到自己创建的客户端句柄列表，不得只传 PID 后重新打开。`claim(time)` 复用该接口，并在当前 I/O 线程用返回的进程 HANDLE 调用 Channel::connect。Channel 再复制该内核对象、核验进程令牌和实际管道服务端进程。模块不从数字 PID 重新打开进程作为信任依据。动态模式改用 requestControl／takeControl，成功分配同样附带只读进程对象，旧 takeEndpoint／claim 返回空。
 
 一个随机端点只尝试一次，即使连接抛出 pipe::Error 也计为已领取，不等待管道、不重试、不复用名称。未 Ready、停止中、已退出或端点用尽返回空指针。连接失败由调用方处理，不影响其他尚未领取端点；不得自动把未确认按键转给其他连接。返回的 Channel 仍由 I/O 线程负责 Hello／ClientGate、候选快照、取消和关闭回收，claim 成功不是业务握手完成。
 
@@ -63,4 +65,4 @@ cmake --build .build/windows/msvc --config Release
 ctest --test-dir .build/windows/msvc -C Release -R '^(engine_process|engine_host|engine_host_process|engine_host_full)$' --output-on-failure
 ```
 
-一次性端点交接、多客户端竞争／总私有量与 2／4 线程分段对照已完成。下一步明确正式共享所有者、动态端点和可信服务发现，补只读诊断；发现不得从公开 PID 自认证。当前实验进程仍属于创建它的 Job，不能直接作为跨应用常驻服务；版本更新、组字边界换代／回退和 TSF 继续按 WIN-03 推进。
+一次性端点交接、多客户端竞争／总私有量与 2／4 线程分段对照已完成；后续[动态端点与私有只读诊断](ENGINE_CONTROL.md)也已实现并通过 7 项相关回归，当前共 45 项。下一步明确正式共享所有者、单实例竞争和可信服务发现；发现不得从公开 PID 自认证。当前实验进程仍属于创建它的 Job，不能直接作为跨应用常驻服务；版本更新、组字边界换代／回退和 TSF 继续按 WIN-03 推进。

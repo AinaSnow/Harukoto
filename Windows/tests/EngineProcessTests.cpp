@@ -26,6 +26,11 @@ static int probe(int argc, wchar_t **argv) {
         else if (key == L"--personal") personal = value;
         else if (key == L"--ready") ready = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(std::stoull(value)));
         else if (key == L"--stop") stop = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(std::stoull(value)));
+        else if (key == L"--control-section" || key == L"--control-request" || key == L"--control-response") {
+            const auto handle = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(std::stoull(value)));
+            DWORD flags = 0; ep::check(GetHandleInformation(handle,&flags)); assert(flags & HANDLE_FLAG_INHERIT);
+        }
+        else if (key == L"--connections") assert(value == L"2");
         else assert(key == L"--pipe" && ep::validName(value));
     }
     assert(ready && stop && ready != stop);
@@ -117,6 +122,37 @@ int wmain(int argc, wchar_t **argv) {
             assert(process.status().failure == Failure::StartupExit && process.status().exitCode == DWORD(0));
         }
         {
+            value = config(L"normal"); value.dynamicEndpoints = true;
+            EngineProcess process(value); assert(!process.requestControl(control::Operation::Inspect,ep::now()));
+            until(process,State::Ready); assert(process.status().controlState == control::State::Idle && !process.claim(ep::now()));
+            assert(process.requestControl(control::Operation::Allocate,ep::now(),10000));
+            const auto deadline = process.deadline(); assert(deadline && process.waitHandles().size() == 2);
+            assert(!process.requestControl(control::Operation::Inspect,ep::now(),10000) && process.deadline() == deadline);
+            process.poll(deadline); // Probe deliberately ignores the private mailbox.
+            assert(process.status().state == State::Ready && process.status().controlState == control::State::Failed &&
+                process.status().controlFailure == ep::Failure::Deadline && !process.deadline() && process.waitHandles().size() == 1);
+            assert(!process.takeControl(ep::now()) && !process.requestControl(control::Operation::Allocate,ep::now()));
+            process.requestStop(ep::now()); until(process,State::Exited);
+            assert(process.status().failure == Failure::None && process.status().controlFailure == ep::Failure::Deadline);
+        }
+        {
+            SECURITY_ATTRIBUTES security{sizeof(security),nullptr,TRUE};
+            ep::Handle decoy(CreateEventW(&security,TRUE,FALSE,nullptr)); ep::check(bool(decoy));
+            value = config(L"controls"); value.dynamicEndpoints = true; value.themes = quotedPath();
+            value.personal = self().parent_path()/std::to_wstring(reinterpret_cast<uintptr_t>(decoy.get()));
+            EngineProcess process(value); until(process,State::Ready);
+            assert(WaitForSingleObject(decoy.get(),0) == WAIT_TIMEOUT);
+            process.requestStop(ep::now()); until(process,State::Exited);
+        }
+        {
+            value = config(L"normal"); value.dynamicEndpoints = true;
+            EngineProcess process(value); until(process,State::Ready);
+            assert(process.requestControl(control::Operation::Inspect,ep::now(),10000));
+            ep::check(TerminateProcess(process.processHandle(),77)); until(process,State::Exited);
+            assert(process.status().failure == Failure::UnexpectedExit && process.status().controlState == control::State::Failed &&
+                !process.takeControl(ep::now()) && !process.requestControl(control::Operation::Allocate,ep::now()));
+        }
+        {
             EngineProcess process(config(L"ready-exit"));
             assert(WaitForSingleObject(process.processHandle(),10000) == WAIT_OBJECT_0);
             assert(process.poll(ep::now()) == State::Exited);
@@ -167,7 +203,8 @@ int wmain(int argc, wchar_t **argv) {
         {
             ep::Handle retained;
             {
-                EngineProcess process(config(L"stubborn")); until(process,State::Ready);
+                value = config(L"stubborn"); value.dynamicEndpoints = true;
+                EngineProcess process(value); until(process,State::Ready);
                 HANDLE raw = nullptr;
                 ep::check(DuplicateHandle(GetCurrentProcess(),process.processHandle(),GetCurrentProcess(),&raw,0,FALSE,DUPLICATE_SAME_ACCESS));
                 retained.reset(raw); // Abandon the owner: Job closes without a wait.

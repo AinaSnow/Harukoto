@@ -1,5 +1,6 @@
 #pragma once
 #include "EnginePipe.h"
+#include "EngineControl.h"
 #include <filesystem>
 
 namespace harukoto::engine {
@@ -15,6 +16,7 @@ public:
         uint64_t startupMs = 30000, stopMs = 5000;
         size_t threads = 2;
         std::filesystem::path trace;
+        bool dynamicEndpoints = false;
     };
     struct Status {
         State state;
@@ -22,19 +24,24 @@ public:
         DWORD win32;
         std::optional<DWORD> exitCode;
         size_t claimed, configured;
+        std::optional<control::State> controlState;
+        pipe::Failure controlFailure = pipe::Failure::None;
+        DWORD controlWin32 = ERROR_SUCCESS;
     };
     // Trusted owner-to-client handoff, never reconstructed from a public PID.
     // The retained process copy is query/wait only and non-inheritable. A trusted
     // launcher may explicitly duplicate it into its own client's handle list.
     struct Endpoint { std::wstring name; pipe::Handle process; };
+    struct ControlResult { control::Response metadata; std::optional<Endpoint> endpoint; };
 private:
     pipe::Handle ready_, stop_, process_, job_;
     std::vector<std::wstring> names_;
+    std::unique_ptr<control::Client> control_;
     State state_ = State::Starting;
     Failure failure_ = Failure::None;
     DWORD win32_ = ERROR_SUCCESS;
     std::optional<DWORD> exitCode_;
-    size_t claimed_ = 0;
+    size_t claimed_ = 0, configured_ = 0;
     uint64_t deadline_ = 0, stopMs_ = 0;
 
     static std::wstring quote(const std::wstring &value) {
@@ -53,6 +60,7 @@ private:
     void terminate(Failure failure, DWORD win32 = ERROR_SUCCESS) {
         pipe::check(TerminateJobObject(job_.get(),ERROR_PROCESS_ABORTED));
         failure_ = failure; win32_ = win32; deadline_ = 0; state_ = State::Terminating;
+        if (control_) control_->abandon();
     }
     void launch(const Config &config) {
         if (!absolute(config.executable) || !absolute(config.base) ||
@@ -64,8 +72,10 @@ private:
             throw std::invalid_argument("invalid engine process configuration");
         pipe::processIdentityOnly();
         stopMs_ = config.stopMs;
+        configured_ = config.connections;
         deadline_ = pipe::now() + config.startupMs;
-        for (size_t i = 0; i < config.connections; ++i) names_.push_back(pipe::newName());
+        if (config.dynamicEndpoints) control_ = std::make_unique<control::Client>();
+        else for (size_t i = 0; i < config.connections; ++i) names_.push_back(pipe::newName());
         ready_.reset(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(ready_));
         stop_.reset(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(stop_));
         job_.reset(CreateJobObjectW(nullptr,nullptr)); pipe::check(bool(job_));
@@ -78,19 +88,35 @@ private:
         childReady.reset(raw);
         pipe::check(DuplicateHandle(GetCurrentProcess(),stop_.get(),GetCurrentProcess(),&raw,0,TRUE,DUPLICATE_SAME_ACCESS));
         childStop.reset(raw);
+        std::array<pipe::Handle,3> childControl;
+        if (control_) {
+            const auto handles = control_->handles();
+            for (size_t i=0;i<handles.size();++i) {
+                pipe::check(DuplicateHandle(GetCurrentProcess(),handles[i],GetCurrentProcess(),&raw,0,TRUE,DUPLICATE_SAME_ACCESS));
+                childControl[i].reset(raw);
+            }
+        }
         SIZE_T size = 0; InitializeProcThreadAttributeList(nullptr,1,0,&size);
         std::vector<uint8_t> bytes(size);
         auto *attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(bytes.data());
         pipe::check(InitializeProcThreadAttributeList(attributes,1,0,&size));
         struct Delete { LPPROC_THREAD_ATTRIBUTE_LIST p; ~Delete() { DeleteProcThreadAttributeList(p); } } cleanup{attributes};
-        HANDLE inherited[]{childReady.get(),childStop.get()};
-        pipe::check(UpdateProcThreadAttribute(attributes,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherited,sizeof(inherited),nullptr,nullptr));
+        std::vector<HANDLE> inherited{childReady.get(),childStop.get()};
+        if (control_) for (const auto &handle : childControl) inherited.push_back(handle.get());
+        pipe::check(UpdateProcThreadAttribute(attributes,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherited.data(),inherited.size()*sizeof(HANDLE),nullptr,nullptr));
         std::vector<std::wstring> arguments{config.executable.wstring(),L"--base",config.base.wstring()};
         if (!config.themes.empty()) { arguments.push_back(L"--themes"); arguments.push_back(config.themes.wstring()); }
         if (!config.personal.empty()) { arguments.push_back(L"--personal"); arguments.push_back(config.personal.wstring()); }
         if (config.threads != 2) { arguments.push_back(L"--threads"); arguments.push_back(std::to_wstring(config.threads)); }
         if (!config.trace.empty()) { arguments.push_back(L"--trace"); arguments.push_back(config.trace.wstring()); }
         for (const auto &name : names_) { arguments.push_back(L"--pipe"); arguments.push_back(name); }
+        if (control_) {
+            const wchar_t *keys[]{L"--control-section",L"--control-request",L"--control-response"};
+            for (size_t i=0;i<childControl.size();++i) {
+                arguments.push_back(keys[i]); arguments.push_back(std::to_wstring(reinterpret_cast<uintptr_t>(childControl[i].get())));
+            }
+            arguments.push_back(L"--connections"); arguments.push_back(std::to_wstring(config.connections));
+        }
         arguments.insert(arguments.end(),{L"--ready",std::to_wstring(reinterpret_cast<uintptr_t>(childReady.get())),
             L"--stop",std::to_wstring(reinterpret_cast<uintptr_t>(childStop.get()))});
         std::wstring command;
@@ -106,6 +132,7 @@ private:
             pipe::check(AssignProcessToJobObject(job_.get(),process_.get()));
             // Only the child's copies remain inheritable while it starts.
             childReady.reset(); childStop.reset();
+            for (auto &handle : childControl) handle.reset();
             if (ResumeThread(thread.get()) == DWORD(-1)) throw pipe::Error(pipe::Failure::Io,GetLastError());
         } catch (...) {
             // Even assignment failure must not leave our suspended child behind.
@@ -130,7 +157,9 @@ public:
                 if (state_ == State::Starting) failure_ = Failure::StartupExit;
                 else if (code != 0) failure_ = Failure::UnexpectedExit;
             }
-            state_ = State::Exited; deadline_ = 0; return state_;
+            state_ = State::Exited; deadline_ = 0;
+            if (control_) control_->abandon();
+            return state_;
         }
         if (deadline_ && time >= deadline_) {
             terminate(state_ == State::Starting ? Failure::StartupTimeout : Failure::StopTimeout);
@@ -140,6 +169,7 @@ public:
             const auto ready = WaitForSingleObject(ready_.get(),0); pipe::check(ready != WAIT_FAILED);
             if (ready == WAIT_OBJECT_0) { state_ = State::Ready; deadline_ = 0; }
         }
+        if (state_ == State::Ready && control_) control_->poll(time);
         return state_;
     }
     void requestStop(uint64_t time) {
@@ -147,11 +177,12 @@ public:
         if (state_ != State::Starting && state_ != State::Ready) return;
         if (!SetEvent(stop_.get())) { const auto code = GetLastError(); terminate(Failure::ControlIo,code); return; }
         state_ = State::Stopping; deadline_ = time + stopMs_;
+        if (control_) control_->abandon();
     }
     // Single attempt per random endpoint, consumed even if connect throws.
     // No WaitNamedPipe/sleep/retry; Hello remains the client's responsibility.
     std::optional<Endpoint> takeEndpoint(uint64_t time) {
-        if (poll(time) != State::Ready || claimed_ == names_.size()) return {};
+        if (poll(time) != State::Ready || claimed_ >= names_.size()) return {};
         const auto index = claimed_++;
         HANDLE raw = nullptr;
         pipe::check(DuplicateHandle(GetCurrentProcess(),process_.get(),GetCurrentProcess(),&raw,
@@ -163,13 +194,38 @@ public:
         auto endpoint = takeEndpoint(time);
         return endpoint ? pipe::Channel::connect(endpoint->name,endpoint->process.get()) : nullptr;
     }
+    // Single in-flight private control request, with no retry/replay. Full and
+    // backend failure are explicit results; a timeout retires only the mailbox.
+    bool requestControl(control::Operation operation, uint64_t time, uint64_t timeoutMs = 5000) {
+        return poll(time) == State::Ready && control_ && control_->begin(operation,time,timeoutMs);
+    }
+    std::optional<ControlResult> takeControl(uint64_t time) {
+        if (poll(time) != State::Ready || !control_) return {};
+        auto response = control_->take(time); if (!response) return {};
+        ControlResult result{std::move(*response),{}};
+        if (result.metadata.request.operation == control::Operation::Allocate && result.metadata.code == control::Code::Ok) {
+            HANDLE raw = nullptr;
+            pipe::check(DuplicateHandle(GetCurrentProcess(),process_.get(),GetCurrentProcess(),&raw,
+                PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE,FALSE,0));
+            result.endpoint = Endpoint{result.metadata.name,pipe::Handle(raw)}; ++claimed_;
+        }
+        return result;
+    }
     std::vector<HANDLE> waitHandles() const {
         if (state_ == State::Exited) return {};
         if (state_ == State::Starting) return {process_.get(),ready_.get()};
-        return {process_.get()}; // A signalled ready must not spin in Ready/Stopping.
+        std::vector<HANDLE> handles{process_.get()};
+        if (state_ == State::Ready && control_ && control_->event()) handles.push_back(control_->event());
+        return handles; // A signalled ready/consumed response must not spin.
     }
-    uint64_t deadline() const { return deadline_; } // Zero means no manager deadline.
-    Status status() const { return {state_,failure_,win32_,exitCode_,claimed_,names_.size()}; }
+    uint64_t deadline() const {
+        const auto controlDeadline = state_ == State::Ready && control_ ? control_->deadline() : 0;
+        return deadline_ && controlDeadline ? std::min(deadline_,controlDeadline) : deadline_ ? deadline_ : controlDeadline;
+    } // Zero means no manager deadline.
+    Status status() const {
+        return {state_,failure_,win32_,exitCode_,claimed_,configured_,control_ ? std::optional<control::State>(control_->state()) : std::nullopt,
+            control_ ? control_->failure() : pipe::Failure::None,control_ ? control_->error() : ERROR_SUCCESS};
+    }
     HANDLE processHandle() const { return process_.get(); } // Borrowed; never close or change it.
 };
 } // namespace harukoto::engine

@@ -1,10 +1,12 @@
 #pragma once
 #include "EnginePipe.h"
+#include "EngineControl.h"
 #include "EngineTrace.h"
 
 namespace harukoto::engine {
 // Experimental service owner. Endpoints are supplied by a trusted launcher;
-// each is single-use. No TSF/COM, discovery, restart, or dictionary publication.
+// each is single-use. Optional private owner control allocates fresh names.
+// No TSF/COM, public discovery, restart, or dictionary publication.
 class Host {
 public:
     using Observer = std::function<void(const EngineTrace &)>;
@@ -12,6 +14,7 @@ public:
     struct Options {
         size_t threads = 2, capacity = 32, replies = 8;
         uint64_t listenMs = 30000, readMs = 30000, writeMs = 10000, queryMs = 10000, terminalMs = 1000;
+        size_t connections = MaxConnections;
     };
 private:
     struct Endpoint {
@@ -35,9 +38,14 @@ private:
     Executor executor_;
     std::vector<std::unique_ptr<Endpoint>> endpoints_;
     std::vector<Job> jobs_;
+    std::unique_ptr<control::Server> control_;
+    std::shared_ptr<const WindowsDictionary> dictionary_;
+    uint64_t generation_;
+    size_t nextEndpoint_ = 0;
     bool started_ = false;
-    static Options validate(Options options, const std::vector<std::wstring> &names) {
-        if (names.empty() || names.size() > MaxConnections || !options.replies || options.replies > 64)
+    static Options validate(Options options, const std::vector<std::wstring> &names, bool controlled) {
+        if ((!controlled && names.empty()) || !options.connections || options.connections > MaxConnections ||
+                names.size() > options.connections || !options.replies || options.replies > 64)
             throw std::invalid_argument("invalid engine host limits");
         for (auto duration : {options.listenMs,options.readMs,options.writeMs,options.queryMs,options.terminalMs})
             if (!duration || duration > 300000) throw std::invalid_argument("invalid engine host deadline");
@@ -45,6 +53,38 @@ private:
             if (!pipe::validName(names[i]) || std::find(names.begin(),names.begin() + i,names[i]) != names.begin() + i)
                 throw std::invalid_argument("invalid engine host endpoint");
         return options;
+    }
+    void listen(const std::wstring &name, uint64_t time) {
+        if (nextEndpoint_ == std::numeric_limits<size_t>::max()) throw std::overflow_error("engine endpoint identity exhausted");
+        auto endpoint = std::make_unique<Endpoint>(generation_,dictionary_,nextEndpoint_);
+        endpoint->listenDeadline = time + options_.listenMs;
+        endpoint->listener = std::make_unique<pipe::Listener>(name,time,endpoint->listenDeadline);
+        endpoints_.push_back(std::move(endpoint)); ++nextEndpoint_;
+    }
+    void reap() {
+        endpoints_.erase(std::remove_if(endpoints_.begin(),endpoints_.end(),[&](const auto &endpoint) {
+            if (!endpoint->closed || (endpoint->channel && !endpoint->channel->drain())) return false;
+            return std::none_of(jobs_.begin(),jobs_.end(),[&](const auto &job) { return job.owner == endpoint.get(); });
+        }),endpoints_.end());
+    }
+    void controlStep(uint64_t time) {
+        if (!control_) return;
+        const auto request = control_->take(); if (!request) return;
+        control::Response response; response.request = *request; response.generation = generation_;
+        response.limit = static_cast<uint32_t>(options_.connections);
+        if (request->operation == control::Operation::Allocate) {
+            if (endpoints_.size() >= options_.connections) response.code = control::Code::Full;
+            else {
+                try { response.name = pipe::newName(); listen(response.name,time); }
+                catch (...) { response.name.clear(); response.code = control::Code::Backend; }
+            }
+        }
+        for (const auto &endpoint : endpoints_) {
+            if (endpoint->closed) ++response.retiring;
+            else if (endpoint->listener) ++response.listening;
+            else ++response.connected;
+        }
+        response.jobs = static_cast<uint32_t>(jobs_.size()); control_->respond(response);
     }
     void cancel(Endpoint &endpoint, std::optional<uint64_t> session = {}) {
         for (auto &job : jobs_) if (job.owner == &endpoint && !job.cancelled &&
@@ -135,22 +175,21 @@ private:
         while (executor_.tryTake()) {}
         jobs_.clear();
         endpoints_.clear(); // Destruct/reap OVERLAPPED on this I/O owner before run returns.
+        dictionary_.reset();
     }
 public:
     Host(const std::vector<std::wstring> &names, std::shared_ptr<const WindowsDictionary> dictionary,
-            uint64_t generation, Executor::Query query, Options options, Observer observer = {})
-        : options_(validate(options,names)), observer_(std::move(observer)),
+            uint64_t generation, Executor::Query query, Options options, Observer observer = {},
+            std::unique_ptr<control::Server> control = {})
+        : options_(validate(options,names,bool(control))), observer_(std::move(observer)),
           executor_(options_.threads,options_.capacity,std::move(query),Executor::now,
-            [event = completed_.get()] { pipe::check(SetEvent(event)); },observer_ ? Executor::traceNow : nullptr) {
+            [event = completed_.get()] { pipe::check(SetEvent(event)); },observer_ ? Executor::traceNow : nullptr),
+          control_(std::move(control)), dictionary_(std::move(dictionary)), generation_(generation) {
+        if (!generation_) throw std::invalid_argument("missing engine generation");
         pipe::check(bool(completed_));
         jobs_.reserve(options_.capacity);
         const auto time = pipe::now();
-        for (const auto &name : names) {
-            auto endpoint = std::make_unique<Endpoint>(generation,dictionary,endpoints_.size());
-            endpoint->listenDeadline = time + options_.listenMs;
-            endpoint->listener = std::make_unique<pipe::Listener>(name,time,endpoint->listenDeadline);
-            endpoints_.push_back(std::move(endpoint));
-        }
+        for (const auto &name : names) listen(name,time);
     }
     Host(const Host &) = delete;
     Host &operator=(const Host &) = delete;
@@ -193,9 +232,11 @@ public:
                         catch (...) { close(*job.owner); }
                     }
                 }
-                if (!active) break;
+                if (control_) { reap(); controlStep(pipe::now()); }
+                if (!active && !control_) break;
                 if (progress) continue;
                 std::vector<HANDLE> events{stop,completed_.get()};
+                if (control_) events.push_back(control_->event());
                 uint64_t deadline = pipe::now() + 300000;
                 for (const auto &endpoint : endpoints_) {
                     if (endpoint->closed) {

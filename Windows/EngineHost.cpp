@@ -8,9 +8,10 @@ using namespace harukoto::engine;
 int wmain(int argc, wchar_t **argv) {
     try {
         std::filesystem::path base, themes, personal, tracePath;
-        Host::Options options; bool threadsSet = false;
+        Host::Options options; bool threadsSet = false, connectionsSet = false;
         std::vector<std::wstring> names;
         pipe::Handle ready, stop;
+        std::array<pipe::Handle,3> privateControl;
         auto control = [](const std::wstring &value) {
             if (value.empty() || value.find_first_not_of(L"0123456789") != std::wstring::npos)
                 throw std::invalid_argument("invalid inherited control handle");
@@ -20,6 +21,13 @@ int wmain(int argc, wchar_t **argv) {
             DWORD flags = 0; pipe::check(GetHandleInformation(handle,&flags));
             if (!(flags & HANDLE_FLAG_INHERIT)) throw std::invalid_argument("control handle is not inherited");
             return handle;
+        };
+        auto ownControl = [&](pipe::Handle &slot, const std::wstring &value) {
+            const auto handle = control(value);
+            if (slot || handle == ready.get() || handle == stop.get() ||
+                    std::any_of(privateControl.begin(),privateControl.end(),[&](const auto &entry) { return entry.get() == handle; }))
+                throw std::invalid_argument("duplicate host control");
+            slot.reset(handle);
         };
         for (int i = 1; i < argc; ++i) {
             const std::wstring option = argv[i];
@@ -37,16 +45,27 @@ int wmain(int argc, wchar_t **argv) {
                 options.threads = static_cast<size_t>(number); threadsSet = true;
             }
             else if (option == L"--pipe" && names.size() < Host::MaxConnections) names.push_back(value);
-            else if (option == L"--ready" && !ready) {
-                const auto handle = control(value); if (handle == stop.get()) throw std::invalid_argument("duplicate host control"); ready.reset(handle);
-            } else if (option == L"--stop" && !stop) {
-                const auto handle = control(value); if (handle == ready.get()) throw std::invalid_argument("duplicate host control"); stop.reset(handle);
+            else if (option == L"--connections" && !connectionsSet) {
+                if (value.empty() || value.find_first_not_of(L"0123456789") != std::wstring::npos) throw std::invalid_argument("invalid connection limit");
+                const auto number = std::stoull(value);
+                if (!number || number > Host::MaxConnections) throw std::invalid_argument("invalid connection limit");
+                options.connections = static_cast<size_t>(number); connectionsSet = true;
             }
+            else if (option == L"--ready") ownControl(ready,value);
+            else if (option == L"--stop") ownControl(stop,value);
+            else if (option == L"--control-section") ownControl(privateControl[0],value);
+            else if (option == L"--control-request") ownControl(privateControl[1],value);
+            else if (option == L"--control-response") ownControl(privateControl[2],value);
             else throw std::invalid_argument("invalid host option");
         }
         if (base.empty() || !base.is_absolute() || (!themes.empty() && !themes.is_absolute()) ||
                 (!personal.empty() && !personal.is_absolute()) || !ready || !stop || ready.get() == stop.get())
             throw std::invalid_argument("invalid host startup");
+        const auto controlCount = std::count_if(privateControl.begin(),privateControl.end(),[](const auto &handle) { return bool(handle); });
+        if ((controlCount != 0 && controlCount != 3) || connectionsSet != (controlCount == 3) || (controlCount && !names.empty()))
+            throw std::invalid_argument("invalid private host control");
+        std::unique_ptr<control::Server> endpointControl;
+        if (controlCount) endpointControl = std::make_unique<control::Server>(std::move(privateControl));
         pipe::Handle traceFile;
         std::unique_ptr<EngineTraceBuffer> traces;
         if (!tracePath.empty()) {
@@ -70,7 +89,7 @@ int wmain(int argc, wchar_t **argv) {
         Host host(names,dictionary,generation,[](const ServerConnection::Ticket &work) {
             if (!work->dictionary) throw std::invalid_argument("missing engine snapshot");
             return work->dictionary->query(work);
-        },options,std::move(observer));
+        },options,std::move(observer),std::move(endpointControl));
         host.run(stop.get(),ready.get());
         if (traces) {
             // No file writes in the I/O/worker query path. A dropped trace makes

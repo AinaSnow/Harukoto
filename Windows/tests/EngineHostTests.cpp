@@ -20,16 +20,88 @@ struct Runner {
     ep::Handle ready{CreateEventW(nullptr,TRUE,FALSE,nullptr)}, stop{CreateEventW(nullptr,TRUE,FALSE,nullptr)};
     std::vector<std::wstring> names;
     std::future<void> service;
-    explicit Runner(Executor::Query query = page, Host::Options options = {}, size_t count = 2) {
+    explicit Runner(Executor::Query query = page, Host::Options options = {}, size_t count = 2, control::Client *owner = nullptr) {
         for (size_t i=0;i<count;++i) names.push_back(ep::newName());
-        service = std::async(std::launch::async,[this,query,options] {
-            Host host(names,{},42,query,options); host.run(stop.get(),ready.get());
+        std::unique_ptr<control::Server> endpointControl;
+        if (owner) {
+            std::array<ep::Handle,3> handles; const auto source = owner->handles();
+            for (size_t i=0;i<source.size();++i) {
+                HANDLE raw = nullptr; ep::check(DuplicateHandle(GetCurrentProcess(),source[i],GetCurrentProcess(),&raw,0,FALSE,DUPLICATE_SAME_ACCESS));
+                handles[i].reset(raw);
+            }
+            endpointControl = std::make_unique<control::Server>(std::move(handles));
+        }
+        service = std::async(std::launch::async,[this,query,options,endpointControl = std::move(endpointControl)]() mutable {
+            Host host(names,{},42,query,options,{},std::move(endpointControl)); host.run(stop.get(),ready.get());
         });
         assert(WaitForSingleObject(ready.get(),Timeout) == WAIT_OBJECT_0);
     }
     ~Runner() { SetEvent(stop.get()); if (service.valid()) service.wait(); }
     void finish() { SetEvent(stop.get()); assert(service.wait_for(std::chrono::milliseconds(Timeout)) == std::future_status::ready); service.get(); }
 };
+static control::Response request(control::Client &owner, control::Operation operation) {
+    assert(owner.begin(operation,ep::now(),Timeout));
+    wait({owner.event()},owner.deadline());
+    auto response = owner.take(ep::now()); assert(response); return std::move(*response);
+}
+template<class Predicate> static control::Response inspectUntil(control::Client &owner, Predicate predicate) {
+    const auto deadline = ep::now()+Timeout;
+    for (;;) {
+        assert(ep::now() < deadline);
+        auto response = request(owner,control::Operation::Inspect);
+        if (predicate(response)) return response;
+    }
+}
+static void dynamicOwnership() {
+    control::Client owner; Host::Options options; options.connections = 2;
+    Runner runner(page,options,0,&owner);
+    const auto empty = request(owner,control::Operation::Inspect);
+    assert(empty.generation == 42 && empty.limit == 2 && !empty.listening && !empty.connected && !empty.retiring && !empty.jobs);
+    const auto first = request(owner,control::Operation::Allocate);
+    assert(first.code == control::Code::Ok && first.listening == 1);
+    Client client(first.name,GetCurrentProcess()); assert(client.key(KeyAction::Text,'x').input == "x");
+    const auto second = request(owner,control::Operation::Allocate);
+    assert(second.code == control::Code::Ok && second.name != first.name && second.listening == 1 && second.connected == 1);
+    Client survivor(second.name,GetCurrentProcess());
+    for (int i=0;i<5;++i) {
+        const auto full = request(owner,control::Operation::Allocate);
+        assert(full.code == control::Code::Full && full.name.empty() && full.connected == 2 && !full.jobs);
+    }
+    client.channel.reset();
+    inspectUntil(owner,[](const auto &r) { return r.connected == 1 && !r.retiring && !r.listening; });
+    const auto third = request(owner,control::Operation::Allocate);
+    assert(third.code == control::Code::Ok && third.name != first.name && third.name != second.name);
+    { Client replacement(third.name,GetCurrentProcess()); assert(replacement.key(KeyAction::Refresh).input.empty()); }
+    survivor.channel.reset();
+    inspectUntil(owner,[](const auto &r) { return !r.connected && !r.retiring && !r.listening; });
+    assert(runner.service.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready);
+    const auto later = request(owner,control::Operation::Allocate);
+    Client renewed(later.name,GetCurrentProcess()); assert(renewed.key(KeyAction::Text,'z').input == "z");
+    runner.finish(); renewed.closed();
+}
+static void dynamicRetirementAndExpiry() {
+    control::Client owner; Latch latch;
+    Host::Options options; options.connections = 2; options.threads = 1;
+    Runner runner([&](const auto &work) { if (work->input == "a") latch.block(); return page(work); },options,0,&owner);
+    const auto first = request(owner,control::Operation::Allocate); Client old(first.name,GetCurrentProcess());
+    const auto second = request(owner,control::Operation::Allocate); Client survivor(second.name,GetCurrentProcess());
+    old.send(old.keyFrame(KeyAction::Text,'a')); latch.wait(); old.channel.reset();
+    const auto retired = inspectUntil(owner,[](const auto &r) { return r.retiring == 1; });
+    assert(retired.jobs == 1 && retired.connected == 1);
+    assert(request(owner,control::Operation::Allocate).code == control::Code::Full); // Still owns its exact task.
+    latch.open(); inspectUntil(owner,[](const auto &r) { return !r.retiring && !r.jobs; });
+    const auto replacement = request(owner,control::Operation::Allocate);
+    assert(replacement.code == control::Code::Ok && replacement.name != first.name);
+    Client fresh(replacement.name,GetCurrentProcess()); assert(fresh.key(KeyAction::Refresh).input.empty());
+    assert(survivor.key(KeyAction::Text,'x').input == "x"); runner.finish();
+
+    control::Client idleOwner; options.listenMs = 25; options.connections = 1;
+    Runner idle(page,options,0,&idleOwner);
+    const auto unused = request(idleOwner,control::Operation::Allocate); assert(unused.listening == 1);
+    inspectUntil(idleOwner,[](const auto &r) { return !r.listening && !r.retiring; });
+    const auto next = request(idleOwner,control::Operation::Allocate); assert(next.code == control::Code::Ok && next.name != unused.name);
+    idle.finish();
+}
 static void connectionOwnershipAndWake() {
     Runner runner;
     Client first(runner.names[0],GetCurrentProcess()), second(runner.names[1],GetCurrentProcess());
@@ -97,13 +169,16 @@ static void expiryAndMalformed() {
 }
 static void limits() {
     const auto name = ep::newName();
-    for (int variant=0;variant<5;++variant) {
+    for (int variant=0;variant<8;++variant) {
         Host::Options options; std::vector<std::wstring> names{name};
         if (variant == 0) names.clear();
         if (variant == 1) names.push_back(name);
         if (variant == 2) options.replies = 0;
         if (variant == 3) options.queryMs = 0;
         if (variant == 4) names.resize(Host::MaxConnections+1,name);
+        if (variant == 5) options.connections = 0;
+        if (variant == 6) options.connections = Host::MaxConnections+1;
+        if (variant == 7) { options.connections = 1; names.push_back(ep::newName()); }
         bool rejected = false;
         try { Host host(names,{},42,page,options); } catch (const std::invalid_argument &) { rejected = true; }
         assert(rejected);
@@ -112,6 +187,7 @@ static void limits() {
 int main() {
     try {
         limits(); std::cerr << "host: ownership and wake\n"; connectionOwnershipAndWake();
+        std::cerr << "host: dynamic owner and retirement\n"; dynamicOwnership(); dynamicRetirementAndExpiry();
         std::cerr << "host: cancellation and disconnect\n"; cancelRunningAndDisconnect();
         std::cerr << "host: overload and failure\n"; overloadAndFailure();
         std::cerr << "host: expiry and malformed\n"; expiryAndMalformed();

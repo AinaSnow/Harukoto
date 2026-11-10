@@ -9,8 +9,8 @@ using namespace host_test;
 struct Child {
     EngineProcess manager;
     Child(const std::filesystem::path &executable, const std::filesystem::path &base,
-            const std::filesystem::path &themes, const std::filesystem::path &personal, bool valid = true)
-        : manager(EngineProcess::Config{executable,base,themes,personal}) {
+            const std::filesystem::path &themes, const std::filesystem::path &personal, bool valid = true, bool dynamic = false)
+        : manager([&] { EngineProcess::Config config{executable,base,themes,personal}; config.dynamicEndpoints = dynamic; return config; }()) {
         while (manager.poll(ep::now()) == EngineProcess::State::Starting)
             wait(manager.waitHandles(),manager.deadline());
         const auto status = manager.status();
@@ -25,6 +25,60 @@ struct Child {
         assert(status.failure == EngineProcess::Failure::None && status.exitCode == DWORD(0));
     }
 };
+static EngineProcess::ControlResult controlRequest(EngineProcess &manager, control::Operation operation) {
+    assert(manager.requestControl(operation,ep::now(),Timeout));
+    assert(!manager.requestControl(operation,ep::now(),Timeout));
+    while (manager.status().controlState == control::State::Pending) {
+        wait(manager.waitHandles(),manager.deadline()); assert(manager.poll(ep::now()) == EngineProcess::State::Ready);
+    }
+    auto result = manager.takeControl(ep::now()); assert(result);
+    assert(!manager.takeControl(ep::now()) && manager.waitHandles().size() == 1 && !manager.deadline());
+    if (result->endpoint) {
+        DWORD flags = 0; ep::check(GetHandleInformation(result->endpoint->process.get(),&flags)); assert(!(flags & HANDLE_FLAG_INHERIT));
+        const auto pid = GetProcessId(result->endpoint->process.get());
+        assert(pid && pid == GetProcessId(manager.processHandle()));
+        assert(!TerminateProcess(result->endpoint->process.get(),1) && GetLastError() == ERROR_ACCESS_DENIED);
+    }
+    return std::move(*result);
+}
+static void dynamicHost(const std::filesystem::path &executable, const std::filesystem::path &base,
+        const std::filesystem::path &themes, const std::filesystem::path &personal, const WindowsDictionary &dictionary) {
+    Child host(executable,base,themes,personal,true,true);
+    auto &manager = host.manager;
+    assert(!manager.claim(ep::now()) && manager.status().controlState == control::State::Idle);
+    const auto initial = controlRequest(manager,control::Operation::Inspect);
+    assert(!initial.endpoint && !initial.metadata.connected && !initial.metadata.listening && initial.metadata.limit == 2);
+    std::set<std::wstring> names; uint64_t generation = initial.metadata.generation;
+    for (int i=0;i<12;++i) { // More lifetime clients than the concurrent capacity.
+        auto allocation = controlRequest(manager,control::Operation::Allocate);
+        assert(allocation.endpoint && names.insert(allocation.endpoint->name).second);
+        Client client(ep::Channel::connect(allocation.endpoint->name,allocation.endpoint->process.get()));
+        client.type(i % 2 ? "riben" : "zhongguo");
+        assert(client.last.id.engine == generation);
+        auto work = std::make_shared<ServerConnection::Work>(); work->input = client.current.input;
+        work->key = {KeyAction::Refresh,0,true}; work->dictionary = std::shared_ptr<const WindowsDictionary>(&dictionary,[](auto *) {});
+        assert(encodePayload(dictionary.query(work)) == encodePayload(client.current));
+        const auto inspection = controlRequest(manager,control::Operation::Inspect);
+        assert(!inspection.endpoint && inspection.metadata.connected == 1 && !inspection.metadata.listening && !inspection.metadata.retiring);
+        assert(client.key(KeyAction::Refresh).input == (i % 2 ? "riben" : "zhongguo"));
+        client.channel.reset();
+        const auto deadline = ep::now()+Timeout;
+        for (;;) {
+            assert(ep::now() < deadline);
+            const auto empty = controlRequest(manager,control::Operation::Inspect);
+            if (!empty.metadata.connected && !empty.metadata.listening && !empty.metadata.retiring && !empty.metadata.jobs) break;
+        }
+        assert(manager.status().state == EngineProcess::State::Ready && !manager.claim(ep::now()));
+    }
+    auto first = controlRequest(manager,control::Operation::Allocate), second = controlRequest(manager,control::Operation::Allocate);
+    assert(first.endpoint && second.endpoint);
+    auto full = controlRequest(manager,control::Operation::Allocate);
+    assert(!full.endpoint && full.metadata.code == control::Code::Full && manager.status().claimed == 14);
+    assert(manager.requestControl(control::Operation::Inspect,ep::now(),Timeout));
+    manager.requestStop(ep::now()); assert(!manager.takeControl(ep::now()));
+    assert(!manager.requestControl(control::Operation::Allocate,ep::now(),Timeout));
+    host.finish(false); assert(manager.status().controlState == control::State::Failed);
+}
 static void compare(const WindowsDictionary &dictionary, const Client &client, bool hans = true,
         uint32_t index = 0, std::string context = {}, bool locked = false) {
     auto work = std::make_shared<ServerConnection::Work>();
@@ -47,6 +101,7 @@ int wmain(int argc, wchar_t **argv) {
         const auto executable = std::filesystem::path(argv[1]), base = std::filesystem::path(argv[2]);
         const auto themes = std::filesystem::path(argv[3]), personal = std::filesystem::path(argv[4]);
         auto dictionary = WindowsDictionary::load(base,themes,personal);
+        dynamicHost(executable,base,themes,personal,*dictionary);
         uint64_t generation = 0;
         {
             Child host(executable,base,themes,personal);

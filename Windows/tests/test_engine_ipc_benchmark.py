@@ -56,6 +56,7 @@ class IpcBenchmarkTests(unittest.TestCase):
             self.assertEqual(report['trace_status'], [])
             self.assertEqual(set(report['provenance']['base_files']), set(before))
             self.assertEqual(report['provenance']['programs']['host'], BENCHMARK['bundle'].digest(HOST))
+            self.assertIn('Windows/EngineControl.h', report['provenance']['sources'])
             self.assertNotIn(temporary, json.dumps(report))
             for row in report['summary']:
                 expected = (38 if row['scenario'] == 'ff14' else 26)*row['clients']
