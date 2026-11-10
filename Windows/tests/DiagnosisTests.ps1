@@ -9,6 +9,14 @@ $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $root = Join-Path $tempBase ('harukoto-diagnosis-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $root | Out-Null
 try {
+    Assert-Equal (Get-HarukotoBasePublication $root).Status '未发布用户基础词库'
+    $basePointer = Join-Path $root 'STATE.json'
+    @{format=1; current=('c' * 64); previous=$null} | ConvertTo-Json | Set-Content -LiteralPath $basePointer
+    Assert-Equal (Get-HarukotoBasePublication $root).Generation ('c' * 64)
+    foreach ($bad in @(@{format=$true; current=('c' * 64); previous=$null}, @{format=1; current='../bad'; previous=$null}, @{format=1; current=('c' * 64); previous='bad'})) {
+        $bad | ConvertTo-Json | Set-Content -LiteralPath $basePointer
+        if ((Get-HarukotoBasePublication $root).Status -notlike '无法读取*') { throw 'Invalid base pointer accepted' }
+    }
     Assert-Equal (Get-HarukotoDictionarySummary $root).Status '未配置主题包'
     [IO.File]::WriteAllText((Join-Path $root 'CURRENT'), '../invalid')
     if ((Get-HarukotoDictionarySummary $root).Status -notlike '读取失败*') { throw 'Invalid pointer accepted' }

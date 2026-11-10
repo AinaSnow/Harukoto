@@ -134,6 +134,23 @@ public:
     bool failed() const { return failed_; }
     const std::string &activeGeneration() const { return active_; }
     const std::string &activeBaseGeneration() const { return activeBase_; }
+    // Only read worker results after its release/acquire handoff. This is an
+    // observation from a real key, not a promise that an idle process refreshed.
+    std::string diagnosticFields() const {
+        std::string phase = failed_ ? "failed" : "idle", pending;
+        if (job_) {
+            if (!job_->done.load(std::memory_order_acquire)) phase = "loading";
+            else if (job_->failed) phase = "failed";
+            else if (job_->result) { phase = "waiting_boundary"; pending = job_->baseGeneration; }
+            else phase = "idle";
+        }
+        using base_dictionary::Metadata;
+        return "\"base_generation\":" + Metadata::quote(activeBase_) +
+            ",\"theme_generation\":" + Metadata::quote(active_) +
+            ",\"pending_base_generation\":" + Metadata::quote(pending) +
+            ",\"phase\":" + Metadata::quote(phase) +
+            ",\"last_apply_failed\":" + (failed_ ? "true" : "false");
+    }
 private:
     std::filesystem::path root_;
     std::shared_ptr<const std::vector<JapaneseWord>> base_;

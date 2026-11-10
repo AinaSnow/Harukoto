@@ -57,6 +57,8 @@ struct ServiceReloadTest {
             appendConjugationWords(service.conjugations, service.japaneseWords);
             service.themeReload = std::make_unique<ThemeReload>(root / "themes", service.japaneseWords, "",
                 root / "personal.tsv", nullptr, root / "store");
+            assert(service.runtimeStatus.open());
+            service.reportRuntimeStatus();
             service.delivery = std::make_shared<DeliveryState>(&context, 1);
             service.delivery->enqueue(L"原字段待上屏");
             const auto *queued = service.delivery->queue.begin(); assert(queued && *queued == L"原字段待上屏");
@@ -127,7 +129,7 @@ struct ServiceReloadTest {
                     if (comma) std::cout << ',';
                     comma = true; std::cout << Metadata::quote(word.text);
                 }
-                std::cout << "]}" << std::endl;
+                std::cout << "],\"diagnostic\":{" << service.themeReload->diagnosticFields() << "}}" << std::endl;
             }
         }
         assert(context.refs == 1 && savedContext.refs == 1);

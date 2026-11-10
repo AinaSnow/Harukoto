@@ -7,6 +7,64 @@ function Compare-HarukotoModule {
     return '无法确认'
 }
 
+function Get-HarukotoBasePublication {
+    param([string]$Root)
+    try {
+        $path = Join-Path $Root 'STATE.json'
+        if (!(Test-Path -LiteralPath $path)) { return [pscustomobject]@{Status='未发布用户基础词库'; Generation=$null} }
+        if ((Get-Item -LiteralPath $path).Length -gt 65536) { throw '状态文件超限' }
+        $state = Get-Content -LiteralPath $path -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+        if ($state.Count -ne 3 -or !$state.ContainsKey('previous') -or $state.format -isnot [long] -and $state.format -isnot [int] -or
+            $state.format -ne 1 -or $state.current -isnot [string] -or $state.current -cnotmatch '^[0-9a-f]{64}$' -or
+            ($null -ne $state.previous -and ($state.previous -isnot [string] -or $state.previous -cnotmatch '^[0-9a-f]{64}$'))) { throw '版本指针损坏' }
+        return [pscustomobject]@{Status='已发布指针（未重新校验词库内容）'; Generation=$state.current}
+    } catch { return [pscustomobject]@{Status=('无法读取：' + $_.Exception.Message); Generation=$null} }
+}
+
+function Convert-HarukotoRuntimeRecord {
+    param([string]$Json, [string]$PublishedGeneration, [long]$NowTick = [Environment]::TickCount64)
+    $value = $Json | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+    foreach ($key in 'format','observed_tick_ms','thread_id','slot_id') {
+        if ($value[$key] -isnot [long] -and $value[$key] -isnot [int]) { throw '无效运行时数值字段' }
+    }
+    if ($value.format -ne 1 -or
+        $value.observed_tick_ms -lt 0 -or $value.observed_tick_ms -gt $NowTick -or
+        $value.service_version -isnot [string] -or $value.service_version.Length -gt 128 -or
+        $value.base_version -isnot [string] -or $value.base_version.Length -gt 128 -or
+        $value.last_apply_failed -isnot [bool] -or $value.thread_id -le 0 -or
+        $value.slot_id -lt 0 -or $value.slot_id -ge 64) { throw '无效运行时记录' }
+    foreach ($key in 'base_generation','pending_base_generation','theme_generation') {
+        $length = if ($key -eq 'theme_generation') {32} else {64}
+        if ($value[$key] -isnot [string] -or ($value[$key] -ne '' -and $value[$key] -cnotmatch "^[0-9a-f]{$length}$")) { throw '无效运行时版本标识' }
+    }
+    $phases = @{idle='空闲／上次检查完成'; loading='后台检查或加载中'; waiting_boundary='已准备，等待组字边界'; failed='更新失败，沿用旧版'; unavailable='重载状态不可用'}
+    if (!$phases.ContainsKey($value.phase)) { throw '未知运行时状态' }
+    $relation = if (!$PublishedGeneration) { '无可比较的发布指针' }
+        elseif ($value.base_generation -ceq $PublishedGeneration) { '已采用发布版本' }
+        else { '尚未采用当前发布版本' }
+    [pscustomobject]@{
+        ThreadId=$value.thread_id; SlotId=$value.slot_id
+        ServiceVersion=$value.service_version; BaseVersion=$value.base_version
+        BaseGeneration=$value.base_generation; ThemeGeneration=$value.theme_generation
+        PendingBaseGeneration=$value.pending_base_generation
+        BaseSource=$(if ($value.base_generation) {'用户快照'} else {'安装目录（未报告内容哈希）'})
+        Phase=$phases[$value.phase]; LastApplyFailed=$value.last_apply_failed; Publication=$relation
+        ObservationAgeSeconds=[math]::Round(($NowTick - $value.observed_tick_ms) / 1000, 1)
+    }
+}
+
+function Get-HarukotoRuntimeStatus {
+    param([Diagnostics.Process]$Process, [string]$PublishedGeneration)
+    try {
+        if (!('HarukotoRuntimeStatusReader' -as [type])) {
+            Add-Type -Path (Join-Path $PSScriptRoot 'RuntimeStatusReader.cs')
+        }
+        $rows = @([HarukotoRuntimeStatusReader]::Read($Process.Id, $Process.StartTime.ToUniversalTime().ToFileTimeUtc()))
+        $instances = @($rows | ForEach-Object { Convert-HarukotoRuntimeRecord $_ $PublishedGeneration })
+        [pscustomobject]@{ Status=$(if ($instances.Count) {'已读取实例报告'} else {'无稳定的活动实例报告，无法确认'}); Instances=$instances }
+    } catch { [pscustomobject]@{Status='无可读报告（旧版、访问受限、进程退出或记录损坏），无法确认'; Instances=@()} }
+}
+
 function Get-HarukotoDictionarySummary {
     param([string]$Root)
     $result = [ordered]@{ Root = $Root; Status = '未配置主题包'; Generation = $null; Packages = @(); RuntimeRows = $null; RuntimeSha256 = $null }

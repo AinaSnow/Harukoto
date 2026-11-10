@@ -17,6 +17,7 @@
 #include "ConjugationPanel.h"
 #include "JapanesePackages.h"
 #include "ThemeReload.h"
+#include "RuntimeStatus.h"
 #include <new>
 #include <string>
 #include "WordEvidence.h"
@@ -227,10 +228,12 @@ public:
         if (SUCCEEDED(result)) result = events->AdviseSink(IID_ITfThreadFocusSink,
             static_cast<ITfThreadFocusSink *>(this), &focusCookie);
         if (FAILED(result)) Deactivate();
+        else { runtimeStatus.open(); reportRuntimeStatus(); }
         return result;
     }
 
     HRESULT STDMETHODCALLTYPE Deactivate() override {
+        runtimeStatus.close();
         themeReload.reset();
         conjugationPanel.clear();
         if (delivery) delivery->queue.close();
@@ -588,8 +591,19 @@ private:
         return true;
     }
     bool pollDictionaries(ULONGLONG now = GetTickCount64()) {
-        return themeReload && themeReload->poll(dictionaryBoundary(), japaneseWords,
+        const bool changed = themeReload && themeReload->poll(dictionaryBoundary(), japaneseWords,
             [this](auto &next) { return adoptBase(next); }, now);
+        reportRuntimeStatus();
+        return changed;
+    }
+    void reportRuntimeStatus() noexcept {
+        try {
+            using base_dictionary::Metadata;
+            runtimeStatus.publish("\"service_version\":\"0.4.4-alpha.21\",\"base_version\":" +
+                Metadata::quote(baseSnapshot ? baseSnapshot->version() : std::string()) + "," +
+                (themeReload ? themeReload->diagnosticFields() :
+                    "\"base_generation\":\"\",\"theme_generation\":\"\",\"pending_base_generation\":\"\",\"phase\":\"unavailable\",\"last_apply_failed\":false"));
+        } catch (...) {}
     }
     bool switchContext(ITfContext *context) {
         // Some hosts change the supplied context without a preceding document
@@ -916,6 +930,7 @@ private:
     std::unordered_map<ITfContext *, SavedContext> suspended;
     std::vector<JapaneseWord> japaneseWords;
     std::unique_ptr<ThemeReload> themeReload;
+    RuntimeStatus runtimeStatus;
     std::unique_ptr<base_dictionary::Snapshot> baseSnapshot;
     JapaneseConjugations conjugations;
     ConjugationPanel conjugationPanel;
