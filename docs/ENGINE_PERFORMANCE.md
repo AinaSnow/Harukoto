@@ -1,5 +1,7 @@
 # 实验引擎逐键性能测量
 
+后续进度：[多进程共享引擎对照](ENGINE_IPC_PERFORMANCE.md)已提供真实独立客户端的 local／isolated／shared 三模式、1／2／4 人数测量，区分完整管道往返与本地查询，按同轮采样求总私有内存。本页以下记录此前进程内分阶段测量，不能直接与新口径作数值对照。
+
 WIN-03b／CN-02，2026-11-10。新增 harukoto_engine_benchmark 与 scripts/benchmark-engine.py，测量[Windows 合并查询](ENGINE_WINDOWS.md)每一次实际按键的核心重建、SQLite 打开、候选合并和[单工作线程](ENGINE_EXECUTOR.md)往返，不把此前“中间按键返回空候选”的功能测试当逐键性能。
 
 ## 运行方法

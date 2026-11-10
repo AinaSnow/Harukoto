@@ -1,5 +1,7 @@
 # 独立引擎的受控启动与端点领取
 
+后续进度：[多进程竞争测量](ENGINE_IPC_PERFORMANCE.md)已使用一次性 takeEndpoint 将端点及 query／wait 权限的可信进程对象显式交给独立客户端。完整矩阵工具和微型回归通过，正式服务发现与 TSF 仍未接入；以下保留受控启动批次的验证边界。
+
 WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内的启动逻辑提取为可复用模块，管理一个自己创建的引擎进程、1～8 个随机单次连接端点和退出状态。真实微型／全量词库测试已改用该模块；宿主业务仍见[查询宿主](ENGINE_HOST.md)。发行基线保持 Windows 0.4.4-alpha.22、FF14 0.3.0，不安装或自动启动新程序。
 
 本批完成启动所有权及基础退出监督。没有跨应用服务发现、端点动态增补、签名／版本选择、常驻代理、自动重启、快照换代或 TSF 接入。不能把某个应用各自创建一个 EngineProcess 当成多应用共享引擎。
@@ -36,11 +38,11 @@ WIN-03b，2026-11-10。`Windows/EngineProcess.h` 将原先真实宿主测试内�
 
 ## 端点与诊断接口
 
-`claim(time)` 仅在 Ready 尝试领取下一个端点，使用 CreateProcessW 返回并持续保留的进程 HANDLE 调用 Channel::connect。Channel 再复制该内核对象、核验进程令牌和实际管道服务端进程。模块不从数字 PID 重新打开进程作为信任依据。
+`takeEndpoint(time)` 仅在 Ready 领取下一个端点，返回随机名称及一份非继承、仅 PROCESS_QUERY_LIMITED_INFORMATION／SYNCHRONIZE 权限的保留进程句柄；领取即消费，即使之后没有连接或交接失败也不归还。可信启动方可明确复制到自己创建的客户端句柄列表，不得只传 PID 后重新打开。`claim(time)` 复用该接口，并在当前 I/O 线程用返回的进程 HANDLE 调用 Channel::connect。Channel 再复制该内核对象、核验进程令牌和实际管道服务端进程。模块不从数字 PID 重新打开进程作为信任依据。
 
 一个随机端点只尝试一次，即使连接抛出 pipe::Error 也计为已领取，不等待管道、不重试、不复用名称。未 Ready、停止中、已退出或端点用尽返回空指针。连接失败由调用方处理，不影响其他尚未领取端点；不得自动把未确认按键转给其他连接。返回的 Channel 仍由 I/O 线程负责 Hello／ClientGate、候选快照、取消和关闭回收，claim 成功不是业务握手完成。
 
-`status()` 返回固定元数据：状态、Failure、必要的 Win32 数字、可选退出码、已尝试／配置端点数量。Failure 区分 StartupExit、UnexpectedExit、StartupTimeout、StopTimeout、ControlIo；超时原因保留到真实退出，不被终止退出码覆盖。未观察 ready 即退出，即使退出码 0 也算 StartupExit；已就绪后的正常退出码 0 允许作为宿主自行收尾。构造／系统检查失败抛出固定异常，不能伪造 Ready。当前没有用户可见的持久诊断入口，不记录输入、候选或异常详情。
+`status()` 返回固定元数据：状态、Failure、必要的 Win32 数字、可选退出码、已领取／配置端点数量。Failure 区分 StartupExit、UnexpectedExit、StartupTimeout、StopTimeout、ControlIo；超时原因保留到真实退出，不被终止退出码覆盖。未观察 ready 即退出，即使退出码 0 也算 StartupExit；已就绪后的正常退出码 0 允许作为宿主自行收尾。构造／系统检查失败抛出固定异常，不能伪造 Ready。当前没有用户可见的持久诊断入口，不记录输入、候选或异常详情。
 
 `processHandle()` 是借用句柄，用于合并等待或可信连接，不得关闭或修改；若需跨越所有者寿命，必须自行 DuplicateHandle。它不能替代文件签名校验。模块不可复制／移动，不能跨线程并发调用。
 

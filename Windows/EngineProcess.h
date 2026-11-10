@@ -21,6 +21,10 @@ public:
         std::optional<DWORD> exitCode;
         size_t claimed, configured;
     };
+    // Trusted owner-to-client handoff, never reconstructed from a public PID.
+    // The retained process copy is query/wait only and non-inheritable. A trusted
+    // launcher may explicitly duplicate it into its own client's handle list.
+    struct Endpoint { std::wstring name; pipe::Handle process; };
 private:
     pipe::Handle ready_, stop_, process_, job_;
     std::vector<std::wstring> names_;
@@ -141,10 +145,18 @@ public:
     }
     // Single attempt per random endpoint, consumed even if connect throws.
     // No WaitNamedPipe/sleep/retry; Hello remains the client's responsibility.
-    std::unique_ptr<pipe::Channel> claim(uint64_t time) {
+    std::optional<Endpoint> takeEndpoint(uint64_t time) {
         if (poll(time) != State::Ready || claimed_ == names_.size()) return {};
         const auto index = claimed_++;
-        return pipe::Channel::connect(names_[index],process_.get());
+        HANDLE raw = nullptr;
+        pipe::check(DuplicateHandle(GetCurrentProcess(),process_.get(),GetCurrentProcess(),&raw,
+            PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE,FALSE,0));
+        pipe::Handle process(raw);
+        return Endpoint{names_[index],std::move(process)};
+    }
+    std::unique_ptr<pipe::Channel> claim(uint64_t time) {
+        auto endpoint = takeEndpoint(time);
+        return endpoint ? pipe::Channel::connect(endpoint->name,endpoint->process.get()) : nullptr;
     }
     std::vector<HANDLE> waitHandles() const {
         if (state_ == State::Exited) return {};

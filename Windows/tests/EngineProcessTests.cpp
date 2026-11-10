@@ -154,6 +154,15 @@ int wmain(int argc, wchar_t **argv) {
             assert(process.status().failure == Failure::UnexpectedExit && process.status().exitCode == DWORD(77));
         }
         {
+            EngineProcess process(config(L"normal")); until(process,State::Ready);
+            auto endpoint = process.takeEndpoint(ep::now()); assert(endpoint && ep::validName(endpoint->name));
+            assert(GetProcessId(endpoint->process.get()) == GetProcessId(process.processHandle()));
+            DWORD flags = 0; ep::check(GetHandleInformation(endpoint->process.get(),&flags)); assert(!(flags & HANDLE_FLAG_INHERIT));
+            assert(!TerminateProcess(endpoint->process.get(),77) && GetLastError() == ERROR_ACCESS_DENIED);
+            process.requestStop(ep::now()); until(process,State::Exited);
+            assert(WaitForSingleObject(endpoint->process.get(),0) == WAIT_OBJECT_0 && process.status().failure == Failure::None);
+        }
+        {
             ep::Handle retained;
             {
                 EngineProcess process(config(L"stubborn")); until(process,State::Ready);

@@ -2,6 +2,7 @@
 #include "../EnginePipe.h"
 #include "../EngineMessages.h"
 #include <cassert>
+#include <functional>
 #include <iostream>
 
 namespace host_test {
@@ -21,9 +22,14 @@ struct Client {
     CandidateSnapshot candidates;
     CandidatePage current;
     Frame last;
+    std::function<Frame(const Frame &)> localExchange;
     Client(const std::wstring &name, HANDLE process) : Client(ep::Channel::connect(name,process)) {}
     explicit Client(std::unique_ptr<ep::Channel> connection) : channel(std::move(connection)) {
         assert(channel);
+        initialize();
+    }
+    explicit Client(std::function<Frame(const Frame &)> exchange) : localExchange(std::move(exchange)) { initialize(); }
+    void initialize() {
         const auto time = ep::now(); auto hello = gate.connect(time,time+Timeout);
         auto ack = exchange(hello); assert(gate.acknowledge(ack,ep::now()));
         auto open = gate.open(ep::now(),ep::now()+Timeout); assert(open); session = open->id.session;
@@ -48,7 +54,7 @@ struct Client {
             if (!channel->needsPoll()) wait({channel->readEvent()},deadline);
         }
     }
-    Frame exchange(const Frame &frame) { send(frame); return receive(); }
+    Frame exchange(const Frame &frame) { if (localExchange) return localExchange(frame); send(frame); return receive(); }
     Frame keyFrame(KeyAction action, uint8_t text = 0, bool hans = true) {
         auto request = gate.request(session,Kind::Key,ep::now(),ep::now()+Timeout); assert(request);
         request->payload = encodePayload(KeyMessage{action,text,hans}); return *request;
