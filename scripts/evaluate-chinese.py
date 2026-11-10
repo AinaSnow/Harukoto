@@ -14,6 +14,22 @@ from datetime import datetime, timezone
 from japanese_packages import change
 
 ROOT = Path(__file__).resolve().parents[1]
+# tuned: fixed regression set that ranking work has already been adjusted against.
+# holdout: written without querying candidates; report it, never tune against it.
+SETS = {'tuned': ('Windows/tests/data/chinese-evaluation.tsv', '固定回归集：已参与排序调优，结果不是独立准确率。'),
+        'holdout': ('Windows/tests/data/chinese-holdout.tsv', '独立评测集：编写时未查询候选，不得据此逐条调优；仍是手写小样本，不是外部盲测。')}
+EDITORIAL = ('chinese.tsv', 'daily-chinese.tsv', 'context.tsv', 'simplified-priorities.tsv')
+
+
+def leaks(holdout, tuned, lexicon=ROOT / 'Resources/Lexicon'):
+    """Holdout rows that repeat a tuned input/target or a hand-edited lexicon entry."""
+    inputs = {r['input'] for r in tuned}
+    known = {t for r in tuned for t in r['hans'] + r['hant']}
+    for name in EDITORIAL:
+        for line in (lexicon / name).read_text(encoding='utf-8-sig').splitlines():
+            if line and not line.startswith('#'):
+                known.update(line.split('|')[:1 if name in ('context.tsv', 'simplified-priorities.tsv') else 2])
+    return sorted(r['id'] for r in holdout if r['input'] in inputs or known.intersection(r['hans'] + r['hant']))
 
 
 def corpus(path):
@@ -102,15 +118,20 @@ def main():
     parser = argparse.ArgumentParser(description='中文候选质量与逐键计算基线（不包含 TSF／渲染）')
     parser.add_argument('--probe', type=Path, default=ROOT / '.build/windows/msvc/Release/harukoto_candidate_probe.exe')
     parser.add_argument('--lexicon', type=Path, default=ROOT / '.build/windows/ime')
-    parser.add_argument('--corpus', type=Path, default=ROOT / 'Windows/tests/data/chinese-evaluation.tsv')
+    parser.add_argument('--set', choices=sorted(SETS), default='tuned', help='tuned 为已调优的固定回归集，holdout 为独立评测集')
+    parser.add_argument('--corpus', type=Path, help='自定义语料；默认按 --set 选择')
+    parser.add_argument('--compact', action='store_true', help='省略逐键原始记录，用于归档')
     parser.add_argument('--ff14', type=Path, default=ROOT / 'Resources/DictionaryPackages/ff14/full/manifest.json')
     parser.add_argument('--repeats', type=int, default=3)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     if not 1 <= args.repeats <= 20:
         parser.error('--repeats 须为 1–20')
+    args.corpus = args.corpus or ROOT / SETS[args.set][0]
     samples = corpus(args.corpus)
-    report = dict(format=1, timestamp=datetime.now(timezone.utc).isoformat(),
+    if args.set == 'holdout' and (leaked := leaks(samples, corpus(ROOT / SETS['tuned'][0]))):
+        parser.error('独立集与调优集或人工词表重复：' + '、'.join(leaked))
+    report = dict(format=1, corpus_set=args.set, timestamp=datetime.now(timezone.utc).isoformat(),
                   machine=dict(os=platform.platform(), cpu=platform.processor(), architecture=platform.machine()),
                   revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                   dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT)),
@@ -120,7 +141,7 @@ def main():
                   notes=['新进程加载时间；未清空系统文件缓存，不是磁盘冷启动。',
                          '逐键为核心计算＋Windows 候选合并；不包含真实 TSF、IPC、候选绘制或按键到显示。',
                          '缺失指本次候选列表未命中，不证明词库缺词；分词和误纠错需人工复核。',
-                         '手写小样本，非外部盲测；regression 类为已知回归，其他类按场景编写。'], runs={})
+                         SETS[args.set][1]], runs={})
     with tempfile.TemporaryDirectory(prefix='harukoto-eval-') as temporary:
         theme = Path(temporary)
         change(theme, 'import', args.ff14)
@@ -131,6 +152,9 @@ def main():
                 key = f'{script}-ff14-{"on" if enabled else "off"}'
                 report['runs'][key] = run(args.probe.resolve(), args.lexicon.resolve(), selected, script, theme if enabled else None, args.repeats)
                 print(key, json.dumps({k: report['runs'][key][k] for k in ('summary', 'latency')}, ensure_ascii=False), flush=True)
+    if args.compact:
+        for value in report['runs'].values():
+            del value['raw']
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(args.output)

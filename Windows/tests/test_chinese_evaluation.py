@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -12,6 +13,7 @@ spec = importlib.util.spec_from_file_location('evaluation', ROOT / 'scripts/eval
 evaluation = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(evaluation)
 PROBE = LEXICON = None
+HOLDOUT_V1 = '3a75e06a09711c4d47f366e5800e18b0f674762746e0593fd38f2120dd1e4074'
 if '--probe' in sys.argv:
     index = sys.argv.index('--probe')
     PROBE, LEXICON = sys.argv[index + 1:index + 3]
@@ -45,6 +47,22 @@ class EvaluationTests(unittest.TestCase):
             path.write_text('x\tdaily\tab\t甲\t甲\tall\nx\tdaily\tab\t甲\t甲\tall\n', encoding='utf-8')
             with self.assertRaises(ValueError):
                 evaluation.corpus(path)
+
+    def test_holdout_is_frozen_and_separate_from_tuning_material(self):
+        path = ROOT / evaluation.SETS['holdout'][0]
+        rows = evaluation.corpus(path)
+        tuned = evaluation.corpus(ROOT / evaluation.SETS['tuned'][0])
+        self.assertEqual({c: sum(r['category'] == c for r in rows) for c in ('chat', 'work', 'game', 'theme')},
+                         dict(chat=24, work=24, game=24, theme=4))
+        self.assertTrue(all((r['scope'] == 'ff14') == (r['category'] == 'theme') for r in rows))
+        self.assertEqual(evaluation.leaks(rows, tuned), [])
+        # Line endings may differ per checkout; the frozen identity is the LF text.
+        # Do not edit v1 to change a score: add a v2 file and keep this baseline.
+        text = ''.join(line + '\n' for line in path.read_text(encoding='utf-8').splitlines())
+        self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), HOLDOUT_V1)
+        copied = dict(rows[0], id='copy', input=tuned[0]['input'])
+        edited = dict(rows[0], id='edited', hans=['你好'])
+        self.assertEqual(evaluation.leaks(rows[:1] + [copied, edited], tuned), ['copy', 'edited'])
 
     @unittest.skipUnless(PROBE, 'production probe not supplied')
     def test_erhua_aliases_keep_full_readings_and_weights(self):
