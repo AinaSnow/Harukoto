@@ -2,7 +2,7 @@
 
 WIN-03b，2026-11-10。新增 `Windows/EngineHost.h` 和开发程序 `harukoto_engine_host.exe`，将[认证管道](ENGINE_PIPE.md)、[连接会话](ENGINE_SERVER.md)、[有界执行器](ENGINE_EXECUTOR.md)和[正式 Windows 合并查询](ENGINE_WINDOWS.md)连接到一个真实进程。每个宿主准备一次固定只读词库，多个连接共用；查询线程继续各自创建核心会话和 SQLite 连接。
 
-当前为开发实验，不随 alpha.22 安装、不自动启动，不接 TextService 或候选渲染器。尚无服务发现、正式启动管理器、动态增补连接端点、快照热切换或引擎版本更新／回退；不能据此认为当前输入法已使用独立引擎。
+当前为开发实验，不随 alpha.22 安装、不自动启动，不接 TextService 或候选渲染器。已加入[可复用受控启动与端点管理](ENGINE_PROCESS.md)，真实宿主测试使用该模块；尚无服务发现、动态增补连接端点、快照热切换或引擎版本更新／回退，当前输入法仍使用原运行路径。
 
 ## 启动与生命周期
 
@@ -10,9 +10,9 @@ WIN-03b，2026-11-10。新增 `Windows/EngineHost.h` 和开发程序 `harukoto_e
 
 顺序为：生成非零随机引擎运行代次 → 完整验证并加载词库 → 创建工作线程和全部 Listener → 进入 run 后发出 ready。代次不使用可复用的 PID。父进程必须同时等待 ready 和子进程退出，启动失败时不得当作已就绪。客户端继续以 `CreateProcessW` 返回并保留的进程对象认证管道服务端，不能只信数字 PID。
 
-测试启动方使用 `STARTUPINFOEX` 的句柄列表，只继承 ready／stop，以 `CREATE_NO_WINDOW` 隐藏启动；保留 `hProcess`。测试还以挂起启动、加入 kill-on-close Job 后再恢复线程，保证测试进程断言失败时也能清理自己的子进程。该 Job 是测试资源保护，没有实现正式产品的常驻监督器或自动重启。
+启动方现复用 EngineProcess：使用 STARTUPINFOEX 显式句柄列表，仅继承 ready／stop 的短期副本，CREATE_NO_WINDOW 隐藏启动并保留 hProcess。挂起创建、加入自有 kill-on-close Job 后再恢复线程；事件循环以绝对期限观察启动／停止，超时终止自己的子进程树，等待实际退出。没有实现正式产品的跨应用常驻代理或自动重启，完整状态和所有权约定见[启动管理](ENGINE_PROCESS.md)。
 
-一个端点只接受一次连接，关闭后不分配新实例。全部端点关闭／监听到期，或 stop 事件触发时退出。关闭先撤销连接、取消关联任务和管道 I/O，再 stop／join 执行器，领取并丢弃剩余结果，释放全部通道。run 只允许调用一次，返回前在 I/O 所属线程回收 OVERLAPPED。若后端永久不返回，join 仍会等待；产品级进程看门狗、父进程意外退出策略和未确认选择恢复继续待做。
+一个端点只接受一次连接，关闭后不分配新实例。全部端点关闭／监听到期，或 stop 事件触发时退出。关闭先撤销连接、取消关联任务和管道 I/O，再 stop／join 执行器，领取并丢弃剩余结果，释放全部通道。run 只允许调用一次，返回前在 I/O 所属线程回收 OVERLAPPED。若后端永久不返回，宿主内部 join 仍会等待；外部 EngineProcess 在调用方继续 poll 时可按停止期限终止宿主，所有者放弃或退出时由 Job 关闭保护。正式共享所有者寿命、升级策略和未确认选择恢复仍待做。
 
 ## 容量与事件循环
 
@@ -44,7 +44,9 @@ Cancel／Close 先推进服务端状态，再撤销该连接中相应会话的�
 
 ## 验证与复现
 
-MSVC Release 完整构建通过。相关 10 项 CTest 分组通过：engine_executor、engine_host、engine_pipe、engine_protocol、engine_messages、engine_server、engine_benchmark、engine_windows_full、engine_host_process、engine_host_full。最终修改后重跑新增三项，分别约 0.08／6.37／14.42 秒；当前共注册 42 项，未重复其余既有测试。保留测试 `/UNDEBUG` 覆盖 Release `NDEBUG` 的编译提示。
+受控启动批次：完整 MSVC Release 构建和 engine_process／engine_host／engine_host_process／engine_host_full 四项通过，当前共 43 项；其余既有测试未重复。新增参数继承与生命周期故障覆盖，见[启动管理验证](ENGINE_PROCESS.md)。
+
+宿主接入批次：MSVC Release 完整构建通过。相关 10 项 CTest 分组通过：engine_executor、engine_host、engine_pipe、engine_protocol、engine_messages、engine_server、engine_benchmark、engine_windows_full、engine_host_process、engine_host_full。最终修改后重跑新增三项，分别约 0.08／6.37／14.42 秒；当时共注册 42 项，未重复其余既有测试。保留测试 `/UNDEBUG` 覆盖 Release `NDEBUG` 的编译提示。
 
 - engine_host 使用真实管道与受控后台任务，验证同编号双连接隔离、无后续输入时的完成唤醒、选词重放、取消运行任务、断连旧结果丢弃、取消后仍占容量、Overloaded／Backend、查询超时、坏业务关闭及其他连接继续查询。
 - engine_host_process／full 分别以微型／完整基础词库的临时副本，加完整 FF14、个人词表和 SQLite 独有补词，启动实际宿主。每个拼音前缀均通过管道查询；最终页和翻页逐字节对照进程内查询，覆盖简繁、日本／にほん、eat、FF14 简繁名称、个人词和补词。
@@ -57,9 +59,9 @@ MSVC Release 完整构建通过。相关 10 项 CTest 分组通过：engine_exec
 
 ```powershell
 cmake --build .build/windows/msvc --config Release
-ctest --test-dir .build/windows/msvc -C Release -R '^(engine_host|engine_host_process|engine_host_full)$' --output-on-failure
+ctest --test-dir .build/windows/msvc -C Release -R '^(engine_process|engine_host|engine_host_process|engine_host_full)$' --output-on-failure
 ```
 
-不要手工编造 `--ready`／`--stop` 的数字后双击宿主；它们必须是启动方显式继承的事件句柄。测试启动入口和临时词库准备由 `Windows/tests/test_engine_host.py` 管理，正式启动、发现和版本选择接口仍待设计。
+不要手工编造 `--ready`／`--stop` 的数字后双击宿主；它们必须是启动方显式继承的事件句柄。临时词库准备由 Windows/tests/test_engine_host.py 管理，实际启动和端点领取由 EngineProcess 统一执行；服务发现与正式版本选择仍待设计。
 
-下一步先补受控启动／连接管理和宿主诊断，再测多客户端竞争时的完整逐键往返、总私有内存与静态词库基线；评估队列／超时预算后接 TSF。引擎与词库更新仍须明确组字边界、旧任务寿命、失败沿用旧版及回退，不能先启用默认运行路径。
+下一步明确共享宿主所有者、可信服务发现与端点交接，补正式诊断，测多客户端竞争时的完整逐键往返、总私有内存与静态词库基线；评估队列／超时预算后接 TSF。引擎与词库更新仍须明确组字边界、旧任务寿命、失败沿用旧版及回退，不能先启用默认运行路径。

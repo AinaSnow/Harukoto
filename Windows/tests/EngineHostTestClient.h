@@ -21,7 +21,9 @@ struct Client {
     CandidateSnapshot candidates;
     CandidatePage current;
     Frame last;
-    Client(const std::wstring &name, HANDLE process) : channel(ep::Channel::connect(name,process)) {
+    Client(const std::wstring &name, HANDLE process) : Client(ep::Channel::connect(name,process)) {}
+    explicit Client(std::unique_ptr<ep::Channel> connection) : channel(std::move(connection)) {
+        assert(channel);
         const auto time = ep::now(); auto hello = gate.connect(time,time+Timeout);
         auto ack = exchange(hello); assert(gate.acknowledge(ack,ep::now()));
         auto open = gate.open(ep::now(),ep::now()+Timeout); assert(open); session = open->id.session;
