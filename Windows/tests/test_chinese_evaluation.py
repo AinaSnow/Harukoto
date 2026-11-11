@@ -1,5 +1,7 @@
+import csv
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -12,6 +14,9 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 spec = importlib.util.spec_from_file_location('evaluation', ROOT / 'scripts/evaluate-chinese.py')
 evaluation = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(evaluation)
+spec = importlib.util.spec_from_file_location('comparison', ROOT / 'scripts/compare-chinese-holdout.py')
+comparison = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(comparison)
 PROBE = LEXICON = None
 HOLDOUT_V1 = '3a75e06a09711c4d47f366e5800e18b0f674762746e0593fd38f2120dd1e4074'
 if '--probe' in sys.argv:
@@ -63,6 +68,38 @@ class EvaluationTests(unittest.TestCase):
         copied = dict(rows[0], id='copy', input=tuned[0]['input'])
         edited = dict(rows[0], id='edited', hans=['你好'])
         self.assertEqual(evaluation.leaks(rows[:1] + [copied, edited], tuned), ['copy', 'edited'])
+
+    def test_comparison_sheet_round_trip_and_validation(self):
+        rows = comparison.baseline(ROOT / 'docs/benchmarks/chinese-holdout-v1-baseline.json')
+        committed = comparison.read(ROOT / 'docs/benchmarks/chinese-holdout-v1-comparison.csv')
+        # The committed sheet must still describe the frozen baseline, filled or not.
+        comparison.summarize(committed, rows)
+        ours = next(r for r in rows if r['rank'] == 1)
+        missed = next(r for r in rows if r['rank'] != 1)
+        with tempfile.TemporaryDirectory() as folder:
+            def result(fill, encoding='utf-8-sig'):
+                sheet = list(csv.reader(io.StringIO(comparison.template(rows))))
+                for line in sheet[1:]:
+                    line[6:8] = fill.get(line[0], ['', ''])
+                out = io.StringIO()
+                csv.writer(out).writerows(sheet)
+                path = Path(folder) / 'sheet.csv'
+                path.write_bytes(out.getvalue().encode(encoding))
+                return comparison.summarize(comparison.read(path), rows)
+            done = result({ours['id']: ['别的', '0'], missed['id']: [missed['expected'][0], '']}, 'gb18030')
+            self.assertEqual(len(done['pending']), len(rows) - 2)
+            self.assertEqual((done['summary']['only_harukoto'], done['summary']['only_other']), (1, 1))
+            self.assertIsNone(done['only_harukoto'][0]['other_rank'])
+            self.assertEqual(result({ours['id']: ['别的', '3']})['only_harukoto'][0]['other_rank'], 3)
+            for bad in (['别的', '1'], [ours['expected'][0], '2'], ['别的', 'x']):
+                with self.assertRaises(ValueError):
+                    result({ours['id']: bad})
+            edited = [list(line) for line in committed]
+            edited[-1][3] = '改过的期望'
+            with self.assertRaises(ValueError):
+                comparison.summarize(edited, rows)
+            with self.assertRaises(ValueError):
+                comparison.summarize(committed[:-1], rows)
 
     @unittest.skipUnless(PROBE, 'production probe not supplied')
     def test_erhua_aliases_keep_full_readings_and_weights(self):
