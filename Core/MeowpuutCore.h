@@ -48,7 +48,11 @@ const char *mpn_committed(const MPNSession *session);
 void mpn_clear_commit(MPNSession *session);
 size_t mpn_candidate_count(const MPNSession *session);
 // Lazy expansion appends candidates without invalidating existing indices.
-// Exact dictionary matches are exhausted; sentence search remains bounded.
+// The first expansion begins with every fully spelled word and character
+// whose reading leads the input (longest reading first), so a text stays
+// reachable segment by segment; a list longer than one page already shows
+// the commonest of them on its second page. Exact dictionary matches are
+// exhausted; sentence search remains bounded.
 int mpn_candidates_can_expand(const MPNSession *session);
 size_t mpn_expand_candidates(MPNSession *session);
 const char *mpn_candidate(const MPNSession *session, size_t index);

@@ -4,6 +4,7 @@
 #include <array>
 #include <charconv>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <numeric>
@@ -812,6 +813,66 @@ std::pair<std::vector<Fallback>, size_t> pinyin_segments(const Lexicon &lexicon,
     return {std::move(result), primaryCount};
 }
 
+// Last-resort ladder for segment-by-segment selection: fully spelled dictionary
+// words and single characters whose reading is a leading part of the input,
+// longest reading first and dictionary order within one reading. Selecting one
+// keeps the remaining keys, so any text in the lexicon stays reachable even
+// when every decoded sentence is wrong. Lookups only; no sentence search.
+// perReading bounds the entries taken from each leading reading; a bounded
+// call also inspects only the head of each bucket, because it runs on every
+// key and short readings share their bucket with thousands of abbreviations.
+std::vector<Fallback> leading_words(const Lexicon &lexicon, std::string_view input, bool hans, size_t perReading = SIZE_MAX) {
+    if (!lexicon.pinyin || input.size() > max_input) return {};
+    const Reading reading(input, true);
+    const auto &sounds = reading.sounds;
+    // Raw bytes consumed by the first n sounds, including the tone or
+    // apostrophe that closes them.
+    std::vector<size_t> raw(sounds.size() + 1, 0);
+    for (size_t i = 0, count = 0; i < input.size(); ++i) {
+        if (!is_tone(input[i], true) && input[i] != '\'') ++count;
+        raw[count] = i + 1;
+    }
+    // Only a reading made of recorded syllables can belong to a fully spelled
+    // word; this skips abbreviation buckets such as "w" or "zhd" outright.
+    const auto syllable = [&](std::string_view value) {
+        return std::binary_search(lexicon.singleReadings.begin(), lexicon.singleReadings.end(), value);
+    };
+    std::vector<char> spelled(sounds.size() + 1, 0);
+    spelled[0] = 1;
+    for (size_t end = 1; end <= sounds.size(); ++end)
+        for (size_t size = 1; size <= std::min(size_t(6), end) && !spelled[end]; ++size)
+            spelled[end] = spelled[end - size] && syllable(std::string_view(sounds).substr(end - size, size));
+    const size_t inspected = perReading == SIZE_MAX ? SIZE_MAX : 256;
+    std::vector<Fallback> result;
+    std::unordered_set<std::string_view> visible;
+    for (size_t length = std::min(sounds.size(), lexicon.longest); length > 0 && sounds.size() > 1; --length) {
+        if (length == sounds.size() || !spelled[length]) continue; // Whole-input matches are already candidates.
+        // Cut only where the rest can begin a syllable: a recorded
+        // single-character reading starts there, or a short unfinished tail
+        // can still grow into one. This rejects ban|gwo while keeping xi|an.
+        const auto rest = std::string_view(sounds).substr(length);
+        bool boundary = reading.boundaries[length] != 0;
+        for (size_t size = std::min(size_t(6), rest.size()); size > 0 && !boundary; --size)
+            boundary = syllable(rest.substr(0, size));
+        if (!boundary && rest.size() <= 5) {
+            const auto found = std::lower_bound(lexicon.singleReadings.begin(), lexicon.singleReadings.end(), rest);
+            boundary = found != lexicon.singleReadings.end() && found->substr(0, rest.size()) == rest;
+        }
+        if (!boundary) continue;
+        const auto range = lexicon.range(std::string_view(sounds).substr(0, length));
+        visible.clear();
+        for (size_t i = range.first; i < range.second && i - range.first < inspected && visible.size() < perReading; ++i) {
+            const auto &word = lexicon.word(i, hans);
+            if (!fully_spelled(word) || !reading.matches(word, 0, length)) continue;
+            const auto text = word.text(hans);
+            if (visible.insert(text).second)
+                result.push_back({std::string(text), raw[length], double(word.score(hans))});
+            if (result.size() == single_character_candidate_limit) return result;
+        }
+    }
+    return result;
+}
+
 // A short suffix is unfinished only when a recorded single-character reading
 // extends it and no recorded single-character reading ends at the suffix.
 // Multi-character abbreviation buckets alone are not syllable evidence.
@@ -1148,6 +1209,46 @@ struct MPNSession {
                     ordered[group.second[i].index] = std::move(ranked[order[i].index]);
             }
             for (size_t i = 0; i < limit; ++i) ranked[i] = std::move(ordered[i]);
+        }
+        // A list that fits one page is left alone: its next page is the first
+        // expansion, which begins with the same ladder.
+        if (!requireFullCandidate && lexicon->pinyin && !singleReading && ranked.size() > page_size) {
+            // When the first page is wrong, the second page offers building
+            // blocks instead of more variants of the same sentence: up to two
+            // words for each of the two longest leading multi-syllable
+            // readings, then the commonest characters of the leading
+            // syllable. The first page keeps its content and order; the
+            // complete ladder follows on the first candidate expansion.
+            std::vector<Fallback> head;
+            std::vector<std::pair<size_t, size_t>> taken; // consumed keys, entries taken
+            const auto ladder = leading_words(*lexicon, input, hans, page_size);
+            const size_t firstSyllable = [&] {
+                // The longest leading reading that has single characters.
+                for (const auto &item : ladder)
+                    if (han_characters(item.text).size() == 1) return item.consumed;
+                return size_t(0);
+            }();
+            for (int pass = 0; pass < 2; ++pass) {
+                for (const auto &item : ladder) {
+                    if (head.size() == page_size) break;
+                    const bool character = item.consumed == firstSyllable && han_characters(item.text).size() == 1;
+                    if (pass == 0 ? item.consumed <= firstSyllable : !character) continue;
+                    auto group = std::find_if(taken.begin(), taken.end(), [&](const auto &entry) { return entry.first == item.consumed; });
+                    if (pass == 0) {
+                        if (group == taken.end()) {
+                            if (taken.size() == 2) continue;
+                            taken.emplace_back(item.consumed, 0); group = taken.end() - 1;
+                        }
+                        if (group->second == 2) continue;
+                        ++group->second;
+                    }
+                    if (std::none_of(ranked.begin(), ranked.end(), [&](const Candidate &candidate) { return sameSelection(candidate, item); }))
+                        head.push_back(item);
+                }
+            }
+            size_t position = std::min(page_size, ranked.size());
+            for (auto &item : head)
+                ranked.insert(ranked.begin() + position++, {std::move(item.text), item.consumed, {MPN_CANDIDATE_PARTIAL, MPN_SCORE_LEXICON, item.score}});
         }
         if (requireFullCandidate && lexicon->pinyin && !input.empty()) {
             // The Android presentation needs complete interpretations first,
@@ -1642,6 +1743,13 @@ size_t mpn_expand_candidates(MPNSession *session) {
         std::set<std::pair<std::string, size_t>> seen;
         for (const auto &candidate : session->candidates) seen.emplace(candidate.text, candidate.consumed);
         std::vector<Candidate> added;
+        if (session->expansion == 0) {
+            // The first extra page offers leading words and characters before
+            // any further whole-sentence guesses.
+            for (auto &item : leading_words(*session->lexicon, session->input, session->hans))
+                if (seen.emplace(item.text, item.consumed).second)
+                    added.push_back({std::move(item.text), item.consumed, {MPN_CANDIDATE_PARTIAL, MPN_SCORE_LEXICON, item.score}});
+        }
         for (size_t i = 0; i < decoded.size(); ++i) {
             if (seen.emplace(decoded[i], session->input.size()).second)
                 added.push_back({std::move(decoded[i]), session->input.size(), metadata[i]});

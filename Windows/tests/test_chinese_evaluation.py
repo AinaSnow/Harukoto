@@ -125,6 +125,19 @@ class EvaluationTests(unittest.TestCase):
             self.assertEqual(tuple(map(int, by_key[key][4:])), weights)
 
     @unittest.skipUnless(PROBE, 'production probe not supplied')
+    def test_every_holdout_text_is_reachable_by_selection(self):
+        # CN-08 availability, not ranking: wrong first candidates must still
+        # leave a way to produce the text segment by segment.
+        rows = evaluation.corpus(ROOT / evaluation.SETS['holdout'][0])
+        result = evaluation.compose(PROBE, LEXICON, rows)
+        self.assertEqual((result['samples'], result['reachable'], result['unreachable']), (72, 72, []))
+        self.assertLessEqual(result['max_selections'], 6)
+        hard = {i['id']: i for i in result['items']}['work-02']
+        self.assertEqual(''.join(step['text'] for step in hard['steps']), '请查收邮件')
+        bad = subprocess.run([PROBE, LEXICON, 'hans'], input='nihao\t\n', text=True, encoding='utf-8', capture_output=True, timeout=30)
+        self.assertNotEqual(bad.returncode, 0)
+
+    @unittest.skipUnless(PROBE, 'production probe not supplied')
     def test_real_probe_and_invalid_theme(self):
         run = subprocess.run([PROBE, LEXICON, 'hans'], input='yedui\nzhidaole\n', text=True, encoding='utf-8', capture_output=True, timeout=30)
         self.assertEqual(run.returncode, 0, run.stderr)

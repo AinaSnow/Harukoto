@@ -261,8 +261,95 @@ static void verifyLazyExpansion() {
     mpn_session_destroy(session); mpn_lexicon_destroy(lexicon);
 }
 
+// CN-08: when no decoded sentence is right, leading words and characters keep
+// every dictionary text reachable by selecting segment after segment.
+static void verifyLeadingWords() {
+    // Buckets are sorted by reading, and by descending weight within one.
+    std::string data = "MEOWPUUT-PINYIN-1\n"
+                       "an\tan1\t安\t安\t9000\n"
+                       "cha\tcha2\t查\t查\t9000\n"
+                       "chashou\tcha2shou1\t查收\t查收\t6000\n"
+                       "qi\tqi1\t七\t七\t9500\n";
+    const char *characters[] = {"请", "清", "情", "轻", "青", "晴", "氢", "倾", "卿"};
+    for (size_t i = 0; i < 9; ++i)
+        data += std::string("qing\tqing") + (i ? "1" : "3") + "\t" + characters[i] + "\t" + characters[i] + "\t" + std::to_string(9000 - i) + "\n";
+    data += "qingcha\tqing1cha2\t清查\t清查\t5000\n";
+    for (size_t i = 0; i < 9; ++i) {
+        const auto text = numbered("whole", i);
+        data += "qingchashou\tqing3cha2shou1\t" + text + "\t" + text + "\t" + std::to_string(16000 - i) + "\n";
+    }
+    data += "shou\tshou1\t收\t收\t9000\n"
+            "xi\txi1\t西\t西\t9000\n"
+            "xian\txian1\t先\t先\t9000\n";
+    auto *lexicon = makeLexicon(data);
+    auto *session = mpn_session_create(lexicon);
+    const auto find = [&](const std::string &text, size_t consumed) {
+        for (size_t i = 0; i < mpn_candidate_count(session); ++i)
+            if (text == mpn_candidate(session, i) && mpn_candidate_consumed(session, i) == consumed) return i;
+        return mpn_candidate_count(session);
+    };
+    const auto missing = [&](const std::string &text, size_t consumed) { return find(text, consumed) == mpn_candidate_count(session); };
+
+    // The first page is untouched; building blocks start on the second.
+    type(session, "qingchashou");
+    // Existing order: three whole matches, the decoded leading phrase, then more.
+    const size_t firstPage[] = {0, 1, 2, 99, 3, 4, 5};
+    for (size_t i = 0; i < 7; ++i)
+        assert((firstPage[i] == 99 ? std::string("清查") : numbered("whole", firstPage[i])) == mpn_candidate(session, i));
+    assert(find("清查", 7) == 3 && find("请", 4) == 7 && find("清", 4) == 8);
+    MPNCandidateInfo info{};
+    assert(mpn_candidate_info(session, 7, &info, sizeof(info)) && info.kind == MPN_CANDIDATE_PARTIAL &&
+           info.consumed_bytes == 4 && info.remaining_offset_bytes == 4);
+    // The page holds seven building blocks; whole-input matches resume after it.
+    assert(find("氢", 4) == 13 && find(numbered("whole", 6), 11) == 14 && missing("倾", 4));
+    // qi|ngchashou is not a syllable boundary.
+    assert(missing("七", 2));
+    std::vector<std::string> before;
+    for (size_t i = 0; i < mpn_candidate_count(session); ++i) before.push_back(mpn_candidate(session, i));
+
+    // The first expansion completes the ladder without moving earlier indices.
+    assert(mpn_candidates_can_expand(session) && mpn_expand_candidates(session) >= 2);
+    for (size_t i = 0; i < before.size(); ++i) assert(before[i] == mpn_candidate(session, i));
+    assert(find("倾", 4) == before.size() && find("卿", 4) == before.size() + 1);
+    assert(missing("七", 2));
+    const auto total = mpn_candidate_count(session);
+    while (mpn_candidates_can_expand(session)) mpn_expand_candidates(session);
+    assert(find("倾", 4) == before.size() && mpn_candidate_count(session) >= total);
+
+    // Selecting a block keeps the remaining keys for the next selection.
+    assert(mpn_choose(session, find("请", 4)));
+    assert(std::string(mpn_committed(session)) == "请" && std::string(mpn_input(session)) == "chashou");
+    assert(mpn_choose(session, find("查收", 7)));
+    assert(std::string(mpn_committed(session)) == "请查收" && !*mpn_input(session));
+    mpn_clear_commit(session);
+
+    // A list that fits one page gains nothing until the user pages onward.
+    type(session, "xian");
+    assert(mpn_candidate_count(session) <= 7 && missing("西", 2));
+    mpn_expand_candidates(session);
+    assert(!missing("西", 2));
+    assert(mpn_choose(session, find("西", 2)) && std::string(mpn_input(session)) == "an");
+    mpn_clear(session); mpn_clear_commit(session);
+
+    // An explicit separator belongs to the syllable it closes.
+    type(session, "xi'an");
+    while (mpn_candidates_can_expand(session)) mpn_expand_candidates(session);
+    assert(!missing("西", 3) && missing("先", 4) && missing("先", 5));
+    assert(mpn_choose(session, find("西", 3)) && std::string(mpn_input(session)) == "an");
+    mpn_clear(session); mpn_clear_commit(session);
+
+    // A single syllable already lists its characters; nothing is repeated.
+    type(session, "qing");
+    const auto single = mpn_candidate_count(session);
+    assert(single == 9);
+    while (mpn_candidates_can_expand(session)) mpn_expand_candidates(session);
+    assert(mpn_candidate_count(session) == single);
+    mpn_session_destroy(session); mpn_lexicon_destroy(lexicon);
+}
+
 int main(int argc, char **argv) {
     verifyLazyExpansion();
+    verifyLeadingWords();
     verifyJapaneseBridge();
     assert((pinyinEvidenceReadings("lue") == std::vector<std::string>{"lue", "lve"}));
     assert((pinyinEvidenceReadings("nue") == std::vector<std::string>{"nue", "nve"}));

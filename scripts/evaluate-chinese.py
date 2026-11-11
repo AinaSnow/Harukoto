@@ -109,6 +109,28 @@ def run(probe, lexicon, rows, script, theme, repeats):
                 quality=quality, raw=records)
 
 
+def compose(probe, lexicon, rows, script='hans'):
+    """Can each text be produced by selection alone, and at what paging cost?
+
+    Uses the first acceptable text of each complete sample. A selection costs
+    one unit and so does every PageDown needed to reach it; the probe returns
+    the cheapest sequence over fully expanded candidate lists.
+    """
+    rows = [r for r in rows if r['scope'] == 'all' and r['category'] != 'partial']
+    result = subprocess.run([str(probe), str(lexicon), script], input=''.join(f"{r['input']}\t{r[script][0]}\n" for r in rows),
+                            text=True, encoding='utf-8', capture_output=True, timeout=900, check=True)
+    records = [json.loads(line) for line in result.stdout.splitlines()][1:]
+    if len(records) != len(rows) or any(a['type'] != 'compose' or a['input'] != b['input'] for a, b in zip(records, rows)):
+        raise ValueError('探针返回的分段选词记录不匹配')
+    items = [dict(id=row['id'], ok=record['ok'], selections=len(record['steps']),
+                  page_downs=record['cost'] - len(record['steps']), steps=record['steps']) for row, record in zip(rows, records)]
+    done = [i for i in items if i['ok']]
+    return dict(script=script, samples=len(items), reachable=len(done), unreachable=[i['id'] for i in items if not i['ok']],
+                single_selection=sum(i['selections'] == 1 for i in done), no_paging=sum(i['page_downs'] == 0 for i in done),
+                max_selections=max((i['selections'] for i in done), default=0), max_page_downs=max((i['page_downs'] for i in done), default=0),
+                items=items)
+
+
 def sha(path):
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -141,7 +163,8 @@ def main():
                   notes=['新进程加载时间；未清空系统文件缓存，不是磁盘冷启动。',
                          '逐键为核心计算＋Windows 候选合并；不包含真实 TSF、IPC、候选绘制或按键到显示。',
                          '缺失指本次候选列表未命中，不证明词库缺词；分词和误纠错需人工复核。',
-                         SETS[args.set][1]], runs={})
+                         SETS[args.set][1],
+                         'compose 为简体、FF14 关闭下只靠选词打出首个可接受文字的最小代价：每次选择和每次翻页各计 1；不含 partial 类样本。'], runs={})
     with tempfile.TemporaryDirectory(prefix='harukoto-eval-') as temporary:
         theme = Path(temporary)
         change(theme, 'import', args.ff14)
@@ -152,6 +175,8 @@ def main():
                 key = f'{script}-ff14-{"on" if enabled else "off"}'
                 report['runs'][key] = run(args.probe.resolve(), args.lexicon.resolve(), selected, script, theme if enabled else None, args.repeats)
                 print(key, json.dumps({k: report['runs'][key][k] for k in ('summary', 'latency')}, ensure_ascii=False), flush=True)
+    report['compose'] = compose(args.probe.resolve(), args.lexicon.resolve(), samples)
+    print('compose', json.dumps({k: v for k, v in report['compose'].items() if k != 'items'}, ensure_ascii=False), flush=True)
     if args.compact:
         for value in report['runs'].values():
             del value['raw']

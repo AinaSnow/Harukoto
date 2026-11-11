@@ -4,6 +4,8 @@
 #include "../JapanesePackages.h"
 #include <psapi.h>
 #include <chrono>
+#include <functional>
+#include <map>
 #include <iomanip>
 #include <iostream>
 
@@ -67,6 +69,67 @@ int main(int argc, char **argv) {
         std::cout << "{\"type\":\"startup\",\"load_ms\":" << ms(started) << ",\"theme_rows\":" << themeRows << ',' << memory() << "}\n";
         for (std::string input; std::getline(std::cin, input);) {
             if (!input.empty() && input.back() == '\r') input.pop_back();
+            if (const auto tab = input.find('\t'); tab != std::string::npos) {
+                // "reading<TAB>expected": can the text be produced by selection alone?
+                const std::string reading = input.substr(0, tab), expected = input.substr(tab + 1);
+                if (reading.empty() || expected.empty() || reading.size() > mpn_max_input_bytes() ||
+                    !std::all_of(reading.begin(), reading.end(), [](char c) { return c >= 'a' && c <= 'z'; }))
+                    throw std::runtime_error("Compose line must be a-z<TAB>text");
+                // Cheapest way to produce the text by selection alone. One unit
+                // per selection and per PageDown needed to reach the choice.
+                struct Best { size_t cost = SIZE_MAX; std::string text; size_t rank = 0, count = 0, next = 0, nextDone = 0; };
+                std::map<std::pair<size_t, size_t>, Best> memo; size_t states = 0;
+                const auto lookup = [&](const std::string &value) { return evidence.dictionary(value, simplified); };
+                // Each state is rebuilt from the remaining keys, with the text
+                // chosen so far as ranking context, then expanded to its end
+                // exactly as repeated PageDown does in the text service.
+                std::function<size_t(size_t, size_t)> compose = [&](size_t offset, size_t done) -> size_t {
+                    if (offset == reading.size()) return done == expected.size() ? 0 : SIZE_MAX;
+                    if (done == expected.size()) return SIZE_MAX;
+                    if (const auto found = memo.find({offset, done}); found != memo.end()) return found->second.cost;
+                    if (++states > 512) throw std::runtime_error("Compose search exceeded its bound");
+                    mpn_clear(session); mpn_clear_commit(session);
+                    mpn_set_segment_context(session, expected.substr(0, done).c_str());
+                    for (size_t i = offset; i < reading.size(); ++i)
+                        if (!mpn_key(session, reading[i])) throw std::runtime_error("Key rejected");
+                    auto choices = windowsCandidates(session, words, lookup, false);
+                    while (mpn_candidates_can_expand(session)) {
+                        mpn_expand_candidates(session);
+                        appendCandidateExpansion(session, choices, windowsCandidates(session, words, lookup, false));
+                    }
+                    struct Option { std::string text; size_t rank, consumed; };
+                    std::vector<Option> options;
+                    std::set<std::pair<size_t, size_t>> targets; // Only the earliest rank of each outcome matters.
+                    for (size_t i = 0; i < choices.size(); ++i) {
+                        const auto &c = choices[i];
+                        const size_t consumed = c.coreIndex ? mpn_candidate_consumed(session, *c.coreIndex) : reading.size() - offset;
+                        if (!c.japanese && consumed && expected.compare(done, c.text.size(), c.text) == 0 &&
+                            targets.emplace(consumed, c.text.size()).second)
+                            options.push_back({c.text, i + 1, consumed});
+                    }
+                    const size_t count = choices.size();
+                    Best best;
+                    for (const auto &option : options) {
+                        const auto rest = compose(offset + option.consumed, done + option.text.size());
+                        if (rest == SIZE_MAX) continue;
+                        const size_t cost = rest + 1 + (option.rank - 1) / 7;
+                        if (cost < best.cost) best = {cost, option.text, option.rank, count, offset + option.consumed, done + option.text.size()};
+                    }
+                    memo[{offset, done}] = best;
+                    return best.cost;
+                };
+                const bool ok = compose(0, 0) != SIZE_MAX;
+                std::cout << "{\"type\":\"compose\",\"input\":" << json(reading) << ",\"expected\":" << json(expected) <<
+                    ",\"ok\":" << (ok ? "true" : "false") << ",\"cost\":" << (ok ? memo[{0, 0}].cost : 0) << ",\"steps\":[";
+                for (std::pair<size_t, size_t> state{0, 0}; ok && state.first < reading.size();) {
+                    const auto &step = memo[state];
+                    std::cout << (state.first ? "," : "") << "{\"text\":" << json(step.text) << ",\"rank\":" << step.rank <<
+                        ",\"candidates\":" << step.count << '}';
+                    state = {step.next, step.nextDone};
+                }
+                std::cout << "]}\n";
+                continue;
+            }
             if (input.empty() || input.size() > mpn_max_input_bytes() ||
                 !std::all_of(input.begin(), input.end(), [](char c) { return c >= 'a' && c <= 'z'; }))
                 throw std::runtime_error("Input must be a-z within composition limit");
