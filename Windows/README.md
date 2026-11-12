@@ -1,4 +1,4 @@
-# 晴词 · Harukoto 0.4.4-alpha.22 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.24 · Windows x64
 
 开发产物清理：使用 PowerShell 7 运行 `Windows/clean-build.ps1` 预览，添加 `-Apply` 执行。只清理脚本固定匹配的旧产物，保留最新两个 0.4.4-alpha 版本、最新 FF14 包、当前 MSVC／ime／tools 与源数据；未知文件保留。请在构建／打包结束后运行。
 
@@ -11,6 +11,10 @@
 2026-11-11 增加[实验引擎只读诊断](../docs/ENGINE_DIAGNOSTICS.md)：启动方显式开启后，可用 `harukoto_engine_diagnose.exe --process <根进程PID> --json` 查看状态、接入计数及最后一次已领取 Inspect 的容量。文本输出为简体中文，记录包含发布／轮询年龄；工具不记录输入或候选，不消费控制回复，不作为可信发现。它与安装版 Diagnose.cmd 分开，尚未进入安装包。
 
 2026-11-11 增加[可选部署身份校验](../docs/ENGINE_DEPLOYMENT.md)：可信启动方提供宿主／所有者的预期 SHA-256，固定实际文件及父目录，在恢复进程主线程前核对映像；外层 Ready 前再次检查私有交接的宿主。诊断显示是否要求校验和是否已通过，身份不符拒绝交出能力。普通应用可信发现／实例交接和正式常驻仍待实现。
+
+alpha.24 增加[选词记忆](../docs/SELECTION_MEMORY.md)：选过的候选下次排在最前，分段选出的句子下次整句出现；记录只保存在本机当前用户，可用 `manage-selection-memory.ps1` 查看、导出、清除或关闭。真实应用中的效果尚待实机确认。
+
+alpha.23 增加逐段兜底候选：整句候选都不对时，第二页起给出句首的词和首音节的常用字，继续翻页列出该读音的全部单字；选中后剩余拼音继续组句。首页内容和顺序不变，说明与评测见[中文评测](../docs/CHINESE_EVALUATION.md)。真实应用中的翻页尚待实机确认。
 
 日常使用请先看[操作指南](../docs/USER_GUIDE.md)，包含选词、表记／假名二选一、F6 活用、繁简开关和常见问题。
 
@@ -34,7 +38,7 @@ alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.22-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.24-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -93,7 +97,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.22
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.24
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。

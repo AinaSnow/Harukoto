@@ -13,6 +13,7 @@
 #include "PinyinPunctuation.h"
 #include "ScriptMode.h"
 #include "ScriptPreference.h"
+#include "SelectionMemory.h"
 #include "JapaneseConjugation.h"
 #include "ConjugationPanel.h"
 #include "JapanesePackages.h"
@@ -202,6 +203,7 @@ public:
             wchar_t localAppData[32768];
             const DWORD localLength = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, ARRAYSIZE(localAppData));
             if (localLength && localLength < ARRAYSIZE(localAppData)) {
+                memory = std::make_unique<selection_memory::Store>(std::filesystem::path(localAppData) / L"Meowpuut/selection-memory.tsv");
                 const auto customPath = std::filesystem::path(localAppData) / L"Meowpuut/japanese-custom.tsv";
                 auto personal = readPersonalDictionary(customPath);
                 const auto themeRoot = std::filesystem::path(localAppData) / L"Meowpuut/Dictionaries";
@@ -234,6 +236,7 @@ public:
 
     HRESULT STDMETHODCALLTYPE Deactivate() override {
         runtimeStatus.close();
+        if (memory) { memory->flush(); memory.reset(); }
         themeReload.reset();
         conjugationPanel.clear();
         if (delivery) delivery->queue.close();
@@ -354,6 +357,9 @@ public:
             }
             if (activeContext != context || !session || !delivery || !delivery->queue.canDeliver()) return S_OK;
             pollDictionaries();
+            // Selection memory is per user and can be switched off at any time.
+            memoryEnabled = memory && selection_memory::enabled();
+            if (memoryEnabled) memory->poll();
             const bool preference = readSimplifiedPreference();
             if (preference != simplified) conjugationPanel.close(choices, page, highlighted, expanded);
             if (applyPinyinScript(session, simplified, preference)) {
@@ -533,6 +539,11 @@ private:
         return translate(key) != 0;
     }
 
+    std::unique_ptr<selection_memory::Store> memory;
+    bool memoryEnabled = false;
+    // Segments selected so far in the composition being completed.
+    std::string composedReading, composedText;
+    size_t composedSegments = 0;
     struct SavedContext {
         MPNSession *session = nullptr;
         std::vector<WindowsCandidate> choices;
@@ -599,7 +610,7 @@ private:
     void reportRuntimeStatus() noexcept {
         try {
             using base_dictionary::Metadata;
-            runtimeStatus.publish("\"service_version\":\"0.4.4-alpha.22\",\"base_version\":" +
+            runtimeStatus.publish("\"service_version\":\"0.4.4-alpha.24\",\"base_version\":" +
                 Metadata::quote(baseSnapshot ? baseSnapshot->version() : std::string()) + "," +
                 (themeReload ? themeReload->diagnosticFields() :
                     "\"base_generation\":\"\",\"theme_generation\":\"\",\"pending_base_generation\":\"\",\"phase\":\"unavailable\",\"last_apply_failed\":false"));
@@ -649,6 +660,7 @@ private:
     }
 
     void resetCandidates() {
+        composedReading.clear(); composedText.clear(); composedSegments = 0;
         conjugationPanel.clear();
         choices.clear();
         page = highlighted = 0;
@@ -681,6 +693,13 @@ private:
         choices = windowsCandidates(session, japaneseWords, [&](const std::string &input) {
             return currentEvidence().dictionary(input, simplified);
         }, chineseLocked);
+        if (memoryEnabled) {
+            // What the user chose for this exact reading comes first.
+            const std::string input = mpn_input(session);
+            selection_memory::apply(choices, input, memory->recall(input, simplified), [&](const WindowsCandidate &c) {
+                return c.coreIndex ? mpn_candidate_consumed(session, *c.coreIndex) : input.size();
+            });
+        }
     }
 
     size_t candidateCount() const { return choices.size(); }
@@ -697,9 +716,13 @@ private:
     }
 
     void finishCandidateText(std::wstring &text, size_t choice) {
+        bool learn = true;
         while (*mpn_input(session)) {
             const std::string remaining = mpn_input(session);
-            if (!chooseCandidate(choice, text)) mpn_commit(session);
+            // Only the highlighted candidate was confirmed by the user; the
+            // rest of the reading is completed automatically and not learned.
+            if (!chooseCandidate(choice, text, learn)) mpn_commit(session);
+            learn = false;
             text += wide(mpn_committed(session));
             mpn_clear_commit(session);
             if (remaining == mpn_input(session)) {
@@ -722,8 +745,11 @@ private:
         return consumed < input.size() ? wide(input.substr(0, consumed).c_str()) : std::wstring();
     }
 
-    bool chooseCandidate(size_t index, std::wstring &text) {
+    bool chooseCandidate(size_t index, std::wstring &text, bool learn = true) {
         if (index >= candidateCount()) return false;
+        const std::string input = mpn_input(session), chosen = choices[index].text;
+        const size_t consumed = choices[index].coreIndex ? mpn_candidate_consumed(session, *choices[index].coreIndex) : input.size();
+        const bool form = conjugationPanel.active(); // A conjugated form is not a reading of the input.
         if (choices[index].coreIndex) {
             if (!mpn_choose(session, *choices[index].coreIndex)) return false;
             chineseLocked = *mpn_input(session) != '\0';
@@ -731,7 +757,21 @@ private:
             text += candidateText(index);
             mpn_clear(session);
         }
+        if (memoryEnabled && learn && !form && consumed && consumed <= input.size()) remember(input, consumed, chosen);
+        else { composedReading.clear(); composedText.clear(); composedSegments = 0; }
         return true;
+    }
+
+    // CN-06: record the confirmed selection, and the whole phrase once a
+    // reading has been completed by selecting several segments.
+    void remember(const std::string &input, size_t consumed, const std::string &chosen) {
+        const auto reading = input.substr(0, consumed);
+        if (chosen != reading) memory->record(reading, chosen, simplified);
+        composedReading += reading; composedText += chosen; ++composedSegments;
+        if (consumed != input.size()) return;
+        if (composedSegments > 1) memory->record(composedReading, composedText, simplified);
+        composedReading.clear(); composedText.clear(); composedSegments = 0;
+        memory->flush();
     }
 
     HWND rendererWindow() const {

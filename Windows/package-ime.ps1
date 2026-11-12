@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.22'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.24'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,7 +30,7 @@ try {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $stage
     }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install.cmd') -Destination $stage
-    foreach ($name in 'PowerShellHost.ps1','InstallSupport.ps1','InputProfile.ps1','Settings.cmd','set-candidate-appearance.ps1','LayoutOptions.cs','AppearanceCli.cs') {
+    foreach ($name in 'PowerShellHost.ps1','InstallSupport.ps1','InputProfile.ps1','Settings.cmd','set-candidate-appearance.ps1','manage-selection-memory.ps1','LayoutOptions.cs','AppearanceCli.cs') {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $stage
     }
     New-Item -ItemType Directory -Force (Join-Path $stage 'Windows'),(Join-Path $stage 'scripts'),(Join-Path $stage 'docs') | Out-Null
@@ -54,7 +54,7 @@ try {
     foreach ($name in 'coverage.json','source-checks.json') {
         Copy-Item -LiteralPath (Join-Path $root "Resources/DictionaryPackages/ff14/full/$name") -Destination $ff14
     }
-    foreach ($name in 'USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','FF14_DICTIONARY.md','FF14_FULL_DICTIONARY.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','DEVELOPMENT_PLAN.md','UI_LAYOUT_EDITOR.md','CHINESE_EVALUATION.md','WINDOWS_DIAGNOSIS.md','WINDOWS_VALIDATION.md','BRAND.md') {
+    foreach ($name in 'SELECTION_MEMORY.md','USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','FF14_DICTIONARY.md','FF14_FULL_DICTIONARY.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','DEVELOPMENT_PLAN.md','UI_LAYOUT_EDITOR.md','CHINESE_EVALUATION.md','WINDOWS_DIAGNOSIS.md','WINDOWS_VALIDATION.md','BRAND.md') {
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
     }
     New-Item -ItemType Directory -Force (Join-Path $stage 'docs/benchmarks') | Out-Null
