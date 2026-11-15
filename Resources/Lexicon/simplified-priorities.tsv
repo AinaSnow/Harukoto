@@ -2,3 +2,10 @@
 # These are product ranking decisions, not observed corpus frequencies.
 学姐|xue2 jie3|6000
 惊艳|jing1 yan4|4500
+# CN-01c homophone preferences: each value sits just above the competitor it must
+# pass and keeps the source order otherwise. Evidence per row: docs/CHINESE_EVALUATION.md.
+登录|deng1 lu4|5180
+公式|gong1 shi4|5850
+共识|gong4 shi2|5800
+售后|shou4 hou4|3700
+预约|yu4 yue1|3900

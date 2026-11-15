@@ -47,7 +47,7 @@ finally:
 manifest = json.loads((resources / 'mimo-manifest.json').read_text(encoding='utf-8'))
 record = manifest['simplified_editorial_priorities']
 priority_data = (root / 'Resources/Lexicon/simplified-priorities.tsv').read_bytes().replace(b'\r\n', b'\n')
-assert record == {'pairs': 2, 'sha256': hashlib.sha256(priority_data).hexdigest()}
+assert record == {'pairs': 7,'sha256': hashlib.sha256(priority_data).hexdigest()}
 
 with tempfile.TemporaryDirectory(prefix='meowpuut-editorial-') as directory:
     library = Path(directory) / ('core.dylib' if sys.platform == 'darwin' else 'core.so')
