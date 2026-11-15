@@ -1,0 +1,25 @@
+{
+  "name": "sentence corpora for composition statistics",
+  "retrieved": "2026-11-12",
+  "stored_in_repository": "statistics only (Resources/Lexicon/collocations.tsv.gz, Resources/Lexicon/word-priors.tsv.gz); no sentence text",
+  "generator": "scripts/build-collocations.py",
+  "sources": [
+    {
+      "name": "Leipzig Corpora Collection",
+      "files": ["zho-cn_web_2015_1M.tar.gz", "zho_news_2007-2009_1M.tar.gz"],
+      "download": "https://downloads.wortschatz-leipzig.de/corpora/",
+      "license": "CC BY",
+      "license_source": "https://wortschatz.uni-leipzig.de/en/usage",
+      "citation": "D. Goldhahn, T. Eckart and U. Quasthoff: Building Large Monolingual Dictionaries at the Leipzig Corpora Collection: From 100 to 200 Languages. In: Proceedings of LREC 2012."
+    },
+    {
+      "name": "Tatoeba",
+      "files": ["cmn_sentences.tsv.bz2"],
+      "download": "https://downloads.tatoeba.org/exports/per_language/cmn/cmn_sentences.tsv.bz2",
+      "license": "CC BY 2.0 FR",
+      "license_source": "https://tatoeba.org/en/downloads"
+    }
+  ],
+  "archive_hashes": "see collocations-report.json, written by each run of the generator",
+  "notes": "Licence terms were read from the two license_source pages on 2026-11-12. The Leipzig usage page names the licence for downloadable corpora as CC BY without a version number."
+}

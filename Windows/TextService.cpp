@@ -215,7 +215,15 @@ public:
             }
             std::stable_sort(japaneseWords.begin(), japaneseWords.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
             evidence.open(folder / L"language-evidence.sqlite");
-            std::string bytes((std::istreambuf_iterator<char>(file)), {});
+            // Read by size: copying tens of megabytes one character at a time
+            // costs more than parsing them.
+            std::string bytes;
+            file.seekg(0, std::ios::end);
+            if (const auto size = file.tellg(); size > 0) {
+                bytes.resize(static_cast<size_t>(size));
+                file.seekg(0);
+                if (!file.read(bytes.data(), size)) bytes.clear();
+            }
             lexicon = mpn_lexicon_create(bytes.data(), bytes.size());
             session = mpn_session_create(lexicon);
             if (session) mpn_set_simplified(session, simplified);

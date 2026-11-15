@@ -1,0 +1,58 @@
+{
+  "vocabulary": 385060,
+  "pinyin_table_sha256": "83d88909544cebb5592a3fe503822ad792191fafb0488bc8109eb2145634bf3f",
+  "pools": [
+    {
+      "archives": {
+        "zho-cn_web_2015_1M.tar.gz": {
+          "sha256": "78ea748b92303fe31135cad1cb6b10bc177f11616fd421ef4d4e3e1836390a23",
+          "bytes": 426603004
+        },
+        "zho_news_2007-2009_1M.tar.gz": {
+          "sha256": "a40b2e9350b63e54ab1338b72234d3a36774928dafdbccb264d23c11c006c05b",
+          "bytes": 285295484
+        }
+      },
+      "runs": 16776013,
+      "characters_outside_vocabulary": 14249096,
+      "tokens": 45302487,
+      "phrase_starts": 4459199,
+      "phrase_ends": 3474329,
+      "excluded_modulus": 0,
+      "distinct_pairs": 7707802,
+      "singletons_pruned": false,
+      "minimum": 3,
+      "selected": 1082849
+    },
+    {
+      "archives": {
+        "cmn_sentences.tsv.bz2": {
+          "sha256": "262a48cacb7693f6e47a2c4c42f216a5c45dd28b9b62014b159628cc908e8fcc",
+          "bytes": 1259986
+        }
+      },
+      "runs": 177865,
+      "characters_outside_vocabulary": 123949,
+      "tokens": 512891,
+      "phrase_starts": 98375,
+      "phrase_ends": 93936,
+      "excluded_modulus": 0,
+      "distinct_pairs": 195634,
+      "singletons_pruned": false,
+      "minimum": 2,
+      "selected": 38916
+    }
+  ],
+  "candidates": 1100462,
+  "limit": 1000000,
+  "floor": 0.3,
+  "written": 1000000,
+  "boundary_pairs": 37533,
+  "output_sha256": "d8216ac17eeb12cbccd26fbf7b734e66c898107e10bf3fae2f520122ed4659b5",
+  "spoken_share": 0.3,
+  "evidence": 20,
+  "lexicon_offset": 1.6154,
+  "priors_written": 64704,
+  "priors_sha256": "d76c70a81d51903495418f95b18a0ede84ca07608f9c70a651734415f9ca1fbf",
+  "note": "搭配分数在每组语料内分别估计，同一搭配取较大值；singletons_pruned 为真时该组丢弃过只出现一次的搭配，低频计数略偏低。excluded_modulus 非零表示该次运行留出了开发句子，正式数据应为 0。"
+}

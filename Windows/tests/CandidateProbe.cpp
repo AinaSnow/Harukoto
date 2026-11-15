@@ -58,7 +58,14 @@ int main(int argc, char **argv) {
         {
             std::ifstream file(dir / "native-pinyin.tsv", std::ios::binary);
             if (!file) throw std::runtime_error("Missing native dictionary");
-            const std::string bytes{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+            // Sized read, as the text service does; a per-character copy dominates loading.
+            std::string bytes;
+            file.seekg(0, std::ios::end);
+            if (const auto size = file.tellg(); size > 0) {
+                bytes.resize(static_cast<size_t>(size));
+                file.seekg(0);
+                if (!file.read(bytes.data(), size)) bytes.clear();
+            }
             lexicon = mpn_lexicon_create(bytes.data(), bytes.size());
         }
         if (!lexicon) throw std::runtime_error("Invalid native dictionary");

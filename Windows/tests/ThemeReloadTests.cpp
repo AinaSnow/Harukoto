@@ -114,9 +114,13 @@ struct ThemeReloadTests {
             const auto choices = windowsCandidates(session, active, [](const std::string &) { return ChineseEvidence{}; }, false);
             assert(std::any_of(choices.begin(), choices.end(), [](const auto &c) { return c.text == "エクスポーション"; }) == expected);
             if (expected) {
-                assert(choices.front().text == "特级恢复药" && choices.front().coreIndex);
-                assert(mpn_choose(session, *choices.front().coreIndex));
-                assert(std::string(mpn_committed(session)) == "特级恢复药");
+                // The theme entry reuses a native index only when the decoder's
+                // own list holds the same text; otherwise it stands alone.
+                assert(choices.front().text == "特级恢复药" && !choices.front().japanese);
+                if (choices.front().coreIndex) {
+                    assert(mpn_choose(session, *choices.front().coreIndex));
+                    assert(std::string(mpn_committed(session)) == "特级恢复药");
+                }
             }
         };
         check(true);

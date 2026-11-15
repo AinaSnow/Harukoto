@@ -1,5 +1,6 @@
 """Compile the bundled word data into the portable engine's UTF-8 table."""
 import collections
+import gzip
 import functools
 import pathlib
 import re
@@ -586,6 +587,7 @@ def main(destination, converter=None):
         raise ValueError(f"Erhua words missing full er readings: {sorted(erhua - erhua_matched)}")
     # Context-only observations steer adjacent word segments without creating
     # artificial dictionary entries or changing the standalone word order.
+    authored_context = set()
     for number, fields in authored("context.tsv"):
         if len(fields) != 2: raise ValueError(f"context.tsv:{number}: expected 2 fields")
         phrase, priority = fields
@@ -593,6 +595,43 @@ def main(destination, converter=None):
             raise ValueError(f"context.tsv:{number}: invalid phrase or priority")
         previous = context.get(phrase, (0, 0))
         context[phrase] = (max(previous[0], int(priority)), max(previous[1], int(priority)))
+        authored_context.add(phrase)
+    # Sentence-composition statistics from scripts/build-collocations.py. Both
+    # tables are keyed by simplified text and keep only words still in this
+    # vocabulary, so they can lag behind the lexicon.
+    def statistics_rows(name, width):
+        source_path = ROOT / "Resources/Lexicon" / name
+        if not source_path.exists(): return
+        with gzip.open(source_path, "rt", encoding="utf-8") as source:
+            for number, line in enumerate(source, 1):
+                if line.startswith("#"): continue
+                fields = line.rstrip("\n").split("\t")
+                if len(fields) != width or not all(fields): raise ValueError(f"{name}:{number}: expected {width} fields")
+                yield number, fields
+    # Weight of the fully spelled reading; initial abbreviations are a fraction of it.
+    spelled = {}
+    for (bare, reading, hant, hans), (weight, hans_weight) in rows["pinyin"].items():
+        if len(bare) > len(hans): spelled[hans] = max(spelled.get(hans, 0), hans_weight)
+    collocations = {}
+    for number, (left, right, score) in statistics_rows("collocations.tsv.gz", 3):
+        if not score.isdigit() or not 0 < int(score) <= 999:
+            raise ValueError(f"collocations.tsv.gz:{number}: expected left, right, score")
+        # "^" and "$" mark the start and end of a phrase.
+        if (left == "^" or left in spelled) and (right == "$" or right in spelled):
+            collocations[(left, right)] = int(score)
+    # How far a word's lexicon weight sits from its frequency in running text,
+    # in hundredths of a nat on the decoder's scale (weight / 700 - 19). Thin
+    # evidence is shrunk. The corpora are older and more formal than chat, so
+    # being rarer there than the lexicon assumes counts for half as much as
+    # being more common; the correction is bounded either way.
+    priors = {}
+    for number, (word, score, seen) in statistics_rows("word-priors.tsv.gz", 3):
+        if not re.fullmatch("-?[0-9]+", score) or not seen.isdigit() or int(seen) < 1:
+            raise ValueError(f"word-priors.tsv.gz:{number}: expected word, score, count")
+        if word not in spelled: continue
+        delta = (int(score) - (spelled[word] / 7 - 1900)) * int(seen) / (int(seen) + 10)
+        delta = max(-600, min(600, round(delta * (0.5 if delta < 0 else 1))))
+        if delta: priors[word] = delta
     for mode, entries in rows.items():
         with (output / f"native-{mode}.tsv").open("w", encoding="utf-8", newline="\n") as dest:
             dest.write(f"MEOWPUUT-{mode.upper()}-2\n")
@@ -601,6 +640,24 @@ def main(destination, converter=None):
             dest.write("# context\n")
             for word, (weight, hans_weight) in sorted(context.items()):
                 dest.write(f"{word}\t{weight}\t{hans_weight}\n")
+            if mode == "pinyin" and collocations:
+                # Optional trailer, sections in this order. Without it the
+                # decoder keeps its earlier behaviour. Pairs refer to words by
+                # their line in "# pairwords" so that loading needs no text
+                # lookups; the decoder does not keep this part in memory.
+                dest.write("# statistics\n# authored\n")
+                for phrase in sorted(authored_context): dest.write(f"{phrase}\n")
+                dest.write("# priors\n")
+                for word, delta in sorted(priors.items(), key=lambda row: row[0].encode()):
+                    dest.write(f"{word}\t{delta}\n")
+                dest.write("# pairwords\n")
+                index = {}
+                for word in sorted({word for pair in collocations for word in pair}, key=str.encode):
+                    index[word] = len(index) + 1
+                    dest.write(f"{word}\n")
+                dest.write("# pairs\n")
+                for left, right, score in sorted((index[left], index[right], score) for (left, right), score in collocations.items()):
+                    dest.write(f"{left}\t{right}\t{score}\n")
     japanese = {}
     def add_japanese(reading, word, weight):
         if not re.fullmatch("[a-z'-]+", reading) or not word or not 0 < weight <= 10000:

@@ -347,9 +347,74 @@ static void verifyLeadingWords() {
     mpn_session_destroy(session); mpn_lexicon_destroy(lexicon);
 }
 
+// CN-01b/CN-01e: optional corpus statistics steer sentence composition only.
+static void verifyCompositionStatistics() {
+    const std::string words = "MEOWPUUT-PINYIN-2\n"
+                              "ba\tba3\t把\t把\t8000\t8000\n"
+                              "ba\tba5\t吧\t吧\t7000\t7000\n"
+                              "chi\tchi1\t吃\t吃\t8000\t8000\n"
+                              "chifan\tchi1fan4\t吃飯\t吃饭\t7000\t7000\n"
+                              "dao\tdao4\t到\t到\t8000\t8000\n"
+                              "fan\tfan4\t飯\t饭\t8000\t8000\n"
+                              "le\tle5\t了\t了\t9000\t9000\n"
+                              "zhi\tzhi2\t直\t直\t6000\t6000\n"
+                              "zhidao\tzhi1dao4\t知道\t知道\t7000\t7000\n"
+                              "zhidao\tzhi2dao4\t直到\t直到\t5600\t5600\n"
+                              "zou\tzou3\t走\t走\t8000\t8000\n"
+                              "# context\n"
+                              "到了\t9000\t9000\n";
+    const auto first = [](const std::string &data, const char *keys) {
+        auto *lexicon = makeLexicon(data);
+        auto *session = mpn_session_create(lexicon);
+        mpn_set_simplified(session, 1);
+        type(session, keys);
+        assert(mpn_candidate_count(session) > 0);
+        const std::string text = mpn_candidate(session, 0);
+        mpn_session_destroy(session); mpn_lexicon_destroy(lexicon);
+        return text;
+    };
+    // Pairs name their words by line number in "# pairwords" (byte order):
+    // 1 "$", 2 "^", 3 了, 4 吧, 5 直到, 6 知道, 7 走.
+    const std::string statistics = "# statistics\n", pairWords = "# pairwords\n$\n^\n了\n吧\n直到\n知道\n走\n# pairs\n";
+    // Without statistics the more frequent homophone wins everywhere, and a
+    // boundary that spells a dictionary word (到了) earns the full bonus.
+    assert(first(words, "chifanba") == "吃饭把" && first(words, "zouba") == "走把" && first(words, "zhidaole") == "直到了");
+    assert(first(words + statistics, "chifanba") == "吃饭把");
+    // A phrase-final particle is recognised by the end marker ...
+    assert(first(words + statistics + pairWords + "4\t1\t300\n", "chifanba") == "吃饭吧");
+    // ... an opener by the start marker, and neighbours by their own pair.
+    assert(first(words + statistics + pairWords + "2\t6\t400\n", "zhidaole") == "知道了");
+    assert(first(words + statistics + pairWords + "7\t4\t300\n", "zouba") == "走吧");
+    assert(first(words + statistics + pairWords + "7\t4\t300\n", "chifanba") == "吃饭把");
+    // One pair cannot outvote everything: its score is capped at six nats, so
+    // a seven-nat correction on the other reading still decides.
+    assert(first(words + statistics + pairWords + "5\t3\t999\n", "zhidaole") == "直到了");
+    assert(first(words + statistics + "# priors\n知道\t700\n" + pairWords + "5\t3\t999\n", "zhidaole") == "知道了");
+    // A correction moves a word inside sentences but not on its own.
+    const auto corrected = words + statistics + "# priors\n吧\t200\n";
+    assert(first(corrected, "zouba") == "走吧" && first(corrected, "ba") == "把");
+    // With pairs present, the dictionary-word boundary counts for half, while
+    // an authored context phrase counts for more than before.
+    assert(first(words + statistics + pairWords + "7\t4\t300\n", "zhidaole") == "知道了");
+    assert(first(words + statistics + "# authored\n到了\n" + pairWords + "7\t4\t300\n", "zhidaole") == "直到了");
+    // Sections are optional but ordered, sorted and validated.
+    for (const std::string broken : {pairWords + "4\t1\t0\n", pairWords + "4\t1\t1000\n", pairWords + "7\t4\t1\n4\t1\t1\n",
+                                     pairWords + "4\t1\t1\n4\t1\t2\n", pairWords + "4\t1\n", pairWords + "4\t8\t1\n",
+                                     pairWords + "0\t1\t1\n", pairWords + "吧\t$\t1\n", std::string("# pairs\n1\t1\t1\n"),
+                                     std::string("# pairwords\n走\n吧\n"), std::string("# priors\n吧\t0\n"),
+                                     std::string("# priors\n走\t5\n吧\t5\n"), std::string("# priors\n吧\t1000\n"),
+                                     std::string("# authored\n到\n"), std::string("# authored\n到了\t1\n"),
+                                     pairWords + "4\t1\t1\n# priors\n吧\t5\n", std::string("# priors\n吧\t5\n# authored\n到了\n"),
+                                     std::string("# unknown\n"), std::string("吧\t5\n")}) {
+        const auto data = words + statistics + broken;
+        assert(!mpn_lexicon_create(data.data(), data.size()));
+    }
+}
+
 int main(int argc, char **argv) {
     verifyLazyExpansion();
     verifyLeadingWords();
+    verifyCompositionStatistics();
     verifyJapaneseBridge();
     assert((pinyinEvidenceReadings("lue") == std::vector<std::string>{"lue", "lve"}));
     assert((pinyinEvidenceReadings("nue") == std::vector<std::string>{"nue", "nve"}));

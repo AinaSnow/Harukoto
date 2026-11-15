@@ -31,6 +31,15 @@ constexpr size_t candidate_limit = 256;
 // limit remains small; only exact single-character lookup may use this bound.
 constexpr size_t single_character_candidate_limit = 2048;
 constexpr size_t beam = 5;
+// Sentence composition with corpus statistics (the optional "# statistics" trailer).
+// Lexicon weights, corrections and collocation scores share one scale of nats,
+// so a collocation counts in full; the cap keeps one pair from outvoting
+// everything else in the sentence.
+constexpr double pair_cap = 6.0;
+// With real adjacency statistics available, a boundary that merely spells a
+// dictionary word is weak evidence, while an editorial context phrase is a
+// deliberate statement and outweighs a typical collocation.
+constexpr double derived_join_scale = 0.5, authored_join_scale = 1.5;
 
 bool is_tone(char key, bool pinyin = false) { return pinyin ? key >= '1' && key <= '5' : tones.find(key) != std::string_view::npos; }
 
@@ -60,6 +69,10 @@ struct Word {
     std::string_view row;
     int weight;
     int hansWeight;
+    // Index of the simplified text in the collocation vocabulary; 0 = absent.
+    uint32_t pair = 0;
+    // Sentence-composition prior correction in hundredths of a nat; 0 = none.
+    int16_t prior = 0;
 
     int score(bool hans) const { return hans ? hansWeight : weight; }
 
@@ -98,6 +111,10 @@ struct Lexicon {
     std::vector<std::string_view> singleReadings, singleSpellings;
     struct ContextScore { std::string_view first; int weight, hansWeight; };
     std::vector<ContextScore> context;
+    // Parallel to context when the statistics list authored phrases: true for
+    // an editorial phrase rather than a dictionary word that happens to span
+    // a boundary. Empty otherwise.
+    std::vector<bool> contextAuthored;
     std::unordered_map<std::string_view, std::pair<std::string_view, int>> traditionalCharacters;
     std::unordered_map<std::string_view, std::pair<std::string_view, int>> traditionalPhrases;
     size_t longestTraditionalPhrase = 0;
@@ -105,13 +122,116 @@ struct Lexicon {
     bool pinyin = false;
     std::array<std::vector<size_t>, 128> initials;
     std::array<std::vector<size_t>, 128> hansInitials;
+    // Adjacent-word collocations from the optional statistics: scores in
+    // hundredths of a nat (discounted pointwise mutual information), keyed by
+    // the two words' collocation indices. Derived from sentence corpora; an
+    // unlisted pair simply earns nothing. Keys are sorted; scores run in
+    // parallel so that a million pairs cost ten bytes each.
+    std::vector<uint64_t> pairs;
+    std::vector<uint16_t> pairScores;
+    // Collocation indices of the phrase-boundary markers "^" and "$"; 0 = absent.
+    uint32_t pairBegin = 0, pairEnd = 0;
+
+    double pair_bonus(uint32_t left, uint32_t right) const {
+        if (!left || !right) return 0;
+        const uint64_t key = (uint64_t(left) << 32) | right;
+        const auto found = std::lower_bound(pairs.begin(), pairs.end(), key);
+        return found != pairs.end() && *found == key ? std::min(pair_cap, pairScores[found - pairs.begin()] / 100.0) : 0;
+    }
 
     const Word &word(size_t position, bool hans) const {
         return words[hans && !hansOrder.empty() ? hansOrder[position] : position];
     }
 
+    // Optional trailer written by the lexicon compiler from sentence-corpus
+    // statistics. Sections appear in this order, each sorted ascending:
+    //   # authored   context phrases that are editorial, one per line
+    //   # priors     word<TAB>correction (hundredths of a nat, non-zero)
+    //   # pairwords  words taking part in a pair; a word's index is its line
+    //   # pairs      left index<TAB>right index<TAB>score (1..999)
+    // "^" and "$" in pairwords stand for the start and end of a phrase. The
+    // text is read from the caller's buffer and not retained.
+    bool loadStatistics(std::string_view data) {
+        enum Section { None, Authored, Priors, PairWords, Pairs } section = None;
+        struct Tag { uint32_t pair = 0; int16_t prior = 0; };
+        std::unordered_map<std::string_view, Tag> tags;
+        uint32_t pairWords = 0;
+        std::string_view previous;
+        while (!data.empty() && section != Pairs) {
+            const auto newline = data.find('\n');
+            auto line = data.substr(0, newline);
+            if (newline == data.npos) data = {};
+            else data.remove_prefix(newline + 1);
+            if (!line.empty() && line.back() == '\r') line.remove_suffix(1);
+            if (line.empty()) continue;
+            if (line[0] == '#') {
+                const Section next = line == "# authored" ? Authored : line == "# priors" ? Priors :
+                    line == "# pairwords" ? PairWords : line == "# pairs" ? Pairs : None;
+                if (next <= section) return false;
+                section = next;
+                previous = {};
+                continue;
+            }
+            const auto tab = line.find('\t');
+            const auto word = line.substr(0, tab);
+            if (section == None || word.empty() || (!previous.empty() && previous >= word)) return false;
+            previous = word;
+            if (section == Priors) {
+                int delta = 0;
+                if (tab == line.npos) return false;
+                const auto parsed = std::from_chars(line.data() + tab + 1, line.data() + line.size(), delta);
+                if (parsed.ec != std::errc{} || parsed.ptr != line.data() + line.size() || delta == 0 || delta < -999 || delta > 999) return false;
+                tags[word].prior = static_cast<int16_t>(delta);
+            } else if (tab != line.npos) {
+                return false;
+            } else if (section == PairWords) {
+                tags[word].pair = ++pairWords;
+            } else {
+                const auto entry = std::lower_bound(context.begin(), context.end(), word,
+                    [](const ContextScore &item, std::string_view value) { return item.first < value; });
+                if (entry == context.end() || entry->first != word) return false;
+                contextAuthored.resize(context.size());
+                contextAuthored[entry - context.begin()] = true;
+            }
+        }
+        // The pair rows are the last and by far the largest section: three
+        // unsigned numbers per line, read in one pass.
+        const auto rows = static_cast<size_t>(std::count(data.begin(), data.end(), '\n')) + 1;
+        pairs.reserve(rows); pairScores.reserve(rows);
+        const char *at = data.data(), *const end = at + data.size();
+        const auto number = [&](uint32_t limit, char terminator, uint32_t &value) {
+            const char *const first = at;
+            for (value = 0; at != end && *at >= '0' && *at <= '9' && at - first < 9; ++at) value = value * 10 + static_cast<uint32_t>(*at - '0');
+            if (at == first || value < 1 || value > limit) return false;
+            if (terminator == '\n') {
+                if (at != end && *at == '\r') ++at;
+                if (at == end) return true;
+            }
+            return at != end && *at++ == terminator;
+        };
+        while (at != end) {
+            if (*at == '\n' || *at == '\r') { ++at; continue; }
+            uint32_t left = 0, right = 0, score = 0;
+            if (!number(pairWords, '\t', left) || !number(pairWords, '\t', right) || !number(999, '\n', score)) return false;
+            const uint64_t key = (uint64_t(left) << 32) | right;
+            if (!pairs.empty() && pairs.back() >= key) return false;
+            pairs.push_back(key); pairScores.push_back(static_cast<uint16_t>(score));
+        }
+        if (const auto found = tags.find("^"); found != tags.end()) pairBegin = found->second.pair;
+        if (const auto found = tags.find("$"); found != tags.end()) pairEnd = found->second.pair;
+        if (!tags.empty()) for (auto &word : words) {
+            const auto found = tags.find(word.text(true));
+            if (found != tags.end()) { word.prior = found->second.prior; word.pair = found->second.pair; }
+        }
+        return true;
+    }
+
     bool load(std::string_view data) {
-        storage.assign(data);
+        // Statistics are parsed from the caller's buffer and never stored.
+        constexpr std::string_view statisticsMarker = "\n# statistics\n";
+        const auto statisticsStart = data.find(statisticsMarker);
+        const auto statistics = statisticsStart == data.npos ? std::string_view() : data.substr(statisticsStart + statisticsMarker.size());
+        storage.assign(statisticsStart == data.npos ? data : data.substr(0, statisticsStart + 1));
         data = storage;
         const bool version2 = data.substr(0, std::string_view("MEOWPUUT-PINYIN-2\n").size()) == "MEOWPUUT-PINYIN-2\n" ||
                               data.substr(0, std::string_view("MEOWPUUT-ZHUYIN-2\n").size()) == "MEOWPUUT-ZHUYIN-2\n";
@@ -121,7 +241,9 @@ struct Lexicon {
                                                 : (version2 ? "MEOWPUUT-ZHUYIN-2\n" : "MEOWPUUT-ZHUYIN-1\n");
         if (data.substr(0, header.size()) != header) return false;
         data.remove_prefix(header.size());
-        words.reserve(std::count(data.begin(), data.end(), '\n'));
+        // Word rows end where the context section begins.
+        const auto contextStart = data.find("\n# context\n");
+        words.reserve(std::count(data.begin(), contextStart == data.npos ? data.end() : data.begin() + contextStart + 1, '\n'));
         bool reading_context = false;
         while (!data.empty()) {
             const auto newline = data.find('\n');
@@ -266,10 +388,13 @@ struct Lexicon {
             prepareInitials(initials, false);
             prepareInitials(hansInitials, true);
         }
-        return !words.empty();
+        if (words.empty()) return false;
+        return statistics.empty() || loadStatistics(statistics);
     }
 
-    double join_bonus(std::string_view left, std::string_view right, bool hans, bool distinguishStrong = false) const {
+    // withStatistics: the caller also scores corpus collocations, so authored
+    // phrases and plain dictionary words are weighted apart.
+    double join_bonus(std::string_view left, std::string_view right, bool hans, bool distinguishStrong = false, bool withStatistics = false) const {
         if (context.empty() || right.empty()) return 0;
         // UTF-8 character boundaries for up to four characters on each side.
         std::array<size_t, 4> starts{}, ends{};
@@ -285,15 +410,17 @@ struct Lexicon {
         const size_t offset = starts[left_count - 1];
         std::string joined(left.substr(offset));
         joined.append(right.substr(0, ends[right_count - 1]));
-        int frequency = 0;
+        int frequency = 0, authoredFrequency = 0;
         for (size_t i = 0; i < left_count; ++i) {
             const size_t begin = starts[i] - offset;
             for (size_t j = 0; j < right_count && i + j < 4; ++j) {
                 const auto phrase = std::string_view(joined).substr(begin, left.size() - starts[i] + ends[j]);
                 const auto entry = std::lower_bound(context.begin(), context.end(), phrase,
                     [](const auto &item, std::string_view value) { return item.first < value; });
-                if (entry != context.end() && entry->first == phrase)
+                if (entry != context.end() && entry->first == phrase) {
                     frequency = std::max(frequency, hans ? entry->hansWeight : entry->weight);
+                    if (!contextAuthored.empty() && contextAuthored[entry - context.begin()]) authoredFrequency = std::max(authoredFrequency, hans ? entry->hansWeight : entry->weight);
+                }
             }
         }
         // Multi-character continuations provide more evidence than a single
@@ -303,7 +430,9 @@ struct Lexicon {
         // their existing scale.
         if (distinguishStrong && right_count > 1)
             return std::min(3.0, 3.0 * std::log1p(frequency) / std::log1p(10000.0));
-        return std::min(3.0, 0.4 * std::log1p(frequency));
+        const double bonus = std::min(3.0, 0.4 * std::log1p(frequency));
+        if (!withStatistics) return bonus;
+        return std::max(authored_join_scale * std::min(3.0, 0.4 * std::log1p(authoredFrequency)), derived_join_scale * bonus);
     }
 
     std::string traditionalize(std::string_view value, bool tail) const {
@@ -620,14 +749,14 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
     // speculative chains such as interpreting a mistyped ending as an abbreviation.
     const bool needFallback = results.empty() && lexicon.pinyin && !completeOnly;
 
-    struct Path { std::string text, traditional; double score; bool spelled, verified; };
+    struct Path { std::string text, traditional; double score; bool spelled, verified; uint32_t first; };
     // The sentence search beam is a latency bound, not a five-candidate UI cap.
     // Widen user-visible pinyin lookups within 32 letters only. Internal
     // completion probes and longer searches retain their existing bounded work.
     const size_t pathLimit = lexicon.pinyin && metadata && !completeOnly && length <= 32
         ? (expandedBeam ? expandedBeam : (length <= 8 ? page_size * 3 : size_t(8))) : beam;
     std::vector<std::vector<Path>> suffixes(length + 1);
-    suffixes[length].push_back({"", "", 0, true, true});
+    suffixes[length].push_back({"", "", 0, true, true, lexicon.pairEnd});
     for (size_t start = length; start-- > 0;) {
         std::vector<Path> paths;
         for (size_t end = start + 1; end <= std::min(length, start + lexicon.longest); ++end) {
@@ -648,18 +777,22 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                 used_spellings.push_back(spelling);
                 // Compiler weights are already log-frequency priors. Logging them again
                 // erases the distinction between common phrases and rare fragments.
-                const double score = static_cast<double>(word.score(hans)) / 700.0 - 19.0;
+                // The correction moves a word towards its frequency in running text.
+                const double score = static_cast<double>(word.score(hans)) / 700.0 - 19.0 + word.prior / 100.0;
                 const bool verified = verifiedSpelling(word);
                 for (const auto &suffix : suffixes[end]) {
                     const auto traditional = word.text(false);
                     const auto &right = hans ? suffix.traditional : suffix.text;
-                    const double bonus = lexicon.join_bonus(traditional, right, hans);
+                    const double bonus = lexicon.join_bonus(traditional, right, hans, false, !lexicon.pairs.empty()) +
+                        lexicon.pair_bonus(word.pair, suffix.first) +
+                        (start == 0 ? lexicon.pair_bonus(lexicon.pairBegin, word.pair) : 0);
                     paths.push_back({
                         std::string(word.text(hans)) + suffix.text,
                         hans ? std::string(traditional) + right : std::string(),
                         score + suffix.score + bonus,
                         suffix.spelled && (!lexicon.pinyin || fully_spelled(word)),
                         suffix.verified && verified,
+                        word.pair,
                     });
                 }
                 if (used_spellings.size() == pathLimit) break;

@@ -25,6 +25,12 @@
 - ICU 的 `Hans_Hant.txt` 由 CLDR 产生，原始文件保留 Apple Inc.、Unicode Inc. 及其他贡献者的版权声明。原规则、Unicode License V3 完整原文、版本与 SHA-256 存于 `DataSources/MimoNormalization/`，并随各平台软件包提供。
 - `reviewed-overrides.tsv` 是喵扑人工审核的 11 笔本地修订，用以保持既有字形。来源与更新方法见 [固定转换数据说明](DataSources/MimoNormalization/README.md)。
 
+## 句子语料统计（CC BY）
+
+- 组句用的相邻词搭配表与词频表（`Resources/Lexicon/collocations.tsv.gz`、`word-priors.tsv.gz`）由两个公开语料统计得到：Leipzig Corpora Collection 的 `zho-cn_web_2015_1M`、`zho_news_2007-2009_1M`（CC BY；D. Goldhahn, T. Eckart, U. Quasthoff: Building Large Monolingual Dictionaries at the Leipzig Corpora Collection: From 100 to 200 Languages, LREC 2012），以及 Tatoeba 的中文句子导出（CC BY 2.0 FR，https://tatoeba.org ）。
+- 仓库和安装包只包含词与相邻词对的统计分数，不包含任何句子原文。句子用晴词自己的词表切分，统计脚本为 `scripts/build-collocations.py`。
+- 来源地址、下载日期、压缩包哈希和生成方法见 `DataSources/SentenceCorpora/`。
+
 ## 其他
 
 不打包或链接 Rime，也不使用旧 Terra Pinyin、essay、Mozc、JMdict 或 OpenCC 词表。旧数据及其分发构建产物已移除。

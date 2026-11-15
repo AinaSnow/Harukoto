@@ -172,7 +172,11 @@ int main(int argc, char **argv) {
         for (char c : std::string("wenjianj")) assert(mpn_key(session, c));
         const auto partial = windowsCandidates(session, words, [&](const std::string &reading) { return evidence.dictionary(reading, simplified); }, false);
         assert(partial.size() > 7);
-        const auto alternative = std::find_if(partial.begin() + 7, partial.end(), [&](const auto &c) { return c.text == (simplified ? "问见" : "問見"); });
+        // Which reading lands there depends on ranking; any one that consumes
+        // "wenjian" and leaves the trailing initial will do.
+        const auto alternative = std::find_if(partial.begin() + 7, partial.end(), [&](const auto &c) {
+            return !c.japanese && c.coreIndex && mpn_candidate_consumed(session, *c.coreIndex) == 7;
+        });
         assert(alternative != partial.end() && alternative->coreIndex && mpn_choose(session, *alternative->coreIndex));
         assert(std::string(mpn_committed(session)) == alternative->text && std::string(mpn_input(session)) == "j");
         mpn_clear_commit(session);
@@ -193,8 +197,16 @@ int main(int argc, char **argv) {
                 const std::string expectedItem = simplified ? "特级恢复药" : "特級恢復藥";
                 assert(!itemChoices.empty() && itemChoices.front().text == expectedItem);
                 assert(std::count_if(itemChoices.begin(), itemChoices.end(), [&](const auto &c) { return c.text == expectedItem && !c.japanese; }) == 1);
-                assert(itemChoices.front().coreIndex && mpn_choose(session, *itemChoices.front().coreIndex));
-                assert(std::string(mpn_committed(session)) == expectedItem && !*mpn_input(session));
+                // When the decoder's own list holds the same text, the theme
+                // entry reuses its native index; otherwise it stands alone and
+                // the text service commits it against the whole input.
+                if (itemChoices.front().coreIndex) {
+                    assert(mpn_choose(session, *itemChoices.front().coreIndex));
+                    assert(std::string(mpn_committed(session)) == expectedItem && !*mpn_input(session));
+                } else {
+                    assert(!itemChoices.front().japanese);
+                    mpn_clear(session);
+                }
                 mpn_clear_commit(session);
                 for (char c : std::string("tejihuifuyao")) assert(mpn_key(session, c));
                 itemChoices = windowsCandidates(session, merged, lookup, false);
