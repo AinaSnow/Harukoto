@@ -1,0 +1,64 @@
+# 简体中不降权的繁体独有词（CN-01c，2026-11-15）：简体词面|空格分隔的带声调拼音。
+# 编辑判断，不是语料频率。compile-native-lexicon.py 会把“没有简体来源、语料中也没出现”的繁体独有词
+# 在简体中排到有语料证据的同音词之后；这里列出的词是逐条看过后判断为日常用语、降权会显眼变差的，
+# 编译时保持原刻度。拿不准的一律保留。每行须是词库中存在的繁体独有多字读音，否则编译失败，需复核。
+# 依据与范围：docs/CHINESE_EVALUATION.md 的“B：繁体独有词在简体中的刻度”。
+北京话|bei3 jing1 hua4
+不臭|bu2 chou4
+不抽|bu4 chou1
+不丑|bu4 chou3
+重活|chong2 huo2
+抵不过|di3 bu4 guo4
+多话|duo1 hua4
+多画|duo1 hua4
+多划|duo1 hua4
+更进|geng4 jin4
+好讲|hao3 jiang3
+划开|hua4 kai1
+假得|jia3 de2
+烤过|kao3 guo4
+哪本书|na3 ben3 shu1
+哪件事|na3 jian4 shi4
+孽缘|nie4 yuan2
+跑下|pao3 xia4
+屁屁|pi4 pi4
+试一次|shi4 yi2 ci4
+他处|ta1 chu4
+掏出来|tao1 chu1 lai2
+突出来|tu2 chu1 lai2
+凸出来|tu2 chu1 lai2
+小住|xiao3 zhu4
+血肠|xie3 chang2
+新米|xin1 mi3
+月圆|yue4 yuan2
+在补|zai4 bu3
+卡得|ka3 de2
+傻劲|sha3 jing4
+这集|zhe4 ji2
+很干|hen3 gan1
+消了|xiao1 le5
+削了|xiao1 le5
+慕斯|mu4 si1
+勤加|qin2 jia1
+讲好|jiang3 hao3
+红发|hong2 fa3
+花田|hua1 tian2
+分离出|fen1 li2 chu1
+常想|chang2 xiang3
+点完|dian3 wan2
+劲风|jin4 feng1
+万寿|wan4 shou4
+合得|he2 de5
+在混|zai4 hun4
+只跟|zhi3 gen1
+爱死|ai4 si3
+像话|xiang4 hua4
+我弟|wo3 di4
+网咖|wang3 ka1
+吱吱|zi1 zi1
+回档|hui2 dang3
+在办|zai4 ban4
+时薪|shi2 xin1
+近人|jin4 ren2
+生着|sheng1 zhe5
+减碳|jian3 tan4

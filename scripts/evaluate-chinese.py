@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # holdout: written without querying candidates; report it, never tune against it.
 SETS = {'tuned': ('Windows/tests/data/chinese-evaluation.tsv', '固定回归集：已参与排序调优，结果不是独立准确率。'),
         'holdout': ('Windows/tests/data/chinese-holdout.tsv', '独立评测集：编写时未查询候选，不得据此逐条调优；仍是手写小样本，不是外部盲测。')}
-EDITORIAL = ('chinese.tsv', 'daily-chinese.tsv', 'context.tsv', 'simplified-priorities.tsv')
+EDITORIAL = ('chinese.tsv', 'daily-chinese.tsv', 'context.tsv', 'simplified-priorities.tsv', 'simplified-traditional-only-keep.tsv')
 
 
 def leaks(holdout, tuned, lexicon=ROOT / 'Resources/Lexicon'):
@@ -28,7 +28,7 @@ def leaks(holdout, tuned, lexicon=ROOT / 'Resources/Lexicon'):
     for name in EDITORIAL:
         for line in (lexicon / name).read_text(encoding='utf-8-sig').splitlines():
             if line and not line.startswith('#'):
-                known.update(line.split('|')[:1 if name in ('context.tsv', 'simplified-priorities.tsv') else 2])
+                known.update(line.split('|')[:1 if name in ('context.tsv', 'simplified-priorities.tsv', 'simplified-traditional-only-keep.tsv') else 2])
     return sorted(r['id'] for r in holdout if r['input'] in inputs or known.intersection(r['hans'] + r['hant']))
 
 

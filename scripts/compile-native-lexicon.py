@@ -452,6 +452,97 @@ def reviewed_simplified_priorities(words, source_scores, protected_keys=()):
         result[pair] = int(priority)
     return result
 
+def corpus_counts(name="word-priors.tsv.gz"):
+    """Occurrences of each simplified word in the segmented sentence corpora."""
+    path = ROOT / "Resources/Lexicon" / name
+    counts = {}
+    if not path.exists():
+        return counts
+    with gzip.open(path, "rt", encoding="utf-8") as source:
+        for number, line in enumerate(source, 1):
+            if line.startswith("#"): continue
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) != 3 or not fields[2].isdigit():
+                raise ValueError(f"{name}:{number}: expected word, score, count")
+            counts[fields[0]] = int(fields[2])
+    return counts
+
+
+# CN-01c: a traditional-only phrase (no Pinyin Pro source for its simplified
+# spelling and reading) keeps the traditional scale in simplified mode. When a
+# homophone with a simplified source is attested in the simplified corpora and
+# the traditional-only phrase is not, the phrase moves to just below that
+# homophone in simplified mode, by at most TRADITIONAL_ONLY_MAX_DISCOUNT.
+TRADITIONAL_ONLY_EVIDENCE = 20
+TRADITIONAL_ONLY_MAX_DISCOUNT = 1400
+TRADITIONAL_ONLY_MAX_LENGTH = 8  # longest word the corpus segmentation counts
+
+
+def traditional_only_keep(native_keys, sourced):
+    """Reviewed (simplified, reading) pairs that keep their scale in simplified mode."""
+    candidates = {(key[1], key[2]) for key in native_keys if len(key[1]) > 1 and not sourced(key)}
+    keep = set()
+    for number, fields in authored("simplified-traditional-only-keep.tsv"):
+        if len(fields) != 2:
+            raise ValueError(f"simplified-traditional-only-keep.tsv:{number}: expected 2 fields")
+        pair = (fields[0], fields[1])
+        if pair in keep:
+            raise ValueError(f"simplified-traditional-only-keep.tsv:{number}: duplicate rule")
+        if pair not in candidates:
+            raise ValueError(f"simplified-traditional-only-keep.tsv:{number}: not a traditional-only reading; review rule")
+        keep.add(pair)
+    return keep
+
+
+def discount_traditional_only(hans_weights, native_keys, sourced, counts, keep=frozenset()):
+    """Return {key: new simplified weight} and a review list; traditional weights are untouched.
+
+    A corpus count below the threshold is only evidence of absence when the
+    corpus segmentation would have kept the phrase whole: phrases that it
+    splits into better-scoring words (我是 → 我＋是) are never counted, so they
+    are exempt. Words attested in the corpora and reviewed entries are exempt.
+    """
+    if not counts:
+        return {}, []
+    vocabulary = {}
+    for key in native_keys:
+        vocabulary[key[1]] = max(vocabulary.get(key[1], 0), hans_weights[key])
+    def kept_whole(word):
+        best = [0.0] + [-math.inf] * len(word)
+        for end in range(1, len(word) + 1):
+            for start in range(max(0, end - TRADITIONAL_ONLY_MAX_LENGTH), end):
+                if start == 0 and end == len(word): continue
+                weight = vocabulary.get(word[start:end])
+                if weight is not None:
+                    best[end] = max(best[end], best[start] + weight / 700 - 19)
+        return vocabulary[word] / 700 - 19 > best[-1]
+    groups = collections.defaultdict(list)
+    for key in native_keys:
+        if len(key[1]) > 1: groups[re.sub("[1-5 ]", "", key[2])].append(key)
+    changes, review = {}, []
+    for bare, members in sorted(groups.items()):
+        # Only the strongest sourced homophone counts as the rival, and only
+        # when it is attested; otherwise an unattested sourced word could rise
+        # to the top merely because the traditional-only phrase moved down.
+        sourced_members = [key for key in members if sourced(key)]
+        if not sourced_members: continue
+        rival = max(sourced_members, key=lambda key: (hans_weights[key], key))
+        if counts.get(rival[1], 0) < TRADITIONAL_ONLY_EVIDENCE: continue
+        ceiling = hans_weights[rival] - 1
+        for key in members:
+            weight = hans_weights[key]
+            if (sourced(key) or (key[1], key[2]) in keep or weight <= ceiling
+                    or counts.get(key[1], 0) >= TRADITIONAL_ONLY_EVIDENCE
+                    or len(key[1]) > TRADITIONAL_ONLY_MAX_LENGTH or not kept_whole(key[1])):
+                continue
+            changes[key] = max(ceiling, weight - TRADITIONAL_ONLY_MAX_DISCOUNT)
+            review.append({"traditional": key[0], "simplified": key[1], "reading": key[2],
+                           "simplified_weight": weight, "new_simplified_weight": changes[key],
+                           "attested_rival": rival[1], "rival_reading": rival[2],
+                           "rival_weight": hans_weights[rival], "rival_corpus_count": counts[rival[1]]})
+    return changes, review
+
+
 def main(destination, converter=None):
     output = pathlib.Path(destination)
     output.mkdir(parents=True, exist_ok=True)
@@ -533,6 +624,19 @@ def main(destination, converter=None):
     merge_report["simplified_editorial_priority_pairs"] = len(simplified_priorities)
     merge_report["simplified_editorial_weight_readings"] = sum(
         (key[1], key[2]) in simplified_priorities for key in words)
+    def sourced(key):
+        return (key in reviewed_keys or key in derived_keys or
+                (key[1], key[2]) in simplified_scores or (key[1], key[2]) in simplified_priorities)
+    traditional_only_kept = traditional_only_keep(native_keys, sourced)
+    traditional_only, traditional_only_review = discount_traditional_only(
+        hans_weights, native_keys, sourced, corpus_counts(), traditional_only_kept)
+    hans_weights.update(traditional_only)
+    merge_report["simplified_traditional_only_discounted"] = len(traditional_only)
+    merge_report["simplified_traditional_only_kept"] = len(traditional_only_kept)
+    (output / "simplified-traditional-only-audit.json").write_text(json.dumps({
+        "evidence_count": TRADITIONAL_ONLY_EVIDENCE, "max_discount": TRADITIONAL_ONLY_MAX_DISCOUNT,
+        "kept": sorted("|".join(pair) for pair in traditional_only_kept),
+        "rows": traditional_only_review}, ensure_ascii=False, indent=2), encoding="utf-8")
     (output / "lexicon-merge-report.json").write_text(json.dumps(merge_report, indent=2))
     normalization = json.loads((ROOT / "DataSources/MimoNormalization/SOURCE.json").read_text(encoding="utf-8"))
     (output / "mimo-manifest.json").write_text(json.dumps({
@@ -542,6 +646,12 @@ def main(destination, converter=None):
         "native_table_version": 2,
         "simplified_editorial_priorities": {"pairs": len(simplified_priorities),
             "sha256": upstream_checksum(ROOT / "Resources/Lexicon/simplified-priorities.tsv")},
+        "simplified_traditional_only_discount": {"readings": len(traditional_only),
+            "kept_pairs": len(traditional_only_kept),
+            "keep_sha256": upstream_checksum(ROOT / "Resources/Lexicon/simplified-traditional-only-keep.tsv"),
+            "evidence_count": TRADITIONAL_ONLY_EVIDENCE, "max_discount": TRADITIONAL_ONLY_MAX_DISCOUNT,
+            "word_priors_sha256": hashlib.sha256((ROOT / "Resources/Lexicon/word-priors.tsv.gz").read_bytes()).hexdigest()
+                if (ROOT / "Resources/Lexicon/word-priors.tsv.gz").exists() else None},
         "normalization": {"icu_version": normalization["icu_version"], "snapshot_sha256": normalization["snapshot_sha256"],
                           "snapshot_content_sha256": normalization["snapshot_content_sha256"],
                           "overrides_sha256": normalization["overrides_sha256"]},
@@ -625,12 +735,19 @@ def main(destination, converter=None):
     # being rarer there than the lexicon assumes counts for half as much as
     # being more common; the correction is bounded either way.
     priors = {}
+    # CN-01c: a simplified editorial weight (simplified-priorities.tsv) already
+    # records a decision against the source and corpus order, so the corpus
+    # may raise such a word in sentences but not pull it back down. Reviewed
+    # chinese.tsv/daily-chinese.tsv words keep the correction: exempting all
+    # of them was measured and moved composition in both directions.
+    editorial_words = {hans for hans, _ in simplified_priorities}
     for number, (word, score, seen) in statistics_rows("word-priors.tsv.gz", 3):
         if not re.fullmatch("-?[0-9]+", score) or not seen.isdigit() or int(seen) < 1:
             raise ValueError(f"word-priors.tsv.gz:{number}: expected word, score, count")
         if word not in spelled: continue
         delta = (int(score) - (spelled[word] / 7 - 1900)) * int(seen) / (int(seen) + 10)
         delta = max(-600, min(600, round(delta * (0.5 if delta < 0 else 1))))
+        if delta < 0 and word in editorial_words: continue
         if delta: priors[word] = delta
     for mode, entries in rows.items():
         with (output / f"native-{mode}.tsv").open("w", encoding="utf-8", newline="\n") as dest:
