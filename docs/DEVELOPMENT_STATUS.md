@@ -13,6 +13,13 @@
 - 未验证：真实应用效果、多个真实应用同时输入、慢速磁盘；未提交、未打包、未安装；Android 未构建（核心新增函数，未改现有接口）；Core/tests 的 Python 检查需要 c++，未运行。
 - 下一步：维护者验收；随下一个试用包实机抽查 CN-01b／c／e 与 CN-06c。
 
+## 2026-11-19 · alpha.26 试用包（CN-06c）
+
+- 版本号升至 0.4.4-alpha.26（bad72cc），内容为 alpha.25 加个人词频参与组句（24d4b77）。从干净提交重新生成词库、完整 MSVC Release 构建，54 项 CTest 在一次运行中全部通过（289.63 秒）。
+- 生成 Harukoto-0.4.4-alpha.26-windows-x64.zip（66.2 MiB，SHA-256 b254c59c291b443e57cddc8ba53bc63fffd76ac95ea81d072811ab588461210c）和 Harukoto-0.4.4-alpha.26-Setup.exe（170.8 MiB，SHA-256 b2d9f0e1709528e31da2f964dc871e8758efd20ea0c35ed1eb553ff5283af913）。BUILD-INFO 记录源提交 bad72cc、不含未提交修改；包内 DLL 与测试所用 Release 构建哈希一致，DLL 内版本为 alpha.26。
+- 打包脚本只从 `.build/windows/ime/` 取 DLL，不会从 CMake 输出目录复制；第一次打包时其中仍是 alpha.25 的 DLL，已手动复制后重新打包，上面是重打后的哈希。只跑 CMake 构建时须先把 `msvc/Release/MeowpuutTip.dll` 复制到 `ime/`（或用 build-ime-msvc.ps1）。
+- 词库格式与 alpha.25 相同。本机未安装，未发布，安装包未签名；实机试用待维护者按 VAL-01 进行，重点是个人词频：选过的词换句后是否靠前、误选后能否纠正、关闭选词记忆后是否恢复。此条为打包后记录。
+
 ## 2026-11-19 · alpha.25 试用包（CN-01b／c／e）
 
 - 版本号升至 0.4.4-alpha.25（1454d70），内容为 alpha.24 加组句语料统计（335b7ce）、同音偏好第一批（e96c066）、繁体独有词简体降权与通用用语补词（62fc70c）。从干净提交重新生成词库、完整 MSVC Release 构建，54 项 CTest 在一次运行中全部通过（362.50 秒），日语桥接检查通过，渲染器构建完成。
