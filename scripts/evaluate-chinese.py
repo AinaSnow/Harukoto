@@ -21,7 +21,8 @@ SETS = {'tuned': ('Windows/tests/data/chinese-evaluation.tsv', '固定回归集�
         # Development samples: may be tuned against; results are not independent accuracy.
         'words-dev': ('Windows/tests/data/chinese-words-dev.tsv', '整词开发样本（CN-01c）：可调优，结果不是独立准确率。'),
         'fuzzy-dev': ('Windows/tests/data/chinese-fuzzy-dev.tsv', '模糊音开发样本（CN-03）：可调优，结果不是独立准确率；应配合 --fuzzy 2047 运行。'),
-        'abbrev-dev': ('Windows/tests/data/chinese-abbrev-dev.tsv', '简拼与混拼开发样本（CN-04）：可调优，结果不是独立准确率。')}
+        'abbrev-dev': ('Windows/tests/data/chinese-abbrev-dev.tsv', '简拼与混拼开发样本（CN-04）：可调优，结果不是独立准确率。'),
+        'typo-dev': ('Windows/tests/data/chinese-typo-dev.tsv', '纠错开发样本（CN-05）：可调优，结果不是独立准确率。')}
 EDITORIAL = ('chinese.tsv', 'daily-chinese.tsv', 'context.tsv', 'simplified-priorities.tsv', 'simplified-traditional-only-keep.tsv')
 
 
@@ -79,8 +80,8 @@ def summarize(rows):
                 unexpected_correction_first=sum(r['unexpected_correction_first'] for r in rows))
 
 
-def run(probe, lexicon, rows, script, theme, repeats, fuzzy=0):
-    command = [str(probe), str(lexicon), script] + ([str(theme)] if theme else []) + ([f'--fuzzy={fuzzy}'] if fuzzy else [])
+def run(probe, lexicon, rows, script, theme, repeats, fuzzy=0, typo=1):
+    command = [str(probe), str(lexicon), script] + ([str(theme)] if theme else []) + ([f'--fuzzy={fuzzy}'] if fuzzy else []) + ([] if typo else ['--typo=0'])
     start = time.perf_counter()
     result = subprocess.run(command, input=''.join(r['input'] + '\n' for _ in range(repeats) for r in rows),
                             text=True, encoding='utf-8', capture_output=True, timeout=600, check=True)
@@ -113,7 +114,7 @@ def run(probe, lexicon, rows, script, theme, repeats, fuzzy=0):
                 quality=quality, raw=records)
 
 
-def compose(probe, lexicon, rows, script='hans', fuzzy=0):
+def compose(probe, lexicon, rows, script='hans', fuzzy=0, typo=1):
     """Can each text be produced by selection alone, and at what paging cost?
 
     Uses the first acceptable text of each complete sample. A selection costs
@@ -121,7 +122,7 @@ def compose(probe, lexicon, rows, script='hans', fuzzy=0):
     the cheapest sequence over fully expanded candidate lists.
     """
     rows = [r for r in rows if r['scope'] == 'all' and r['category'] != 'partial']
-    result = subprocess.run([str(probe), str(lexicon), script] + ([f'--fuzzy={fuzzy}'] if fuzzy else []), input=''.join(f"{r['input']}\t{r[script][0]}\n" for r in rows),
+    result = subprocess.run([str(probe), str(lexicon), script] + ([f'--fuzzy={fuzzy}'] if fuzzy else []) + ([] if typo else ['--typo=0']), input=''.join(f"{r['input']}\t{r[script][0]}\n" for r in rows),
                             text=True, encoding='utf-8', capture_output=True, timeout=900, check=True)
     records = [json.loads(line) for line in result.stdout.splitlines()][1:]
     if len(records) != len(rows) or any(a['type'] != 'compose' or a['input'] != b['input'] for a, b in zip(records, rows)):
@@ -152,6 +153,8 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--fuzzy', type=lambda value: int(value, 0), default=0,
                         help='模糊音位掩码（CN-03，MPN_FUZZY_*；2047 为全部开启）；默认 0 即关闭。输入仍是语料里的精确拼音')
+    parser.add_argument('--typo', type=int, choices=(0, 1), default=1,
+                        help='纠错（CN-05）：1 为开启（默认，与输入法默认一致），0 为关闭')
     args = parser.parse_args()
     if not 1 <= args.repeats <= 20:
         parser.error('--repeats 须为 1–20')
@@ -166,6 +169,7 @@ def main():
                   revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                   dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT)),
                   **(dict(fuzzy=args.fuzzy) if args.fuzzy else {}),
+                  **({} if args.typo else dict(typo=0)),
                   hashes={str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else p.name: sha(p) for p in [args.probe.resolve(), args.corpus.resolve(), args.ff14.resolve(), (args.ff14.parent / 'ff14-words.txt').resolve(),
                           Path(__file__).resolve(), ROOT / 'Windows/tests/CandidateProbe.cpp', ROOT / 'Core/MeowpuutCore.cpp', ROOT / 'Windows/MixedComposition.h'] +
                           [args.lexicon / n for n in ('native-pinyin.tsv', 'japanese.tsv', 'japanese-conjugations.bin', 'language-evidence.sqlite')]},
@@ -174,7 +178,8 @@ def main():
                          '缺失指本次候选列表未命中，不证明词库缺词；分词和误纠错需人工复核。',
                          SETS[args.set][1],
                          'compose 为简体、FF14 关闭下只靠选词打出首个可接受文字的最小代价：每次选择和每次翻页各计 1；不含 partial 类样本。'] +
-                        ([f'模糊音位掩码 {args.fuzzy}（CN-03）：输入仍是语料里的精确拼音，衡量开启模糊音后精确输入是否回退。'] if args.fuzzy else []), runs={})
+                        ([f'模糊音位掩码 {args.fuzzy}（CN-03）：输入仍是语料里的精确拼音，衡量开启模糊音后精确输入是否回退。'] if args.fuzzy else []) +
+                        ([] if args.typo else ['纠错关闭（CN-05，--typo 0）。']), runs={})
     with tempfile.TemporaryDirectory(prefix='harukoto-eval-') as temporary:
         theme = Path(temporary)
         change(theme, 'import', args.ff14)
@@ -183,9 +188,9 @@ def main():
             selected = [s for s in samples if s['scope'] == 'all' or enabled]
             for script in ('hans', 'hant'):
                 key = f'{script}-ff14-{"on" if enabled else "off"}'
-                report['runs'][key] = run(args.probe.resolve(), args.lexicon.resolve(), selected, script, theme if enabled else None, args.repeats, args.fuzzy)
+                report['runs'][key] = run(args.probe.resolve(), args.lexicon.resolve(), selected, script, theme if enabled else None, args.repeats, args.fuzzy, args.typo)
                 print(key, json.dumps({k: report['runs'][key][k] for k in ('summary', 'latency')}, ensure_ascii=False), flush=True)
-    report['compose'] = compose(args.probe.resolve(), args.lexicon.resolve(), samples, fuzzy=args.fuzzy)
+    report['compose'] = compose(args.probe.resolve(), args.lexicon.resolve(), samples, fuzzy=args.fuzzy, typo=args.typo)
     print('compose', json.dumps({k: v for k, v in report['compose'].items() if k != 'items'}, ensure_ascii=False), flush=True)
     if args.compact:
         for value in report['runs'].values():

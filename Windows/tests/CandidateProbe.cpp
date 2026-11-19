@@ -40,15 +40,20 @@ int main(int argc, char **argv) {
         size_t personalWords = 0;
         // Optional --fuzzy=MASK enables CN-03 fuzzy pinyin pairs (MPN_FUZZY_*).
         uint32_t fuzzy = 0;
+        // Optional --typo=0 turns CN-05 typo correction off (on by default);
+        // --scores adds each core candidate's generation score and typo flag.
+        bool typo = true, scores = false;
         std::vector<char *> positional{argv[0]};
         for (int i = 1; i < argc; ++i) {
             const std::string_view argument(argv[i]);
             if (argument.substr(0, 11) == "--personal=") personalWords = std::stoul(std::string(argument.substr(11)));
             else if (argument.substr(0, 8) == "--fuzzy=") fuzzy = static_cast<uint32_t>(std::stoul(std::string(argument.substr(8)), nullptr, 0));
+            else if (argument.substr(0, 7) == "--typo=") typo = argument.substr(7) != "0";
+            else if (argument == "--scores") scores = true;
             else positional.push_back(argv[i]);
         }
         argc = static_cast<int>(positional.size()); argv = positional.data();
-        if (argc != 3 && argc != 4) throw std::runtime_error("Usage: candidate_probe LEXICON hans|hant [SNAPSHOT_ROOT] [--personal=N] [--fuzzy=MASK]");
+        if (argc != 3 && argc != 4) throw std::runtime_error("Usage: candidate_probe LEXICON hans|hant [SNAPSHOT_ROOT] [--personal=N] [--fuzzy=MASK] [--typo=0|1] [--scores]");
         const bool simplified = std::string(argv[2]) == "hans";
         if (!simplified && std::string(argv[2]) != "hant") throw std::runtime_error("Invalid script");
         const auto started = Clock::now();
@@ -113,10 +118,12 @@ int main(int argc, char **argv) {
         mpn_set_simplified(session, simplified);
         if (personal) mpn_set_personal(session, personal);
         mpn_set_fuzzy_pinyin(session, fuzzy);
+        mpn_set_typo_correction(session, typo);
         std::cout << std::fixed << std::setprecision(4);
         std::cout << "{\"type\":\"startup\",\"load_ms\":" << ms(started) << ",\"theme_rows\":" << themeRows << ',';
         if (personal) std::cout << "\"personal_words\":" << personalWords << ",\"personal_build_ms\":" << personalMs << ',';
         if (fuzzy) std::cout << "\"fuzzy\":" << mpn_fuzzy_pinyin(session) << ',';
+        if (!typo) std::cout << "\"typo\":0,";
         std::cout << memory() << "}\n";
         for (std::string input; std::getline(std::cin, input);) {
             if (!input.empty() && input.back() == '\r') input.pop_back();
@@ -199,7 +206,9 @@ int main(int argc, char **argv) {
                 const auto &c = choices[i]; MPNCandidateInfo info{};
                 if (c.coreIndex) mpn_candidate_info(session, *c.coreIndex, &info, sizeof(info));
                 std::cout << (i ? "," : "") << "{\"text\":" << json(c.text) <<
-                    ",\"kind\":" << info.kind << ",\"consumed\":" << (c.coreIndex ? info.consumed_bytes : input.size()) << '}';
+                    ",\"kind\":" << info.kind << ",\"consumed\":" << (c.coreIndex ? info.consumed_bytes : input.size());
+                if (scores && c.coreIndex) std::cout << ",\"score\":" << info.score << ",\"typo\":" << mpn_candidate_typo(session, *c.coreIndex);
+                std::cout << '}';
             }
             std::cout << "]," << memory() << "}\n";
         }

@@ -14,6 +14,7 @@
 #include "ScriptMode.h"
 #include "ScriptPreference.h"
 #include "FuzzyPinyin.h"
+#include "TypoCorrection.h"
 #include "SelectionMemory.h"
 #include "JapaneseConjugation.h"
 #include "ConjugationPanel.h"
@@ -229,6 +230,7 @@ public:
             session = mpn_session_create(lexicon);
             if (session) mpn_set_simplified(session, simplified);
             if (session) applyFuzzyPinyin(session, readFuzzyPinyin());
+            if (session) applyTypoCorrection(session, readTypoCorrection());
         } catch (...) { Deactivate(); return E_FAIL; }
         if (!session) { Deactivate(); return E_FAIL; }
         HRESULT result = manager->QueryInterface(IID_ITfKeystrokeMgr, reinterpret_cast<void **>(&keys));
@@ -374,6 +376,8 @@ public:
             attachPersonal();
             // Fuzzy pinyin pairs are per user and apply from the next key.
             applyFuzzy(readFuzzyPinyin());
+            // So is typo correction (CN-05).
+            applyTypo(readTypoCorrection());
             const bool preference = readSimplifiedPreference();
             if (preference != simplified) conjugationPanel.close(choices, page, highlighted, expanded);
             if (applyPinyinScript(session, simplified, preference)) {
@@ -761,7 +765,11 @@ private:
         if (!choices[index].coreIndex) return {};
         const auto consumed = mpn_candidate_consumed(session, *choices[index].coreIndex);
         const std::string input = mpn_input(session);
-        return consumed < input.size() ? wide(input.substr(0, consumed).c_str()) : std::wstring();
+        std::wstring reading = consumed < input.size() ? wide(input.substr(0, consumed).c_str()) : std::wstring();
+        // CN-05: a typo correction says so on its reading line.
+        if (typoCandidate(session, choices[index]))
+            reading += (reading.empty() ? L"" : L" · ") + wide(typoMarker());
+        return reading;
     }
 
     bool chooseCandidate(size_t index, std::wstring &text, bool learn = true) {
@@ -829,6 +837,12 @@ private:
     // first key, before it is handled.
     void applyFuzzy(uint32_t mask) {
         if (applyFuzzyPinyin(session, mask) && *mpn_input(session)) refreshCandidates();
+    }
+
+    // CN-05: gives the active session the user's typo correction switch,
+    // like applyFuzzy.
+    void applyTypo(bool enabled) {
+        if (applyTypoCorrection(session, enabled) && *mpn_input(session)) refreshCandidates();
     }
 
     // Hands the learned word bonuses to the active session, or detaches them
@@ -979,6 +993,7 @@ private:
             display += std::wstring(i == highlighted ? L"\r\n> " : L"\r\n  ") + std::to_wstring(i + 1)
                 + L"  " + candidateText(start + i);
             if (choices[start + i].japanese) display += L"  [日]";
+            if (typoCandidate(session, choices[start + i])) display += L"  [" + wide(typoMarker()) + L"]";
             if (!choices[start + i].annotation.empty()) display += L"  " + wide(choices[start + i].annotation.c_str());
         }
 

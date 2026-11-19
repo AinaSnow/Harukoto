@@ -621,6 +621,9 @@ static void verifyFuzzyPinyin() {
         {MPN_FUZZY_IAN_IANG, "xian3", "想"}, {MPN_FUZZY_IAN_IANG, "yan", "羊"},
         {MPN_FUZZY_UAN_UANG, "guan1", "光"}, {MPN_FUZZY_UAN_UANG, "wan", "王"},
     };
+    // CN-05 typo correction can reach the same words (zongguo is one missing
+    // h from zhongguo), so it is off while the pairs are told apart.
+    mpn_set_typo_correction(plain, 0); mpn_set_typo_correction(fuzzy, 0);
     for (const auto &pair : pairs) {
         mpn_set_fuzzy_pinyin(fuzzy, pair.bit);
         const auto on = run(fuzzy, pair.keys).second;
@@ -630,6 +633,7 @@ static void verifyFuzzyPinyin() {
         assert(index(others, pair.word) == others.size());
         assert(index(run(plain, pair.keys).second, pair.word) == run(plain, pair.keys).second.size());
     }
+    mpn_set_typo_correction(plain, 1); mpn_set_typo_correction(fuzzy, 1);
 
     mpn_set_fuzzy_pinyin(fuzzy, MPN_FUZZY_ALL);
     // Without a good exact reading the fuzzy word leads; it is a correction,
@@ -798,7 +802,116 @@ static void verifyAbbreviatedPinyin() {
     mpn_lexicon_destroy(lexicon);
 }
 
+// CN-05: typo correction in the core decoder.
+static void verifyTypoCorrection() {
+    const std::string data = "MEOWPUUT-PINYIN-1\n"
+        "gou\tgou4\t夠\t够\t6000\n"
+        "guo\tguo2\t國\t国\t8000\n"
+        "hao\thao3\t好\t好\t9000\n"
+        "men\tmen5\t們\t们\t7000\n"
+        "nh\tn3h3\t你好\t你好\t1125\n"
+        "ni\tni3\t你\t你\t9000\n"
+        "nihao\tni3hao3\t你好\t你好\t9000\n"
+        "ren\tren2\t人\t人\t8000\n"
+        "wo\two3\t我\t我\t9000\n"
+        "women\two3men5\t我們\t我们\t8500\n"
+        "zai\tzai4\t在\t在\t9000\n"
+        "zg\tz1g2\t中國\t中国\t1250\n"
+        "zhong\tzhong1\t中\t中\t9000\n"
+        "zhongguo\tzhong1guo2\t中國\t中国\t10000\n"
+        "zhongguoren\tzhong1guo2ren2\t中國人\t中国人\t5500\n";
+    auto *lexicon = makeLexicon(data);
+    auto *session = mpn_session_create(lexicon);
+    assert(session && mpn_typo_correction(session) == 1);
+    mpn_set_simplified(session, 1);
+    const auto run = [&](const char *keys) { mpn_clear(session); type(session, keys); return listed(session); };
+    const auto index = [](const std::vector<Listed> &items, const char *text) {
+        size_t i = 0;
+        while (i < items.size() && items[i].text != text) ++i;
+        return i;
+    };
+    const auto typos = [&](const std::vector<Listed> &items) {
+        size_t count = 0;
+        for (size_t i = 0; i < items.size(); ++i) count += mpn_candidate_typo(session, i);
+        return count;
+    };
+    // Swapped neighbours, a missing letter and a doubled letter, each read as
+    // one slip that consumes every key; a correction, not learned word by word.
+    for (const auto &[keys, text] : {std::pair{"zhogn", "中"}, std::pair{"zhonguo", "中国"}, std::pair{"zhonggguo", "中国"},
+                                     std::pair{"nihoa", "你好"}, std::pair{"nihhao", "你好"}, std::pair{"womne", "我们"},
+                                     std::pair{"wozaizhognguo", "我在中国"}}) {
+        const auto list = run(keys);
+        assert(list[0].text == text && list[0].kind == MPN_CANDIDATE_CORRECTION && list[0].consumed == std::strlen(keys));
+        assert(mpn_candidate_typo(session, 0) && !mpn_candidate_abbreviated(session, 0) && !*mpn_candidate_words(session, 0));
+    }
+    assert(mpn_choose(session, 0) && std::string(mpn_committed(session)) == "我在中国" && !*mpn_input(session));
+    mpn_clear_commit(session);
+    // At most one slip per candidate.
+    auto list = run("nihoazhogn");
+    assert(index(list, "你好中") == list.size());
+    // Abbreviations keep their readings; an unfinished final syllable is not
+    // a slip, so the last key is never dropped (zhongg).
+    list = run("zhongg");
+    assert(list[0].text == "中国" && mpn_candidate_abbreviated(session, 0) && !mpn_candidate_typo(session, 0));
+    assert(run("zgren")[0].text == "中国人" && run("nh")[0].text == "你好" && !mpn_candidate_typo(session, 0));
+    // Typed tones turn the in-sentence correction off.
+    list = run("zho1gn");
+    assert(typos(list) == 0);
+    // Complete syllables are read exactly: the same candidates as with the
+    // switch off, apart from a common whole word one slip away that follows
+    // the first three (zhong+gou -> 中国).
+    mpn_set_typo_correction(session, 0);
+    const auto exactOff = run("zhongguo");
+    const auto gouOff = run("zhonggou");
+    mpn_set_typo_correction(session, 1);
+    assert(run("zhongguo") == exactOff && typos(exactOff) == 0);
+    list = run("zhonggou");
+    assert(!mpn_candidate_typo(session, 0) && list[0].text == gouOff[0].text);
+    const size_t at = index(list, "中国");
+    assert(at == std::min<size_t>(3, gouOff.size()) && mpn_candidate_typo(session, at) && list[at].kind == MPN_CANDIDATE_CORRECTION);
+    for (size_t i = 0; i < at; ++i) assert(list[i] == gouOff[i]);
+    // Off: no candidate rests on a slip, and the list is rebuilt at once.
+    list = run("zhogn");
+    assert(list[0].text == "中" && mpn_candidate_typo(session, 0));
+    mpn_set_typo_correction(session, 0);
+    assert(mpn_typo_correction(session) == 0 && std::string(mpn_input(session)) == "zhogn");
+    list = listed(session);
+    assert(typos(list) == 0);
+    for (const auto &item : list) assert(item.text != "中" || item.consumed < 5);
+    for (const char *keys : {"zhonguo", "nihoa", "nihhao", "wozaizhognguo"}) assert(typos(run(keys)) == 0);
+    mpn_set_typo_correction(session, 1);
+    assert(run("zhogn")[0].text == "中");
+    assert(!mpn_candidate_typo(nullptr, 0) && !mpn_candidate_typo(session, mpn_candidate_count(session)));
+    mpn_set_typo_correction(nullptr, 0);
+    assert(mpn_typo_correction(nullptr) == 0);
+    // The window label: corrections only, not abbreviations or exact words.
+    const auto noEvidence = [](const std::string &) { return ChineseEvidence{}; };
+    run("zhonguo");
+    auto choices = windowsCandidates(session, {}, noEvidence, false);
+    assert(choices[0].text == "中国" && typoCandidate(session, choices[0]) && std::string(typoMarker()) == "纠错");
+    run("zg");
+    choices = windowsCandidates(session, {}, noEvidence, false);
+    assert(choices[0].text == "中国" && !typoCandidate(session, choices[0]));
+    run("zhongguo");
+    choices = windowsCandidates(session, {}, noEvidence, false);
+    for (const auto &choice : choices) assert(!typoCandidate(session, choice));
+    // Traditional output.
+    mpn_set_simplified(session, 0);
+    assert(run("zhonguo")[0].text == "中國");
+    mpn_set_simplified(session, 1);
+    // Long strings stay bounded: 39 keys still corrected, longer ones not.
+    list = run("wozaizhognguowozaizhognguowozaizhognguo");
+    assert(!list.empty() && list.size() <= 256);
+    std::string keys;
+    while (keys.size() + 5 <= mpn_max_input_bytes()) keys += "zhogn";
+    list = run(keys.c_str());
+    assert(list.size() <= 256 && typos(list) == 0);
+    mpn_session_destroy(session);
+    mpn_lexicon_destroy(lexicon);
+}
+
 int main(int argc, char **argv) {
+    verifyTypoCorrection();
     verifyAbbreviatedPinyin();
     verifyFuzzyPinyin();
     verifyPersonalWords();

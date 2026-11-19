@@ -69,7 +69,20 @@ internal static class LayoutOptionsTests
                 input.SetValue(FuzzyPinyinOptions.ValueName, "2047");
                 Check(FuzzyPinyinOptions.Read(input) == 0, "Wrong fuzzy registry type means off");
             }
-            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds, presets and fuzzy pinyin pairs.");
+            // CN-05: typo correction, on unless saved as DWORD 0.
+            Check(TypoCorrectionOptions.Read(null), "Typo correction default without key");
+            using (var input = Registry.CurrentUser.CreateSubKey(path + @"\TypoInput")) {
+                Check(TypoCorrectionOptions.Read(input), "Typo correction default on");
+                TypoCorrectionOptions.Write(input, true);
+                Check(input.GetValue(TypoCorrectionOptions.ValueName) == null, "Saving the default must not create the value");
+                TypoCorrectionOptions.Write(input, false);
+                Check(input.GetValueKind(TypoCorrectionOptions.ValueName) == RegistryValueKind.DWord && !TypoCorrectionOptions.Read(input), "Typo correction off persisted as DWORD");
+                TypoCorrectionOptions.Write(input, true);
+                Check((int)input.GetValue(TypoCorrectionOptions.ValueName) == 1 && TypoCorrectionOptions.Read(input), "Typo correction switched back on");
+                input.SetValue(TypoCorrectionOptions.ValueName, "0");
+                Check(TypoCorrectionOptions.Read(input), "Wrong typo registry type means on");
+            }
+            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds, presets, fuzzy pinyin pairs and typo correction.");
         } finally { Registry.CurrentUser.DeleteSubKeyTree(path, false); }
     }
 }

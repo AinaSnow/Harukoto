@@ -120,6 +120,16 @@ struct WindowsCandidate {
     bool directJapanese = false; // Explicit bridge choices stay visible when collapsed.
 };
 
+// CN-05: the label shown on the reading line of a core candidate that rests
+// on a typo correction (mpn_candidate_typo: in-sentence and whole-input
+// corrections, including the older keyboard-neighbour and n/ng ones the same
+// switch governs). Fuzzy pinyin and abbreviations are readings the user chose
+// to type and carry no label. Display only: never part of committed text.
+inline const char *typoMarker() { return "\xe7\xba\xa0\xe9\x94\x99"; } // 纠错 in UTF-8, whatever the source charset
+inline bool typoCandidate(const MPNSession *session, const WindowsCandidate &candidate) {
+    return candidate.coreIndex && mpn_candidate_typo(session, *candidate.coreIndex);
+}
+
 inline void appendCandidateExpansion(MPNSession *session, std::vector<WindowsCandidate> &current,
                                      const std::vector<WindowsCandidate> &more) {
     std::set<std::tuple<std::string, size_t, std::string>> seen;

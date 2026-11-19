@@ -163,6 +163,28 @@ int mpn_candidate_fuzzy(const MPNSession *session, size_t index);
 // The number of abbreviated syllables in the candidate; 0 for none.
 size_t mpn_candidate_abbreviated(const MPNSession *session, size_t index);
 
+// Typo correction (CN-05), per session, on by default. Pinyin keys that do
+// not split into complete syllables may contain one slip, read as one of:
+// two adjacent letters swapped (zhogn, nihoa), one letter missing (zhonguo),
+// one letter too many (nihhao, zhonggguo) or one letter replaced by a keyboard
+// neighbour. A dictionary word one such edit from a piece of the keys
+// competes in sentence composition on frequency less 3 nats (common words) or
+// 6 nats, at most one corrected word per candidate, never beside an
+// abbreviation and never where an exact fully spelled word covers the same
+// keys; the last key is never dropped and nothing is assumed after it, so an
+// unfinished syllable stays an abbreviation or prefix. Keys that do split into
+// complete syllables keep their exact candidates first; a common word one
+// edit from all of them (zhonggou -> 中国) follows the first three. Such
+// candidates report MPN_CANDIDATE_CORRECTION and mpn_candidate_typo; they are
+// not learned word by word. Turning it off also removes the earlier local
+// corrections (keyboard neighbours, swaps and n/ng of a whole reading), so no
+// candidate then rests on a guessed slip; prefix completion stays. Changing
+// it rebuilds the candidates of an active composition.
+void mpn_set_typo_correction(MPNSession *session, int enabled);
+int mpn_typo_correction(const MPNSession *session);
+// 1 when the candidate rests on a CN-05 typo correction, else 0.
+int mpn_candidate_typo(const MPNSession *session, size_t index);
+
 // Optional Japanese words for mixed pinyin/romaji. Registration and decoding
 // are local to the session; a returned string remains valid until the next call.
 // Weight 3500 denotes an ambiguous all-kanji pinyin alias: it participates in

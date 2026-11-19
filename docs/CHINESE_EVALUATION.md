@@ -55,6 +55,33 @@ python .\scripts\evaluate-chinese.py --set holdout --compact --output docs/bench
 
 最后一类是词库数据问题而不是样本写错，因此保留为未命中。
 
+## 纠错增强（CN-05，2026-11-19）
+
+`evaluate-chinese.py --set typo-dev` 选择新建的纠错开发样本；`--typo 0` 让探针关闭纠错（默认开启，与输入法默认一致）。探针新增 `--typo=0|1` 与只用于调试的 `--scores`（输出核心分数与纠错标记，评测不用）。
+
+### 纠错开发样本 v1
+
+[chinese-typo-dev.tsv](../Windows/tests/data/chinese-typo-dev.tsv)，83 条，2026-11-19 新建，可调优，不是独立评测；先写后查。swap 23 条相邻颠倒（zhogn、nihoa、xiexei、womne、zhidoa、jintain、xainzai、huanyign，以及能读通的 ou／uo 类 zhonggou、doushao），missing 15 条漏字母（zhonguo、gonzuo、shoji、weti），extra 17 条多字母（nihhao、zhonggguo、wommen、jinntian、shiejie、nihaoo），neighbor 8 条相邻键（zhingguo、nihai、wonen），sentence 10 条句中一处手误（wozaizhognguo、womenquchifna、wobuzhidoa、wodediannoahuaile），exact 10 条完整拼音。写完、查询前先改掉了 9 条其实是正确拼音或格式错误的输入（如 suoyi、keyi、wenti 本身无误，改为 suyoi、kyei、weti）；第一次运行后又发现 5 条不是一处手误或类别标错（xuexoi、pinagyi、womenqucifna 各需两处，shiejie、shoujhi 是多字母），改为 xuexioa、pinayi、womenquchifna，后两条只改类别。这 5 条是看过结果后改的，其余样本未因结果修改。
+
+| 版本 | 首选（四种模式相同） | 前 7 项 | 缺失 | compose 可达 |
+| --- | --- | --- | --- | --- |
+| [改动前（cn04 构建）](benchmarks/chinese-typo-dev-before.json) | 19 | 21 | 25 | 60 |
+| [现行，纠错关闭](benchmarks/chinese-typo-dev-cn05-off.json) | 13 | 15 | 68 | 13 |
+| [现行，纠错开启（默认）](benchmarks/chinese-typo-dev-cn05.json) | 60 | 70 | 8 | 75 |
+
+现行按类别（简体，FF14 关，首选／前 7／条数；括号内为改动前）：swap 18／22／23（3／3），missing 8／11／15（3／3），extra 13／16／17（2／4），neighbor 2／2／8（1／1），sentence 9／9／10（0／0），exact 10／10／10（不变）。改动前多数手误被 CN-04 的简拼读成拼凑（zhogn→中喔功能、nihoa→你好喔啊），原有的整串纠错排在后面。关闭时比改动前更少，因为原有的整串纠错（相邻键、颠倒、重复字母、n／ng）也一并关闭。
+
+没纠正成首选的：能读通的手误按设计先给精确结果，常用的纠错词排第 4 起（zhonggou 中国 第 4，doushao 多少 第 5，pengyu 朋友 第 4，mingtan 明天 第 4，dianao 电脑 第 5，xuexioa 学校 第 6）；能读通且有完整拼写整词的不纠正（jitian 几天、xiexi 歇息、zhudao 主导、xiexue），整串能读通时不做相邻键纠正（nihai、wonen）；最后两个键里的漏打、多打、相邻键不纠正（shoujhi、zhongwn、yinwi、gongzup、xuexiap；nihaoo、zhidaoa 的 你好／知道 在第 4）；pinayi 的 便宜 权重低于 4500，未作为整串纠错放进前列。
+
+罚分在本样本上不敏感：每个纠错词 2、3、4 奈特结果相同，1、5、6 奈特各少 1 条首选；简拼开发样本在 1–6 奈特下都不变，取 3。最初的版本允许纠正出单字和不常用的词，wosuki（我好き）会出“我素力”“我肃立”这类拼凑并排到第一（session 测试发现），改为只纠正成常用词、整串以外至少两字后本样本结果不变。
+
+### 对精确输入和其他样本的影响
+
+- 改动前（cn04 构建）后探针对调优集、独立集、整词、模糊音、简拼五套语料的全部输入前缀（按集合累计 3,204 个）逐项比较全部候选（文字、来源、消耗长度），简繁、模糊音全开下分别比较。核心判定能切成完整音节的前缀，前三项全部不变；有变化的只是第 4 位起插入的整串纠错词（如 niyo 的 你要、gangga 的 尴尬），每套 2–17 个。切不成完整音节的前缀（多是输入过程中的半截音节）每套变化 0–11 个、首选变化 0–3 个（独立集 3 个，只统计了个数，未查看）；按设计，半截的最后音节、只有声母的串和末尾声母都不纠错，所以 zhongg、nihaom、zgren、jiag、bjda 等与改动前相同。
+- 归档报告（各 3 轮，FF14 关／开、简繁四种模式）：[调优集](benchmarks/chinese-tuned-cn05.json)、[独立集](benchmarks/chinese-holdout-v1-cn05.json)、[整词开发样本](benchmarks/chinese-words-dev-cn05.json)、[简拼开发样本](benchmarks/chinese-abbrev-dev-cn05.json) 与 cn04 报告相比，四种模式所有样本名次、前 7 项列表、缺失、“非预期纠错首选”与 compose 全部相同。[模糊音开发样本](benchmarks/chinese-fuzzy-dev-cn05.json)（`--fuzzy 2047`）与 cn03 报告相比名次、首选、前 7 项不变（有 3 条前 7 项列表不同，cn04 的变化与本批合计）。独立集只用程序比较，没有查看样本。
+- 模糊音关闭时，模糊音开发样本有 9 条名次变好（8 条进入前 7 项，zongguo、shenri 等由整串纠错得到）。模糊音开启时，同一段按键有模糊词就不出纠错词，所以模糊音样本结果与只开模糊音时相同。
+- 耗时（同机，未隔离后台负载，各 3 轮）：逐键 P50／P95（FF14 关，简体）调优集 0.95／2.37→1.03／2.77 ms，独立集 1.28／3.86→1.48／4.64 ms，整词 0.53／1.81→0.57／1.90 ms，简拼 0.57／2.19→0.64／2.51 ms。长串压力（16 种串各 5 轮，两次运行）：40 多个字母、含多处手误的整句单键最大约 3.6–4.3→4.6–6.3 ms，47 字母长句 7.8–8.7→9.1–9.6 ms，40 个随机字母 5.1–6.1→6.1–9.7 ms；30／66 字母 zhshch… 与 64 个 y 在噪声范围内（11–16 ms，改动前 11–14 ms）。加载时间与内存不变（没有新索引）。
+
 ## 简拼与混拼（CN-04，2026-11-19）
 
 开发样本也可以用 `--set words-dev`／`fuzzy-dev`／`abbrev-dev` 直接选择（与 `--corpus` 指向同一文件等价，报告里的说明随之正确；模糊音样本仍要加 `--fuzzy 2047`）。

@@ -27,6 +27,25 @@ internal static class FuzzyPinyinOptions
     }
 }
 
+// CN-05: typo correction, the DWORD TypoCorrection under Software\Meowpuut\Input;
+// the input service reads it on every key. On unless the value is a DWORD 0.
+internal static class TypoCorrectionOptions
+{
+    internal const string ValueName = "TypoCorrection";
+    internal static bool Read(RegistryKey input)
+    {
+        if (input == null) return true;
+        var value = input.GetValue(ValueName);
+        return !(value is int) || (int)value != 0;
+    }
+    // Leaves an unchanged value alone, so saving other settings never creates it.
+    internal static void Write(RegistryKey input, bool enabled)
+    {
+        if (Read(input) == enabled && (input.GetValue(ValueName) is int || enabled)) return;
+        input.SetValue(ValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
+    }
+}
+
 // Layout is published as one registry value. Readers never observe half a layout.
 internal sealed class LayoutOptions
 {

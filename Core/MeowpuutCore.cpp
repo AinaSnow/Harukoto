@@ -553,7 +553,7 @@ struct Reading {
     }
 };
 
-struct Fallback { std::string text; size_t consumed; double score; };
+struct Fallback { std::string text; size_t consumed; double score; bool typo = false; /* CN-05: a local typo correction */ };
 
 // Per-script personal bonuses keyed by a word's untoned reading (its lexicon
 // bucket) and then its text in that script. Owned by the host through
@@ -642,11 +642,26 @@ std::vector<Fallback> unfinished_phrase(const Lexicon &lexicon, std::string_view
     return {};
 }
 
-std::vector<Fallback> fallback(const Lexicon &lexicon, std::string_view input, bool hans, bool allowSingle = true) {
+// Letters next to a key on a QWERTY keyboard.
+std::string_view keyboard_neighbors(char key) {
+    switch (key) {
+        case 'q': return "wa"; case 'w': return "qeas"; case 'e': return "wrsd"; case 'r': return "etdf";
+        case 't': return "ryfg"; case 'y': return "tugh"; case 'u': return "yihj"; case 'i': return "uojk";
+        case 'o': return "ipkl"; case 'p': return "ol"; case 'a': return "qwsz"; case 's': return "awedzx";
+        case 'd': return "serfxc"; case 'f': return "drtgcv"; case 'g': return "ftyhbv"; case 'h': return "gyujbn";
+        case 'j': return "huiknm"; case 'k': return "jiolm"; case 'l': return "kop"; case 'z': return "asx";
+        case 'x': return "zsdc"; case 'c': return "xdfv"; case 'v': return "cfgb"; case 'b': return "vghn";
+        case 'n': return "bhjm"; case 'm': return "njk"; default: return {};
+    }
+}
+
+// correct: offer the local typo corrections below (CN-05 switch); prefix
+// completion and the single-character fallback do not depend on it.
+std::vector<Fallback> fallback(const Lexicon &lexicon, std::string_view input, bool hans, bool allowSingle = true, bool correct = true) {
     std::vector<Fallback> matches;
     const Reading reading(input, lexicon.pinyin);
     const auto &sounds = reading.sounds;
-    auto collect = [&](std::string_view key, double penalty) {
+    auto collect = [&](std::string_view key, double penalty, bool typo = false) {
         const auto range = lexicon.range(key);
         std::unordered_set<std::string_view> visible;
         // Distinct traditional entries can share one simplified spelling.
@@ -655,7 +670,7 @@ std::vector<Fallback> fallback(const Lexicon &lexicon, std::string_view input, b
             const auto &word = lexicon.word(i, hans);
             const auto text = word.text(hans);
             if (visible.insert(text).second)
-                matches.push_back({std::string(text), input.size(), word.score(hans) - penalty});
+                matches.push_back({std::string(text), input.size(), word.score(hans) - penalty, typo});
         }
     };
     if (sounds.size() == 1 && static_cast<unsigned char>(sounds[0]) < lexicon.initials.size()) {
@@ -676,30 +691,13 @@ std::vector<Fallback> fallback(const Lexicon &lexicon, std::string_view input, b
             if (it->key.size() - sounds.size() <= 6) collect(it->key, 1200.0 * (it->key.size() - sounds.size()));
         }
         // One local correction only; no full dictionary scan or arbitrary multi-edit guesses.
-        if (sounds.size() >= 4) {
+        if (correct && sounds.size() >= 4) {
             for (size_t i = 0; i < sounds.size(); ++i) {
-                if (i + 1 < sounds.size()) { auto key = sounds; std::swap(key[i], key[i + 1]); collect(key, 800); }
-                if (i && sounds[i] == sounds[i - 1]) { auto key = sounds; key.erase(i, 1); collect(key, 800); }
-                std::string_view neighbors;
-                switch (sounds[i]) {
-                    case 'q': neighbors = "wa"; break; case 'w': neighbors = "qeas"; break;
-                    case 'e': neighbors = "wrsd"; break; case 'r': neighbors = "etdf"; break;
-                    case 't': neighbors = "ryfg"; break; case 'y': neighbors = "tugh"; break;
-                    case 'u': neighbors = "yihj"; break; case 'i': neighbors = "uojk"; break;
-                    case 'o': neighbors = "ipkl"; break; case 'p': neighbors = "ol"; break;
-                    case 'a': neighbors = "qwsz"; break; case 's': neighbors = "awedzx"; break;
-                    case 'd': neighbors = "serfxc"; break; case 'f': neighbors = "drtgcv"; break;
-                    case 'g': neighbors = "ftyhbv"; break; case 'h': neighbors = "gyujbn"; break;
-                    case 'j': neighbors = "huiknm"; break; case 'k': neighbors = "jiolm"; break;
-                    case 'l': neighbors = "kop"; break; case 'z': neighbors = "asx"; break;
-                    case 'x': neighbors = "zsdc"; break; case 'c': neighbors = "xdfv"; break;
-                    case 'v': neighbors = "cfgb"; break; case 'b': neighbors = "vghn"; break;
-                    case 'n': neighbors = "bhjm"; break; case 'm': neighbors = "njk"; break;
-                    default: break;
-                }
-                for (char ch : neighbors) { auto key = sounds; key[i] = ch; collect(key, 1200); }
+                if (i + 1 < sounds.size()) { auto key = sounds; std::swap(key[i], key[i + 1]); collect(key, 800, true); }
+                if (i && sounds[i] == sounds[i - 1]) { auto key = sounds; key.erase(i, 1); collect(key, 800, true); }
+                for (char ch : keyboard_neighbors(sounds[i])) { auto key = sounds; key[i] = ch; collect(key, 1200, true); }
             }
-            for (const auto &variant : nasal_variants(sounds)) collect(variant, 900);
+            for (const auto &variant : nasal_variants(sounds)) collect(variant, 900, true);
         }
     }
     if (matches.empty() && allowSingle) {
@@ -945,6 +943,25 @@ bool spelled_input(const Lexicon &lexicon, const Reading &reading) {
     return spelled[sounds.size()] != 0;
 }
 
+// CN-05: whether the keys read as complete syllables followed by two to five
+// keys that only begin a syllable (budin, jiaobe, shiyon): the last syllable
+// is still being typed, so nothing is a slip yet.
+bool unfinished_syllable_tail(const Lexicon &lexicon, std::string_view sounds) {
+    std::vector<char> spelled(sounds.size() + 1, 0);
+    spelled[0] = 1;
+    for (size_t end = 1; end <= sounds.size(); ++end)
+        for (size_t size = 1; size <= std::min(size_t(6), end) && !spelled[end]; ++size)
+            spelled[end] = spelled[end - size] && std::binary_search(lexicon.singleReadings.begin(), lexicon.singleReadings.end(),
+                                                                    sounds.substr(end - size, size));
+    for (size_t tail = 2; tail <= std::min(size_t(5), sounds.size() - 1); ++tail) {
+        if (!spelled[sounds.size() - tail]) continue;
+        const auto suffix = sounds.substr(sounds.size() - tail);
+        const auto found = std::lower_bound(lexicon.singleReadings.begin(), lexicon.singleReadings.end(), suffix);
+        if (found != lexicon.singleReadings.end() && *found != suffix && found->substr(0, tail) == suffix) return true;
+    }
+    return false;
+}
+
 // The compiler's consonant-only abbreviation rows (n3h3 for 你好).
 bool abbreviation_row(const Word &word) {
     if (fully_spelled(word)) return false;
@@ -1039,6 +1056,150 @@ unsigned abbrev_matches(const Reading &reading, const AbbrevOption &option, cons
     return count;
 }
 
+// CN-05: typo correction. Keys that do not split into complete syllables
+// (zhogn, nihoa, zhonguo, womenqucifna) may contain one slip: two adjacent
+// letters swapped, one letter missing, one letter too many (often doubled)
+// or one letter replaced by a keyboard neighbour. A dictionary word whose
+// reading is one such edit away from a piece of the input then competes in
+// sentence composition by frequency less typo_penalty, if it is common
+// (typo_common) and, inside longer keys, has two or more characters (a
+// corrected single character makes junk of romaji such as wosuki); at most
+// one corrected word per candidate and never together
+// with an abbreviation, never where an exact fully spelled word or (CN-03) a
+// fuzzy word covers the same keys. A slip must not look like unfinished
+// typing: apart from a swap of the last two keys (zhogn), an edit leaves at
+// least the last two keys as typed (zhongg stays an abbreviation of 中国, jiag
+// is not jiang); a neighbouring key replaces a vowel by a vowel and a
+// consonant by a consonant (bjda stays 比较大); the corrected keys contain a
+// vowel (zhd stays an abbreviation); and keys that read as complete
+// syllables plus the start of one more (budin, jiaobe) are not corrected at
+// all. Keys that split into complete syllables keep their exact
+// sentences; there only a common word of two or more characters one swap,
+// missing or extra letter from the whole input (zhonggou -> 中国) follows
+// the first typo_whole_position candidates, and only when no fully spelled
+// word has the input's reading. Tones and separators turn the in-sentence
+// correction off. Work per input start is bounded by typo_start_nodes prefix
+// lookups and typo_start_options readings; inputs longer than
+// typo_max_sounds are not corrected. The penalties were chosen on the typo
+// development sample (Windows/tests/data/chinese-typo-dev.tsv): 2–4 nats
+// give the same results there and on the abbreviation sample; 1, 5 and 6
+// lose one first choice.
+constexpr double typo_penalty = 3.0;        // nats per corrected word
+constexpr int typo_common = 4500;           // lexicon weight a corrected word needs
+constexpr int typo_whole_min = 4500;        // lexicon weight of a whole-input correction of complete syllables
+constexpr size_t typo_whole_position = 3, typo_whole_count = 2;
+constexpr size_t typo_max_sounds = 40;
+constexpr size_t typo_start_nodes = 4096, typo_start_options = 256;
+
+struct TypoOption {
+    size_t end;      // input sound position after the corrected piece
+    std::string key; // the dictionary reading after the edit
+};
+
+// For every input start, the dictionary readings one edit away from a piece
+// of the input that begins there: a walk along the exact prefix that tries
+// each edit once and then continues exactly while a reading begins with the
+// spelling so far.
+std::vector<std::vector<TypoOption>> typo_options(const Lexicon &lexicon, const Reading &reading) {
+    const auto &sounds = reading.sounds;
+    const size_t n = sounds.size();
+    std::vector<std::vector<TypoOption>> result(n);
+    // vowels[i]: vowels among the first i keys.
+    std::vector<size_t> vowels(n + 1, 0);
+    const auto is_vowel = [](char key) { return std::string_view("aeiouv").find(key) != std::string_view::npos; };
+    for (size_t i = 0; i < n; ++i) vowels[i + 1] = vowels[i] + is_vowel(sounds[i]);
+    for (size_t start = 0; start < n; ++start) {
+        if (vowels[n] == vowels[start]) break; // nothing but consonants left
+        auto &out = result[start];
+        size_t nodes = 0;
+        std::string key;
+        // Whether some reading begins with key; exact: it is one with a
+        // fully spelled word (not only consonant abbreviation rows).
+        const auto leads = [&](bool &exact) {
+            exact = false;
+            if (++nodes > typo_start_nodes) return false;
+            const auto bucket = std::lower_bound(lexicon.buckets.begin(), lexicon.buckets.end(), key,
+                [](const Lexicon::Bucket &item, std::string_view value) { return item.key < value; });
+            if (bucket == lexicon.buckets.end() || bucket->key.substr(0, key.size()) != key) return false;
+            if (bucket->key == key) {
+                const size_t last = bucket + 1 == lexicon.buckets.end() ? lexicon.words.size() : (bucket + 1)->start;
+                for (size_t i = bucket->start; i < last && i - bucket->start < 64 && !exact; ++i)
+                    exact = fully_spelled(lexicon.words[i]);
+            }
+            return true;
+        };
+        // key already holds the edit; continue exactly from input position i.
+        const auto finish = [&](size_t i) {
+            const auto before = key.size();
+            for (;;) {
+                bool exact = false;
+                if (out.size() >= typo_start_options || key.size() > lexicon.longest || !leads(exact)) break;
+                // Keys of consonants only (zhd, bkn) are abbreviations, not slips.
+                if (exact && i - start >= 2 && vowels[i] != vowels[start] && std::none_of(out.begin(), out.end(), [&](const TypoOption &option) {
+                        return option.end == i && option.key == key; }))
+                    out.push_back({i, key});
+                if (i == n) break;
+                key += sounds[i++];
+            }
+            key.resize(before);
+        };
+        for (size_t i = start; i < n && nodes <= typo_start_nodes && out.size() < typo_start_options; ++i) {
+            // key == sounds[start, i), a prefix of some reading.
+            const auto before = key.size();
+            if (i + 1 < n && sounds[i] != sounds[i + 1]) {
+                key += sounds[i + 1]; key += sounds[i];
+                finish(i + 2);
+                key.resize(before);
+            }
+            // One letter too many, with two keys typed after it: a final
+            // doubled or stray letter may begin the next syllable (gangg).
+            if (i > start && i + 2 < n) finish(i + 1);
+            // One letter missing, with two keys typed after it: a letter
+            // before the last key would complete an unfinished syllable (jiag).
+            if (i > start && i + 2 <= n && i + 1 < n) {
+                for (char letter : std::string_view("abcdefghijklmnopqrstuwxyz")) {
+                    key += letter;
+                    finish(i);
+                    key.resize(before);
+                }
+            }
+            // A neighbouring key of the same kind (vowel for vowel), never the
+            // last one typed: an unfinished syllable would otherwise be
+            // replaced (jiab, zho), and a vowel for a consonant reads
+            // abbreviations as words (bjda).
+            for (char letter : i + 1 < n ? keyboard_neighbors(sounds[i]) : std::string_view()) {
+                if (is_vowel(letter) != is_vowel(sounds[i])) continue;
+                key += letter;
+                finish(i + 1);
+                key.resize(before);
+            }
+            key += sounds[i];
+            bool exact = false;
+            if (!leads(exact)) break;
+        }
+    }
+    return result;
+}
+
+// Readings one edit from the whole input, for keys that split into complete
+// syllables: swapped neighbours, a missing or an extra letter, never dropping
+// the first or last key nor adding before the first or after the last.
+std::vector<std::string> typo_whole_keys(std::string_view sounds) {
+    std::vector<std::string> keys;
+    const size_t n = sounds.size();
+    for (size_t i = 0; i + 1 < n; ++i) {
+        if (sounds[i] != sounds[i + 1]) { std::string key(sounds); std::swap(key[i], key[i + 1]); keys.push_back(std::move(key)); }
+        if (i > 0) { std::string key(sounds); key.erase(i, 1); keys.push_back(std::move(key)); }
+    }
+    for (size_t i = 1; i < n; ++i)
+        for (char letter : std::string_view("abcdefghijklmnopqrstuwxyz")) {
+            std::string key(sounds); key.insert(key.begin() + static_cast<std::ptrdiff_t>(i), letter); keys.push_back(std::move(key));
+        }
+    std::sort(keys.begin(), keys.end());
+    keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+    return keys;
+}
+
 struct CandidateMetadata {
     uint32_t kind = MPN_CANDIDATE_UNKNOWN;
     uint32_t scoreKind = MPN_SCORE_NONE;
@@ -1048,6 +1209,7 @@ struct CandidateMetadata {
     // one is the final key (an initial still being typed, as in nihaom).
     unsigned abbreviated = 0;
     bool trailing = false;
+    bool typo = false; // CN-05: reached through a typo correction
 };
 struct Candidate {
     std::string text;
@@ -1060,7 +1222,7 @@ struct Candidate {
 
 std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, bool hans, bool completeOnly = false,
                                 std::vector<CandidateMetadata> *metadata = nullptr, bool *singleCharacterReading = nullptr, size_t expandedBeam = 0,
-                                const Personal *personal = nullptr, uint32_t fuzzy = 0) {
+                                const Personal *personal = nullptr, uint32_t fuzzy = 0, bool typo = false) {
     const Reading reading(input, lexicon.pinyin);
     const size_t length = reading.sounds.size();
     if (length == 0) return {};
@@ -1101,11 +1263,20 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
     const auto whole = lexicon.range(reading.sounds);
     // CN-04: abbreviations take part only in user-visible lookups of keys
     // that neither split into complete syllables nor spell a whole word.
-    const bool abbreviating = lexicon.pinyin && metadata && !completeOnly && length >= 2 && !lexicon.abbrevKeys.empty() &&
-        !spelled_input(lexicon, reading) &&
+    const bool visible = lexicon.pinyin && metadata && !completeOnly;
+    const bool spelledKeys = visible && length >= 2 && spelled_input(lexicon, reading);
+    const bool abbreviating = visible && length >= 2 && !lexicon.abbrevKeys.empty() && !spelledKeys &&
         std::none_of(lexicon.words.begin() + whole.first, lexicon.words.begin() + whole.second,
                      [&](const Word &word) { return fully_spelled(word) && reading.matches(word, 0, length); });
     const auto abbrevOptions = abbreviating ? abbrev_options(lexicon, reading) : std::vector<std::vector<AbbrevOption>>();
+    // CN-05: typo corrections inside keys that do not split into complete
+    // syllables, without tones or separators; whole-input ones otherwise.
+    const bool correcting = typo && visible && length >= 3 && length <= typo_max_sounds && !spelledKeys &&
+        reading.boundary_count[length] == 0 && !unfinished_syllable_tail(lexicon, reading.sounds);
+    const auto typoOptions = correcting ? typo_options(lexicon, reading) : std::vector<std::vector<TypoOption>>();
+    const bool correctingWhole = typo && visible && spelledKeys && length >= 4 && length <= 32 && input == reading.sounds &&
+        std::none_of(lexicon.words.begin() + whole.first, lexicon.words.begin() + whole.second,
+                     [&](const Word &word) { return fully_spelled(word); });
     const bool singleReading = !completeOnly && metadata && std::any_of(
         lexicon.words.begin() + whole.first, lexicon.words.begin() + whole.second,
         [&](const Word &word) {
@@ -1174,7 +1345,8 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
     // Keep the first page of exact single-syllable characters intact: a
     // nasal correction like ban should not displace bang's common characters.
     // For longer readings, surface likely corrections after three exact words.
-    if (!completeOnly && lexicon.pinyin && !results.empty() && input == reading.sounds) {
+    // CN-05: part of typo correction, off with it.
+    if (typo && !completeOnly && lexicon.pinyin && !results.empty() && input == reading.sounds) {
         size_t insertion = std::min(singleReading ? page_size : size_t(3), results.size());
         size_t added = 0;
         for (const auto &variant : nasal_variants(reading.sounds)) {
@@ -1185,7 +1357,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                 const auto text = word.text(hans);
                 if (seen.emplace(text).second) {
                     results.insert(results.begin() + insertion, std::string(text));
-                    if (metadata) metadata->insert(metadata->begin() + insertion, {MPN_CANDIDATE_CORRECTION, MPN_SCORE_LEXICON, double(word.score(hans))});
+                    if (metadata) metadata->insert(metadata->begin() + insertion, {MPN_CANDIDATE_CORRECTION, MPN_SCORE_LEXICON, double(word.score(hans)), false, 0, false, true});
                     if (!fuzzyOptions.empty()) {
                         wholeWeights.insert(wholeWeights.begin() + insertion, word.score(hans));
                         wholeNasal.insert(wholeNasal.begin() + insertion, 1);
@@ -1208,7 +1380,9 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
     // lexicon weight less 700 per nat of its penalty.
     struct Path { std::string text, traditional; double score; bool spelled, verified; uint32_t first; bool fuzzy = false, whole = false; double weight = 0;
                   // CN-04: abbreviated syllables, and whether the only one is the final key.
-                  unsigned abbreviated = 0; bool trailing = false; };
+                  unsigned abbreviated = 0; bool trailing = false;
+                  // CN-05: one word was reached through a typo correction.
+                  bool typo = false; };
     // The sentence search beam is a latency bound, not a five-candidate UI cap.
     // Widen user-visible pinyin lookups within 32 letters only. Internal
     // completion probes and longer searches retain their existing bounded work.
@@ -1226,7 +1400,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             if (suffixes[end].empty()) continue;
             // Exact whole-input words are already listed; fuzzy ones compete here.
             const bool wholeSpan = start == 0 && end == length;
-            if (wholeSpan && fuzzyOptions.empty() && !abbreviating) continue;
+            if (wholeSpan && fuzzyOptions.empty() && !abbreviating && !correcting) continue;
             const auto span = std::string_view(reading.sounds).substr(start, end - start);
             const auto options = lexicon.range(span);
             // CN-06c: learned words of this reading. They also join the beam
@@ -1240,10 +1414,15 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             bool exactHere = false;
             // CN-04: whether a fully spelled exact word covers this span.
             bool spelledHere = false;
+            // CN-05: whether a fully spelled exact word covers this span.
+            bool typoBlocked = false;
             const auto extend = [&](const Word &word, double score, const FuzzyOption *fuzzyWord, double fuzzyWeight = 0,
-                                    unsigned abbreviated = 0, bool trailing = false) {
+                                    unsigned abbreviated = 0, bool trailing = false, bool typoWord = false) {
                 const bool verified = verifiedSpelling(word);
                 for (const auto &suffix : suffixes[end]) {
+                    // CN-05: one corrected word per candidate, never beside an abbreviation.
+                    if (suffix.typo && (typoWord || abbreviated)) continue;
+                    if (typoWord && suffix.abbreviated) continue;
                     const auto traditional = word.text(false);
                     const auto &right = hans ? suffix.traditional : suffix.text;
                     const double bonus = lexicon.join_bonus(traditional, right, hans, false, !lexicon.pairs.empty()) +
@@ -1253,7 +1432,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                         std::string(word.text(hans)) + suffix.text,
                         hans ? std::string(traditional) + right : std::string(),
                         score + suffix.score + bonus,
-                        suffix.spelled && !abbreviated && (!lexicon.pinyin || fully_spelled(word)),
+                        suffix.spelled && !abbreviated && !typoWord && (!lexicon.pinyin || fully_spelled(word)),
                         suffix.verified && verified,
                         word.pair,
                         suffix.fuzzy || fuzzyWord,
@@ -1261,6 +1440,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                         fuzzyWeight,
                         suffix.abbreviated + abbreviated,
                         abbreviated ? trailing && !suffix.abbreviated : suffix.trailing,
+                        suffix.typo || typoWord,
                     });
                 }
             };
@@ -1272,6 +1452,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                 if (abbreviating && abbreviation_row(word)) continue;
                 exactHere = exactHere || (!fuzzyOptions.empty() && fully_spelled(word));
                 spelledHere = spelledHere || (abbreviating && fully_spelled(word));
+                typoBlocked = typoBlocked || (correcting && fully_spelled(word));
                 // Tone and traditional variants remain available as exact
                 // candidates. In a bounded sentence beam, variants with the
                 // same simplified form share one slot so they do not crowd
@@ -1312,6 +1493,8 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                     }
                 }
                 std::stable_sort(near.begin(), near.end(), [](const Near &a, const Near &b) { return a.base > b.base; });
+                // CN-05: a reading the user made equivalent is not a slip.
+                typoBlocked = typoBlocked || !near.empty();
                 size_t taken = 0;
                 double fuzzyTop = -std::numeric_limits<double>::infinity();
                 for (const auto &item : near) {
@@ -1383,6 +1566,39 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                     extend(*item.word, Personal::lifted(item.base, bonus, shortTop), nullptr, 0, item.count, item.last);
                 }
             }
+            if (correcting && !typoBlocked) {
+                // CN-05: words one edit away from this span, best first after
+                // their penalty, in a beam of their own.
+                struct Slip { const Word *word; double base; const TypoOption *option; };
+                std::vector<Slip> slips;
+                for (const auto &option : typoOptions[start]) {
+                    if (option.end != end) continue;
+                    const auto range = lexicon.range(option.key);
+                    size_t taken = 0;
+                    for (size_t index = range.first; index < range.second && index - range.first < 512 && taken < pathLimit; ++index) {
+                        const auto &word = lexicon.word(index, hans);
+                        if (!fully_spelled(word)) continue;
+                        const int weight = word.score(hans);
+                        if (weight < typo_common || (!wholeSpan && han_characters(word.text(false)).size() == 1)) continue;
+                        ++taken;
+                        slips.push_back({&word, static_cast<double>(weight) / 700.0 - 19.0 + word.prior / 100.0 - typo_penalty, &option});
+                    }
+                }
+                std::stable_sort(slips.begin(), slips.end(), [](const Slip &a, const Slip &b) { return a.base > b.base; });
+                size_t taken = 0;
+                double slipTop = -std::numeric_limits<double>::infinity();
+                for (const auto &item : slips) {
+                    if (taken == pathLimit) break;
+                    const auto spelling = item.word->text(true);
+                    if (std::find(used_spellings.begin(), used_spellings.end(), spelling) != used_spellings.end()) continue;
+                    used_spellings.push_back(spelling);
+                    ++taken;
+                    const auto *learnedSlip = personal ? personal->find(hans, item.option->key) : nullptr;
+                    slipTop = std::max(slipTop, item.base);
+                    extend(*item.word, Personal::lifted(item.base, Personal::bonus(learnedSlip, item.word->text(hans)), slipTop),
+                           nullptr, 0, 0, false, true);
+                }
+            }
         }
         std::sort(paths.begin(), paths.end(), [](const Path &a, const Path &b) {
             return a.score == b.score ? a.text < b.text : a.score > b.score;
@@ -1439,25 +1655,60 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
         if (inserted) needFallback = false;
     }
     const auto appendFallback = [&] {
-        if (needFallback) for (const auto &item : fallback(lexicon, input, hans, false)) {
+        if (needFallback) for (const auto &item : fallback(lexicon, input, hans, false, typo)) {
             if (results.size() >= result_limit) break;
-            append(item.text, {MPN_CANDIDATE_CORRECTION, MPN_SCORE_FALLBACK, item.score});
+            append(item.text, {MPN_CANDIDATE_CORRECTION, MPN_SCORE_FALLBACK, item.score, false, 0, false, item.typo});
         }
     };
     // A rare newly indexed word reached by a typo must not outrank a fully
     // spelled sentence (zhidaole -> 知道了, not keyboard correction 指导科).
     const bool completePath = std::any_of(suffixes[0].begin(), suffixes[0].end(), [](const Path &path) { return path.spelled && path.verified; });
     // CN-04: abbreviations read as typed come before keyboard corrections.
-    const bool abbreviationLead = abbreviating && !suffixes[0].empty() && suffixes[0].front().abbreviated;
+    // CN-05: so do typo corrections, which the sentence search already ranked.
+    const bool abbreviationLead = (abbreviating || correcting) && !suffixes[0].empty() &&
+        (suffixes[0].front().abbreviated || suffixes[0].front().typo);
     if (!completePath && !abbreviationLead) appendFallback();
     for (const auto &path : suffixes[0]) {
         const auto kind = !reading.unambiguous ? MPN_CANDIDATE_UNKNOWN :
             (!path.spelled || path.fuzzy ? MPN_CANDIDATE_CORRECTION :
              (path.verified ? MPN_CANDIDATE_PATH : MPN_CANDIDATE_UNKNOWN));
-        append(path.text, {static_cast<uint32_t>(kind), MPN_SCORE_PATH, path.score, path.fuzzy, path.abbreviated, path.trailing});
+        append(path.text, {static_cast<uint32_t>(kind), MPN_SCORE_PATH, path.score, path.fuzzy, path.abbreviated, path.trailing, path.typo});
         if (results.size() == result_limit) break;
     }
     if (completePath || abbreviationLead) appendFallback();
+    if (correctingWhole) {
+        // CN-05: keys of complete syllables are read exactly first; a common
+        // word one edit from all of them (zhonggou -> 中国, doushao -> 多少)
+        // follows the first typo_whole_position candidates.
+        struct Whole { std::string_view text; int weight; };
+        std::vector<Whole> found;
+        for (const auto &key : typo_whole_keys(reading.sounds)) {
+            const auto range = lexicon.range(key);
+            for (size_t index = range.first; index < range.second; ++index) {
+                const auto &word = lexicon.word(index, hans);
+                if (word.score(hans) < typo_whole_min) break;
+                if (fully_spelled(word) && han_characters(word.text(false)).size() >= 2) found.push_back({word.text(hans), word.score(hans)});
+            }
+        }
+        std::stable_sort(found.begin(), found.end(), [](const Whole &a, const Whole &b) { return a.weight > b.weight; });
+        size_t position = std::min(typo_whole_position, results.size()), inserted = 0;
+        for (const auto &item : found) {
+            if (inserted == typo_whole_count) break;
+            const auto existing = std::find(results.begin(), results.end(), item.text);
+            if (existing != results.end()) {
+                const auto at = static_cast<size_t>(existing - results.begin());
+                if (at < position) continue;
+                results.erase(existing);
+                if (metadata) metadata->erase(metadata->begin() + static_cast<std::ptrdiff_t>(at));
+            }
+            seen.emplace(item.text);
+            results.insert(results.begin() + static_cast<std::ptrdiff_t>(position), std::string(item.text));
+            if (metadata) metadata->insert(metadata->begin() + static_cast<std::ptrdiff_t>(position),
+                {MPN_CANDIDATE_CORRECTION, MPN_SCORE_LEXICON, double(item.weight), false, 0, false, true});
+            ++position; ++inserted;
+        }
+        if (results.size() > result_limit) { results.resize(result_limit); if (metadata) metadata->resize(result_limit); }
+    }
     return results;
 }
 
@@ -1793,6 +2044,8 @@ struct MPNSession {
     bool requireFullCandidate = false;
     // CN-03: enabled fuzzy pinyin pairs (MPN_FUZZY_*); 0 leaves every result unchanged.
     uint32_t fuzzy = 0;
+    // CN-05: typo correction, on unless the host turns it off.
+    bool typo = true;
     size_t sentenceCount = 0, literalTail = 0;
 
     const Personal *learned() const { return personal.get(); }
@@ -1842,9 +2095,10 @@ struct MPNSession {
         else for (char key : input) marked += symbols[keys.find(key)];
         std::vector<CandidateMetadata> metadata;
         bool singleReading = false;
-        auto decoded = decode(*lexicon, input, hans, false, &metadata, &singleReading, 0, learned(), fuzzy);
-        // CN-04: the decoder put an abbreviated reading first.
-        const bool abbreviationLead = !metadata.empty() && metadata.front().abbreviated;
+        auto decoded = decode(*lexicon, input, hans, false, &metadata, &singleReading, 0, learned(), fuzzy, typo);
+        // CN-04: the decoder put an abbreviated reading first. CN-05: or a
+        // typo correction, which is placed the same way.
+        const bool abbreviationLead = !metadata.empty() && (metadata.front().abbreviated || metadata.front().typo);
         const bool abbreviationTrailing = abbreviationLead && metadata.front().trailing;
         const std::string abbreviationText = abbreviationLead ? decoded.front() : std::string();
         std::vector<Candidate> ranked;
@@ -2012,17 +2266,18 @@ struct MPNSession {
             // syllable being typed: the exact prefix (你好) keeps first place
             // and the completion (你好吗) follows it.
             const auto found = std::find_if(ranked.begin(), ranked.end(), [&](const Candidate &candidate) {
-                return candidate.metadata.abbreviated && candidate.consumed == input.size() && candidate.text == abbreviationText;
+                return (candidate.metadata.abbreviated || candidate.metadata.typo) && candidate.consumed == input.size() &&
+                    candidate.text == abbreviationText;
             });
             const size_t target = abbreviationTrailing && !ranked.empty() && ranked.front().consumed < input.size() ? 1 : 0;
             if (found != ranked.end() && static_cast<size_t>(found - ranked.begin()) > target)
                 std::rotate(ranked.begin() + target, found, found + 1);
         }
         if (ranked.empty()) {
-            for (auto &item : fallback(*lexicon, input, hans)) {
+            for (auto &item : fallback(*lexicon, input, hans, true, typo)) {
                 ranked.push_back({std::move(item.text), item.consumed,
                     {static_cast<uint32_t>(item.consumed < input.size() ? MPN_CANDIDATE_PARTIAL : MPN_CANDIDATE_CORRECTION),
-                     MPN_SCORE_FALLBACK, item.score}});
+                     MPN_SCORE_FALLBACK, item.score, false, 0, false, item.typo}});
             }
         }
         if (!segmentContext.empty() && ranked.size() > 1) {
@@ -2460,6 +2715,13 @@ void mpn_set_fuzzy_pinyin(MPNSession *session, uint32_t mask) {
     try { session->refresh(); } catch (...) { session->reset(); }
 }
 uint32_t mpn_fuzzy_pinyin(const MPNSession *session) { return session ? session->fuzzy : 0; }
+void mpn_set_typo_correction(MPNSession *session, int enabled) {
+    if (!session || session->typo == (enabled != 0)) return;
+    session->typo = enabled != 0;
+    if (session->input.empty()) return;
+    try { session->refresh(); } catch (...) { session->reset(); }
+}
+int mpn_typo_correction(const MPNSession *session) { return session && session->typo ? 1 : 0; }
 void mpn_clear(MPNSession *session) {
     session->reset();
     session->committed.clear();
@@ -2588,7 +2850,7 @@ size_t mpn_expand_candidates(MPNSession *session) {
     try {
         const size_t breadth = size_t(32) << session->expansion;
         std::vector<CandidateMetadata> metadata;
-        auto decoded = decode(*session->lexicon, session->input, session->hans, false, &metadata, nullptr, breadth, session->learned(), session->fuzzy);
+        auto decoded = decode(*session->lexicon, session->input, session->hans, false, &metadata, nullptr, breadth, session->learned(), session->fuzzy, session->typo);
         std::set<std::pair<std::string, size_t>> seen;
         for (const auto &candidate : session->candidates) seen.emplace(candidate.text, candidate.consumed);
         std::vector<Candidate> added;
@@ -2620,6 +2882,9 @@ size_t mpn_candidate_literal_tail(const MPNSession *session, size_t index) {
 }
 int mpn_candidate_fuzzy(const MPNSession *session, size_t index) {
     return session && index < session->candidates.size() && session->candidates[index].metadata.fuzzy ? 1 : 0;
+}
+int mpn_candidate_typo(const MPNSession *session, size_t index) {
+    return session && index < session->candidates.size() && session->candidates[index].metadata.typo ? 1 : 0;
 }
 size_t mpn_candidate_abbreviated(const MPNSession *session, size_t index) {
     return session && index < session->candidates.size() ? session->candidates[index].metadata.abbreviated : 0;

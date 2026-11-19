@@ -277,11 +277,70 @@ struct ServiceFocusTest {
         assert(texts() == plain && type("zongguo") == plain);
         mpn_clear(service.session); service.resetCandidates();
     }
+
+    // CN-05 through the service: the switch read from the user's settings is
+    // applied before a key, rebuilds an open candidate list and reaches a
+    // session created later.
+    static void typoCorrection() {
+        Service service;
+        const std::string data = "MEOWPUUT-PINYIN-1\n"
+            "guo\tguo2\t國\t国\t8000\n"
+            "zhong\tzhong1\t中\t中\t9000\n"
+            "zhongguo\tzhong1guo2\t中國\t中国\t10000\n";
+        service.lexicon = mpn_lexicon_create(data.data(), data.size());
+        service.session = mpn_session_create(service.lexicon);
+        assert(service.lexicon && service.session);
+        mpn_set_simplified(service.session, service.simplified);
+        const auto texts = [&] {
+            std::vector<std::string> result;
+            for (const auto &choice : service.choices) result.push_back(choice.text);
+            return result;
+        };
+        const auto type = [&](const std::string &keys) {
+            mpn_clear(service.session); mpn_clear_commit(service.session); service.resetCandidates();
+            for (char c : keys) assert(mpn_key(service.session, c));
+            service.refreshCandidates();
+            return texts();
+        };
+        // On by default: the slip is read as 中国 and commits as such.
+        service.applyTypo(true);
+        assert(type("zhonguo").front() == "中国");
+        // The candidate window labels it on the reading line; the label is
+        // display only. An exact candidate carries no label.
+        assert(service.candidateReading(0) == L"纠错" && service.candidateText(0) == L"中国");
+        type("zhongguo");
+        for (size_t i = 0; i < service.choices.size(); ++i)
+            assert(service.candidateReading(i).find(L"纠错") == std::wstring::npos);
+        assert(type("zhonguo").front() == "中国");
+        std::wstring text;
+        assert(service.chooseCandidate(0, text));
+        text += wide(mpn_committed(service.session)); mpn_clear_commit(service.session);
+        assert(text == L"中国" && !*mpn_input(service.session));
+        // Turned off while the composition is open: rebuilt at once, without it.
+        const auto on = type("zhonguo");
+        service.applyTypo(false);
+        assert(std::string(mpn_input(service.session)) == "zhonguo" && texts() != on);
+        for (size_t i = 0; i < mpn_candidate_count(service.session); ++i) assert(!mpn_candidate_typo(service.session, i));
+        for (size_t i = 0; i < service.choices.size(); ++i)
+            assert(service.candidateReading(i).find(L"纠错") == std::wstring::npos);
+        const auto off = type("zhonguo");
+        // A fresh session starts on and receives the switch with its first key.
+        mpn_session_destroy(service.session);
+        service.session = mpn_session_create(service.lexicon);
+        mpn_set_simplified(service.session, service.simplified);
+        assert(mpn_typo_correction(service.session));
+        service.applyTypo(false);
+        assert(!mpn_typo_correction(service.session) && type("zhonguo") == off);
+        service.applyTypo(true);
+        assert(texts() == on);
+        mpn_clear(service.session); service.resetCandidates();
+    }
 };
 }
 int wmain(int argc, wchar_t **argv) {
     assert(argc == 2);
     ServiceFocusTest::run(); ServiceFocusTest::memory(argv[1]); ServiceFocusTest::personalWords(argv[1]);
     ServiceFocusTest::fuzzyPinyin();
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words and fuzzy pinyin\n";
+    ServiceFocusTest::typoCorrection();
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, fuzzy pinyin and typo correction\n";
 }

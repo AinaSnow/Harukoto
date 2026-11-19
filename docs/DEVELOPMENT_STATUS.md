@@ -1,5 +1,23 @@
 # 开发状态与接手入口
 
+## 2026-11-19 · CN-05 纠错增强
+
+- 前置：CN-04 已提交为 8af8155。本批未提交、未打包。
+- 核心接口：新增 `mpn_set_typo_correction(session, enabled)`／`mpn_typo_correction`、`mpn_candidate_typo(session, index)`，按会话，默认开启；改开关时有组字即重建候选。现有签名不变，注音词库不受影响。decode 新增一个默认参数（主候选、候选扩展两处传入）；`fallback` 新增 `correct` 参数；内部候选元数据与 Fallback 各多一个 typo 标记；原 `fallback` 里的键盘相邻表抽成 `keyboard_neighbors`。
+- 句中纠错（新）：只在输入切不成完整音节（与 CN-04 同一判定）、没有声调或隔音符、3–40 个字母、且不是“完整音节＋一个音节的开头”（budin、jiaobe、shiyon）时启用。从每个起点沿精确前缀走，每个位置各试一次：相邻颠倒、删一个字母（其后至少还有两个按键）、补一个字母（不在段首，其后至少还有两个按键）、同类相邻键（元音换元音、辅音换辅音，不是最后一个按键）；改动后逐字匹配，只在词库有以此开头的读音时继续；记下的读音须含完整拼写词，改动段须含元音、至少两个按键。每起点最多 4,096 次查找、256 个读音。
+- 组句：纠错词另占一份与精确词等宽的搜索宽度；只取权重≥4500 的完整拼写词，整串以外须至少两字；分数＝词库分数－3 奈特（`typo_penalty`）；同一段有完整拼写的精确词或（开启时）模糊词就不出；每个候选最多一个纠错词，不与简拼词同在一个候选；纠错路径不算“完整拼写”，来源为 CORRECTION，`mpn_candidate_typo` 为 1，`mpn_candidate_words` 为空。解码器第一项是纠错时，与简拼一样排在整串键盘纠错兜底前，并在 refresh 里移到逐段前缀候选之前。
+- 与简拼、模糊音的先后：三者都按分数竞争，规则是“精确＞模糊（用户开启）＞纠错与简拼按分数”。纠错与简拼在同一类输入（切不成完整音节）上启用：zhogn、zhonguo、nihoa、xiexei、womne 的纠错是一个常用词扣 3 奈特，简拼读法是多个词（中＋喔＋功能）且每个简拼音节扣 2 奈特，所以纠错胜出；只有声母的串（zhd、bkn）、末尾单个声母（zhongg、nihaom）、半截音节（budin）不纠错，简拼和前缀结果与改动前相同。开启模糊音后 lenshi 仍是 认识（模糊）而不是 了事（纠错）。
+- 整串纠错（能切成完整音节时）：整串没有完整拼写的词时，与整串差一处颠倒、漏字母、多字母（不动首尾）的、权重≥4500 的两字以上词最多 2 个，放在第 4 位起（zhonggou→中国 第 4，doushao→多少 第 5）。原有的整串局部纠错（相邻键、颠倒、重复字母、n／ng，`fallback`）和整词列表中的 n／ng 纠错照旧，并标为 typo。
+- 开关：默认开启，理由是纠错只在拼音读不通时进句中，读得通时只在第 4 位后补一两个常用词，对精确输入的前三项没有影响，而关闭时常见手误几乎打不出来（样本首选 13）。“关闭”解释为不出任何基于手误猜测的候选，原有的整串纠错和 n／ng 纠错也一起关闭，因此关闭时与改动前不同（少了原有纠错；前缀补全不变）。Windows：新增 Windows/TypoCorrection.h，读写 HKCU\Software\Meowpuut\Input 的 DWORD `TypoCorrection`（缺失或类型不对即开启，0 为关闭）；文本服务在 Activate 和每次按键前读取并交给当前会话，变化且有组字时重建候选。设置窗口模糊音下方新增“纠错 · 纠正常见手误”复选框，保存时只在值改变时写入（保存默认值不会新建）；LayoutOptions.cs 新增 `TypoCorrectionOptions`。实验独立引擎未接入。
+- 测试：`mixed_candidates` 新增纠错一节（合成词库：zhogn／zhonguo／zhonggguo／nihoa／nihhao／womne／wozaizhognguo 首选为纠错且消耗全部按键、不按词学习、可选择上屏；两处手误不同时纠正；zhongg 仍是简拼、zgren／nh 不变；带声调不纠错；zhongguo 开关前后逐项相同；zhonggou 前三项与关闭时相同、中国 在第 4；关闭即时重建且没有纠错候选；繁体；长串有界）；CN-03 模糊音一节的“每对单开能出、其余不出”在纠错关闭下进行（zongguo 与 zhongguo 只差一个 h）。新增 CTest `typo_correction_preference`（注册表读写、默认开启、错误类型、只在变化时重建）；`tsf_focus_cancel` 新增正式路径（默认纠正并上屏、组字中关闭即重建、新会话按键时补上开关、再开还原）；test-preview.ps1 的 LayoutOptionsTests 新增纠错持久化（不在 CTest 中，单独运行通过，设置窗口同时编译、实时滑块等检查通过）。CTest 共 56 项。
+- 评测（[中文评测](CHINESE_EVALUATION.md#纠错增强cn-052026-11-19)）：[调优集](benchmarks/chinese-tuned-cn05.json)、[独立集](benchmarks/chinese-holdout-v1-cn05.json)、[整词](benchmarks/chinese-words-dev-cn05.json)、[简拼](benchmarks/chinese-abbrev-dev-cn05.json) 与 cn04 报告逐条相同（名次、前 7 项列表、缺失、compose），[模糊音样本](benchmarks/chinese-fuzzy-dev-cn05.json)（全开）名次与 cn03 相同。探针逐项比较五套语料 3,204 个前缀：可切成完整音节的前三项全部不变，第 4 位起有整串纠错插入；切不成的前缀首选只有 6 个变化（独立集 3 个只统计未查看）。[纠错开发样本](benchmarks/chinese-typo-dev-cn05.json)（83 条）首选 19→60、前 7 项 21→70、缺失 25→8（[改动前](benchmarks/chinese-typo-dev-before.json)；[关闭时](benchmarks/chinese-typo-dev-cn05-off.json) 13／15）。
+- 耗时：逐键 P50／P95（FF14 关）调优集 0.95／2.37→1.03／2.77、独立集 1.28／3.86→1.48／4.64、整词 0.53／1.81→0.57／1.90 ms。长串压力（16 种串各 5 轮，跑两次）：43–47 个字母、含多处手误的整句单键最大 3.6–8.7→4.6–9.6 ms，40 个随机字母 5.1–6.1→6.1–9.7 ms，纯声母长串（30／66 字母 zhshch…、64 个 y）与改动前在噪声范围内（不出纠错，11–16 ms 对 11–14 ms）。加载与内存不变。
+- 构建与测试：完整 MSVC Release 构建通过（MeowpuutTip.dll 已复制到 .build/windows/ime，词库未变未重新生成），56 项 CTest（原 55 项加 typo_correction_preference）在一次运行中全部通过（311.73 秒；加候选窗标记后重新构建、复制 DLL 并重跑，仍全部通过，312.59 秒）。第一次完整运行时 `session` 失败（wosuki 被纠成“我肃立”排第一，挤掉日语混合项），据此改为只纠正成常用词、整串以外至少两字，之后重跑。
+- 候选窗标记（维护者要求补做）：`mpn_candidate_typo` 为真的核心候选，文字下方的小字行（原本显示部分选择的读音、日语假名、主题词说明的那一行，字号与透明度沿用）显示“纠错”；已有读音时为“读音 · 纠错”。复用渲染器现有的读音行，横排、竖排、深浅色与高对比度都按原规则，不改渲染器、布局与按键选择；没有获得焦点时的旧式 STATIC 弹出框在行尾加“[纠错]”。标记只在 TextService 组 payload 时加入（MixedComposition.h 的 `typoCandidate`、`typoMarker`），候选文字与上屏文字不含它。原有整串纠错（相邻键、颠倒、重复字母、n／ng）同属开关、同样标出；模糊音与简拼不标：模糊音是用户在设置里声明的等价读音，简拼是有意的打法，都不是猜测手误。测试：`tsf_focus_cancel` 断言 zhonguo 的“中国”读音行为“纠错”、上屏为“中国”，zhongguo 的所有候选与关闭时都没有标记；`mixed_candidates` 断言 zhonguo 有标记、zg（简拼）与 zhongguo 没有。用临时程序以 CandidateView 渲染横排、竖排截图看过（标记在文字下方小字，与部分选择的读音同样式）。归档评测报告记录的 MixedComposition.h 哈希早于这次只影响显示的改动，候选文字不受影响，未重跑评测。
+- 未验证：真实应用里的手感、标记的实际观感（只看了离屏渲染）与设置页保存后实际生效；未提交、未打包、未安装；Android 未构建（核心新增函数，未改现有接口；Android 不调用开关，默认开启）；Core/tests 的 Python 检查未运行。
+- 已知局限：拼音碰巧读得通的手误不在句中纠正（jitian→几天、nihai→你还），整串只在没有完整拼写整词时补；最后两个按键里的漏打、多打、相邻键不纠正（shoujhi、zhongwn、gongzup）；只纠正成常用词，冷僻词打错不纠；罚分与门槛为固定常数。
+- 下一步：维护者验收；随下一个试用包实机抽查（nihoa、zhonguo、wozaizhognguo、zhongg 简拼不变、设置页开关）。
+
 ## 2026-11-19 · CN-04 简拼与混拼
 
 - 核心接口：新增 `mpn_candidate_abbreviated(session, index)`（简拼音节数），始终开启、没有设置项；现有签名不变，注音词库不受影响。内部候选元数据多两个字段（简拼音节数、是否只有末尾一个声母）。
