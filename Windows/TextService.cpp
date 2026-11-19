@@ -245,6 +245,7 @@ public:
     HRESULT STDMETHODCALLTYPE Deactivate() override {
         runtimeStatus.close();
         if (memory) { memory->flush(); memory.reset(); }
+        wordBonuses.reset();
         themeReload.reset();
         conjugationPanel.clear();
         if (delivery) delivery->queue.close();
@@ -368,6 +369,7 @@ public:
             // Selection memory is per user and can be switched off at any time.
             memoryEnabled = memory && selection_memory::enabled();
             if (memoryEnabled) memory->poll();
+            attachPersonal();
             const bool preference = readSimplifiedPreference();
             if (preference != simplified) conjugationPanel.close(choices, page, highlighted, expanded);
             if (applyPinyinScript(session, simplified, preference)) {
@@ -549,6 +551,11 @@ private:
 
     std::unique_ptr<selection_memory::Store> memory;
     bool memoryEnabled = false;
+    // CN-06c: word bonuses handed to the core, rebuilt from memory->words()
+    // when another process changed them or the hour (decay) moved on.
+    std::unique_ptr<MPNPersonal, decltype(&mpn_personal_destroy)> wordBonuses{nullptr, &mpn_personal_destroy};
+    uint64_t personalRevision = 0;
+    int64_t personalHour = 0;
     // Segments selected so far in the composition being completed.
     std::string composedReading, composedText;
     size_t composedSegments = 0;
@@ -758,6 +765,11 @@ private:
         const std::string input = mpn_input(session), chosen = choices[index].text;
         const size_t consumed = choices[index].coreIndex ? mpn_candidate_consumed(session, *choices[index].coreIndex) : input.size();
         const bool form = conjugationPanel.active(); // A conjugated form is not a reading of the input.
+        // CN-06c: the dictionary words making up a core candidate, read
+        // before mpn_choose replaces the candidate list. Japanese, English
+        // and other non-core candidates are not learned word by word.
+        const std::string words = memoryEnabled && learn && !form && choices[index].coreIndex
+            ? std::string(mpn_candidate_words(session, *choices[index].coreIndex)) : std::string();
         if (choices[index].coreIndex) {
             if (!mpn_choose(session, *choices[index].coreIndex)) return false;
             chineseLocked = *mpn_input(session) != '\0';
@@ -765,21 +777,67 @@ private:
             text += candidateText(index);
             mpn_clear(session);
         }
-        if (memoryEnabled && learn && !form && consumed && consumed <= input.size()) remember(input, consumed, chosen);
+        if (memoryEnabled && learn && !form && consumed && consumed <= input.size()) remember(input, consumed, chosen, words);
         else { composedReading.clear(); composedText.clear(); composedSegments = 0; }
         return true;
     }
 
     // CN-06: record the confirmed selection, and the whole phrase once a
     // reading has been completed by selecting several segments.
-    void remember(const std::string &input, size_t consumed, const std::string &chosen) {
+    void remember(const std::string &input, size_t consumed, const std::string &chosen, const std::string &words = {}) {
         const auto reading = input.substr(0, consumed);
         if (chosen != reading) memory->record(reading, chosen, simplified);
+        learnWords(words);
         composedReading += reading; composedText += chosen; ++composedSegments;
         if (consumed != input.size()) return;
         if (composedSegments > 1) memory->record(composedReading, composedText, simplified);
         composedReading.clear(); composedText.clear(); composedSegments = 0;
         memory->flush();
+    }
+
+    // CN-06c: count each confirmed word, then update just its reading in the
+    // core's table when nothing else changed since the last sync.
+    void learnWords(const std::string &words) {
+        if (words.empty()) return;
+        const bool current = wordBonuses && memory->words().revision() == personalRevision;
+        const auto hour = selection_memory::currentHour();
+        std::vector<std::string> readings;
+        for (size_t start = 0; start < words.size();) {
+            const auto end = words.find('\n', start), tab = words.find('\t', start);
+            if (end == words.npos || tab == words.npos || tab > end) break;
+            readings.push_back(words.substr(start, tab - start));
+            memory->recordWord(readings.back(), std::string_view(words).substr(tab + 1, end - tab - 1), simplified, hour);
+            start = end + 1;
+        }
+        if (!current || hour != personalHour) return; // attachPersonal rebuilds everything.
+        for (const auto &reading : readings) {
+            mpn_personal_set(wordBonuses.get(), simplified, reading.c_str(), nullptr, 0);
+            memory->words().each(reading, simplified, hour, [&](const std::string &text, double bonus) {
+                mpn_personal_set(wordBonuses.get(), simplified, reading.c_str(), text.c_str(), bonus);
+            });
+        }
+        personalRevision = memory->words().revision();
+    }
+
+    // Hands the learned word bonuses to the active session, or detaches them
+    // while selection memory is off, so the core behaves exactly as without.
+    void attachPersonal() {
+        if (!memoryEnabled || !memory) { if (session) mpn_set_personal(session, nullptr); return; }
+        const auto hour = selection_memory::currentHour();
+        if (!wordBonuses) {
+            wordBonuses.reset(mpn_personal_create());
+            if (!wordBonuses) { if (session) mpn_set_personal(session, nullptr); return; }
+            personalRevision = 0;
+        }
+        if (memory->words().revision() != personalRevision || hour != personalHour) {
+            mpn_personal_clear(wordBonuses.get());
+            memory->words().each(hour, [&](bool script, std::string_view reading, const std::string &text, double bonus) {
+                mpn_personal_set(wordBonuses.get(), script, std::string(reading).c_str(), text.c_str(), bonus);
+            });
+            personalRevision = memory->words().revision();
+            personalHour = hour;
+        }
+        if (session) mpn_set_personal(session, wordBonuses.get());
     }
 
     HWND rendererWindow() const {

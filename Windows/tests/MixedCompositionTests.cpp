@@ -1,6 +1,7 @@
 #include "../MixedComposition.h"
 #include "../PendingDelivery.h"
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -411,7 +412,134 @@ static void verifyCompositionStatistics() {
     }
 }
 
+// CN-06c: personal word bonuses in whole-word order and sentence composition.
+struct Listed { std::string text; size_t consumed; uint32_t kind, scoreKind; double score; };
+static bool operator==(const Listed &a, const Listed &b) {
+    return a.text == b.text && a.consumed == b.consumed && a.kind == b.kind && a.scoreKind == b.scoreKind && a.score == b.score;
+}
+static std::vector<Listed> listed(MPNSession *session) {
+    std::vector<Listed> result;
+    for (size_t i = 0; i < mpn_candidate_count(session); ++i) {
+        MPNCandidateInfo info{};
+        assert(mpn_candidate_info(session, i, &info, sizeof(info)));
+        result.push_back({mpn_candidate(session, i), mpn_candidate_consumed(session, i), info.kind, info.score_kind, info.score});
+    }
+    return result;
+}
+
+static void verifyPersonalWords() {
+    const std::string data = "MEOWPUUT-PINYIN-1\n"
+        "chang\tchang2\t長\t长\t8000\n"
+        "da\tda4\t大\t大\t8000\n"
+        "gongshi\tgong1shi4\t公式\t公式\t6000\n"
+        "gongshi\tgong1shi4\t攻勢\t攻势\t5900\n"
+        "gongsi\tgong1si1\t攻絲\t攻丝\t6000\n"
+        "gongsi\tgong1si1\t公司\t公司\t5800\n"
+        "gongsi\tgong1si1\t公私\t公私\t1000\n"
+        "hen\then3\t很\t很\t8000\n"
+        "jian\tjian4\t見\t见\t8000\n"
+        "jian\tjian1\t間\t间\t7000\n"
+        "shi\tshi4\t是\t是\t9000\n"
+        "shi\tshi2\t時\t时\t8000\n"
+        "shijian\tshi2jian1\t時間\t时间\t7000\n"
+        "wo\two3\t我\t我\t9000\n"
+        "xian\txian1\t先\t先\t8000\n"
+        "xian\txi1an1\t西安\t西安\t7000\n"
+        "zai\tzai4\t在\t在\t9000\n";
+    auto *lexicon = makeLexicon(data);
+    auto *plain = mpn_session_create(lexicon), *learning = mpn_session_create(lexicon);
+    auto *personal = mpn_personal_create();
+    assert(plain && learning && personal);
+    mpn_set_simplified(plain, 1); mpn_set_simplified(learning, 1);
+    mpn_set_personal(learning, personal);
+    const auto run = [](MPNSession *session, const char *keys) {
+        mpn_clear(session); type(session, keys);
+        auto result = listed(session);
+        while (mpn_candidates_can_expand(session)) mpn_expand_candidates(session);
+        return std::make_pair(result, listed(session));
+    };
+    const auto first = [&](MPNSession *session, const char *keys) { return run(session, keys).first.front().text; };
+    const char *inputs[] = {"gongsi", "wozaigongsi", "gongsihenda", "gongshi", "shijianhenchang", "shi", "jian",
+                            "xian", "xi'an", "gongs", "wozaigong", "shijianh", "gong"};
+    // An empty table, or one without these readings, changes nothing at all.
+    const auto unchanged = [&] {
+        for (const char *keys : inputs) assert(run(plain, keys) == run(learning, keys));
+    };
+    unchanged();
+    assert(mpn_personal_set(personal, 1, "ma", "妈", 2) && mpn_personal_set(personal, 0, "gongsi", "公司", 2));
+    unchanged(); // Another reading, and the other script.
+    mpn_personal_clear(personal);
+    assert(first(plain, "gongsi") == "攻丝" && first(plain, "wozaigongsi") == "我在攻丝" && first(plain, "gongsihenda") == "攻丝很大");
+
+    // One selection's worth of bonus (log 2) lifts a close homophone alone,
+    // in another sentence and at the start of one. The table is shared: the
+    // change applies at the next refresh.
+    assert(mpn_personal_set(personal, 1, "gongsi", "公司", std::log1p(1.0)));
+    const auto single = run(learning, "gongsi").first;
+    assert(single[0].text == "公司" && single[1].text == "攻丝" && single[2].text == "公私" && single.size() == run(plain, "gongsi").first.size());
+    assert(first(learning, "wozaigongsi") == "我在公司" && first(learning, "gongsihenda") == "公司很大");
+    // Other readings are untouched, including one that shares a prefix.
+    assert(run(plain, "gongshi") == run(learning, "gongshi") && run(plain, "shijianhenchang") == run(learning, "shijianhenchang"));
+    // Traditional output keeps its own table.
+    mpn_set_simplified(learning, 0); mpn_set_simplified(plain, 0);
+    assert(run(plain, "gongsi") == run(learning, "gongsi") && first(learning, "gongsi") == "攻絲");
+    mpn_set_simplified(learning, 1); mpn_set_simplified(plain, 1);
+
+    // Capped: even an absurd bonus counts as three nats, which cannot carry a
+    // word seven nats down the list past its homophones.
+    mpn_personal_clear(personal);
+    assert(mpn_personal_set(personal, 1, "gongsi", "公私", 100));
+    assert(first(learning, "gongsi") == "攻丝" && first(learning, "wozaigongsi") == "我在攻丝");
+    // Below the leader a word rises by its full bonus; 时 trails 是 by 1.43 nats.
+    mpn_personal_clear(personal);
+    assert(mpn_personal_set(personal, 1, "shi", "时", 1.1) && first(learning, "shi") == "是");
+    assert(mpn_personal_set(personal, 1, "shi", "时", 1.5) && first(learning, "shi") == "时");
+    // A longer word is not split apart: 是 and 见 at the cap are already the
+    // best of their readings, so they gain a fifth of it, 0.6 nats each,
+    // against the 4.7 nats that 时间 leads by. (At full value, 2 x 3 nats
+    // would turn 时间很长 into 是见很长.)
+    mpn_personal_clear(personal);
+    assert(mpn_personal_set(personal, 1, "shi", "是", 3) && mpn_personal_set(personal, 1, "jian", "见", 3));
+    assert(first(plain, "shijianhenchang") == "时间很长" && first(learning, "shijianhenchang") == "时间很长");
+    assert(first(learning, "shijian") == "时间");
+    // Removing entries restores the original lists exactly.
+    assert(mpn_personal_set(personal, 1, "shi", "是", 0) && mpn_personal_set(personal, 1, "jian", nullptr, 0));
+    unchanged();
+    // The handle can go; attached sessions keep the table until detached.
+    assert(mpn_personal_set(personal, 1, "gongsi", "公司", 1));
+    mpn_personal_destroy(personal);
+    assert(first(learning, "gongsi") == "公司");
+    mpn_set_personal(learning, nullptr);
+    assert(run(plain, "gongsi") == run(learning, "gongsi"));
+    assert(!mpn_personal_set(nullptr, 1, "gongsi", "公司", 1));
+
+    // The words of a candidate, for learning: fewest dictionary words, untoned
+    // readings, separators dropped; nothing for invalid indices.
+    mpn_clear(learning); type(learning, "wozaigongsi");
+    assert(std::string(mpn_candidate(learning, 0)) == "我在攻丝");
+    assert(std::string(mpn_candidate_words(learning, 0)) == "wo\t我\nzai\t在\ngongsi\t攻丝\n");
+    assert(!*mpn_candidate_words(learning, mpn_candidate_count(learning)) && !*mpn_candidate_words(nullptr, 0));
+    for (size_t i = 0; i < mpn_candidate_count(learning); ++i) {
+        // A leading segment covers only the keys it consumes.
+        if (std::string(mpn_candidate(learning, i)) == "我" && mpn_candidate_consumed(learning, i) == 2)
+            assert(std::string(mpn_candidate_words(learning, i)) == "wo\t我\n");
+    }
+    mpn_clear(learning); type(learning, "xi'an");
+    assert(std::string(mpn_candidate(learning, 0)) == "西安" && std::string(mpn_candidate_words(learning, 0)) == "xian\t西安\n");
+    mpn_clear(learning); type(learning, "shijian");
+    assert(std::string(mpn_candidate_words(learning, 0)) == "shijian\t时间\n");
+    mpn_set_simplified(learning, 0);
+    assert(std::string(mpn_candidate(learning, 0)) == "時間" && std::string(mpn_candidate_words(learning, 0)) == "shijian\t時間\n");
+    // A keyboard correction is not a spelling of the typed keys.
+    mpn_set_simplified(learning, 1);
+    mpn_clear(learning); type(learning, "gonsgi");
+    for (size_t i = 0; i < mpn_candidate_count(learning); ++i)
+        if (mpn_candidate_consumed(learning, i) == 6) assert(!*mpn_candidate_words(learning, i));
+    mpn_session_destroy(plain); mpn_session_destroy(learning); mpn_lexicon_destroy(lexicon);
+}
+
 int main(int argc, char **argv) {
+    verifyPersonalWords();
     verifyLazyExpansion();
     verifyLeadingWords();
     verifyCompositionStatistics();

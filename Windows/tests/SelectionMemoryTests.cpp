@@ -1,5 +1,7 @@
 #include "../SelectionMemory.h"
 #include <cassert>
+#include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <optional>
@@ -62,6 +64,91 @@ static void model() {
     const std::string mixed = "1\ts\tni\t你\nbroken\n0\ts\tni\t尼\n1\tx\tni\t泥\n\t\t\t\n1\ts\tNI\t你\n2\tt\tni\t妳\r\n1\ts\tni\t拟";
     assert(damaged.replay(mixed) == mixed.rfind('\n') + 1); // The unterminated last row waits for its newline.
     assert(damaged.recall("ni", true) == Texts{"你"} && damaged.recall("ni", false) == Texts{"妳"} && damaged.size() == 2);
+}
+
+// CN-06c word weights: growth, cap, correction, decay, bounds and rows.
+static void words() {
+    constexpr int64_t hour = 480000; // Any hour since 1970.
+    const auto same = [](double a, double b) { return std::abs(a - b) < 1e-9; };
+    WordModel model;
+    assert(model.bonus("gongsi", "公司", true, hour) == 0 && model.size() == 0);
+    // One selection: log 2 nats. Growth is logarithmic and capped.
+    const auto revision = model.revision();
+    assert(model.select("gongsi", "公司", true, hour) && model.revision() != revision);
+    assert(same(model.bonus("gongsi", "公司", true, hour), std::log1p(1.0)));
+    assert(model.select("gongsi", "公司", true, hour) && same(model.bonus("gongsi", "公司", true, hour), std::log1p(2.0)));
+    for (int i = 0; i < 50; ++i) model.select("gongsi", "公司", true, hour);
+    assert(same(model.weight("gongsi", "公司", true, hour), MaxWeight) && model.bonus("gongsi", "公司", true, hour) == BonusCap);
+    // Decay: half after HalfLifeHours, forgotten once the weight falls below MinWeight.
+    assert(same(model.weight("gongsi", "公司", true, hour + int64_t(HalfLifeHours)), MaxWeight / 2));
+    assert(model.bonus("gongsi", "公司", true, hour + int64_t(HalfLifeHours) * 9) == 0);
+    // Scripts and readings are separate; separators and bad text are refused.
+    assert(model.bonus("gongsi", "公司", false, hour) == 0 && model.bonus("gongshi", "公司", true, hour) == 0);
+    assert(!model.select("xi'an", "西安", true, hour) && !model.select("", "是", true, hour) && !model.select("shi", "a\tb", true, hour));
+    assert(!model.select("Shi", "是", true, hour) && !model.select("shi", "是", true, 0));
+
+    // A single slip fades and is undone by a single correction: the other
+    // word of the reading halves while the correction gains one.
+    WordModel slip;
+    slip.select("shiyan", "试验", true, hour);
+    assert(same(slip.bonus("shiyan", "试验", true, hour + int64_t(HalfLifeHours)), std::log1p(0.5)));
+    slip.select("shiyan", "实验", true, hour + 1);
+    assert(slip.bonus("shiyan", "实验", true, hour + 1) > slip.bonus("shiyan", "试验", true, hour + 1));
+    // Even a habit at the cap is overturned by a few corrections.
+    WordModel habit;
+    for (int i = 0; i < 40; ++i) habit.select("shiyan", "试验", true, hour);
+    int corrections = 0;
+    while (habit.bonus("shiyan", "实验", true, hour) <= habit.bonus("shiyan", "试验", true, hour)) {
+        habit.select("shiyan", "实验", true, hour); ++corrections;
+    }
+    assert(corrections == 3);
+    // A word of another reading is not a competitor.
+    habit.select("shi", "是", true, hour);
+    assert(same(habit.weight("shiyan", "实验", true, hour), 3));
+    // Bounded per reading and in total.
+    WordModel bounded;
+    for (size_t i = 0; i < MaxPerReading + 3; ++i) bounded.select("yi", "text" + std::to_string(i), true, hour);
+    assert(bounded.size() <= MaxPerReading && bounded.bonus("yi", "text" + std::to_string(MaxPerReading + 2), true, hour) > 0);
+    WordModel large;
+    for (size_t i = 0; i <= MaxEntries; ++i) {
+        std::string reading;
+        for (size_t value = i; reading.size() < 4; value /= 26) reading += static_cast<char>('a' + value % 26);
+        large.select(reading, "x", true, hour);
+    }
+    assert(large.size() < MaxEntries && large.size() > MaxEntries * 8 / 10 && large.bonus("aaaa", "x", true, hour) == 0);
+    // Every bonus at an hour, for the core's table.
+    size_t listed = 0;
+    model.each(hour, [&](bool simplified, std::string_view reading, const std::string &text, double bonus) {
+        assert(simplified && reading == "gongsi" && text == "公司" && bonus == BonusCap); ++listed;
+    });
+    assert(listed == 1);
+
+    // Rows: selections replay with the same competition; a compacted
+    // snapshot replays to the same weights; broken rows are skipped singly.
+    const std::string events = WordModel::event("shiyan", "试验", true, hour) + WordModel::event("shiyan", "试验", true, hour) +
+        WordModel::event("shiyan", "实验", true, hour) + WordModel::event("gongsi", "公司", false, hour + 2);
+    assert(events.substr(0, 25) == "+\ts\tshiyan\t试验\t480000\n");
+    WordModel replayed;
+    assert(replayed.replay(events) == events.size());
+    assert(same(replayed.weight("shiyan", "试验", true, hour), 1) && same(replayed.weight("shiyan", "实验", true, hour), 1));
+    assert(replayed.bonus("gongsi", "公司", false, hour) > 0 && replayed.bonus("gongsi", "公司", true, hour) == 0);
+    WordModel restored;
+    const auto rows = replayed.snapshot();
+    assert(rows.find("=100\ts\tshiyan\t实验\t480002\n") != rows.npos);
+    assert(restored.replay(rows) == rows.size());
+    for (const auto *text : {"试验", "实验"})
+        assert(std::abs(restored.weight("shiyan", text, true, hour + 9) - replayed.weight("shiyan", text, true, hour + 9)) < 0.01);
+    WordModel damaged;
+    const std::string mixed = "+\ts\tni\t你\t480000\nbroken\n+\tx\tni\t泥\t480000\n+\ts\tni\t泥\t0\n+\ts\tni\t泥\t48x\n"
+        "=0\ts\tni\t泥\t480000\n=9999\ts\tni\t泥\t480000\n+\ts\tni\t泥\t480000\textra\n1\ts\tni\t泥\n+\tt\tni\t妳\t480000\r\n+\ts\tni\t拟\t480000";
+    assert(damaged.replay(mixed) == mixed.rfind('\n') + 1);
+    assert(damaged.size() == 2 && damaged.bonus("ni", "你", true, hour) > 0 && damaged.bonus("ni", "妳", false, hour) > 0);
+    // Neither format reads the other's rows, so an older version that met a
+    // word row (or this version a phrase row) would skip it, not fail.
+    Model old;
+    assert(old.replay(events + rows) == (events + rows).size() && old.size() == 0);
+    WordModel fresh;
+    assert(fresh.replay("1\ts\tni\t你\n3\tt\tshi\t是\n") > 0 && fresh.size() == 0);
 }
 
 static void candidates() {
@@ -150,6 +237,100 @@ static void store(const std::filesystem::path &folder) {
     assert(!oversized.flush() && std::filesystem::file_size(path) == MaxFile + 1);
 }
 
+using Clock = std::chrono::steady_clock;
+static double since(Clock::time_point start) { return std::chrono::duration<double, std::milli>(Clock::now() - start).count(); }
+
+// CN-06c journal beside the phrase journal: sharing, clearing, compaction,
+// and the cost of the reads and writes made on the input thread.
+static void storeWords(const std::filesystem::path &folder) {
+    constexpr int64_t hour = 480000;
+    const auto path = folder / L"selection-memory.tsv", words = folder / L"selection-memory-words.tsv";
+    {
+        Store first(path), second(path);
+        assert(first.wordsFile() == words);
+        first.poll(1000); second.poll(1000);
+        first.recordWord("gongsi", "公司", true, hour);
+        assert(first.words().bonus("gongsi", "公司", true, hour) > 0 && !std::filesystem::exists(words));
+        assert(first.flush() && bytes(words) == "+\ts\tgongsi\t公司\t480000\n" && !std::filesystem::exists(path));
+        // A phrase row goes to its own file; the word file is untouched.
+        first.record("wozai", "我在", true);
+        assert(first.flush() && bytes(path) == "1\ts\twozai\t我在\n" && bytes(words) == "+\ts\tgongsi\t公司\t480000\n");
+        // Another process sees the word once, and its own rows are not counted twice.
+        second.poll(4000);
+        assert(second.words().weight("gongsi", "公司", true, hour) == 1 && second.recall("wozai", true) == Texts{"我在"});
+        second.recordWord("gongsi", "攻丝", true, hour);
+        first.recordWord("gongsi", "公司", true, hour);
+        assert(second.flush() && first.flush());
+        first.poll(8000); second.poll(8000);
+        assert(second.words().weight("gongsi", "攻丝", true, hour) > 0 && first.words().weight("gongsi", "攻丝", true, hour) > 0);
+        assert(second.words().weight("gongsi", "公司", true, hour) > 1);
+        // Clearing (the management tool truncates both files) clears every process.
+        const auto revision = first.words().revision();
+        std::filesystem::resize_file(words, 0); std::filesystem::resize_file(path, 0);
+        first.poll(12000); second.poll(12000);
+        assert(first.words().size() == 0 && second.words().size() == 0 && first.recall("wozai", true).empty());
+        assert(first.words().revision() != revision);
+        std::filesystem::remove(words);
+        first.recordWord("shi", "是", true, hour);
+        assert(first.flush() && bytes(words) == "+\ts\tshi\t是\t480000\n");
+    }
+    // A long word journal is rewritten as current weights on the next start.
+    {
+        std::ofstream file(words, std::ios::binary | std::ios::trunc);
+        std::string rows;
+        for (int i = 0; rows.size() < CompactAt + 100; ++i)
+            rows += WordModel::event("gongsi", i % 3 ? "公司" : "攻丝", true, hour + i / 1000);
+        file << rows << "junk\n";
+    }
+    Store compacted(path);
+    WordModel expected;
+    expected.replay(bytes(words));
+    compacted.poll(1000);
+    const auto text = bytes(words);
+    assert(text.size() < 200 && text.find("junk") == text.npos && text.find("\ts\tgongsi\t公司\t") != text.npos && text[0] == '=');
+    for (const auto *word : {"公司", "攻丝"})
+        assert(std::abs(compacted.words().weight("gongsi", word, true, hour + 100) - expected.weight("gongsi", word, true, hour + 100)) < 0.01);
+
+    // Measured cost with thousands of learned words (not asserted; reported).
+    {
+        std::filesystem::remove(words);
+        Store writer(path);
+        writer.poll(1000);
+        std::string reading;
+        for (size_t i = 0; i < 5000; ++i) {
+            reading.clear();
+            for (size_t value = i; reading.size() < 5; value /= 26) reading += static_cast<char>('a' + value % 26);
+            writer.recordWord(reading, "词" + std::to_string(i % 7), true, hour);
+            if (i % 1000 == 999) assert(writer.flush()); // One append stays below 64 KiB.
+        }
+        const auto size = std::filesystem::file_size(words);
+        auto start = Clock::now();
+        Store reader(path); reader.poll(1000);
+        const double load = since(start);
+        assert(reader.words().size() == 5000);
+        double append = 0, refresh = 0, worstAppend = 0, worstRefresh = 0;
+        constexpr int rounds = 200;
+        for (int i = 0; i < rounds; ++i) {
+            // One finished composition of four words, then the other process's next look.
+            start = Clock::now();
+            for (int w = 0; w < 4; ++w) writer.recordWord("ceshi", "测试" + std::to_string(w), true, hour);
+            assert(writer.flush());
+            const double a = since(start);
+            start = Clock::now();
+            reader.poll(10000 + 3000 * ULONGLONG(i));
+            const double r = since(start);
+            append += a; refresh += r; worstAppend = (std::max)(worstAppend, a); worstRefresh = (std::max)(worstRefresh, r);
+        }
+        start = Clock::now();
+        size_t listed = 0;
+        reader.words().each(hour, [&](bool, std::string_view, const std::string &, double) { ++listed; });
+        const double enumerate = since(start);
+        std::cout << "MEASURE: " << reader.words().size() << " words, journal " << size << " bytes; first load " << load
+                  << " ms; append of 4 words mean " << append / rounds << " ms (max " << worstAppend << "); other-process refresh mean "
+                  << refresh / rounds << " ms (max " << worstRefresh << "); enumerate " << listed << " bonuses " << enumerate << " ms\n";
+    }
+}
+
 static void preference() {
     const std::wstring name = L"Software\\HarukotoSelectionMemoryTest-" + std::to_wstring(GetCurrentProcessId());
     HKEY root = nullptr;
@@ -169,10 +350,13 @@ static void preference() {
 
 int wmain(int argc, wchar_t **argv) {
     assert(argc == 2);
-    model(); candidates(); preference();
+    model(); words(); candidates(); preference();
     const auto folder = std::filesystem::path(argv[1]) / (L"selection-memory-" + std::to_wstring(GetCurrentProcessId()));
     std::filesystem::create_directories(folder);
     store(folder);
+    const auto wordsFolder = folder / L"words";
+    std::filesystem::create_directories(wordsFolder);
+    storeWords(wordsFolder);
     std::error_code ignored; std::filesystem::remove_all(folder, ignored);
-    std::cout << "PASS: selection memory ranking, journal sharing, clearing, compaction and switch\n";
+    std::cout << "PASS: selection memory ranking, word weights, journal sharing, clearing, compaction and switch\n";
 }

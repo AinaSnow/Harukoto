@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
+#include <map>
 #include <memory>
 #include <numeric>
 #include <set>
@@ -40,6 +42,12 @@ constexpr double pair_cap = 6.0;
 // dictionary word is weak evidence, while an editorial context phrase is a
 // deliberate statement and outweighs a typical collocation.
 constexpr double derived_join_scale = 0.5, authored_join_scale = 1.5;
+// CN-06c: personal word preferences supplied by the host, in nats on the same
+// scale as word scores. The cap bounds what any learned word can gain; above
+// the best competing word of the same reading only a fifth of the bonus
+// counts, so learning reorders homophones and moves a reading's best score by
+// at most 0.6 nats, which cannot split a longer dictionary word apart.
+constexpr double personal_cap = 3.0, personal_lead = 0.2;
 
 bool is_tone(char key, bool pinyin = false) { return pinyin ? key >= '1' && key <= '5' : tones.find(key) != std::string_view::npos; }
 
@@ -495,6 +503,31 @@ struct Reading {
 
 struct Fallback { std::string text; size_t consumed; double score; };
 
+// Per-script personal bonuses keyed by a word's untoned reading (its lexicon
+// bucket) and then its text in that script. Owned by the host through
+// MPNPersonal; sessions only read it.
+struct Personal {
+    using Texts = std::map<std::string, double, std::less<>>;
+    std::array<std::map<std::string, Texts, std::less<>>, 2> readings; // [hans]
+
+    const Texts *find(bool hans, std::string_view sounds) const {
+        const auto &table = readings[hans ? 1 : 0];
+        if (table.empty()) return nullptr;
+        const auto found = table.find(sounds);
+        return found == table.end() ? nullptr : &found->second;
+    }
+    static double bonus(const Texts *texts, std::string_view text) {
+        if (!texts) return 0;
+        const auto found = texts->find(text);
+        return found == texts->end() ? 0 : found->second;
+    }
+    // A learned word rises by its bonus, but past the best competing word of
+    // the same reading (top) only by personal_lead of it.
+    static double lifted(double base, double bonus, double top) {
+        return bonus > 0 ? std::min(base + bonus, std::max(base, top) + personal_lead * bonus) : base;
+    }
+};
+
 bool has_exact_match(const Lexicon &lexicon, std::string_view input) {
     const Reading reading(input, lexicon.pinyin);
     const auto range = lexicon.range(reading.sounds);
@@ -662,7 +695,8 @@ struct Candidate {
 };
 
 std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, bool hans, bool completeOnly = false,
-                                std::vector<CandidateMetadata> *metadata = nullptr, bool *singleCharacterReading = nullptr, size_t expandedBeam = 0) {
+                                std::vector<CandidateMetadata> *metadata = nullptr, bool *singleCharacterReading = nullptr, size_t expandedBeam = 0,
+                                const Personal *personal = nullptr) {
     const Reading reading(input, lexicon.pinyin);
     const size_t length = reading.sounds.size();
     if (length == 0) return {};
@@ -711,16 +745,46 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
     if (singleCharacterReading) *singleCharacterReading = singleReading;
     const auto result_limit = expandedBeam ? std::max(candidate_limit, lexicon.words.size()) :
         (singleReading ? single_character_candidate_limit : candidate_limit);
+    const auto *wholeLearned = personal ? personal->find(hans, reading.sounds) : nullptr;
+    std::vector<double> exactScores;
     for (size_t index = whole.first; index < whole.second; ++index) {
         const auto &word = lexicon.word(index, hans);
         if ((!completeOnly || fully_spelled(word)) && reading.matches(word, 0, length)) {
             const auto kind = !reading.unambiguous ? MPN_CANDIDATE_UNKNOWN :
                 (lexicon.pinyin && !fully_spelled(word) ? MPN_CANDIDATE_CORRECTION :
                  (verifiedSpelling(word) ? MPN_CANDIDATE_EXACT : MPN_CANDIDATE_UNKNOWN));
+            const auto before = results.size();
             append(word.text(hans), {static_cast<uint32_t>(kind), MPN_SCORE_LEXICON, double(word.score(hans))});
+            if (wholeLearned && results.size() != before) exactScores.push_back(word.score(hans) / 700.0);
         }
-        if (results.size() == result_limit) return results;
+        if (results.size() == result_limit) break;
     }
+    if (wholeLearned && !results.empty()) {
+        // CN-06c: learned homophones of the whole reading move forward. The
+        // list arrives in descending frequency, so a stable sort leaves every
+        // unlearned word where it was.
+        std::vector<double> keys(results.size());
+        bool learned = false;
+        for (size_t i = 0; i < results.size(); ++i) {
+            const double bonus = Personal::bonus(wholeLearned, results[i]);
+            learned = learned || bonus > 0;
+            keys[i] = Personal::lifted(exactScores[i], bonus, exactScores.front());
+        }
+        if (learned) {
+            std::vector<size_t> order(results.size());
+            std::iota(order.begin(), order.end(), size_t{0});
+            std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) { return keys[a] > keys[b]; });
+            std::vector<std::string> sorted;
+            std::vector<CandidateMetadata> sortedMetadata;
+            for (const auto i : order) {
+                sorted.push_back(std::move(results[i]));
+                if (metadata) sortedMetadata.push_back((*metadata)[i]);
+            }
+            results = std::move(sorted);
+            if (metadata) *metadata = std::move(sortedMetadata);
+        }
+    }
+    if (results.size() == result_limit) return results;
 
     // Keep the first page of exact single-syllable characters intact: a
     // nasal correction like ban should not displace bang's common characters.
@@ -761,10 +825,17 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
         std::vector<Path> paths;
         for (size_t end = start + 1; end <= std::min(length, start + lexicon.longest); ++end) {
             if (suffixes[end].empty() || (start == 0 && end == length)) continue;
-            const auto options = lexicon.range(std::string_view(reading.sounds).substr(start, end - start));
+            const auto span = std::string_view(reading.sounds).substr(start, end - start);
+            const auto options = lexicon.range(span);
+            // CN-06c: learned words of this reading. They also join the beam
+            // from beyond its usual width, within a bounded scan.
+            const auto *learned = personal ? personal->find(hans, span) : nullptr;
+            size_t learnedLeft = learned ? learned->size() : 0;
+            double top = -std::numeric_limits<double>::infinity();
             std::vector<std::string_view> used_spellings;
             used_spellings.reserve(pathLimit);
             for (size_t index = options.first; index < options.second; ++index) {
+                if (used_spellings.size() >= pathLimit && (!learnedLeft || index - options.first >= 4096)) break;
                 const auto &word = lexicon.word(index, hans);
                 if (completeOnly && !fully_spelled(word)) continue;
                 if (!reading.matches(word, start, end)) continue;
@@ -774,11 +845,16 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                 // out different words and sentence interpretations.
                 const auto spelling = word.text(true);
                 if (std::find(used_spellings.begin(), used_spellings.end(), spelling) != used_spellings.end()) continue;
+                const double bonus = Personal::bonus(learned, word.text(hans));
+                if (used_spellings.size() >= pathLimit && bonus <= 0) continue;
                 used_spellings.push_back(spelling);
+                if (bonus > 0 && learnedLeft) --learnedLeft;
                 // Compiler weights are already log-frequency priors. Logging them again
                 // erases the distinction between common phrases and rare fragments.
                 // The correction moves a word towards its frequency in running text.
-                const double score = static_cast<double>(word.score(hans)) / 700.0 - 19.0 + word.prior / 100.0;
+                const double base = static_cast<double>(word.score(hans)) / 700.0 - 19.0 + word.prior / 100.0;
+                top = std::max(top, base);
+                const double score = Personal::lifted(base, bonus, top);
                 const bool verified = verifiedSpelling(word);
                 for (const auto &suffix : suffixes[end]) {
                     const auto traditional = word.text(false);
@@ -795,7 +871,6 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                         word.pair,
                     });
                 }
-                if (used_spellings.size() == pathLimit) break;
             }
         }
         std::sort(paths.begin(), paths.end(), [](const Path &a, const Path &b) {
@@ -831,7 +906,8 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
 // An unfinished initial can disambiguate the previous character: ㄒㄧㄏ
 // can continue as 喜歡, for instance. Consult bounded dictionary completions
 // rather than promoting a single context-free homophone.
-std::vector<Fallback> predictive_segments_at(const Lexicon &lexicon, std::string_view input, bool hans, size_t tail) {
+std::vector<Fallback> predictive_segments_at(const Lexicon &lexicon, std::string_view input, bool hans, size_t tail,
+                                             const Personal *personal = nullptr) {
     if (input.size() < 4 || input.size() > 64 || has_exact_match(lexicon, input)) return {};
     const size_t count = input.size() - tail;
     const auto suffix = input.substr(count);
@@ -841,7 +917,7 @@ std::vector<Fallback> predictive_segments_at(const Lexicon &lexicon, std::string
     } else if (keys.substr(0, 21).find(suffix.front()) == std::string_view::npos ||
                std::any_of(suffix.begin(), suffix.end(), [](char c) { return is_tone(c) || c == '\''; })) return {};
     if (input[count - 1] == '\'') return {};
-    auto phrases = decode(lexicon, input.substr(0, count), hans, lexicon.pinyin);
+    auto phrases = decode(lexicon, input.substr(0, count), hans, lexicon.pinyin, nullptr, nullptr, 0, personal);
     if (phrases.empty()) return {};
     struct Scored { Fallback item; int evidence; size_t order; };
     std::vector<Scored> scored;
@@ -905,10 +981,10 @@ std::vector<Fallback> predictive_segments_at(const Lexicon &lexicon, std::string
     return result;
 }
 
-std::vector<Fallback> predictive_segments(const Lexicon &lexicon, std::string_view input, bool hans) {
+std::vector<Fallback> predictive_segments(const Lexicon &lexicon, std::string_view input, bool hans, const Personal *personal = nullptr) {
     if (input.size() < 4 || input.size() > 64) return {};
     for (size_t tail = 1; tail <= std::min(size_t(3), input.size() - 1); ++tail) {
-        auto result = predictive_segments_at(lexicon, input, hans, tail);
+        auto result = predictive_segments_at(lexicon, input, hans, tail, personal);
         if (!result.empty()) return result;
     }
     return {};
@@ -916,7 +992,8 @@ std::vector<Fallback> predictive_segments(const Lexicon &lexicon, std::string_vi
 
 // A complete pinyin sentence can also be selected in smaller pieces. Only
 // offer a split if both sides decode as fully spelled readings.
-std::pair<std::vector<Fallback>, size_t> pinyin_segments(const Lexicon &lexicon, std::string_view input, bool hans) {
+std::pair<std::vector<Fallback>, size_t> pinyin_segments(const Lexicon &lexicon, std::string_view input, bool hans,
+                                                         const Personal *personal = nullptr) {
     if (!lexicon.pinyin || input.size() < 6 || input.size() > 64) return {};
     std::vector<Fallback> result, alternatives;
     size_t inspected = 0;
@@ -926,7 +1003,7 @@ std::pair<std::vector<Fallback>, size_t> pinyin_segments(const Lexicon &lexicon,
         const auto suffix = input.substr(cut);
         if (decode(lexicon, suffix, hans, true).empty()) continue;
         ++inspected;
-        auto phrases = decode(lexicon, input.substr(0, cut), hans, true);
+        auto phrases = decode(lexicon, input.substr(0, cut), hans, true, nullptr, nullptr, 0, personal);
         if (phrases.empty()) continue;
         auto &text = phrases.front();
         if (std::count_if(text.begin(), text.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; }) >= 2) {
@@ -1019,7 +1096,8 @@ bool incomplete_pinyin_syllable(const Lexicon &lexicon, std::string_view suffix)
 // Preserve a sentence built from several dictionary entries while its next
 // syllable is incomplete. Selection commits only the completed prefix.
 std::vector<Fallback> unfinished_sentence(const Lexicon &lexicon, std::string_view input, bool hans,
-                                          bool onsetOnly = false, bool syllableOnly = false, size_t after = 0) {
+                                          bool onsetOnly = false, bool syllableOnly = false, size_t after = 0,
+                                          const Personal *personal = nullptr) {
     if (!lexicon.pinyin || input.size() < 4 || input.size() > max_input) return {};
     for (size_t tail = 1; tail <= std::min(size_t(5), input.size() - 1); ++tail) {
         if (input.size() - tail <= after) break;
@@ -1037,7 +1115,7 @@ std::vector<Fallback> unfinished_sentence(const Lexicon &lexicon, std::string_vi
             [](const Lexicon::Bucket &bucket, std::string_view value) { return bucket.key < value; });
         if (possible == lexicon.buckets.end() || possible->key.substr(0, suffix.size()) != suffix) continue;
         const size_t count = input.size() - tail;
-        auto phrases = decode(lexicon, input.substr(0, count), hans, true);
+        auto phrases = decode(lexicon, input.substr(0, count), hans, true, nullptr, nullptr, 0, personal);
         std::vector<Fallback> result;
         for (const auto &phrase : phrases) {
             const auto characters = std::count_if(phrase.begin(), phrase.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; });
@@ -1052,11 +1130,11 @@ std::vector<Fallback> unfinished_sentence(const Lexicon &lexicon, std::string_vi
 // Offer completed Zhuyin prefixes while keeping all following raw keys intact.
 // Explicit tones are reliable syllable boundaries; when tones are omitted, a
 // few additional boundaries before an initial can be decoded from the lexicon.
-std::vector<Fallback> zhuyin_segments(const Lexicon &lexicon, std::string_view input, bool hans) {
+std::vector<Fallback> zhuyin_segments(const Lexicon &lexicon, std::string_view input, bool hans, const Personal *personal = nullptr) {
     if (lexicon.pinyin || input.size() < 4) return {};
     std::vector<Fallback> result, alternatives;
     auto collect = [&](size_t count) {
-        auto phrases = decode(lexicon, input.substr(0, count), hans);
+        auto phrases = decode(lexicon, input.substr(0, count), hans, false, nullptr, nullptr, 0, personal);
         if (phrases.empty()) return;
         const bool newest = result.empty();
         auto &phrase = phrases.front();
@@ -1092,12 +1170,62 @@ std::vector<Fallback> zhuyin_segments(const Lexicon &lexicon, std::string_view i
     for (auto &item : alternatives) result.push_back(std::move(item));
     return result;
 }
+
+// CN-06c: the fewest fully spelled dictionary words that spell text over the
+// sounds of input, as (untoned reading, text) pairs. Empty when there is no
+// such split: corrections, abbreviations and anything not from the lexicon
+// are not learned word by word. Runs once per confirmed selection.
+std::vector<std::pair<std::string, std::string>> composition(const Lexicon &lexicon, std::string_view input,
+                                                             std::string_view text, bool hans) {
+    if (!lexicon.pinyin || input.empty() || text.empty() || input.size() > 96 || text.size() > 512) return {};
+    const Reading reading(input, true);
+    const auto &sounds = reading.sounds;
+    if (sounds.empty()) return {};
+    struct Step { size_t from, done; size_t words; std::string_view piece; };
+    // Keyed by (sounds consumed, text bytes consumed). std::map visits states
+    // in order of sounds consumed, so every state is final before expansion.
+    std::map<std::pair<size_t, size_t>, Step> reached{{{0, 0}, {0, 0, 0, {}}}};
+    size_t scanned = 0;
+    for (auto state = reached.begin(); state != reached.end(); ++state) {
+        const auto [at, done] = state->first;
+        if (at == sounds.size()) continue;
+        for (size_t end = at + 1; end <= std::min(sounds.size(), at + lexicon.longest); ++end) {
+            const auto range = lexicon.range(std::string_view(sounds).substr(at, end - at));
+            for (size_t i = range.first; i < range.second; ++i) {
+                if (++scanned > 200000) return {};
+                const auto &word = lexicon.words[i];
+                const auto piece = word.text(hans);
+                if (piece.size() > text.size() - done || text.compare(done, piece.size(), piece) != 0) continue;
+                if (!fully_spelled(word) || !reading.matches(word, at, end)) continue;
+                const auto key = std::make_pair(end, done + piece.size());
+                const auto found = reached.find(key);
+                if (found == reached.end() || found->second.words > state->second.words + 1)
+                    reached[key] = {at, done, state->second.words + 1, piece};
+            }
+        }
+    }
+    auto found = reached.find({sounds.size(), text.size()});
+    if (found == reached.end()) return {};
+    std::vector<std::pair<std::string, std::string>> result;
+    for (auto key = found->first; key.first;) {
+        const auto &step = reached.at(key);
+        result.emplace_back(sounds.substr(step.from, key.first - step.from), std::string(step.piece));
+        key = {step.from, step.done};
+    }
+    std::reverse(result.begin(), result.end());
+    return result;
+}
 } // namespace
 
 struct MPNLexicon { std::shared_ptr<const Lexicon> value; };
+struct MPNPersonal { std::shared_ptr<Personal> value = std::make_shared<Personal>(); };
 struct MPNSession {
     struct JapaneseWord { std::string reading, text; int weight; };
     std::shared_ptr<const Lexicon> lexicon;
+    // CN-06c: optional, shared with the host's MPNPersonal; null or empty
+    // leaves every result exactly as without it.
+    std::shared_ptr<const Personal> personal;
+    std::string candidateWords;
     std::string input, preedit, committed, mixedPinyin, segmentContext, exactPinyin, customChinese;
     std::vector<JapaneseWord> japanese;
     std::vector<Candidate> candidates;
@@ -1106,6 +1234,8 @@ struct MPNSession {
     bool hans = false;
     bool requireFullCandidate = false;
     size_t sentenceCount = 0, literalTail = 0;
+
+    const Personal *learned() const { return personal.get(); }
 
     void reset() {
         input.clear();
@@ -1132,7 +1262,7 @@ struct MPNSession {
             });
             if (!hasReading) continue;
             const size_t cut = input.size() - tail;
-            auto phrases = decode(*lexicon, std::string_view(input).substr(0, cut), hans, true);
+            auto phrases = decode(*lexicon, std::string_view(input).substr(0, cut), hans, true, nullptr, nullptr, 0, learned());
             std::vector<Fallback> result;
             for (auto &phrase : phrases) {
                 const auto characters = std::count_if(phrase.begin(), phrase.end(),
@@ -1152,7 +1282,7 @@ struct MPNSession {
         else for (char key : input) marked += symbols[keys.find(key)];
         std::vector<CandidateMetadata> metadata;
         bool singleReading = false;
-        auto decoded = decode(*lexicon, input, hans, false, &metadata, &singleReading);
+        auto decoded = decode(*lexicon, input, hans, false, &metadata, &singleReading, 0, learned());
         std::vector<Candidate> ranked;
         ranked.reserve(decoded.size());
         for (size_t i = 0; i < decoded.size(); ++i)
@@ -1192,7 +1322,7 @@ struct MPNSession {
                 if (ranked.size() > ranked_limit) ranked.pop_back();
             }
         } else prepend(partial);
-        auto predictive = predictive_segments(*lexicon, input, hans);
+        auto predictive = predictive_segments(*lexicon, input, hans, learned());
         if (!predictive.empty()) {
             const bool noComplete = lexicon->pinyin ? !hasCompleteReading() : ranked.empty();
             if (noComplete) prepend(predictive);
@@ -1215,7 +1345,7 @@ struct MPNSession {
             const size_t consumed = std::max(partial.front().consumed,
                 predictive.empty() ? size_t(0) : predictive.front().consumed);
             if (consumed + 1 < input.size() && !hasCompleteReading()) {
-                auto longer = unfinished_sentence(*lexicon, input, hans, false, true, consumed);
+                auto longer = unfinished_sentence(*lexicon, input, hans, false, true, consumed, learned());
                 prepend(longer);
             }
         }
@@ -1229,11 +1359,11 @@ struct MPNSession {
             (input.size() <= 64 ? !hasCompleteReading() :
                 !((input.back() == 'g' && input[input.size() - 2] == 'n') ||
                   (input.back() == 'r' && input[input.size() - 2] == 'e')))) {
-            auto sentence = unfinished_sentence(*lexicon, input, hans, true);
+            auto sentence = unfinished_sentence(*lexicon, input, hans, true, false, 0, learned());
             prepend(sentence);
         }
         if (ranked.empty()) {
-            for (auto &item : unfinished_sentence(*lexicon, input, hans)) {
+            for (auto &item : unfinished_sentence(*lexicon, input, hans, false, false, 0, learned())) {
                 ranked.push_back(partialCandidate(item));
             }
         }
@@ -1242,7 +1372,7 @@ struct MPNSession {
             !has_exact_match(*lexicon, input)) {
             // Do not let abbreviation chains such as 狄歐尼 hide a completed
             // Chinese phrase while its next real pinyin syllable is unfinished.
-            auto sentence = unfinished_sentence(*lexicon, input, hans, false, true);
+            auto sentence = unfinished_sentence(*lexicon, input, hans, false, true, 0, learned());
             if (!sentence.empty() && !hasCompleteReading()) prepend(sentence);
         }
         if (lexicon->pinyin && !japanese.empty() && input.size() >= 5 && input.size() <= max_input &&
@@ -1272,7 +1402,7 @@ struct MPNSession {
             }
         }
         if (!lexicon->pinyin) {
-            auto segments = zhuyin_segments(*lexicon, input, hans);
+            auto segments = zhuyin_segments(*lexicon, input, hans, learned());
             // Preserve the best whole-sentence alternatives. Place up to
             // three segments on the first page and the rest on later pages.
             size_t position = std::min(size_t(3), ranked.size());
@@ -1297,7 +1427,7 @@ struct MPNSession {
             // An unfinished following word must not remove the earlier split
             // points of a completed phrase. The existing bounded segmenter
             // consumes only keys within that prefix, leaving the entire tail.
-            auto [segments, primaryCount] = pinyin_segments(*lexicon, std::string_view(input).substr(0, completed), hans);
+            auto [segments, primaryCount] = pinyin_segments(*lexicon, std::string_view(input).substr(0, completed), hans, learned());
             // Keep the existing leading split choices. Append extra homophones
             // after the original candidates so complete sentences keep their ranks.
             const size_t leadingCount = completed < input.size() ? std::min(size_t(3), segments.size()) : primaryCount;
@@ -1872,7 +2002,7 @@ size_t mpn_expand_candidates(MPNSession *session) {
     try {
         const size_t breadth = size_t(32) << session->expansion;
         std::vector<CandidateMetadata> metadata;
-        auto decoded = decode(*session->lexicon, session->input, session->hans, false, &metadata, nullptr, breadth);
+        auto decoded = decode(*session->lexicon, session->input, session->hans, false, &metadata, nullptr, breadth, session->learned());
         std::set<std::pair<std::string, size_t>> seen;
         for (const auto &candidate : session->candidates) seen.emplace(candidate.text, candidate.consumed);
         std::vector<Candidate> added;
@@ -1923,4 +2053,53 @@ const char *mpn_exact_pinyin(MPNSession *session, const char *reading) {
         if (!words.empty()) session->exactPinyin = std::move(words.front());
     } catch (...) {}
     return session->exactPinyin.c_str();
+}
+
+MPNPersonal *mpn_personal_create(void) {
+    try { return new MPNPersonal; } catch (...) { return nullptr; }
+}
+void mpn_personal_destroy(MPNPersonal *personal) { delete personal; }
+int mpn_personal_set(MPNPersonal *personal, int simplified, const char *reading, const char *text, double bonus) {
+    if (!personal || !reading || !*reading || std::strlen(reading) > max_input) return 0;
+    const std::string_view key(reading);
+    if (!std::all_of(key.begin(), key.end(), [](char c) { return c >= 'a' && c <= 'z'; })) return 0;
+    try {
+        auto &table = personal->value->readings[simplified ? 1 : 0];
+        auto group = table.find(key);
+        if (!text) {
+            if (group != table.end()) table.erase(group);
+            return 1;
+        }
+        if (!*text || !(bonus == bonus)) return 0;
+        bonus = std::min(personal_cap, bonus);
+        if (bonus <= 0) {
+            if (group == table.end()) return 1;
+            if (const auto found = group->second.find(std::string_view(text)); found != group->second.end()) group->second.erase(found);
+            if (group->second.empty()) table.erase(group);
+            return 1;
+        }
+        if (group == table.end()) group = table.emplace(std::string(key), Personal::Texts{}).first;
+        group->second[text] = bonus;
+        return 1;
+    } catch (...) { return 0; }
+}
+void mpn_personal_clear(MPNPersonal *personal) {
+    if (personal) for (auto &table : personal->value->readings) table.clear();
+}
+void mpn_set_personal(MPNSession *session, const MPNPersonal *personal) {
+    if (session) session->personal = personal ? personal->value : nullptr;
+}
+const char *mpn_candidate_words(MPNSession *session, size_t index) {
+    if (!session) return "";
+    session->candidateWords.clear();
+    if (index >= session->candidates.size()) return session->candidateWords.c_str();
+    try {
+        const auto &candidate = session->candidates[index];
+        if (candidate.consumed > session->input.size() || candidate.literalTail > candidate.text.size())
+            return session->candidateWords.c_str();
+        const auto text = std::string_view(candidate.text).substr(0, candidate.text.size() - candidate.literalTail);
+        for (const auto &[reading, piece] : composition(*session->lexicon, std::string_view(session->input).substr(0, candidate.consumed), text, session->hans))
+            session->candidateWords += reading + '\t' + piece + '\n';
+    } catch (...) { session->candidateWords.clear(); }
+    return session->candidateWords.c_str();
 }

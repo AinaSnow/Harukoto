@@ -95,6 +95,30 @@ size_t mpn_literal_tail(const MPNSession *session);
 // Convert a separate Pinyin segment without changing the active composition.
 const char *mpn_exact_pinyin(MPNSession *session, const char *reading);
 
+// Optional personal word preferences (CN-06c), learned by the host from
+// confirmed selections. A bonus is in nats on the scale of word scores and is
+// clamped to at most 3; reading is the word's untoned spelling (a-z only) and
+// text is in the given output script. A learned word moves ahead of its
+// homophones in whole-word lists and sentence composition, but past the best
+// homophone it gains only a fifth of its bonus, so it reorders words of one
+// reading without splitting longer words apart. Bonus <= 0 removes a word,
+// NULL text removes a whole reading. Sessions share the table: changes apply
+// at their next refresh, on the thread that uses them. Without a table, or
+// with an empty one, every result is unchanged.
+typedef struct MPNPersonal MPNPersonal;
+MPNPersonal *mpn_personal_create(void);
+void mpn_personal_destroy(MPNPersonal *personal);
+int mpn_personal_set(MPNPersonal *personal, int simplified, const char *reading, const char *text, double bonus);
+void mpn_personal_clear(MPNPersonal *personal);
+// NULL detaches. A session keeps an attached table alive after its handle is destroyed.
+void mpn_set_personal(MPNSession *session, const MPNPersonal *personal);
+// The dictionary words that spell a candidate, for learning: one
+// "reading<TAB>text<LF>" line per word, readings untoned, in the session's
+// output script, fewest words first. Empty when the candidate is not exactly
+// a sequence of fully spelled dictionary words over the keys it consumes
+// (corrections, abbreviations, literal text). Valid until the next call.
+const char *mpn_candidate_words(MPNSession *session, size_t index);
+
 // Optional Japanese words for mixed pinyin/romaji. Registration and decoding
 // are local to the session; a returned string remains valid until the next call.
 // Weight 3500 denotes an ambiguous all-kanji pinyin alias: it participates in
