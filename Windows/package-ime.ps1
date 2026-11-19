@@ -1,7 +1,7 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.24'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.25'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -83,6 +83,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $root 'DataSources/MimoNormalization/ICU-LICENSE.txt') -Destination (Join-Path $licenses 'ICU-LICENSE.txt')
     Copy-Item -LiteralPath (Join-Path $root 'DataSources/MimoNormalization/ICU-Hans_Hant.txt') -Destination (Join-Path $licenses 'ICU-Hans_Hant.txt')
     Copy-Item -LiteralPath (Join-Path $root 'DataSources/MimoNormalization/SOURCE.json') -Destination (Join-Path $licenses 'MimoNormalization-SOURCE.json')
+    Copy-Item -LiteralPath (Join-Path $root 'DataSources/SentenceCorpora/SOURCE.json') -Destination (Join-Path $licenses 'SentenceCorpora-SOURCE.json')
     if (!$MSVC) {
         $toolchain = Split-Path (Split-Path (Resolve-Path -LiteralPath $Compiler).Path)
         Copy-Item -LiteralPath (Join-Path $toolchain 'LICENSE.TXT') -Destination (Join-Path $licenses 'LLVM-MinGW.txt')

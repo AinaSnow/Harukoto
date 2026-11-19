@@ -618,7 +618,7 @@ private:
     void reportRuntimeStatus() noexcept {
         try {
             using base_dictionary::Metadata;
-            runtimeStatus.publish("\"service_version\":\"0.4.4-alpha.24\",\"base_version\":" +
+            runtimeStatus.publish("\"service_version\":\"0.4.4-alpha.25\",\"base_version\":" +
                 Metadata::quote(baseSnapshot ? baseSnapshot->version() : std::string()) + "," +
                 (themeReload ? themeReload->diagnosticFields() :
                     "\"base_generation\":\"\",\"theme_generation\":\"\",\"pending_base_generation\":\"\",\"phase\":\"unavailable\",\"last_apply_failed\":false"));
