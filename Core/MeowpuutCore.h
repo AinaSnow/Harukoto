@@ -149,6 +149,20 @@ uint32_t mpn_fuzzy_pinyin(const MPNSession *session);
 // 1 when the candidate uses at least one fuzzy substitution, else 0.
 int mpn_candidate_fuzzy(const MPNSession *session, size_t index);
 
+// Abbreviated and mixed pinyin (CN-04), always on for Pinyin lexicons. When
+// the keys do not split into complete syllables (nh, zgren, nihaom), an
+// initial may stand for a whole syllable of a dictionary word of two or more
+// syllables: one letter (z/c/s also cover zh/ch/sh; a/o/e cover the syllables
+// they begin) or zh/ch/sh. Such words compete on frequency less a penalty per
+// abbreviated syllable, never where an exact fully spelled word covers the
+// same keys, and report MPN_CANDIDATE_CORRECTION. Keys that do split into
+// complete syllables are decoded exactly as without this feature. A single
+// initial after complete syllables (nihaom) leaves the exact prefix (你好)
+// first and puts the completion (你好吗) second. Lone initials are never
+// fuzzy-substituted; mpn_candidate_words returns nothing for abbreviations.
+// The number of abbreviated syllables in the candidate; 0 for none.
+size_t mpn_candidate_abbreviated(const MPNSession *session, size_t index);
+
 // Optional Japanese words for mixed pinyin/romaji. Registration and decoding
 // are local to the session; a returned string remains valid until the next call.
 // Weight 3500 denotes an ambiguous all-kanji pinyin alias: it participates in

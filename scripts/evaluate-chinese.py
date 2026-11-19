@@ -17,7 +17,11 @@ ROOT = Path(__file__).resolve().parents[1]
 # tuned: fixed regression set that ranking work has already been adjusted against.
 # holdout: written without querying candidates; report it, never tune against it.
 SETS = {'tuned': ('Windows/tests/data/chinese-evaluation.tsv', '固定回归集：已参与排序调优，结果不是独立准确率。'),
-        'holdout': ('Windows/tests/data/chinese-holdout.tsv', '独立评测集：编写时未查询候选，不得据此逐条调优；仍是手写小样本，不是外部盲测。')}
+        'holdout': ('Windows/tests/data/chinese-holdout.tsv', '独立评测集：编写时未查询候选，不得据此逐条调优；仍是手写小样本，不是外部盲测。'),
+        # Development samples: may be tuned against; results are not independent accuracy.
+        'words-dev': ('Windows/tests/data/chinese-words-dev.tsv', '整词开发样本（CN-01c）：可调优，结果不是独立准确率。'),
+        'fuzzy-dev': ('Windows/tests/data/chinese-fuzzy-dev.tsv', '模糊音开发样本（CN-03）：可调优，结果不是独立准确率；应配合 --fuzzy 2047 运行。'),
+        'abbrev-dev': ('Windows/tests/data/chinese-abbrev-dev.tsv', '简拼与混拼开发样本（CN-04）：可调优，结果不是独立准确率。')}
 EDITORIAL = ('chinese.tsv', 'daily-chinese.tsv', 'context.tsv', 'simplified-priorities.tsv', 'simplified-traditional-only-keep.tsv')
 
 

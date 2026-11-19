@@ -697,7 +697,109 @@ static void verifyFuzzyPinyin() {
     mpn_session_destroy(plain); mpn_session_destroy(fuzzy); mpn_lexicon_destroy(lexicon);
 }
 
+// CN-04: abbreviated and mixed pinyin in the core decoder.
+static void verifyAbbreviatedPinyin() {
+    const std::string data = "MEOWPUUT-PINYIN-1\n"
+        "an\tan1\t安\t安\t7000\n"
+        "bu\tbu4\t不\t不\t9000\n"
+        "en\ten1\t恩\t恩\t5000\n"
+        "guo\tguo2\t國\t国\t8000\n"
+        "hao\thao3\t好\t好\t9000\n"
+        "haome\thao3me5\t好麼\t好么\t5000\n"
+        "ma\tma5\t嗎\t吗\t8000\n"
+        "nanhai\tnan2hai2\t男孩\t男孩\t7000\n"
+        "nh\tn3h3\t你好\t你好\t1125\n"
+        "nh\tn2h2\t男孩\t男孩\t875\n"
+        "ni\tni3\t你\t你\t9000\n"
+        "nihao\tni3hao3\t你好\t你好\t9000\n"
+        "nihaoma\tni3hao3ma5\t你好嗎\t你好吗\t4500\n"
+        "ren\tren2\t人\t人\t8000\n"
+        "wo\two3\t我\t我\t9000\n"
+        "xi\txi1\t西\t西\t7000\n"
+        "xian\txian1\t先\t先\t8000\n"
+        "xian\txi1an1\t西安\t西安\t7000\n"
+        "zg\tz1g2\t中國\t中国\t1250\n"
+        "zhege\tzhe4ge5\t這個\t这个\t9000\n"
+        "zhidao\tzhi1dao4\t知道\t知道\t7500\n"
+        "zhong\tzhong1\t中\t中\t9000\n"
+        "zhongguo\tzhong1guo2\t中國\t中国\t10000\n"
+        "zhongguoren\tzhong1guo2ren2\t中國人\t中国人\t5500\n"
+        "zhuguanren\tzhu3guan3ren2\t主管人\t主管人\t1000\n";
+    auto *lexicon = makeLexicon(data);
+    auto *session = mpn_session_create(lexicon);
+    assert(session);
+    mpn_set_simplified(session, 1);
+    const auto run = [&](const char *keys) { mpn_clear(session); type(session, keys); return listed(session); };
+    const auto index = [](const std::vector<Listed> &items, const char *text) {
+        size_t i = 0;
+        while (i < items.size() && items[i].text != text) ++i;
+        return i;
+    };
+
+    // Whole-word initials: frequency order, a correction consuming every key,
+    // and nothing to learn word by word.
+    auto list = run("nh");
+    assert(list[0].text == "你好" && list[0].kind == MPN_CANDIDATE_CORRECTION && list[0].consumed == 2);
+    assert(mpn_candidate_abbreviated(session, 0) == 2 && index(list, "男孩") < list.size() && index(list, "男孩") > 0);
+    assert(!*mpn_candidate_words(session, 0));
+    assert(mpn_choose(session, 0) && std::string(mpn_committed(session)) == "你好" && !*mpn_input(session));
+    mpn_clear_commit(session);
+    // zh/ch/sh as initials, and a lone z covering zh.
+    assert(run("zg")[0].text == "中国" && run("zhg")[0].text == "中国" && run("zhgr")[0].text == "中国人");
+    // Mixed: typed syllables and initials within one word; more syllables
+    // typed in full win (中国人, not 中国人+恩), and frequency decides among
+    // words of one pattern (中国人 5500 over 主管人 1000).
+    list = run("zgren");
+    assert(list[0].text == "中国人" && list[0].kind == MPN_CANDIDATE_CORRECTION && mpn_candidate_abbreviated(session, 0) == 2);
+    assert(index(list, "主管人") > 0 && index(list, "主管人") < list.size());
+    assert(mpn_choose(session, 0) && std::string(mpn_committed(session)) == "中国人" && !*mpn_input(session));
+    mpn_clear_commit(session);
+    // A lone initial inside a sentence may be one common character.
+    assert(run("wobzd")[0].text == "我不知道" && run("nihaozg")[0].text == "你好中国");
+    // A single initial after complete syllables may still be the next
+    // syllable: the exact prefix stays first, the completion follows it.
+    list = run("nihaom");
+    assert(list[0].text == "你好" && list[0].consumed == 5 && list[0].kind == MPN_CANDIDATE_PARTIAL);
+    assert(list[1].text == "你好吗" && list[1].consumed == 6 && mpn_candidate_abbreviated(session, 1) == 1);
+    // Typed tones and separators must agree with the word.
+    assert(run("z1g2")[0].text == "中国" && run("z'g")[0].text == "中国");
+    list = run("z3g2");
+    assert(index(list, "中国") == list.size());
+    // Complete pinyin is decoded as before: no abbreviated candidate at all,
+    // so an exact full-pinyin result is never displaced.
+    for (const char *keys : {"nihao", "xian", "xi'an", "nihaoma", "zhongguo", "zhongguoren", "zhidao", "wo"}) {
+        list = run(keys);
+        for (size_t i = 0; i < list.size(); ++i) assert(!mpn_candidate_abbreviated(session, i));
+    }
+    assert(run("nihao")[0].text == "你好" && run("nihao")[0].kind == MPN_CANDIDATE_EXACT);
+    assert(run("xian")[0].text == "先" && run("zhongguoren")[0].text == "中国人");
+    assert(!mpn_candidate_abbreviated(nullptr, 0) && !mpn_candidate_abbreviated(session, mpn_candidate_count(session)));
+    // Traditional output.
+    mpn_set_simplified(session, 0);
+    assert(run("zgren")[0].text == "中國人");
+    mpn_set_simplified(session, 1);
+    // A learned word keeps its bonus when typed by its initials (CN-06c).
+    auto *personal = mpn_personal_create();
+    assert(personal && mpn_personal_set(personal, 1, "nanhai", "男孩", 3));
+    mpn_set_personal(session, personal);
+    assert(run("nh")[0].text == "男孩" && run("nihao")[0].text == "你好");
+    mpn_set_personal(session, nullptr);
+    mpn_personal_destroy(personal);
+    // Fuzzy pairs leave initials alone (CN-03).
+    mpn_set_fuzzy_pinyin(session, MPN_FUZZY_ALL);
+    assert(run("zgren")[0].text == "中国人" && run("nh")[0].text == "你好");
+    mpn_set_fuzzy_pinyin(session, 0);
+    // A long consonant string stays bounded.
+    std::string keys;
+    while (keys.size() + 2 <= mpn_max_input_bytes()) keys += "zg";
+    list = run(keys.c_str());
+    assert(!list.empty() && list.size() <= 256 && list[0].consumed <= keys.size());
+    mpn_session_destroy(session);
+    mpn_lexicon_destroy(lexicon);
+}
+
 int main(int argc, char **argv) {
+    verifyAbbreviatedPinyin();
     verifyFuzzyPinyin();
     verifyPersonalWords();
     verifyLazyExpansion();
