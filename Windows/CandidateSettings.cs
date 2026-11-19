@@ -38,14 +38,31 @@ internal static class CandidateSettings
         columns.Children.Add(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         var traditional = new CheckBox { Name = "TraditionalOutput", Content = "输出繁体中文", Margin = new Thickness(0,0,0,8) };
         var savedLayout = LayoutOptions.Load();
-        int font = savedLayout.Font, width = savedLayout.Width;
+        int font = savedLayout.Font, width = savedLayout.Width, fuzzyMask = 0;
         try {
             using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Meowpuut\Input")) {
                 traditional.IsChecked = key != null && Convert.ToString(key.GetValue("TraditionalOutput", 0)) == "1";
+                fuzzyMask = FuzzyPinyinOptions.Read(key);
             }
         } catch { /* Keep usable defaults if preferences are unavailable. */ }
         body.Children.Add(traditional);
         body.Children.Add(new TextBlock { Text = "开启输出繁体，关闭输出简体。日语词形保持原样。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,24) });
+        body.Children.Add(new TextBlock { Text = "模糊音", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,0,0,8) });
+        var fuzzyPanel = new WrapPanel { Name = "FuzzyPinyin", Margin = new Thickness(0,0,0,4) };
+        var fuzzyBoxes = new CheckBox[FuzzyPinyinOptions.Pairs.Length];
+        for (int i = 0; i < fuzzyBoxes.Length; ++i) {
+            var box = new CheckBox { Name = "Fuzzy" + i, Content = FuzzyPinyinOptions.Pairs[i], IsChecked = (fuzzyMask & (1 << i)) != 0,
+                Width = 96, Margin = new Thickness(0,0,0,6) };
+            AutomationProperties.SetName(box, "模糊音 " + FuzzyPinyinOptions.Pairs[i]);
+            fuzzyBoxes[i] = box; fuzzyPanel.Children.Add(box);
+        }
+        body.Children.Add(fuzzyPanel);
+        body.Children.Add(new TextBlock { Text = "勾选的两种读音互相通用，例如勾选 z = zh 后输入 zongguo 也能打出“中国”。读音完全一致的候选始终优先。默认全部关闭。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,24) });
+        Func<int> fuzzyDraft = () => {
+            int mask = 0;
+            for (int i = 0; i < fuzzyBoxes.Length; ++i) if (fuzzyBoxes[i].IsChecked == true) mask |= 1 << i;
+            return mask;
+        };
         var fontLabel = new Label { Padding = new Thickness(0) };
         var fontSlider = new Slider { Name = "FontSizeSlider", Minimum = 14, Maximum = 32, TickFrequency = 1, IsSnapToTickEnabled = true, Value = CandidateLayout.ClampFont(font), Margin = new Thickness(0,8,0,20) };
         var widthLabel = new Label { Padding = new Thickness(0) };
@@ -130,7 +147,7 @@ internal static class CandidateSettings
         direction.SelectionChanged += (s,e) => refresh();
         autoReading.Checked += (s,e) => refresh(); autoReading.Unchecked += (s,e) => refresh();
         applyPreset.Click += (s,e) => { setDraft(LayoutOptions.Preset(presets.SelectedIndex)); status.Text = "预设已应用到草稿，保存后生效。"; };
-        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。简繁与词库设置保持。"; };
+        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。简繁、模糊音与词库设置保持。"; };
         cancel.Click += (s,e) => window.Close();
         save.Click += (s,e) => {
             try {
@@ -139,6 +156,7 @@ internal static class CandidateSettings
                 using (var input = Registry.CurrentUser.CreateSubKey(@"Software\Meowpuut\Input"))
                 using (var layout = Registry.CurrentUser.CreateSubKey(LayoutOptions.KeyPath)) {
                     LayoutOptions.SavePreferences(input, layout, draft(), traditional.IsChecked == true);
+                    FuzzyPinyinOptions.Write(input, fuzzyDraft());
                 }
                 status.Text = "已保存，下次输入按键时生效。取消只丢弃此后未保存的调整。";
             } catch (Exception error) { status.Text = "保存失败：" + error.Message; }

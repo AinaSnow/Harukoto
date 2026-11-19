@@ -13,6 +13,7 @@
 #include "PinyinPunctuation.h"
 #include "ScriptMode.h"
 #include "ScriptPreference.h"
+#include "FuzzyPinyin.h"
 #include "SelectionMemory.h"
 #include "JapaneseConjugation.h"
 #include "ConjugationPanel.h"
@@ -227,6 +228,7 @@ public:
             lexicon = mpn_lexicon_create(bytes.data(), bytes.size());
             session = mpn_session_create(lexicon);
             if (session) mpn_set_simplified(session, simplified);
+            if (session) applyFuzzyPinyin(session, readFuzzyPinyin());
         } catch (...) { Deactivate(); return E_FAIL; }
         if (!session) { Deactivate(); return E_FAIL; }
         HRESULT result = manager->QueryInterface(IID_ITfKeystrokeMgr, reinterpret_cast<void **>(&keys));
@@ -370,6 +372,8 @@ public:
             memoryEnabled = memory && selection_memory::enabled();
             if (memoryEnabled) memory->poll();
             attachPersonal();
+            // Fuzzy pinyin pairs are per user and apply from the next key.
+            applyFuzzy(readFuzzyPinyin());
             const bool preference = readSimplifiedPreference();
             if (preference != simplified) conjugationPanel.close(choices, page, highlighted, expanded);
             if (applyPinyinScript(session, simplified, preference)) {
@@ -817,6 +821,14 @@ private:
             });
         }
         personalRevision = memory->words().revision();
+    }
+
+    // CN-03: gives the active session the user's fuzzy pinyin pairs and
+    // rebuilds an open candidate list when they changed. Sessions created
+    // later (another context, a dictionary reload) receive them on their
+    // first key, before it is handled.
+    void applyFuzzy(uint32_t mask) {
+        if (applyFuzzyPinyin(session, mask) && *mpn_input(session)) refreshCandidates();
     }
 
     // Hands the learned word bonuses to the active session, or detaches them

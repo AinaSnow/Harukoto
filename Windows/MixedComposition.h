@@ -223,9 +223,16 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
         chinese.push_back(i);
         nativeSelections.emplace(mpn_candidate(session, i), mpn_candidate_consumed(session, i));
     }
-    std::stable_partition(chinese.begin(), chinese.end(), [&](size_t i) {
-        return evidence.count(mpn_candidate(session, i)) != 0;
-    });
+    // CN-03: a fuzzy pinyin candidate that the core ranked ahead of an
+    // evidence-backed one keeps its place: the core already compared it with
+    // the exact words of the input. Without fuzzy candidates nothing changes.
+    size_t lastEvidence = 0;
+    for (size_t i = 0; i < chinese.size(); ++i)
+        if (evidence.count(mpn_candidate(session, i))) lastEvidence = i + 1;
+    const auto backed = [&](size_t i) {
+        return evidence.count(mpn_candidate(session, i)) != 0 || (i + 1 < lastEvidence && mpn_candidate_fuzzy(session, i));
+    };
+    std::stable_partition(chinese.begin(), chinese.end(), backed);
     if (chineseLocked) {
         for (auto i : chinese) append(mpn_candidate(session, i), i, false);
         return choices;
@@ -238,7 +245,7 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
     std::stable_sort(additional.begin(), additional.end(), [](const auto &a, const auto &b) {
         return a.second > b.second;
     });
-    const bool supplementFirst = chinese.empty() || !evidence.count(mpn_candidate(session, chinese.front()));
+    const bool supplementFirst = chinese.empty() || !backed(chinese.front());
     auto supplement = [&] {
         for (size_t i = 0; i < std::min(size_t(7), additional.size()); ++i) append(additional[i].first, {}, false);
     };

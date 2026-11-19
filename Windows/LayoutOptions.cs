@@ -2,6 +2,31 @@ using System;
 using System.Globalization;
 using Microsoft.Win32;
 
+// CN-03: fuzzy pinyin pairs, one bit each in the DWORD FuzzyPinyin under
+// Software\Meowpuut\Input. Bit order matches MPN_FUZZY_* in Core/MeowpuutCore.h;
+// the input service reads the value on every key. Absent or of another type = all off.
+internal static class FuzzyPinyinOptions
+{
+    internal const string ValueName = "FuzzyPinyin";
+    internal static readonly string[] Pairs = { "z = zh", "c = ch", "s = sh", "n = l", "f = h", "r = l",
+        "an = ang", "en = eng", "in = ing", "ian = iang", "uan = uang" };
+    internal const int All = (1 << 11) - 1;
+    internal static int Read(RegistryKey input)
+    {
+        if (input == null) return 0;
+        var value = input.GetValue(ValueName);
+        return value is int ? (int)value & All : 0;
+    }
+    // Leaves an unchanged value alone, so saving other settings never creates it.
+    internal static void Write(RegistryKey input, int mask)
+    {
+        mask &= All;
+        if (input.GetValue(ValueName) is int && Read(input) == mask) return;
+        if (input.GetValue(ValueName) == null && mask == 0) return;
+        input.SetValue(ValueName, mask, RegistryValueKind.DWord);
+    }
+}
+
 // Layout is published as one registry value. Readers never observe half a layout.
 internal sealed class LayoutOptions
 {

@@ -119,6 +119,36 @@ void mpn_set_personal(MPNSession *session, const MPNPersonal *personal);
 // (corrections, abbreviations, literal text). Valid until the next call.
 const char *mpn_candidate_words(MPNSession *session, size_t index);
 
+// Optional fuzzy pinyin (CN-03), per session; 0 (the default) changes nothing.
+// Each bit lets a typed complete syllable also stand for the syllable whose
+// initial or final differs by that pair, in whole-word lists and sentence
+// composition, competing mostly on frequency: every changed initial or final
+// costs 5 nats where an exact word covers the same keys, so an exact reading
+// wins ties and near-ties, and 8 nats where none does unless the fuzzy word is
+// common. Candidates that use a substitution report MPN_CANDIDATE_CORRECTION
+// and mpn_candidate_fuzzy. Lone
+// initials (abbreviations) are never substituted, and segment-by-segment
+// candidates stay exact. Pinyin lexicons only; unknown bits are ignored.
+// Changing the mask rebuilds the candidates of an active composition.
+enum {
+    MPN_FUZZY_Z_ZH = 1u << 0,
+    MPN_FUZZY_C_CH = 1u << 1,
+    MPN_FUZZY_S_SH = 1u << 2,
+    MPN_FUZZY_N_L = 1u << 3,
+    MPN_FUZZY_F_H = 1u << 4,
+    MPN_FUZZY_R_L = 1u << 5,
+    MPN_FUZZY_AN_ANG = 1u << 6,
+    MPN_FUZZY_EN_ENG = 1u << 7,
+    MPN_FUZZY_IN_ING = 1u << 8,
+    MPN_FUZZY_IAN_IANG = 1u << 9,
+    MPN_FUZZY_UAN_UANG = 1u << 10,
+    MPN_FUZZY_ALL = (1u << 11) - 1
+};
+void mpn_set_fuzzy_pinyin(MPNSession *session, uint32_t mask);
+uint32_t mpn_fuzzy_pinyin(const MPNSession *session);
+// 1 when the candidate uses at least one fuzzy substitution, else 0.
+int mpn_candidate_fuzzy(const MPNSession *session, size_t index);
+
 // Optional Japanese words for mixed pinyin/romaji. Registration and decoding
 // are local to the session; a returned string remains valid until the next call.
 // Weight 3500 denotes an ambiguous all-kanji pinyin alias: it participates in

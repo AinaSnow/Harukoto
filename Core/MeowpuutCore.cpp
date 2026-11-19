@@ -680,10 +680,179 @@ std::vector<Fallback> fallback(const Lexicon &lexicon, std::string_view input, b
     return result;
 }
 
+// CN-03: fuzzy pinyin. A typed complete syllable may stand for another one
+// whose initial or final differs by an enabled pair (zong for zhong, lan for
+// nan, xiang for xian). For someone who enables a pair both spellings sound
+// the same, so a fuzzy word competes mostly on frequency: each changed
+// initial or final costs fuzzy_penalty_near nats (a factor of about 150)
+// where an exact word covers the same keys, and exact readings win ties and
+// near-ties. Where no exact word does, the exact alternative is a
+// composition that a missing dictionary word can make look weak (点赞 typed
+// exactly is 点+赞), so only a common fuzzy word gets the near penalty and a
+// rarer one pays fuzzy_penalty (电站 stays behind 点赞). Fuzzy words over the
+// whole input are merged into the exact whole-word list by weight less 700
+// per nat of the near penalty; with no exact whole word they lead only when
+// they outscore every exact sentence. Only complete syllables are
+// substituted; an initial on its own is an abbreviation and stays as typed,
+// and only fully spelled dictionary words are reached. The values were
+// chosen on the tuned set, the word development set and the fuzzy
+// development sample (Windows/tests/data/chinese-fuzzy-dev.tsv): a near
+// penalty of 4 turned the tuned 今天先到这里 into 想到 and 点赞 into 点展.
+constexpr double fuzzy_penalty_near = 5.0; // nats per change where an exact word covers the same keys
+constexpr double fuzzy_penalty = 8.0;      // nats per change otherwise, unless the fuzzy word is common
+constexpr int fuzzy_common = 4500;         // lexicon weight of a common word (about the top 1.5% of entries)
+constexpr unsigned fuzzy_max_cost = 3; // changes per dictionary word
+constexpr size_t fuzzy_start_nodes = 1024, fuzzy_start_options = 64;
+
+struct FuzzyOption {
+    size_t end;                   // input sound position after the last syllable
+    std::string key;              // the dictionary reading the variant spells
+    std::vector<uint8_t> pieces;  // syllable lengths within key
+    std::vector<size_t> ends;     // input sound position closing each syllable
+    unsigned cost;                // changed initials and finals
+};
+
+// Spellings of one complete syllable under the enabled pairs, with the number
+// of changes, that are recorded single-character readings. Includes the
+// syllable itself (no change) when it is one.
+void fuzzy_syllables(const Lexicon &lexicon, std::string_view piece, uint32_t mask,
+                     std::vector<std::pair<std::string, unsigned>> &out) {
+    static constexpr std::string_view initials[] = {"zh", "ch", "sh", "b", "p", "m", "f", "d", "t", "n", "l", "g",
+                                                    "k", "h", "j", "q", "x", "r", "z", "c", "s", "y", "w"};
+    std::string_view initial;
+    for (const auto candidate : initials)
+        if (piece.substr(0, candidate.size()) == candidate) { initial = candidate; break; }
+    const auto rest = piece.substr(initial.size());
+    if (rest.empty()) return;
+    std::array<std::pair<std::string_view, unsigned>, 3> heads{};
+    size_t headCount = 0;
+    heads[headCount++] = {initial, 0};
+    const auto head = [&](uint32_t bit, std::string_view a, std::string_view b) {
+        if (!(mask & bit) || headCount == heads.size()) return;
+        if (initial == a) heads[headCount++] = {b, 1};
+        else if (initial == b) heads[headCount++] = {a, 1};
+    };
+    head(MPN_FUZZY_Z_ZH, "z", "zh"); head(MPN_FUZZY_C_CH, "c", "ch"); head(MPN_FUZZY_S_SH, "s", "sh");
+    head(MPN_FUZZY_N_L, "n", "l"); head(MPN_FUZZY_F_H, "f", "h"); head(MPN_FUZZY_R_L, "r", "l");
+    std::array<std::pair<std::string_view, unsigned>, 2> tails{};
+    size_t tailCount = 0;
+    tails[tailCount++] = {rest, 0};
+    const auto tail = [&](uint32_t bit, std::string_view a, std::string_view b) {
+        if (!(mask & bit) || tailCount == tails.size()) return;
+        if (rest == a) tails[tailCount++] = {b, 1};
+        else if (rest == b) tails[tailCount++] = {a, 1};
+    };
+    // yan/yang and wan/wang spell the finals ian/iang and uan/uang.
+    if (initial == "y") tail(MPN_FUZZY_IAN_IANG, "an", "ang");
+    else if (initial == "w") tail(MPN_FUZZY_UAN_UANG, "an", "ang");
+    else tail(MPN_FUZZY_AN_ANG, "an", "ang");
+    tail(MPN_FUZZY_EN_ENG, "en", "eng"); tail(MPN_FUZZY_IN_ING, "in", "ing");
+    tail(MPN_FUZZY_IAN_IANG, "ian", "iang"); tail(MPN_FUZZY_UAN_UANG, "uan", "uang");
+    for (size_t h = 0; h < headCount; ++h) {
+        for (size_t t = 0; t < tailCount; ++t) {
+            std::string spelling(heads[h].first);
+            spelling += tails[t].first;
+            if (std::binary_search(lexicon.singleReadings.begin(), lexicon.singleReadings.end(), spelling))
+                out.emplace_back(std::move(spelling), heads[h].second + tails[t].second);
+        }
+    }
+}
+
+// For every input start, the dictionary readings reachable from it with at
+// least one substitution: a bounded walk over complete syllables that only
+// continues while some dictionary reading begins with the spelling so far.
+std::vector<std::vector<FuzzyOption>> fuzzy_options(const Lexicon &lexicon, const Reading &reading, uint32_t mask) {
+    const auto &sounds = reading.sounds;
+    const size_t n = sounds.size();
+    if (!mask || !lexicon.pinyin || !n || lexicon.singleReadings.empty()) return {};
+    std::vector<std::array<std::vector<std::pair<std::string, unsigned>>, 6>> variants(n);
+    bool any = false;
+    for (size_t start = 0; start < n; ++start) {
+        for (size_t size = 1; size <= 6 && start + size <= n; ++size) {
+            // A tone or separator inside the piece cannot belong to one syllable.
+            if (reading.boundary_count[start + size - 1] != reading.boundary_count[start]) break;
+            fuzzy_syllables(lexicon, std::string_view(sounds).substr(start, size), mask, variants[start][size - 1]);
+            any = any || std::any_of(variants[start][size - 1].begin(), variants[start][size - 1].end(),
+                                     [](const auto &item) { return item.second > 0; });
+        }
+    }
+    if (!any) return {};
+    std::vector<std::vector<FuzzyOption>> result(n);
+    struct Walk {
+        const Lexicon &lexicon;
+        const std::vector<std::array<std::vector<std::pair<std::string, unsigned>>, 6>> &variants;
+        std::vector<FuzzyOption> &out;
+        size_t nodes = 0;
+        std::string key;
+        std::vector<uint8_t> pieces;
+        std::vector<size_t> ends;
+        void run(size_t position, unsigned cost) {
+            for (size_t size = 1; size <= 6 && position + size <= variants.size(); ++size) {
+                for (const auto &[spelling, change] : variants[position][size - 1]) {
+                    if (cost + change > fuzzy_max_cost || key.size() + spelling.size() > lexicon.longest) continue;
+                    if (++nodes > fuzzy_start_nodes || out.size() >= fuzzy_start_options) return;
+                    const auto before = key.size();
+                    key += spelling;
+                    const auto bucket = std::lower_bound(lexicon.buckets.begin(), lexicon.buckets.end(), key,
+                        [](const Lexicon::Bucket &item, std::string_view value) { return item.key < value; });
+                    if (bucket != lexicon.buckets.end() && bucket->key.substr(0, key.size()) == key) {
+                        pieces.push_back(static_cast<uint8_t>(spelling.size()));
+                        ends.push_back(position + size);
+                        if (cost + change > 0 && bucket->key == key &&
+                            std::none_of(out.begin(), out.end(), [&](const FuzzyOption &option) {
+                                return option.end == position + size && option.key == key && option.pieces == pieces;
+                            }))
+                            out.push_back({position + size, key, pieces, ends, cost + change});
+                        run(position + size, cost + change);
+                        pieces.pop_back();
+                        ends.pop_back();
+                    }
+                    key.resize(before);
+                }
+            }
+        }
+    };
+    for (size_t start = 0; start < n; ++start) {
+        Walk walk{lexicon, variants, result[start]};
+        walk.run(start, 0);
+    }
+    return result;
+}
+
+// Nats per changed initial or final for a fuzzy word of this weight. Where an
+// exact word covers the same keys, the fuzzy one competes on frequency and
+// wins only when clearly more common (near). Where none does, the exact
+// alternative is a composition, which a missing dictionary word can make look
+// weak (点赞 typed exactly is 点+赞), so only a common fuzzy word competes on
+// frequency; a rarer one pays the full penalty (电站 stays behind 点赞). Fuzzy
+// whole-input words beside exact whole words are merged by weight instead and
+// otherwise stay behind every exact sentence.
+double fuzzy_change_penalty(int weight, bool wholeSpan, bool wholeSpelled, bool exactHere) {
+    if (wholeSpan) return wholeSpelled || weight < fuzzy_common ? fuzzy_penalty : fuzzy_penalty_near;
+    return exactHere || weight >= fuzzy_common ? fuzzy_penalty_near : fuzzy_penalty;
+}
+
+// A word reached through a fuzzy option: its syllables are exactly the
+// option's, and any typed tone at a syllable end must match the word's.
+bool fuzzy_matches(const Reading &reading, const FuzzyOption &option, const Word &word) {
+    if (!fully_spelled(word)) return false;
+    size_t syllable = 0, letters = 0;
+    for (char key : word.reading()) {
+        if (!is_tone(key, true)) { ++letters; continue; }
+        if (syllable == option.pieces.size() || letters != option.pieces[syllable]) return false;
+        const char tone = reading.boundaries[option.ends[syllable]];
+        if (tone && tone != key && tone != '\'') return false;
+        letters = 0;
+        ++syllable;
+    }
+    return syllable == option.pieces.size() && letters == 0;
+}
+
 struct CandidateMetadata {
     uint32_t kind = MPN_CANDIDATE_UNKNOWN;
     uint32_t scoreKind = MPN_SCORE_NONE;
     double score = 0;
+    bool fuzzy = false; // CN-03: reached through a fuzzy pinyin substitution
 };
 struct Candidate {
     std::string text;
@@ -696,10 +865,12 @@ struct Candidate {
 
 std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, bool hans, bool completeOnly = false,
                                 std::vector<CandidateMetadata> *metadata = nullptr, bool *singleCharacterReading = nullptr, size_t expandedBeam = 0,
-                                const Personal *personal = nullptr) {
+                                const Personal *personal = nullptr, uint32_t fuzzy = 0) {
     const Reading reading(input, lexicon.pinyin);
     const size_t length = reading.sounds.size();
     if (length == 0) return {};
+    // CN-03: empty unless fuzzy pairs are enabled and the input has a syllable they change.
+    const auto fuzzyOptions = fuzzy_options(lexicon, reading, fuzzy);
 
     std::vector<std::string> results;
     std::unordered_set<std::string> seen;
@@ -747,6 +918,11 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
         (singleReading ? single_character_candidate_limit : candidate_limit);
     const auto *wholeLearned = personal ? personal->find(hans, reading.sounds) : nullptr;
     std::vector<double> exactScores;
+    // Lexicon weights of the exact whole words, parallel to results; kept only for fuzzy merging.
+    std::vector<int> wholeWeights;
+    // Parallel to wholeWeights: 1 for an n/ng correction inserted below.
+    std::vector<char> wholeNasal;
+    bool wholeSpelled = false;
     for (size_t index = whole.first; index < whole.second; ++index) {
         const auto &word = lexicon.word(index, hans);
         if ((!completeOnly || fully_spelled(word)) && reading.matches(word, 0, length)) {
@@ -756,6 +932,8 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             const auto before = results.size();
             append(word.text(hans), {static_cast<uint32_t>(kind), MPN_SCORE_LEXICON, double(word.score(hans))});
             if (wholeLearned && results.size() != before) exactScores.push_back(word.score(hans) / 700.0);
+            if (!fuzzyOptions.empty() && results.size() != before) wholeWeights.push_back(word.score(hans));
+            wholeSpelled = wholeSpelled || (!fuzzyOptions.empty() && fully_spelled(word));
         }
         if (results.size() == result_limit) break;
     }
@@ -776,16 +954,20 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) { return keys[a] > keys[b]; });
             std::vector<std::string> sorted;
             std::vector<CandidateMetadata> sortedMetadata;
+            std::vector<int> sortedWeights;
             for (const auto i : order) {
                 sorted.push_back(std::move(results[i]));
                 if (metadata) sortedMetadata.push_back((*metadata)[i]);
+                if (!wholeWeights.empty()) sortedWeights.push_back(wholeWeights[i]);
             }
             results = std::move(sorted);
             if (metadata) *metadata = std::move(sortedMetadata);
+            if (!wholeWeights.empty()) wholeWeights = std::move(sortedWeights);
         }
     }
     if (results.size() == result_limit) return results;
 
+    if (!fuzzyOptions.empty()) wholeNasal.assign(wholeWeights.size(), 0);
     // Keep the first page of exact single-syllable characters intact: a
     // nasal correction like ban should not displace bang's common characters.
     // For longer readings, surface likely corrections after three exact words.
@@ -801,30 +983,45 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                 if (seen.emplace(text).second) {
                     results.insert(results.begin() + insertion, std::string(text));
                     if (metadata) metadata->insert(metadata->begin() + insertion, {MPN_CANDIDATE_CORRECTION, MPN_SCORE_LEXICON, double(word.score(hans))});
+                    if (!fuzzyOptions.empty()) {
+                        wholeWeights.insert(wholeWeights.begin() + insertion, word.score(hans));
+                        wholeNasal.insert(wholeNasal.begin() + insertion, 1);
+                    }
                     ++insertion; ++added;
                 }
             }
             if (added == 2) break;
         }
         if (results.size() > result_limit) { results.resize(result_limit); if (metadata) metadata->resize(result_limit); }
+        if (wholeWeights.size() > results.size()) { wholeWeights.resize(results.size()); wholeNasal.resize(results.size()); }
     }
 
     // Whole dictionary words stay first; known completions/corrections precede
     // speculative chains such as interpreting a mistyped ending as an abbreviation.
-    const bool needFallback = results.empty() && lexicon.pinyin && !completeOnly;
+    bool needFallback = results.empty() && lexicon.pinyin && !completeOnly;
 
-    struct Path { std::string text, traditional; double score; bool spelled, verified; uint32_t first; };
+    // CN-03: fuzzy, some word was reached through a fuzzy pinyin substitution;
+    // whole, the path is one such word over the entire input, and weight its
+    // lexicon weight less 700 per nat of its penalty.
+    struct Path { std::string text, traditional; double score; bool spelled, verified; uint32_t first; bool fuzzy = false, whole = false; double weight = 0; };
     // The sentence search beam is a latency bound, not a five-candidate UI cap.
     // Widen user-visible pinyin lookups within 32 letters only. Internal
     // completion probes and longer searches retain their existing bounded work.
     const size_t pathLimit = lexicon.pinyin && metadata && !completeOnly && length <= 32
         ? (expandedBeam ? expandedBeam : (length <= 8 ? page_size * 3 : size_t(8))) : beam;
     std::vector<std::vector<Path>> suffixes(length + 1);
+    // CN-03: fuzzy whole-input words with their weight less the near penalty,
+    // collected beside the bounded sentence beam when exact whole words exist.
+    struct WholeFuzzy { std::string_view text; double weight; };
+    std::vector<WholeFuzzy> wholeFuzzy;
     suffixes[length].push_back({"", "", 0, true, true, lexicon.pairEnd});
     for (size_t start = length; start-- > 0;) {
         std::vector<Path> paths;
         for (size_t end = start + 1; end <= std::min(length, start + lexicon.longest); ++end) {
-            if (suffixes[end].empty() || (start == 0 && end == length)) continue;
+            if (suffixes[end].empty()) continue;
+            // Exact whole-input words are already listed; fuzzy ones compete here.
+            const bool wholeSpan = start == 0 && end == length;
+            if (wholeSpan && fuzzyOptions.empty()) continue;
             const auto span = std::string_view(reading.sounds).substr(start, end - start);
             const auto options = lexicon.range(span);
             // CN-06c: learned words of this reading. They also join the beam
@@ -834,11 +1031,35 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             double top = -std::numeric_limits<double>::infinity();
             std::vector<std::string_view> used_spellings;
             used_spellings.reserve(pathLimit);
-            for (size_t index = options.first; index < options.second; ++index) {
+            // CN-03: whether a fully spelled exact word covers this span.
+            bool exactHere = false;
+            const auto extend = [&](const Word &word, double score, const FuzzyOption *fuzzyWord, double fuzzyWeight = 0) {
+                const bool verified = verifiedSpelling(word);
+                for (const auto &suffix : suffixes[end]) {
+                    const auto traditional = word.text(false);
+                    const auto &right = hans ? suffix.traditional : suffix.text;
+                    const double bonus = lexicon.join_bonus(traditional, right, hans, false, !lexicon.pairs.empty()) +
+                        lexicon.pair_bonus(word.pair, suffix.first) +
+                        (start == 0 ? lexicon.pair_bonus(lexicon.pairBegin, word.pair) : 0);
+                    paths.push_back({
+                        std::string(word.text(hans)) + suffix.text,
+                        hans ? std::string(traditional) + right : std::string(),
+                        score + suffix.score + bonus,
+                        suffix.spelled && (!lexicon.pinyin || fully_spelled(word)),
+                        suffix.verified && verified,
+                        word.pair,
+                        suffix.fuzzy || fuzzyWord,
+                        wholeSpan && fuzzyWord,
+                        fuzzyWeight,
+                    });
+                }
+            };
+            for (size_t index = options.first; index < options.second && !wholeSpan; ++index) {
                 if (used_spellings.size() >= pathLimit && (!learnedLeft || index - options.first >= 4096)) break;
                 const auto &word = lexicon.word(index, hans);
                 if (completeOnly && !fully_spelled(word)) continue;
                 if (!reading.matches(word, start, end)) continue;
+                exactHere = exactHere || (!fuzzyOptions.empty() && fully_spelled(word));
                 // Tone and traditional variants remain available as exact
                 // candidates. In a bounded sentence beam, variants with the
                 // same simplified form share one slot so they do not crowd
@@ -855,21 +1076,41 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                 const double base = static_cast<double>(word.score(hans)) / 700.0 - 19.0 + word.prior / 100.0;
                 top = std::max(top, base);
                 const double score = Personal::lifted(base, bonus, top);
-                const bool verified = verifiedSpelling(word);
-                for (const auto &suffix : suffixes[end]) {
-                    const auto traditional = word.text(false);
-                    const auto &right = hans ? suffix.traditional : suffix.text;
-                    const double bonus = lexicon.join_bonus(traditional, right, hans, false, !lexicon.pairs.empty()) +
-                        lexicon.pair_bonus(word.pair, suffix.first) +
-                        (start == 0 ? lexicon.pair_bonus(lexicon.pairBegin, word.pair) : 0);
-                    paths.push_back({
-                        std::string(word.text(hans)) + suffix.text,
-                        hans ? std::string(traditional) + right : std::string(),
-                        score + suffix.score + bonus,
-                        suffix.spelled && (!lexicon.pinyin || fully_spelled(word)),
-                        suffix.verified && verified,
-                        word.pair,
-                    });
+                extend(word, score, nullptr);
+            }
+            if (!fuzzyOptions.empty()) {
+                // CN-03: words of fuzzy readings over this span, best first after
+                // their penalty, in a beam of their own so that a full beam of
+                // exact words cannot hide them. Exact words keep their texts.
+                struct Near { const Word *word; double base; const FuzzyOption *option; double weight; };
+                std::vector<Near> near;
+                for (const auto &option : fuzzyOptions[start]) {
+                    if (option.end != end) continue;
+                    const auto range = lexicon.range(option.key);
+                    size_t taken = 0;
+                    for (size_t index = range.first; index < range.second && index - range.first < 512 && taken < pathLimit; ++index) {
+                        const auto &word = lexicon.word(index, hans);
+                        if (!fuzzy_matches(reading, option, word)) continue;
+                        const double penalty = fuzzy_change_penalty(word.score(hans), wholeSpan, wholeSpelled, exactHere);
+                        if (wholeSpan && wholeSpelled)
+                            wholeFuzzy.push_back({word.text(hans), double(word.score(hans)) - 700.0 * fuzzy_penalty_near * option.cost});
+                        near.push_back({&word, static_cast<double>(word.score(hans)) / 700.0 - 19.0 + word.prior / 100.0 -
+                            penalty * option.cost, &option, double(word.score(hans)) - 700.0 * penalty * option.cost});
+                        ++taken;
+                    }
+                }
+                std::stable_sort(near.begin(), near.end(), [](const Near &a, const Near &b) { return a.base > b.base; });
+                size_t taken = 0;
+                double fuzzyTop = -std::numeric_limits<double>::infinity();
+                for (const auto &item : near) {
+                    if (taken == pathLimit) break;
+                    const auto spelling = item.word->text(true);
+                    if (std::find(used_spellings.begin(), used_spellings.end(), spelling) != used_spellings.end()) continue;
+                    used_spellings.push_back(spelling);
+                    ++taken;
+                    const auto *learnedFuzzy = personal ? personal->find(hans, item.option->key) : nullptr;
+                    fuzzyTop = std::max(fuzzyTop, item.base);
+                    extend(*item.word, Personal::lifted(item.base, Personal::bonus(learnedFuzzy, item.word->text(hans)), fuzzyTop), item.option, item.weight);
                 }
             }
         }
@@ -881,6 +1122,51 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             if (unique.insert(path.text).second) suffixes[start].push_back(std::move(path));
             if (suffixes[start].size() == pathLimit) break;
         }
+    }
+    if (!fuzzyOptions.empty()) {
+        // CN-03: fuzzy whole-input words that join the whole-word list. With
+        // an exact whole word of the input, each fuzzy word whose weight less
+        // the near penalty beats the weakest of them is merged by weight; with
+        // none, only fuzzy words that outscore every exact sentence lead (the
+        // full penalty applies; zongguo -> 中国). Others stay sentence
+        // candidates in score order.
+        std::vector<std::pair<std::string, double>> promoted;
+        if (wholeSpelled && !wholeWeights.empty()) {
+            int weakest = std::numeric_limits<int>::max();
+            for (size_t i = 0; i < wholeWeights.size(); ++i) if (!wholeNasal[i]) weakest = std::min(weakest, wholeWeights[i]);
+            std::stable_sort(wholeFuzzy.begin(), wholeFuzzy.end(), [](const WholeFuzzy &a, const WholeFuzzy &b) { return a.weight > b.weight; });
+            for (const auto &item : wholeFuzzy) if (item.weight > weakest) promoted.push_back({std::string(item.text), item.weight});
+        } else {
+            for (const auto &path : suffixes[0]) { if (!path.whole) break; promoted.push_back({path.text, path.weight}); }
+        }
+        // A word offered here supersedes the same text as an n/ng correction,
+        // which the fuzzy pair places by its frequency instead.
+        for (const auto &item : promoted) {
+            for (size_t i = 0; i < wholeNasal.size(); ++i) {
+                if (!wholeNasal[i] || results[i] != item.first) continue;
+                results.erase(results.begin() + i);
+                if (metadata) metadata->erase(metadata->begin() + i);
+                wholeWeights.erase(wholeWeights.begin() + i);
+                wholeNasal.erase(wholeNasal.begin() + i);
+                seen.erase(item.first);
+                break;
+            }
+        }
+        const size_t exactCount = results.size();
+        // Best weight from each exact position on; learning may have reordered them.
+        std::vector<int> following(exactCount + 1, std::numeric_limits<int>::min());
+        for (size_t i = exactCount; i-- > 0;) following[i] = std::max(following[i + 1], wholeWeights[i]);
+        size_t inserted = 0, position = 0;
+        for (const auto &[text, weight] : promoted) {
+            if (results.size() >= result_limit) break;
+            if (!seen.emplace(text).second) continue;
+            // The place among exact words only moves down.
+            while (position < exactCount && following[position] >= weight) ++position;
+            results.insert(results.begin() + position + inserted, text);
+            if (metadata) metadata->insert(metadata->begin() + position + inserted, {MPN_CANDIDATE_CORRECTION, MPN_SCORE_LEXICON, weight, true});
+            ++inserted;
+        }
+        if (inserted) needFallback = false;
     }
     const auto appendFallback = [&] {
         if (needFallback) for (const auto &item : fallback(lexicon, input, hans, false)) {
@@ -894,9 +1180,9 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
     if (!completePath) appendFallback();
     for (const auto &path : suffixes[0]) {
         const auto kind = !reading.unambiguous ? MPN_CANDIDATE_UNKNOWN :
-            (!path.spelled ? MPN_CANDIDATE_CORRECTION :
+            (!path.spelled || path.fuzzy ? MPN_CANDIDATE_CORRECTION :
              (path.verified ? MPN_CANDIDATE_PATH : MPN_CANDIDATE_UNKNOWN));
-        append(path.text, {static_cast<uint32_t>(kind), MPN_SCORE_PATH, path.score});
+        append(path.text, {static_cast<uint32_t>(kind), MPN_SCORE_PATH, path.score, path.fuzzy});
         if (results.size() == result_limit) break;
     }
     if (completePath) appendFallback();
@@ -1233,6 +1519,8 @@ struct MPNSession {
     unsigned expansion = 0;
     bool hans = false;
     bool requireFullCandidate = false;
+    // CN-03: enabled fuzzy pinyin pairs (MPN_FUZZY_*); 0 leaves every result unchanged.
+    uint32_t fuzzy = 0;
     size_t sentenceCount = 0, literalTail = 0;
 
     const Personal *learned() const { return personal.get(); }
@@ -1282,7 +1570,7 @@ struct MPNSession {
         else for (char key : input) marked += symbols[keys.find(key)];
         std::vector<CandidateMetadata> metadata;
         bool singleReading = false;
-        auto decoded = decode(*lexicon, input, hans, false, &metadata, &singleReading, 0, learned());
+        auto decoded = decode(*lexicon, input, hans, false, &metadata, &singleReading, 0, learned(), fuzzy);
         std::vector<Candidate> ranked;
         ranked.reserve(decoded.size());
         for (size_t i = 0; i < decoded.size(); ++i)
@@ -1298,7 +1586,7 @@ struct MPNSession {
         // once per refresh, lazily, rather than rebuilding identical beams.
         int completeReading = -1;
         const auto hasCompleteReading = [&]() {
-            if (completeReading < 0) completeReading = !decode(*lexicon, input, hans, true).empty();
+            if (completeReading < 0) completeReading = !decode(*lexicon, input, hans, true, nullptr, nullptr, 0, nullptr, fuzzy).empty();
             return completeReading != 0;
         };
         auto partial = unfinished_phrase(*lexicon, input, hans);
@@ -1874,6 +2162,15 @@ void mpn_set_simplified(MPNSession *session, int simplified) {
     session->hans = simplified != 0;
     try { session->refresh(); } catch (...) { session->reset(); }
 }
+void mpn_set_fuzzy_pinyin(MPNSession *session, uint32_t mask) {
+    if (!session) return;
+    mask &= MPN_FUZZY_ALL;
+    if (session->fuzzy == mask) return;
+    session->fuzzy = mask;
+    if (session->input.empty()) return;
+    try { session->refresh(); } catch (...) { session->reset(); }
+}
+uint32_t mpn_fuzzy_pinyin(const MPNSession *session) { return session ? session->fuzzy : 0; }
 void mpn_clear(MPNSession *session) {
     session->reset();
     session->committed.clear();
@@ -2002,7 +2299,7 @@ size_t mpn_expand_candidates(MPNSession *session) {
     try {
         const size_t breadth = size_t(32) << session->expansion;
         std::vector<CandidateMetadata> metadata;
-        auto decoded = decode(*session->lexicon, session->input, session->hans, false, &metadata, nullptr, breadth, session->learned());
+        auto decoded = decode(*session->lexicon, session->input, session->hans, false, &metadata, nullptr, breadth, session->learned(), session->fuzzy);
         std::set<std::pair<std::string, size_t>> seen;
         for (const auto &candidate : session->candidates) seen.emplace(candidate.text, candidate.consumed);
         std::vector<Candidate> added;
@@ -2031,6 +2328,9 @@ size_t mpn_candidate_consumed(const MPNSession *session, size_t index) {
 }
 size_t mpn_candidate_literal_tail(const MPNSession *session, size_t index) {
     return session && index < session->candidates.size() ? session->candidates[index].literalTail : 0;
+}
+int mpn_candidate_fuzzy(const MPNSession *session, size_t index) {
+    return session && index < session->candidates.size() && session->candidates[index].metadata.fuzzy ? 1 : 0;
 }
 int mpn_candidate_info(const MPNSession *session, size_t index, MPNCandidateInfo *info, size_t info_size) {
     if (!session || !info || !info_size || index >= session->candidates.size()) return 0;

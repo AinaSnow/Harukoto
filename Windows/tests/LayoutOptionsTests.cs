@@ -53,7 +53,23 @@ internal static class LayoutOptionsTests
             var cli = LayoutOptions.Decode(HarukotoAppearanceBridge.Update(path, 24, 800, false));
             Check(cli.Vertical && cli.Reading == 20 && cli.GapX == 5 && cli.Font == 24 && cli.Width == 800, "CLI lost extended layout fields");
             Check(HarukotoAppearanceBridge.Update(path, 0, 0, true) == new LayoutOptions().Encode(), "CLI reset");
-            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds and presets.");
+            // CN-03: fuzzy pinyin pairs, one DWORD bit mask; off unless saved.
+            Check(FuzzyPinyinOptions.Pairs.Length == 11 && FuzzyPinyinOptions.All == 2047, "Eleven fuzzy pairs");
+            Check(FuzzyPinyinOptions.Read(null) == 0, "Fuzzy default without key");
+            using (var input = Registry.CurrentUser.CreateSubKey(path + @"\FuzzyInput")) {
+                Check(FuzzyPinyinOptions.Read(input) == 0, "Fuzzy default off");
+                FuzzyPinyinOptions.Write(input, 0);
+                Check(input.GetValue(FuzzyPinyinOptions.ValueName) == null, "Saving all-off must not create the value");
+                FuzzyPinyinOptions.Write(input, (1 << 0) | (1 << 8));
+                Check(input.GetValueKind(FuzzyPinyinOptions.ValueName) == RegistryValueKind.DWord && FuzzyPinyinOptions.Read(input) == 257, "Fuzzy pairs persisted as DWORD");
+                FuzzyPinyinOptions.Write(input, -1);
+                Check(FuzzyPinyinOptions.Read(input) == 2047, "Unknown fuzzy bits dropped");
+                FuzzyPinyinOptions.Write(input, 0);
+                Check((int)input.GetValue(FuzzyPinyinOptions.ValueName) == 0, "Fuzzy pairs switched off");
+                input.SetValue(FuzzyPinyinOptions.ValueName, "2047");
+                Check(FuzzyPinyinOptions.Read(input) == 0, "Wrong fuzzy registry type means off");
+            }
+            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds, presets and fuzzy pinyin pairs.");
         } finally { Registry.CurrentUser.DeleteSubKeyTree(path, false); }
     }
 }

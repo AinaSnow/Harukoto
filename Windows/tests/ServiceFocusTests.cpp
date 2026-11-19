@@ -226,10 +226,62 @@ struct ServiceFocusTest {
         mpn_clear(service.session); service.resetCandidates();
         service.memory.reset(); std::filesystem::remove(path); std::filesystem::remove(words);
     }
+
+    // CN-03 through the service: the pairs read from the user's settings are
+    // applied to the active session before a key, rebuild an open candidate
+    // list, reach a session created later, and switched off give back the
+    // original list exactly.
+    static void fuzzyPinyin() {
+        Service service;
+        const std::string data = "MEOWPUUT-PINYIN-1\n"
+            "guo\tguo2\t國\t国\t8000\n"
+            "zhong\tzhong1\t中\t中\t9000\n"
+            "zhongguo\tzhong1guo2\t中國\t中国\t10000\n"
+            "zong\tzong3\t總\t总\t7000\n";
+        service.lexicon = mpn_lexicon_create(data.data(), data.size());
+        service.session = mpn_session_create(service.lexicon);
+        assert(service.lexicon && service.session);
+        mpn_set_simplified(service.session, service.simplified);
+        const auto texts = [&] {
+            std::vector<std::string> result;
+            for (const auto &choice : service.choices) result.push_back(choice.text);
+            return result;
+        };
+        const auto type = [&](const std::string &keys) {
+            mpn_clear(service.session); mpn_clear_commit(service.session); service.resetCandidates();
+            for (char c : keys) assert(mpn_key(service.session, c));
+            service.refreshCandidates();
+            return texts();
+        };
+        service.applyFuzzy(0);
+        const auto plain = type("zongguo");
+        assert(!plain.empty() && plain.front() != "中国");
+        // Turned on while the composition is open: the list is rebuilt at once.
+        service.applyFuzzy(MPN_FUZZY_Z_ZH);
+        assert(texts().front() == "中国" && std::string(mpn_input(service.session)) == "zongguo");
+        assert(type("zongguo").front() == "中国");
+        std::wstring text;
+        assert(service.chooseCandidate(0, text));
+        text += wide(mpn_committed(service.session)); mpn_clear_commit(service.session);
+        assert(text == L"中国" && !*mpn_input(service.session));
+        // A fresh session (another context or a dictionary reload) starts
+        // without pairs and receives them with its first key.
+        mpn_session_destroy(service.session);
+        service.session = mpn_session_create(service.lexicon);
+        mpn_set_simplified(service.session, service.simplified);
+        assert(!mpn_fuzzy_pinyin(service.session));
+        service.applyFuzzy(MPN_FUZZY_Z_ZH);
+        assert(mpn_fuzzy_pinyin(service.session) == MPN_FUZZY_Z_ZH && type("zongguo").front() == "中国");
+        // Off again: exactly the original list.
+        service.applyFuzzy(0);
+        assert(texts() == plain && type("zongguo") == plain);
+        mpn_clear(service.session); service.resetCandidates();
+    }
 };
 }
 int wmain(int argc, wchar_t **argv) {
     assert(argc == 2);
     ServiceFocusTest::run(); ServiceFocusTest::memory(argv[1]); ServiceFocusTest::personalWords(argv[1]);
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory and personal words\n";
+    ServiceFocusTest::fuzzyPinyin();
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words and fuzzy pinyin\n";
 }

@@ -538,7 +538,167 @@ static void verifyPersonalWords() {
     mpn_session_destroy(plain); mpn_session_destroy(learning); mpn_lexicon_destroy(lexicon);
 }
 
+// CN-03: fuzzy pinyin pairs in the core decoder.
+static void verifyFuzzyPinyin() {
+    const std::string data = "MEOWPUUT-PINYIN-1\n"
+        "chi\tchi1\t吃\t吃\t8000\n"
+        "chifan\tchi1fan4\t吃飯\t吃饭\t7000\n"
+        "ci\tci3\t此\t此\t7000\n"
+        "cifan\tci3fan1\t此番\t此番\t3000\n"
+        "dian\tdian3\t點\t点\t7080\n"
+        "dianzhan\tdian4zhan4\t電站\t电站\t3952\n"
+        "fan\tfan4\t飯\t饭\t7000\n"
+        "fan\tfan1\t番\t番\t5000\n"
+        "fen\tfen1\t分\t分\t7000\n"
+        "feng\tfeng1\t風\t风\t8000\n"
+        "guan\tguan1\t關\t关\t7000\n"
+        "guang\tguang1\t光\t光\t8000\n"
+        "guo\tguo2\t國\t国\t8000\n"
+        "guo\tguo4\t過\t过\t7000\n"
+        "hao\thao3\t好\t好\t9000\n"
+        "hu\thu2\t湖\t湖\t7000\n"
+        "jian\tjian4\t見\t见\t7000\n"
+        "lan\tlan2\t藍\t蓝\t6000\n"
+        "lang\tlang2\t狼\t狼\t7000\n"
+        "li\tli3\t李\t李\t7000\n"
+        "lihao\tli4hao3\t利好\t利好\t6000\n"
+        "ni\tni3\t你\t你\t9000\n"
+        "nihao\tni3hao3\t你好\t你好\t9000\n"
+        "ren\tren2\t人\t人\t8000\n"
+        "shi\tshi4\t是\t是\t9000\n"
+        "shijian\tshi2jian1\t時間\t时间\t8000\n"
+        "si\tsi4\t四\t四\t7000\n"
+        "sijian\tsi4jian4\t四件\t四件\t2710\n"
+        "wan\twan4\t萬\t万\t7000\n"
+        "wang\twang2\t王\t王\t8000\n"
+        "xian\txian1\t先\t先\t7000\n"
+        "xiang\txiang3\t想\t想\t8000\n"
+        "xin\txin1\t新\t新\t8000\n"
+        "xing\txing2\t行\t行\t8000\n"
+        "yan\tyan2\t言\t言\t7000\n"
+        "yang\tyang2\t羊\t羊\t8000\n"
+        "zan\tzan4\t贊\t赞\t5000\n"
+        "zg\tz1g2\t中國\t中国\t1000\n"
+        "zhan\tzhan4\t站\t站\t6000\n"
+        "zhong\tzhong1\t中\t中\t9000\n"
+        "zhongguo\tzhong1guo2\t中國\t中国\t10000\n"
+        "zong\tzong3\t總\t总\t7000\n";
+    auto *lexicon = makeLexicon(data);
+    auto *plain = mpn_session_create(lexicon), *fuzzy = mpn_session_create(lexicon);
+    assert(plain && fuzzy);
+    mpn_set_simplified(plain, 1); mpn_set_simplified(fuzzy, 1);
+    const auto run = [](MPNSession *session, const char *keys) {
+        mpn_clear(session); type(session, keys);
+        auto result = listed(session);
+        while (mpn_candidates_can_expand(session)) mpn_expand_candidates(session);
+        return std::make_pair(result, listed(session));
+    };
+    const auto index = [](const std::vector<Listed> &items, const char *text) {
+        size_t i = 0;
+        while (i < items.size() && items[i].text != text) ++i;
+        return i;
+    };
+    const char *inputs[] = {"zongguo", "zhongguo", "cifan", "chifan", "lihao", "nihao", "si", "shi", "fu", "len",
+                            "lan", "fen", "xin", "xian3", "yan", "guan1", "wan", "sijian", "dianzan", "zg", "zhg", "nihaozongguo", "zong1guo2", "zong3guo2", "zon"};
+    // Off by default, and off again after use: exactly the lists without the feature.
+    assert(mpn_fuzzy_pinyin(fuzzy) == 0 && mpn_fuzzy_pinyin(nullptr) == 0);
+    mpn_set_fuzzy_pinyin(nullptr, MPN_FUZZY_ALL);
+    const auto unchanged = [&] { for (const char *keys : inputs) assert(run(plain, keys) == run(fuzzy, keys)); };
+    unchanged();
+    mpn_set_fuzzy_pinyin(fuzzy, MPN_FUZZY_ALL | (1u << 20));
+    assert(mpn_fuzzy_pinyin(fuzzy) == MPN_FUZZY_ALL); // Unknown bits are dropped.
+    mpn_set_fuzzy_pinyin(fuzzy, 0);
+    unchanged();
+
+    // Each pair on its own reaches its word; every other pair together does not.
+    struct Pair { uint32_t bit; const char *keys, *word; };
+    const Pair pairs[] = {
+        {MPN_FUZZY_Z_ZH, "zongguo", "中国"}, {MPN_FUZZY_C_CH, "cifan", "吃饭"}, {MPN_FUZZY_S_SH, "si", "是"},
+        {MPN_FUZZY_N_L, "lihao", "你好"}, {MPN_FUZZY_F_H, "fu", "湖"}, {MPN_FUZZY_R_L, "len", "人"},
+        {MPN_FUZZY_AN_ANG, "lan", "狼"}, {MPN_FUZZY_EN_ENG, "fen", "风"}, {MPN_FUZZY_IN_ING, "xin", "行"},
+        // Four-letter n/ng endings are already offered as corrections, so a
+        // typed tone (which turns those off) shows the pair itself.
+        {MPN_FUZZY_IAN_IANG, "xian3", "想"}, {MPN_FUZZY_IAN_IANG, "yan", "羊"},
+        {MPN_FUZZY_UAN_UANG, "guan1", "光"}, {MPN_FUZZY_UAN_UANG, "wan", "王"},
+    };
+    for (const auto &pair : pairs) {
+        mpn_set_fuzzy_pinyin(fuzzy, pair.bit);
+        const auto on = run(fuzzy, pair.keys).second;
+        assert(index(on, pair.word) < on.size());
+        mpn_set_fuzzy_pinyin(fuzzy, MPN_FUZZY_ALL & ~pair.bit);
+        const auto others = run(fuzzy, pair.keys).second;
+        assert(index(others, pair.word) == others.size());
+        assert(index(run(plain, pair.keys).second, pair.word) == run(plain, pair.keys).second.size());
+    }
+
+    mpn_set_fuzzy_pinyin(fuzzy, MPN_FUZZY_ALL);
+    // Without a good exact reading the fuzzy word leads; it is a correction,
+    // and it is not offered as words to learn.
+    auto list = run(fuzzy, "zongguo").first;
+    assert(list.front().text == "中国" && list.front().kind == MPN_CANDIDATE_CORRECTION && list.front().consumed == 7);
+    assert(!*mpn_candidate_words(fuzzy, 0));
+    assert(run(fuzzy, "fu").first.front().text == "湖");
+    // A fuzzy word competes on frequency: clearly more common than the exact
+    // words (5 nats a change), it leads: 时间 (8000) over 四件 (2710), 吃饭
+    // (7000) over 此番 (3000). Exact readings win near-ties: 利好 (6000)
+    // before 你好 (9000), 四 (7000) before 是 (9000).
+    list = run(fuzzy, "sijian").first;
+    assert(list.front().text == "时间" && list.front().kind == MPN_CANDIDATE_CORRECTION && mpn_candidate_fuzzy(fuzzy, 0));
+    assert(index(list, "四件") == 1 && !mpn_candidate_fuzzy(fuzzy, 1));
+    list = run(fuzzy, "cifan").first;
+    assert(list.front().text == "吃饭" && index(list, "此番") == 1);
+    list = run(fuzzy, "lihao").first;
+    assert(list.front().text == "利好" && list.front().kind != MPN_CANDIDATE_CORRECTION && index(list, "你好") == 1);
+    list = run(fuzzy, "si").first;
+    assert(list.front().text == "四" && index(list, "是") < list.size());
+    // Without an exact word, a rare fuzzy word pays the full 8 nats, so a
+    // composed exact reading (a word missing from the dictionary) stays first.
+    list = run(fuzzy, "dianzan").first;
+    assert(list.front().text == "点赞" && index(list, "电站") > 0 && index(list, "电站") < list.size());
+    assert(!mpn_candidate_fuzzy(fuzzy, list.size()) && !mpn_candidate_fuzzy(nullptr, 0));
+    list = run(fuzzy, "zhongguo").first;
+    assert(list.front().text == "中国" && list.front().kind == MPN_CANDIDATE_EXACT);
+    // Sentence composition: a fuzzy word inside a sentence.
+    list = run(fuzzy, "nihaozongguo").first;
+    assert(list.front().text == "你好中国" && list.front().kind == MPN_CANDIDATE_CORRECTION);
+    assert(index(run(plain, "nihaozongguo").second, "你好中国") == run(plain, "nihaozongguo").second.size());
+    // Typed tones must agree with the word; abbreviations are never substituted.
+    assert(run(fuzzy, "zong1guo2").first.front().text == "中国");
+    assert(index(run(fuzzy, "zong3guo2").second, "中国") == run(fuzzy, "zong3guo2").second.size());
+    assert(run(plain, "zg") == run(fuzzy, "zg") && run(plain, "zhg") == run(fuzzy, "zhg"));
+    // Traditional output.
+    mpn_set_simplified(fuzzy, 0);
+    assert(run(fuzzy, "zongguo").first.front().text == "中國");
+    mpn_set_simplified(fuzzy, 1);
+    // Selecting the fuzzy word consumes every key.
+    mpn_clear(fuzzy); type(fuzzy, "zongguo");
+    assert(mpn_choose(fuzzy, 0) && std::string(mpn_committed(fuzzy)) == "中国" && !*mpn_input(fuzzy));
+    // Changing the pairs rebuilds an open composition at once.
+    mpn_clear(fuzzy); mpn_set_fuzzy_pinyin(fuzzy, 0); type(fuzzy, "zongguo");
+    const auto before = listed(fuzzy);
+    mpn_set_fuzzy_pinyin(fuzzy, MPN_FUZZY_Z_ZH);
+    assert(std::string(mpn_candidate(fuzzy, 0)) == "中国" && std::string(mpn_input(fuzzy)) == "zongguo");
+    mpn_set_fuzzy_pinyin(fuzzy, 0);
+    assert(listed(fuzzy) == before);
+    // The Windows merge puts words with dictionary evidence for the typed
+    // reading first, but keeps a fuzzy word the core already ranked above them.
+    mpn_set_fuzzy_pinyin(fuzzy, MPN_FUZZY_ALL);
+    mpn_clear(fuzzy); type(fuzzy, "sijian");
+    const auto sijianEvidence = [](const std::string &) { return ChineseEvidence{{"四件", 2710}}; };
+    auto merged = windowsCandidates(fuzzy, {}, sijianEvidence, false);
+    assert(merged.size() > 1 && merged[0].text == "时间" && merged[1].text == "四件");
+    // Off: the evidence order is exactly as before.
+    mpn_set_fuzzy_pinyin(fuzzy, 0);
+    mpn_clear(plain); type(plain, "sijian");
+    merged = windowsCandidates(fuzzy, {}, sijianEvidence, false);
+    const auto unmerged = windowsCandidates(plain, {}, sijianEvidence, false);
+    assert(merged.size() == unmerged.size() && merged[0].text == "四件");
+    for (size_t i = 0; i < merged.size(); ++i) assert(merged[i].text == unmerged[i].text);
+    mpn_session_destroy(plain); mpn_session_destroy(fuzzy); mpn_lexicon_destroy(lexicon);
+}
+
 int main(int argc, char **argv) {
+    verifyFuzzyPinyin();
     verifyPersonalWords();
     verifyLazyExpansion();
     verifyLeadingWords();

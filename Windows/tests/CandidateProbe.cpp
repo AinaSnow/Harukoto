@@ -38,14 +38,17 @@ int main(int argc, char **argv) {
         // Optional --personal=N attaches N learned words (CN-06c) for timing
         // only; evaluation runs never pass it.
         size_t personalWords = 0;
+        // Optional --fuzzy=MASK enables CN-03 fuzzy pinyin pairs (MPN_FUZZY_*).
+        uint32_t fuzzy = 0;
         std::vector<char *> positional{argv[0]};
         for (int i = 1; i < argc; ++i) {
             const std::string_view argument(argv[i]);
             if (argument.substr(0, 11) == "--personal=") personalWords = std::stoul(std::string(argument.substr(11)));
+            else if (argument.substr(0, 8) == "--fuzzy=") fuzzy = static_cast<uint32_t>(std::stoul(std::string(argument.substr(8)), nullptr, 0));
             else positional.push_back(argv[i]);
         }
         argc = static_cast<int>(positional.size()); argv = positional.data();
-        if (argc != 3 && argc != 4) throw std::runtime_error("Usage: candidate_probe LEXICON hans|hant [SNAPSHOT_ROOT] [--personal=N]");
+        if (argc != 3 && argc != 4) throw std::runtime_error("Usage: candidate_probe LEXICON hans|hant [SNAPSHOT_ROOT] [--personal=N] [--fuzzy=MASK]");
         const bool simplified = std::string(argv[2]) == "hans";
         if (!simplified && std::string(argv[2]) != "hant") throw std::runtime_error("Invalid script");
         const auto started = Clock::now();
@@ -109,9 +112,11 @@ int main(int argc, char **argv) {
         if (!session) throw std::runtime_error("Cannot create session");
         mpn_set_simplified(session, simplified);
         if (personal) mpn_set_personal(session, personal);
+        mpn_set_fuzzy_pinyin(session, fuzzy);
         std::cout << std::fixed << std::setprecision(4);
         std::cout << "{\"type\":\"startup\",\"load_ms\":" << ms(started) << ",\"theme_rows\":" << themeRows << ',';
         if (personal) std::cout << "\"personal_words\":" << personalWords << ",\"personal_build_ms\":" << personalMs << ',';
+        if (fuzzy) std::cout << "\"fuzzy\":" << mpn_fuzzy_pinyin(session) << ',';
         std::cout << memory() << "}\n";
         for (std::string input; std::getline(std::cin, input);) {
             if (!input.empty() && input.back() == '\r') input.pop_back();
