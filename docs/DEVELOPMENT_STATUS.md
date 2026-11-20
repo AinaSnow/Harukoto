@@ -1,5 +1,11 @@
 # 开发状态与接手入口
 
+## 2026-11-21 · alpha.28 试用包
+
+- 版本号升至 0.4.4-alpha.28（d0766e9），内容为 alpha.27 加自动翻页（8174c77）、DICT-02a（0d64cd8）、FF14-03（3c47baf）与 FF14-04（8c6a184）。从干净提交重新生成词库、完整 MSVC Release 构建并复制 DLL 到 ime 目录，60 项 CTest 在一次运行中全部通过（345.74 秒）。
+- 生成 Harukoto-0.4.4-alpha.28-windows-x64.zip（67.4 MiB，SHA-256 989728d4b76ae4b2ec728e0eb8ffdd9a5a97f8b5f59832e38e749f2e5dfa5cf0）和 Harukoto-0.4.4-alpha.28-Setup.exe（172.0 MiB，SHA-256 6d084ec4594597eec334a5b14f91c8f5b19a8d183cf8e812a688ce46d0c7855e）。BUILD-INFO 记录源提交 d0766e9、不含未提交修改；包内 DLL 与测试所用 Release 构建哈希一致，DLL 内版本为 alpha.28；包内 FF14 词库清单为 0.4.0，包根目录含 Explain.cmd 与 harukoto_candidate_explain.exe。
+- 本机未安装，未发布，安装包未签名；实机抽查待维护者按 VAL-01 进行，重点是自动翻页、FF14 新增技能／副本／简称是否干扰日常输入，以及 Explain.cmd 在安装环境下能否读到实际数据。此条为打包后记录。
+
 ## 2026-11-21 · FF14-04：常用简称与新增类别
 
 - 前置：FF14-03 已提交为 3c47baf。本批未提交、未打包。详见 [FF14 全量词库](FF14_FULL_DICTIONARY.md)“0.4.0 技能、副本与玩家简称”一节。
