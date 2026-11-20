@@ -797,8 +797,20 @@ public:
                 *eaten = TRUE;
             } else if (navigation(key) && count) {
                 const bool backward = key == VK_LEFT || key == VK_UP || (key == VK_TAB && GetKeyState(VK_SHIFT) < 0);
-                const size_t offset = backward ? count - 1 : 1;
-                highlighted = (highlighted + offset) % count;
+                // Moving past the last candidate of a page turns to the next
+                // page (expanding the list when needed) and highlights its
+                // first item; moving before the first turns back to the
+                // previous page's last item. At either end of the whole list
+                // the highlight stays where it is.
+                if (backward) {
+                    if (highlighted) --highlighted;
+                    else if (page) { --page; highlighted = pageSize - 1; }
+                } else if (highlighted + 1 < count) {
+                    ++highlighted;
+                } else {
+                    if (!conjugationPanel.active() && (page + 1) * pageSize >= candidateCount()) expandCandidates();
+                    if ((page + 1) * pageSize < candidateCount()) { ++page; highlighted = 0; }
+                }
                 *eaten = TRUE;
             } else {
                 if (key >= '1' && key <= '7')

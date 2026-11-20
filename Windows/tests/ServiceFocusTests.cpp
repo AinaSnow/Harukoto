@@ -988,6 +988,26 @@ struct ServiceFocusTest {
             assert(press(VK_OEM_PLUS) == taken);
             const std::wstring second = service.candidateText(pageSize);
             assert(press('1') == Result(true, second) && !*mpn_input(service.session));
+            // Arrows past the last candidate of a page turn to the next page
+            // and highlight its first item; before the first, back to the
+            // previous page's last item; at the ends of the list they stay.
+            compose();
+            for (size_t i = 1; i < pageSize; ++i) assert(press(VK_DOWN) == taken && service.page == 0 && service.highlighted == i);
+            assert(press(VK_DOWN) == taken && service.page == 1 && service.highlighted == 0);
+            assert(press(VK_UP) == taken && service.page == 0 && service.highlighted == pageSize - 1);
+            assert(press(VK_RIGHT) == taken && service.page == 1 && service.highlighted == 0);
+            assert(press(VK_LEFT) == taken && press(VK_UP) == taken && service.page == 0 && service.highlighted == pageSize - 2);
+            while (service.highlighted) assert(press(VK_LEFT) == taken);
+            assert(press(VK_UP) == taken && service.page == 0 && service.highlighted == 0);
+            assert(press(VK_TAB) == taken && service.highlighted == 1);
+            while (true) {
+                const size_t before = service.page * pageSize + service.highlighted;
+                assert(press(VK_DOWN) == taken);
+                if (service.page * pageSize + service.highlighted == before) break;
+                assert(service.page * pageSize + service.highlighted == before + 1);
+            }
+            assert(service.page * pageSize + service.highlighted + 1 == service.candidateCount());
+            assert(press(VK_RETURN) == Result(true, service.candidateText(service.candidateCount() - 1)));
             // Shift+- and Shift+= keep the punctuation rules (batch 1 and 2).
             compose();
             hold({VK_SHIFT});
