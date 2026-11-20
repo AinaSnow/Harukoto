@@ -1131,6 +1131,25 @@ static void verifyQuickCandidates() {
     assert(numbers.size() == 6 && numbers.front().text == "一百二十三" && numbers.back().text == "v123" && numbers.back().annotation == "原样");
     assert(std::all_of(numbers.begin(), numbers.end(), [](const auto &c) { return c.generated && !c.coreIndex; }));
     assert(quickCandidates("vr", "123", now).empty() && quickCandidates("v", {}, now).empty());
+    // Symbols: the same rule as vrq. Close misses and other inputs are untouched.
+    for (const char *keys : {"vb", "vbdd", "vfhx", "bd", "vx"}) {
+        auto plain = list(keys), combined = plain;
+        mergeQuickCandidates(combined, quickCandidates(keys, {}, now));
+        assert(combined.size() == plain.size());
+        for (size_t i = 0; i < combined.size(); ++i) assert(combined[i].text == plain[i].text && !combined[i].generated);
+    }
+    for (const char *keys : {"vbd", "vxh", "vfh"}) {
+        auto plain = list(keys), combined = plain;
+        const auto symbols = quickCandidates(keys, {}, now);
+        assert(symbols.size() == quick_input::symbolCandidates(keys).size() && symbols.size() >= 10);
+        mergeQuickCandidates(combined, symbols);
+        assert(combined.size() == plain.size() + symbols.size());
+        for (size_t i = 0; i < symbols.size(); ++i)
+            assert(combined[i].generated && !combined[i].coreIndex && combined[i].text == symbols[i].text && !combined[i].annotation.empty());
+        for (size_t i = 0; i < plain.size(); ++i) assert(combined[symbols.size() + i].text == plain[i].text && !combined[symbols.size() + i].generated);
+    }
+    assert(quickCandidates("vxh", {}, now).front().text == "①" && quickCandidates("vxh", {}, now).front().annotation == "序号");
+    assert(quickCandidates("vbd", "1", now).empty()); // number mode only after a lone v
     mpn_session_destroy(session);
     mpn_lexicon_destroy(lexicon);
 }

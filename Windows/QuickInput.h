@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
@@ -187,6 +188,61 @@ inline std::vector<Item> dateCandidates(const std::string &input, const Moment &
         items.push_back({"星期" + week, "星期"});
         items.push_back({"周" + week, "星期"});
         items.push_back({std::string("礼拜") + (week == "日" ? "天" : week), "星期"});
+    }
+    return items;
+}
+
+// CN-07 常用符号: curated symbol lists behind exact v-triggers, the letters
+// being the pinyin initials of the category name (vbd 标点, vsx 数学 ...).
+// vfh (符号) lists every category in order. Checked like vrq: no packaged or
+// installed reading starts with vb, vd, vf, vh, vj, vk, vs, vt or vx (the
+// FF14 English triggers that start with v continue with a vowel, l, p, r or
+// u). One symbol per candidate, committed as it is.
+struct SymbolCategory { const char *code, *name; std::vector<const char *> symbols; };
+
+inline const std::vector<SymbolCategory> &symbolCategories() {
+    static const std::vector<SymbolCategory> categories = {
+        {"vbd", "标点", {"，", "。", "、", "；", "：", "？", "！", "……", "——", "·", "“", "”", "‘", "’", "（", "）",
+                         "《", "》", "〈", "〉", "～", "＠", "＃", "％", "＆", "〃", "…", "—"}},
+        {"vsx", "数学", {"±", "×", "÷", "≈", "≠", "≤", "≥", "∞", "√", "°", "≡", "∑", "∫", "∂",
+                         "∠", "⊥", "∥", "∵", "∴", "∈", "∉", "⊂", "⊃", "∪", "∩", "∅", "∧", "∨", "¬", "∀",
+                         "∃", "∝", "′", "″", "½", "⅓", "¼", "¾", "²", "³", "ⁿ"}},
+        {"vjt", "箭头", {"←", "→", "↑", "↓", "↔", "↕", "↖", "↗", "↘", "↙", "⇐", "⇒", "⇑", "⇓", "⇔", "↺", "↻", "➜"}},
+        {"vxh", "序号", {"①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑴", "⑵", "⑶", "⑷", "⑸", "⑹", "⑺",
+                         "⑻", "⑼", "⑽", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ", "Ⅹ", "Ⅺ", "Ⅻ",
+                         "㈠", "㈡", "㈢", "㈣", "㈤", "㈥", "㈦", "㈧", "㈨", "㈩"}},
+        {"vdw", "单位", {"℃", "℉", "‰", "￥", "¥", "€", "£", "$", "¢", "㎡", "㎥", "㎝", "㎜",
+                         "㎞", "㎏", "㎎", "㎖", "㏄", "Ω", "μ"}},
+        {"vtx", "图形", {"★", "☆", "○", "●", "◎", "◇", "◆", "□", "■", "△", "▲", "▽", "▼", "◁", "◀", "▷", "▶",
+                         "♀", "♂", "♠", "♥", "♣", "♦", "✓", "✗", "☑", "☐", "♪", "♫", "◉", "⊙"}},
+        {"vxl", "希腊字母", {"α", "β", "γ", "δ", "ε", "ζ", "η", "θ", "ι", "κ", "λ", "μ", "ν", "ξ", "ο", "π", "ρ",
+                             "σ", "τ", "υ", "φ", "χ", "ψ", "ω", "Γ", "Δ", "Θ", "Λ", "Ξ", "Π", "Σ", "Φ", "Ψ", "Ω"}},
+        {"vkh", "括号", {"「", "」", "『", "』", "【", "】", "〔", "〕", "〖", "〗", "《", "》", "〈", "〉", "（", "）",
+                         "［", "］", "｛", "｝"}},
+        {"vts", "特殊", {"※", "§", "№", "™", "©", "®", "℡", "¶", "†", "‡", "〒", "〓", "♯", "♭"}},
+    };
+    return categories;
+}
+
+inline bool symbolTrigger(const std::string &input) {
+    if (input == "vfh") return true;
+    for (const auto &category : symbolCategories()) if (input == category.code) return true;
+    return false;
+}
+
+// The symbols for an exact trigger, labelled with their category; vfh adds
+// each category's code to the label and lists a symbol once (where it first
+// appears). Empty for anything else.
+inline std::vector<Item> symbolCandidates(const std::string &input) {
+    std::vector<Item> items;
+    const bool all = input == "vfh";
+    for (const auto &category : symbolCategories()) {
+        if (!all && input != category.code) continue;
+        const std::string label = all ? std::string(category.name) + " · " + category.code : std::string(category.name);
+        for (const char *symbol : category.symbols) {
+            if (all && std::any_of(items.begin(), items.end(), [&](const Item &item) { return item.text == symbol; })) continue;
+            items.push_back({symbol, label});
+        }
     }
     return items;
 }

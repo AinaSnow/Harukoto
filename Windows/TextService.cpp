@@ -1366,7 +1366,7 @@ private:
                 return c.coreIndex ? mpn_candidate_consumed(session, *c.coreIndex) : input.size();
             });
         }
-        // vrq / vsj / vxq: the date, time or weekday first.
+        // vrq / vsj / vxq: the date, time or weekday first; vfh, vbd ...: symbols.
         mergeQuickCandidates(choices, quickCandidates(mpn_input(session), {}, clock()));
     }
 

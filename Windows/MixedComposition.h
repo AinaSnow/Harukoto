@@ -119,18 +119,20 @@ struct WindowsCandidate {
     bool strong = false;
     std::string annotation;
     bool directJapanese = false; // Explicit bridge choices stay visible when collapsed.
-    bool generated = false;      // CN-07 batch 6: a number, date or time; never learned.
+    bool generated = false;      // CN-07: a number, date, time or symbol; never learned.
 };
 
 // CN-07 batch 6: the generated candidates of the merge layer. In number
 // mode (v then digits, kept by the host beside the core's "v") they are the
 // whole list, followed by what was typed; for an exact vrq / vsj / vxq they
-// come first and the ordinary candidates follow. Nothing else changes, so
-// a-z input other than the three triggers is ranked exactly as before.
+// come first and the ordinary candidates follow; so do the symbols of an
+// exact symbol trigger (vfh, vbd, vsx ...: QuickInput.h). Nothing else
+// changes, so a-z input other than the triggers is ranked exactly as before.
 inline std::vector<WindowsCandidate> quickCandidates(const std::string &input, const std::string &number, const quick_input::Moment &now) {
     std::vector<WindowsCandidate> result;
     const auto items = !number.empty() && input == "v" ? quick_input::numberCandidates(number)
-        : number.empty() && quick_input::trigger(input) ? quick_input::dateCandidates(input, now) : std::vector<quick_input::Item>{};
+        : !number.empty() ? std::vector<quick_input::Item>{}
+        : quick_input::trigger(input) ? quick_input::dateCandidates(input, now) : quick_input::symbolCandidates(input);
     for (const auto &item : items) {
         WindowsCandidate candidate{item.text, {}};
         candidate.annotation = item.label;

@@ -1,7 +1,8 @@
-// CN-07 batch 6: numbers, dates and times after a "v".
+// CN-07 batch 6: numbers, dates and times after a "v"; CN-07 symbols.
 #include "../QuickInput.h"
 #include <cassert>
 #include <iostream>
+#include <set>
 
 using namespace quick_input;
 
@@ -67,5 +68,48 @@ int main() {
     assert(texts(dateCandidates("vrq", morning))[1] == "2027-01-03" && texts(dateCandidates("vrq", morning))[4] == "二〇二七年一月三日");
     assert((texts(dateCandidates("vxq", morning)) == Texts{"星期日", "周日", "礼拜天"}));
     assert(dateCandidates("vrq", Moment{}).empty() && dateCandidates("rq", afternoon).empty());
-    std::cout << "PASS: Chinese numerals, capitals, amounts, digits, grouping, typing limits, dates, times and weekdays\n";
+    // Symbols: small curated lists, distinct codes that are not date triggers.
+    const auto &categories = symbolCategories();
+    assert(categories.size() == 9);
+    std::set<std::string> codes;
+    size_t total = 0;
+    for (const auto &category : categories) {
+        const std::string code = category.code;
+        assert(code.size() == 3 && code[0] == 'v' && code != "vfh" && !trigger(code) && codes.insert(code).second);
+        assert(std::string(category.name).size() > 0 && category.symbols.size() >= 10 && category.symbols.size() <= 45);
+        std::set<std::string> seen;
+        for (const char *symbol : category.symbols) {
+            const std::string text = symbol;
+            assert(!text.empty() && text.size() <= 6 && text.find_first_of(" \t\r\n") == std::string::npos);
+            assert(seen.insert(text).second); // no duplicate within a category
+        }
+        assert(symbolTrigger(code));
+        const auto items = symbolCandidates(code);
+        assert(items.size() == category.symbols.size() && items.front().label == category.name);
+        total += items.size();
+    }
+    assert(total >= 150 && total <= 260);
+    // The first symbols of each list.
+    const std::pair<const char *, Texts> heads[] = {
+        {"vbd", {"，", "。", "、", "；", "："}}, {"vsx", {"±", "×", "÷", "≈", "≠", "≤", "≥", "∞", "√", "°"}},
+        {"vjt", {"←", "→", "↑", "↓"}}, {"vxh", {"①", "②", "③", "④", "⑤", "⑥", "⑦"}}, {"vdw", {"℃", "℉", "‰", "￥"}},
+        {"vtx", {"★", "☆", "○", "●", "◎", "◇", "◆", "□", "■", "△", "▲"}}, {"vxl", {"α", "β", "γ"}},
+        {"vkh", {"「", "」", "『", "』", "【", "】"}}, {"vts", {"※", "§", "№", "™", "©", "®"}}};
+    for (const auto &[code, expected] : heads) {
+        const auto all = texts(symbolCandidates(code));
+        assert(all.size() >= expected.size() && std::equal(expected.begin(), expected.end(), all.begin()));
+    }
+    // vfh: every category in order, each symbol once, labelled with its code.
+    const auto everything = symbolCandidates("vfh");
+    assert(symbolTrigger("vfh") && everything.front().text == "，" && everything.front().label == "标点 · vbd");
+    std::set<std::string> distinct;
+    for (const auto &item : everything) assert(distinct.insert(item.text).second);
+    for (const auto &category : categories)
+        for (const char *symbol : category.symbols) assert(distinct.count(symbol));
+    assert(everything.size() < total && everything.back().text == categories.back().symbols.back());
+    assert(std::find_if(everything.begin(), everything.end(), [](const Item &i) { return i.text == "①"; })->label == "序号 · vxh");
+    // Only exact triggers.
+    for (const char *other : {"", "v", "vb", "vbdd", "bd", "fh", "vrq", "vfhx", "vbd1", "VBD"})
+        assert(!symbolTrigger(other) && symbolCandidates(other).empty());
+    std::cout << "PASS: Chinese numerals, capitals, amounts, digits, grouping, typing limits, dates, times, weekdays and symbols\n";
 }

@@ -1367,9 +1367,69 @@ struct ServiceFocusTest {
             assert(press(VK_SPACE) == Result(true, L"vxq ")); // Space keeps its raw-letters meaning outside number mode
             type("vxq");
             assert(service.choices.front().text == "星期五" && press('1') == Result(true, L"星期五"));
+            // CN-07 symbols: exact triggers list their symbols first, labelled on the reading line.
+            type("vbd");
+            assert(service.choices.front().text == "，" && service.choices.front().generated && service.candidateReading(0) == L"标点");
+            assert(service.choices.size() == quick_input::symbolCandidates("vbd").size() + 1 && service.choices.back().text == "vbd");
+            assert(press('2') == Result(true, L"。") && !*mpn_input(service.session));
+            type("vxh");
+            assert(press(VK_RETURN) == Result(true, L"①"));
+            // Paging: = and Page Down move by the page size, a digit picks on the page shown.
+            type("vxh");
+            assert(press(VK_OEM_PLUS) == Result(true, L"") && service.page == 1 && press('1') == Result(true, L"⑧"));
+            type("vxh");
+            assert(press(VK_NEXT).first && press(VK_NEXT).first && service.page == 2 && press(VK_OEM_MINUS).first && service.page == 1);
+            assert(press('3') == Result(true, L"⑩"));
+            // Arrows past the end of a page go on to the next one.
+            type("vjt");
+            for (int i = 0; i < 7; ++i) assert(press(VK_RIGHT).first);
+            assert(service.page == 1 && press(VK_RETURN) == Result(true, L"↗"));
+            // vfh: every category, the code on the reading line.
+            type("vfh");
+            assert(service.candidateReading(0) == L"标点 · vbd" && service.choices.size() == quick_input::symbolCandidates("vfh").size() + 1);
+            assert(press(VK_ESCAPE) == Result(true, L"") && !*mpn_input(service.session));
+            // Space keeps its raw-letters meaning, as for vxq; a close miss is ordinary input.
+            type("vkh");
+            assert(press(VK_SPACE) == Result(true, L"vkh "));
+            type("vbdd");
+            assert(std::none_of(service.choices.begin(), service.choices.end(), [](const auto &c) { return c.generated; }));
+            assert(press(VK_ESCAPE).first);
+            // v + one digit is still number mode.
+            type("v1");
+            assert(service.numberInput == "1" && service.choices.front().text == "一" && press(VK_SPACE) == Result(true, L"一"));
+            // Traditional output and full-width leave symbols as they are.
+            // (The script preference is read from HKCU, so switch the session directly.)
+            const bool wasSimplified = service.simplified;
+            service.simplified = false; mpn_set_simplified(service.session, 0);
+            for (const char *c = "vkh"; *c; ++c) assert(mpn_key(service.session, *c));
+            service.refreshCandidates();
+            assert(service.choices.front().text == "「" && service.choices[1].text == "」" && service.choices[1].generated);
+            {
+                std::wstring chosen;
+                assert(service.chooseCandidate(1, chosen) && chosen == L"」" && !*mpn_input(service.session));
+                service.refreshCandidates();
+            }
+            service.simplified = wasSimplified; mpn_set_simplified(service.session, wasSimplified);
+            {
+                HKEY input = nullptr;
+                const DWORD on = 1;
+                assert(RegCreateKeyExW(root, L"Software\\Meowpuut\\Input", 0, nullptr, 0, KEY_SET_VALUE, nullptr, &input, nullptr) == ERROR_SUCCESS);
+                assert(RegSetValueExW(input, L"FullWidthHotkey", 0, REG_DWORD, reinterpret_cast<const BYTE *>(&on), sizeof(on)) == ERROR_SUCCESS);
+                RegCloseKey(input);
+            }
+            hold({VK_SHIFT});
+            assert(press(VK_SPACE) == Result(true, L"") && service.fullWidthOn());
+            hold({});
+            type("vdw");
+            assert(press('4') == Result(true, L"￥"));
+            type("vbd");
+            assert(press('1') == Result(true, L"，"));
+            hold({VK_SHIFT});
+            assert(press(VK_SPACE) == Result(true, L"") && !service.fullWidthOn());
+            hold({});
             // Nothing generated was learned.
             service.memory->flush();
-            for (const char *reading : {"v", "vrq", "vsj", "vxq"}) assert(service.memory->recall(reading, true).empty());
+            for (const char *reading : {"v", "vrq", "vsj", "vxq", "vbd", "vxh", "vjt", "vkh", "vdw"}) assert(service.memory->recall(reading, true).empty());
             assert(service.memory->words().size() == 0);
             // English mode: the host's.
             service.setMode(false);
