@@ -712,6 +712,86 @@ struct ServiceFocusTest {
         assert(icon);
         DestroyIcon(icon);
     }
+
+    // CN-07 batch 3 through the real key callbacks: - and = page while
+    // composing, stop at the first and last page, and are the host's when
+    // idle or in English mode.
+    static void paging() {
+        const std::wstring path = L"Software\\HarukotoPagingService-" + std::to_wstring(GetCurrentProcessId());
+        HKEY root = nullptr;
+        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        RecordingContext context;
+        {
+            Service service;
+            service.preferenceRoot = root; // Chinese punctuation regardless of this user's settings
+            std::string data = "MEOWPUUT-PINYIN-1\n";
+            const char *characters[] = {"一", "以", "已", "意", "义", "议", "易", "医", "依", "亿", "艺", "益", "异", "衣", "移", "遗"};
+            int weight = 9000;
+            for (const char *text : characters) data += std::string("yi\tyi4\t") + text + "\t" + text + "\t" + std::to_string(weight -= 100) + "\n";
+            service.lexicon = mpn_lexicon_create(data.data(), data.size());
+            service.session = mpn_session_create(service.lexicon);
+            assert(service.lexicon && service.session);
+            const auto press = [&](WPARAM key) {
+                BOOL tested = FALSE, eaten = FALSE;
+                assert(service.OnTestKeyDown(&context, key, 0, &tested) == S_OK);
+                context.text.clear();
+                assert(service.OnKeyDown(&context, key, 0, &eaten) == S_OK);
+                assert(tested == eaten);
+                return std::make_pair(eaten != FALSE, context.text);
+            };
+            using Result = std::pair<bool, std::wstring>;
+            const Result taken{true, L""}, passed{false, L""};
+            hold({});
+            assert(press(VK_OEM_COMMA) == Result(true, L"，")); // makes the context active
+            // Idle: the host's, as before.
+            assert(press(VK_OEM_MINUS) == passed && press(VK_OEM_PLUS) == passed);
+            const auto compose = [&] {
+                assert(mpn_key(service.session, 'y') && mpn_key(service.session, 'i'));
+                service.refreshCandidates();
+                assert(service.choices.size() > pageSize && service.page == 0);
+            };
+            compose();
+            // = forward until the last page, which it does not pass; the same as Page Down.
+            size_t last = 0;
+            for (int i = 0; i < 10; ++i) {
+                service.highlighted = 1;
+                assert(press(VK_OEM_PLUS) == taken && !service.highlighted);
+                assert(service.page >= last && service.page * pageSize < service.candidateCount());
+                last = service.page;
+            }
+            assert(last >= 1 && (last + 1) * pageSize >= service.candidateCount());
+            assert(press(VK_OEM_PLUS) == taken && service.page == last);
+            // - back to the first page, which it does not pass.
+            assert(press(VK_OEM_MINUS) == taken && service.page == last - 1);
+            while (service.page) assert(press(VK_OEM_MINUS) == taken);
+            assert(press(VK_OEM_MINUS) == taken && service.page == 0 && std::string(mpn_input(service.session)) == "yi");
+            // Matches Page Up / Page Down exactly.
+            assert(press(VK_NEXT) == taken && service.page == 1 && press(VK_OEM_MINUS) == taken && service.page == 0);
+            assert(press(VK_OEM_PLUS) == taken && service.page == 1 && press(VK_PRIOR) == taken && service.page == 0);
+            // A selection on a later page still commits that page's candidate.
+            assert(press(VK_OEM_PLUS) == taken);
+            const std::wstring second = service.candidateText(pageSize);
+            assert(press('1') == Result(true, second) && !*mpn_input(service.session));
+            // Shift+- and Shift+= keep the punctuation rules (batch 1 and 2).
+            compose();
+            hold({VK_SHIFT});
+            assert(press(VK_OEM_MINUS) == Result(true, L"一——"));
+            hold({});
+            compose();
+            hold({VK_SHIFT});
+            assert(press(VK_OEM_PLUS) == Result(true, L"一+"));
+            assert(press(VK_OEM_PLUS) == passed); // idle Shift+= stays the host's
+            hold({});
+            // English mode: the host's.
+            service.setMode(false);
+            assert(press(VK_OEM_MINUS) == passed && press(VK_OEM_PLUS) == passed);
+            service.setMode(true);
+            service.Deactivate();
+        }
+        assert(context.refs == 1);
+        RegCloseKey(root);
+        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+    }
 };
 }
 int wmain(int argc, wchar_t **argv) {
@@ -722,5 +802,6 @@ int wmain(int argc, wchar_t **argv) {
     ServiceFocusTest::typoCorrection();
     ServiceFocusTest::punctuation();
     ServiceFocusTest::inputMode();
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation and Chinese/English mode\n";
+    ServiceFocusTest::paging();
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode and -/= paging\n";
 }

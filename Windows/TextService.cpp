@@ -605,9 +605,11 @@ public:
                 mpn_clear(session);
                 resetCandidates();
                 *eaten = TRUE;
-            } else if (key == VK_PRIOR || key == VK_NEXT) {
-                if (key == VK_PRIOR && page) --page;
-                if (key == VK_NEXT) {
+            } else if (key == VK_PRIOR || key == VK_NEXT || pinyinPagingKey(static_cast<unsigned int>(key), shift, *mpn_input(session) != '\0')) {
+                // CN-07 batch 3: - and = page like Page Up / Page Down while composing.
+                const bool next = key == VK_NEXT || key == VK_OEM_PLUS;
+                if (!next && page) --page;
+                if (next) {
                     if (!conjugationPanel.active() && (page + 1) * pageSize >= candidateCount()) expandCandidates();
                     if ((page + 1) * pageSize < candidateCount()) ++page;
                 }
@@ -937,6 +939,8 @@ private:
             return conjugationPanel.active() || (index < choices.size() && conjugationFor(currentConjugations(), choices[index], mpn_input(current)));
         }
         if (key >= '0' && key <= '9') return true;
+        // Like Page Up / Page Down: taken while composing, never reaching the host.
+        if (pinyinPagingKey(code, shift, composing)) return true;
         if (navigation(key) || key == VK_F4)
             return currentPage * pageSize < currentCount;
         return translate(key) != 0;

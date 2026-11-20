@@ -129,6 +129,13 @@ constexpr bool pinyinPunctuationShortcut(unsigned int key, bool control, bool sh
     return key == 0xbe && control && !shift && !alt && !windows;
 }
 
+// CN-07 batch 3: while composing, - and = page back and forward like Page Up
+// and Page Down (in both punctuation modes). Idle they stay the host's, and
+// Shift+- / Shift+= follow the punctuation rules.
+constexpr bool pinyinPagingKey(unsigned int key, bool shift, bool composing) {
+    return composing && !shift && (key == 0xbd || key == 0xbb); // VK_OEM_MINUS, VK_OEM_PLUS
+}
+
 // The other digits remain literal input when no corresponding candidate is
 // displayed, rather than reaching the editor ahead of an active composition.
 constexpr bool pinyinDigitSelects(unsigned int key, std::size_t start, std::size_t count) {

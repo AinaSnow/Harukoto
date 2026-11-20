@@ -113,6 +113,13 @@ int main() {
     for (unsigned int key : {0x0du, 0x08u, 0x25u, 0x09u, 0x70u}) assert(!pinyinLiteral(key, false) && !pinyinLiteral(key, true));
     assert(!pinyinAsciiPunctuation('A') && !pinyinAsciiPunctuation(0x20));
 
+    // Batch 3: - and = page only while composing and without Shift.
+    assert(pinyinPagingKey(0xbd, false, true) && pinyinPagingKey(0xbb, false, true));
+    assert(!pinyinPagingKey(0xbd, false, false) && !pinyinPagingKey(0xbb, false, false));
+    assert(!pinyinPagingKey(0xbd, true, true) && !pinyinPagingKey(0xbb, true, true));
+    for (unsigned int key : {0xbcu, 0xbeu, 0x21u, 0x22u, unsigned('A')}) assert(!pinyinPagingKey(key, false, true));
+    assert(pinyinMarkKind(0xbd, false, false, true) == PinyinMark::none && pinyinMarkKind(0xbb, false, true, true) == PinyinMark::none);
+
     // Ctrl+. alone toggles; other modifiers leave the key to the host.
     assert(pinyinPunctuationShortcut(0xbe, true, false, false, false));
     assert(!pinyinPunctuationShortcut(0xbe, false, false, false, false));
