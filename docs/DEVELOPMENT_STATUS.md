@@ -1,5 +1,20 @@
 # 开发状态与接手入口
 
+## 2026-11-20 · CN-07 第一批：标点
+
+- 前置：DICT-02b 已提交为 65d6811。本批未提交、未打包。核心未改动。
+- 行为（`PinyinPunctuation.h` 的 `pinyinMarkKind`／`pinyinMarkText`）：中文标点下 , . ; [ ] \ 照旧为 ，。；「」、；`/` 不再是 ？：空闲时交给应用（按键原样到达，与切换前的英文输入一致，FF14 行首 /say 等指令不受影响），组字时上屏高亮候选后输出 `/`。理由：主流输入法 `/` 输出 / 或 、，、已由 \ 提供；组字时也输出 / 使同一个键在两种状态下结果一致，网址、路径、日期不必先切英文；中文问号改由 Shift+/。空闲时的 ' 输出 ‘’ 交替，组字时仍为音节分隔符。Shift 层（只在中文标点下）：Shift+1 ！、4 ￥、6 ……、9 （、0 ）、- ——、; ：、' “”交替、, 《、. 》、/ ？、[ 『、] 』；其余 Shift 键与 Shift+字母照旧交给应用（组字时 Shift+字母泄漏留给下一批）。组字时按任一标点与改动前相同：先 `finishCandidateText` 上屏高亮候选（其余读音自动补全），再输出标点。
+- 英文标点：上述键全部按原样；空闲时交给应用，组字时上屏候选后输出 ASCII 字符；Shift 层交给应用；' 组字时仍是分隔符。
+- 待上屏队列：空闲时本应交给应用的标点（`/`、英文标点）在本上下文 TSF 插入尚未完成时由输入法按原样输出，不越过前面的文字（与原有数字、空格的规则相同）。
+- Ctrl+.（`pinyinPunctuationShortcut`：只有 Ctrl，无 Shift／Alt／Win）切换，按住重复只切一次，写 HKCU\Software\Meowpuut\Input 的 DWORD `EnglishPunctuation`（1 为英文，其他／缺失／类型不对为中文），所有上下文与之后的会话共用；与繁简快捷键一样不受 Caps Lock 影响。DWORD `PunctuationHotkey` 为 0 时 Ctrl+. 交给应用。两个值均在每次按键时读取（新增 `PunctuationMode.h`）。设置窗口新增“标点”：“使用英文标点”“Ctrl+. 切换中英文标点”（默认开）；保存时英文标点只在复选框改变时写入，避免覆盖设置窗口打开期间 Ctrl+. 的切换；LayoutOptions.cs 新增 `PunctuationOptions`。
+- 状态提示：没有现成的独立状态指示机制。组字时候选窗状态栏（及旧式弹出框）在“简／繁”后显示“ · 英文标点”；空闲时切换没有反馈，留给第二批（中英文切换键与状态提示）。
+- [ ] 仍为「」（第四批以词定字只在组字时占用 [ ]）。
+- 旧式弹出框（无渲染器时）按住 Shift 点击候选不再调用 OnKeyDown，避免 Shift+数字被当成中文标点；改动前此时也不选词。
+- 测试：`pinyin_punctuation` 扩充（两种模式×空闲／组字的全部映射、Shift 层、引号两类各自交替、未映射 Shift 键、Ctrl+. 判定）；新增 CTest `punctuation_preference`（注册表读写、默认值、只有 DWORD 1 为英文、类型不对保持默认）；`tsf_focus_cancel` 新增正式按键路径：带插入记录的假 ITfContext，用 SetKeyboardState 模拟 Shift／Ctrl／Caps Lock，逐键核对 OnTestKeyDown 与 OnKeyDown 是否吃键一致及上屏文字（空闲／组字、Shift 层、未映射键放行、Caps Lock 放行、Ctrl+. 切换与重复、持久化、关闭快捷键后放行、英文模式、待上屏队列后的标点顺序），偏好写在临时注册表键（`Service::preferenceRoot`）。LayoutOptionsTests 新增标点持久化（不在 CTest 中）；test-preview.ps1 全部通过（设置窗口同时编译）。CTest 共 57 项（原 56 项加 punctuation_preference），完整构建并复制 DLL 后全部通过（316.77 秒；加 Shift 点击保护后重新构建、复制 DLL 并重跑，仍全部通过，310.82 秒）。
+- 未验证：真实应用（记事本、浏览器、FF14 聊天框）中的效果；非美式键盘布局；没有打包、安装；设置窗口新控件未实际打开查看；Android 未涉及。
+- 已知局限：按美式布局的虚拟键码；引号开合按服务实例（每个应用线程）交替，不看光标前文字；空闲时切换无提示；Shift+` ～、` ·、Shift+\ 等未映射。
+- 下一步：维护者验收；随下一个试用包实机抽查（FF14 /指令、Shift 标点、Ctrl+. 在 VS Code 等应用里的冲突）。
+
 ## 2026-11-20 · DICT-02b 个人中文词的手动添加与修订
 
 - 前置：CN-05 已提交为 c59279b。本批未提交、未打包。

@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include "PendingDelivery.h"
 #include "PinyinPunctuation.h"
+#include "PunctuationMode.h"
 #include "ScriptMode.h"
 #include "ScriptPreference.h"
 #include "FuzzyPinyin.h"
@@ -386,9 +387,21 @@ public:
                 simplified = preference;
                 refreshCandidates();
             }
+            // CN-07: punctuation mode, and what this key types in it.
+            englishPunctuation = readEnglishPunctuation(preferenceRoot);
+            const bool toggle = punctuationToggle(key);
+            const bool shift = GetKeyState(VK_SHIFT) < 0;
+            PinyinMark mark = toggle ? PinyinMark::none
+                : pinyinMarkKind(static_cast<unsigned int>(key), shift, englishPunctuation, *mpn_input(session) != '\0');
+            // Punctuation otherwise left to the host reaches here only when
+            // accepts() kept it behind a pending insertion (which pump() above
+            // may have delivered since): type it literally, in order.
+            if (mark == PinyinMark::none && !toggle && !shift && !*mpn_input(session)
+                && pinyinAsciiPunctuation(static_cast<unsigned int>(key)))
+                mark = PinyinMark::literal;
             // Editing returns to normal composition before handling the key.
             if (conjugationPanel.active() && (scriptShortcut(key) || key == VK_SPACE ||
-                (key >= 'A' && key <= 'Z') || pinyinPunctuation(static_cast<unsigned int>(key)) || key == VK_OEM_7))
+                (key >= 'A' && key <= 'Z') || mark != PinyinMark::none || key == VK_OEM_7))
                 conjugationPanel.close(choices, page, highlighted, expanded);
             const size_t start = page * pageSize;
             const size_t total = candidateCount();
@@ -416,6 +429,18 @@ public:
                     }
                 }
                 *eaten = TRUE;
+            } else if (toggle) {
+                // Like the script shortcut: one toggle per press, persisted
+                // for every context and the next session.
+                if (!(static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30))
+                    && writeEnglishPunctuation(!englishPunctuation, preferenceRoot))
+                    englishPunctuation = !englishPunctuation;
+                *eaten = TRUE;
+            } else if (mark != PinyinMark::none) {
+                finishCandidateText(text, start + highlighted);
+                text += pinyinMarkText(static_cast<unsigned int>(key), shift, mark, quotes);
+                highlighted = 0;
+                *eaten = TRUE;
             } else if (key == VK_F4) {
                 expanded = !expanded;
                 *eaten = TRUE;
@@ -430,11 +455,6 @@ public:
                     if (!conjugationPanel.active() && (page + 1) * pageSize >= candidateCount()) expandCandidates();
                     if ((page + 1) * pageSize < candidateCount()) ++page;
                 }
-                highlighted = 0;
-                *eaten = TRUE;
-            } else if (const wchar_t mark = pinyinPunctuation(static_cast<unsigned int>(key))) {
-                finishCandidateText(text, start + highlighted);
-                text += mark;
                 highlighted = 0;
                 *eaten = TRUE;
             } else if (key >= '0' && key <= '9' && !pinyinDigitSelects(static_cast<unsigned int>(key), start, total)) {
@@ -522,11 +542,23 @@ private:
         return disabled;
     }
 
+    // CN-07: Ctrl+. unless switched off in the settings.
+    bool punctuationToggle(WPARAM key) const {
+        return pinyinPunctuationShortcut(static_cast<unsigned int>(key), GetKeyState(VK_CONTROL) < 0,
+            GetKeyState(VK_SHIFT) < 0, GetKeyState(VK_MENU) < 0,
+            GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0) && readPunctuationHotkey(preferenceRoot);
+    }
+
     bool accepts(ITfContext *context, WPARAM key) const {
-        const bool shortcut = scriptShortcut(key);
+        const bool shortcut = scriptShortcut(key) || punctuationToggle(key);
+        const bool shift = GetKeyState(VK_SHIFT) < 0;
+        // Of the Shift layer only Chinese punctuation is taken; Shift+letters,
+        // unmapped Shift keys and English mode pass to the host as before.
+        const bool shiftMark = shift && pinyinShiftMark(static_cast<unsigned int>(key))
+            && !readEnglishPunctuation(preferenceRoot);
         if (!session || !context || GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0
             || (!shortcut && (GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0
-            || (key != VK_TAB && GetKeyState(VK_SHIFT) < 0) || (GetKeyState(VK_CAPITAL) & 1)))) return false;
+            || (key != VK_TAB && shift && !shiftMark) || (GetKeyState(VK_CAPITAL) & 1)))) return false;
         TF_STATUS status{};
         if (FAILED(context->GetStatus(&status)) || (status.dwDynamicFlags & TF_SD_READONLY)) return false;
         if (disabled(context)) return false;
@@ -535,16 +567,22 @@ private:
         if (focus && GetClassNameW(focus, className, ARRAYSIZE(className))
             && lstrcmpiW(className, L"Edit") == 0 && (GetWindowLongPtrW(focus, GWL_STYLE) & ES_PASSWORD))
             return false;
-        if (shortcut) return true;
-        if ((key >= 'A' && key <= 'Z') || pinyinPunctuation(static_cast<unsigned int>(key))) return true;
+        if (shortcut || shiftMark) return true;
+        if (key >= 'A' && key <= 'Z') return true;
         auto saved = suspended.find(context);
         MPNSession *current = context == activeContext ? session : (saved == suspended.end() ? nullptr : saved->second.session);
-        if (!current || !*mpn_input(current)) {
+        const bool composing = current && *mpn_input(current);
+        if (!shift && (pinyinAsciiPunctuation(static_cast<unsigned int>(key)))
+            && pinyinMarkKind(static_cast<unsigned int>(key), false, readEnglishPunctuation(preferenceRoot), composing) != PinyinMark::none)
+            return true;
+        if (!composing) {
             const auto queued = context == activeContext ? delivery
                 : saved == suspended.end() ? nullptr : saved->second.delivery;
             // Selection may already have cleared the engine while TSF still
-            // owes its text to the host. Keep literal digits/spaces behind it.
-            return queued && !queued->queue.empty() && pinyinQueuedLiteral(static_cast<unsigned int>(key));
+            // owes its text to the host. Keep literal digits/spaces and
+            // punctuation behind it.
+            return !shift && queued && !queued->queue.empty() && (pinyinQueuedLiteral(static_cast<unsigned int>(key))
+                || pinyinAsciiPunctuation(static_cast<unsigned int>(key)));
         }
         const size_t currentPage = context == activeContext ? page : saved->second.page;
         const size_t currentCount = context == activeContext ? candidateCount() : saved->second.choices.size();
@@ -950,7 +988,8 @@ private:
             const int candidate = y / service->popupRowHeight - 1;
             if (y >= service->popupRowHeight && candidate >= 0 && candidate < static_cast<int>(pageSize)) {
                 BOOL eaten = FALSE;
-                if (static_cast<size_t>(candidate) < service->popupIndices.size())
+                // Shift+digit is punctuation (CN-07); a Shift-click selects nothing, as before.
+                if (static_cast<size_t>(candidate) < service->popupIndices.size() && GetKeyState(VK_SHIFT) >= 0)
                     service->OnKeyDown(service->activeContext, '1' + service->popupIndices[candidate], 0, &eaten);
             }
             return 0;
@@ -990,7 +1029,7 @@ private:
             if (popup) ShowWindow(popup, SW_HIDE);
             return;
         }
-        auto display = wide(mpn_preedit(session)) + (simplified ? L"  简" : L"  繁");
+        auto display = wide(mpn_preedit(session)) + (simplified ? L"  简" : L"  繁") + (englishPunctuation ? L" · 英文标点" : L"");
         const bool canConjugate = !conjugationPanel.active() && page * pageSize + highlighted < choices.size() &&
             conjugationFor(currentConjugations(), choices[page * pageSize + highlighted], mpn_input(session));
         const std::wstring conjugationHint = conjugationPanel.active() ? L"  活用 · F6/Esc 返回" : canConjugate ? L"  F6 活用" : L"";
@@ -1033,6 +1072,7 @@ private:
             + wide(mpn_preedit(session)) + L"\t" + std::to_wstring(highlighted);
         const size_t pageCount = (candidateCount() + pageSize - 1) / pageSize;
         payload += simplified ? L"\t简" : L"\t繁";
+        if (englishPunctuation) payload += L" · 英文标点";
         if (themeReload && themeReload->failed()) payload += L" · 词库更新失败，沿用旧版";
         payload += conjugationHint;
         if (pageCount > 1 || (!conjugationPanel.active() && mpn_candidates_can_expand(session)))
@@ -1091,6 +1131,11 @@ private:
     std::vector<WindowsCandidate> choices;
     bool chineseLocked = false, expanded = false, simplified = true;
     size_t page = 0, highlighted = 0;
+    // CN-07: punctuation mode as read at the last key, the quote pairing,
+    // and where the per-user preferences live (tests use a scratch key).
+    bool englishPunctuation = false;
+    PinyinQuotes quotes;
+    HKEY preferenceRoot = HKEY_CURRENT_USER;
     HWND popup = nullptr;
     HWND popupForeground = nullptr;
     WNDPROC originalPopupProc = nullptr;

@@ -39,12 +39,14 @@ internal static class CandidateSettings
         var traditional = new CheckBox { Name = "TraditionalOutput", Content = "输出繁体中文", Margin = new Thickness(0,0,0,8) };
         var savedLayout = LayoutOptions.Load();
         int font = savedLayout.Font, width = savedLayout.Width, fuzzyMask = 0;
-        bool typoCorrection = true;
+        bool typoCorrection = true, englishPunctuation = false, punctuationHotkey = true;
         try {
             using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Meowpuut\Input")) {
                 traditional.IsChecked = key != null && Convert.ToString(key.GetValue("TraditionalOutput", 0)) == "1";
                 fuzzyMask = FuzzyPinyinOptions.Read(key);
                 typoCorrection = TypoCorrectionOptions.Read(key);
+                englishPunctuation = PunctuationOptions.ReadEnglish(key);
+                punctuationHotkey = PunctuationOptions.ReadHotkey(key);
             }
         } catch { /* Keep usable defaults if preferences are unavailable. */ }
         body.Children.Add(traditional);
@@ -64,6 +66,11 @@ internal static class CandidateSettings
         body.Children.Add(new TextBlock { Text = "纠错", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,0,0,8) });
         body.Children.Add(typo);
         body.Children.Add(new TextBlock { Text = "把相邻字母颠倒、漏打、多打或按到旁边的键读作想打的拼音，例如 zhonguo、nihoa 也能打出“中国”“你好”。每个候选最多纠正一处，读音完全一致的候选优先。关闭后不再给出任何纠错候选。默认开启。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,24) });
+        body.Children.Add(new TextBlock { Text = "标点", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,0,0,8) });
+        var english = new CheckBox { Name = "EnglishPunctuation", Content = "使用英文标点", IsChecked = englishPunctuation, Margin = new Thickness(0,0,0,8) };
+        var hotkey = new CheckBox { Name = "PunctuationHotkey", Content = "Ctrl+. 切换中英文标点", IsChecked = punctuationHotkey, Margin = new Thickness(0,0,0,8) };
+        body.Children.Add(english); body.Children.Add(hotkey);
+        body.Children.Add(new TextBlock { Text = "中文标点下 , . ; [ ] \\ 输出 ，。；「」、，Shift 加符号键输出 ！：“”（）《》——……？￥ 等；/ 始终输出 /。英文标点下全部按原样输出。若 Ctrl+. 与其他软件的快捷键冲突，可关闭快捷键。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,24) });
         Func<int> fuzzyDraft = () => {
             int mask = 0;
             for (int i = 0; i < fuzzyBoxes.Length; ++i) if (fuzzyBoxes[i].IsChecked == true) mask |= 1 << i;
@@ -153,7 +160,7 @@ internal static class CandidateSettings
         direction.SelectionChanged += (s,e) => refresh();
         autoReading.Checked += (s,e) => refresh(); autoReading.Unchecked += (s,e) => refresh();
         applyPreset.Click += (s,e) => { setDraft(LayoutOptions.Preset(presets.SelectedIndex)); status.Text = "预设已应用到草稿，保存后生效。"; };
-        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。简繁、模糊音、纠错与词库设置保持。"; };
+        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。简繁、模糊音、纠错、标点与词库设置保持。"; };
         cancel.Click += (s,e) => window.Close();
         save.Click += (s,e) => {
             try {
@@ -164,6 +171,12 @@ internal static class CandidateSettings
                     LayoutOptions.SavePreferences(input, layout, draft(), traditional.IsChecked == true);
                     FuzzyPinyinOptions.Write(input, fuzzyDraft());
                     TypoCorrectionOptions.Write(input, typo.IsChecked == true);
+                    // Only a changed checkbox is saved: Ctrl+. may have toggled the mode meanwhile.
+                    if ((english.IsChecked == true) != englishPunctuation) {
+                        PunctuationOptions.WriteEnglish(input, english.IsChecked == true);
+                        englishPunctuation = english.IsChecked == true;
+                    }
+                    PunctuationOptions.WriteHotkey(input, hotkey.IsChecked == true);
                 }
                 status.Text = "已保存，下次输入按键时生效。取消只丢弃此后未保存的调整。";
             } catch (Exception error) { status.Text = "保存失败：" + error.Message; }

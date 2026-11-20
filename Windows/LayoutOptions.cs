@@ -46,6 +46,40 @@ internal static class TypoCorrectionOptions
     }
 }
 
+// CN-07: punctuation, two DWORDs under Software\Meowpuut\Input read on every key.
+// EnglishPunctuation: 1 = English (literal) punctuation, otherwise Chinese; the
+// input service also writes it when Ctrl+. toggles the mode.
+// PunctuationHotkey: Ctrl+. toggles the mode unless this is a DWORD 0.
+internal static class PunctuationOptions
+{
+    internal const string EnglishValue = "EnglishPunctuation", HotkeyValue = "PunctuationHotkey";
+    internal static bool ReadEnglish(RegistryKey input)
+    {
+        if (input == null) return false;
+        var value = input.GetValue(EnglishValue);
+        return value is int && (int)value == 1;
+    }
+    // Leaves an unchanged value alone, so saving other settings never creates it.
+    // The settings window calls it only when its checkbox changed, so a Ctrl+.
+    // toggle made while the window is open is not undone by saving.
+    internal static void WriteEnglish(RegistryKey input, bool english)
+    {
+        if (ReadEnglish(input) == english && (input.GetValue(EnglishValue) is int || !english)) return;
+        input.SetValue(EnglishValue, english ? 1 : 0, RegistryValueKind.DWord);
+    }
+    internal static bool ReadHotkey(RegistryKey input)
+    {
+        if (input == null) return true;
+        var value = input.GetValue(HotkeyValue);
+        return !(value is int) || (int)value != 0;
+    }
+    internal static void WriteHotkey(RegistryKey input, bool enabled)
+    {
+        if (ReadHotkey(input) == enabled && (input.GetValue(HotkeyValue) is int || enabled)) return;
+        input.SetValue(HotkeyValue, enabled ? 1 : 0, RegistryValueKind.DWord);
+    }
+}
+
 // Layout is published as one registry value. Readers never observe half a layout.
 internal sealed class LayoutOptions
 {

@@ -4,6 +4,55 @@
 #include <iostream>
 
 namespace {
+// A writable host context that records what the service inserts. Edit
+// sessions run synchronously; there is no compartment, so input is enabled.
+class RecordingContext final : public ITfContext, public ITfInsertAtSelection {
+public:
+    ULONG refs = 1;
+    std::wstring text;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
+        *out = nullptr;
+        if (id == IID_IUnknown || id == IID_ITfContext) *out = static_cast<ITfContext *>(this);
+        else if (id == IID_ITfInsertAtSelection) *out = static_cast<ITfInsertAtSelection *>(this);
+        else return E_NOINTERFACE;
+        AddRef();
+        return S_OK;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return ++refs; }
+    ULONG STDMETHODCALLTYPE Release() override { assert(refs); return --refs; }
+    HRESULT STDMETHODCALLTYPE InsertTextAtSelection(TfEditCookie, DWORD, const WCHAR *value, LONG length, ITfRange **range) override {
+        text.append(value, length);
+        *range = nullptr;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE InsertEmbeddedAtSelection(TfEditCookie, DWORD, IDataObject *, ITfRange **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE RequestEditSession(TfClientId, ITfEditSession *edit, DWORD, HRESULT *out) override {
+        *out = edit->DoEditSession(1);
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE InWriteSession(TfClientId, BOOL *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetSelection(TfEditCookie, ULONG, ULONG, TF_SELECTION *, ULONG *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE SetSelection(TfEditCookie, ULONG, const TF_SELECTION *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetStart(TfEditCookie, ITfRange **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetEnd(TfEditCookie, ITfRange **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetActiveView(ITfContextView **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE EnumViews(IEnumTfContextViews **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetStatus(TF_STATUS *status) override { *status = {}; return S_OK; }
+    HRESULT STDMETHODCALLTYPE GetProperty(REFGUID, ITfProperty **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetAppProperty(REFGUID, ITfReadOnlyProperty **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE TrackProperties(const GUID **, ULONG, const GUID **, ULONG, ITfReadOnlyProperty **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE EnumProperties(IEnumTfProperties **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetDocumentMgr(ITfDocumentMgr **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE CreateRangeBackup(TfEditCookie, ITfRange *, ITfRangeBackup **) override { return E_NOTIMPL; }
+};
+
+// Holds modifier keys in this thread's keyboard state, as GetKeyState sees them.
+static void hold(std::initializer_list<int> keys) {
+    BYTE state[256]{};
+    for (int key : keys) state[key] = 0x80;
+    assert(SetKeyboardState(state));
+}
+
 struct ServiceFocusTest {
     static void run() {
         Service service;
@@ -407,6 +456,128 @@ struct ServiceFocusTest {
         assert(texts() == on);
         mpn_clear(service.session); service.resetCandidates();
     }
+
+    // CN-07 through the real key callbacks: which keys the service takes,
+    // what reaches the host, and Ctrl+. with its persisted state and switch.
+    static void punctuation() {
+        const std::wstring path = L"Software\\HarukotoPunctuationService-" + std::to_wstring(GetCurrentProcessId());
+        HKEY root = nullptr;
+        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        RecordingContext context;
+        {
+            Service service;
+            service.preferenceRoot = root;
+            const std::string data = "MEOWPUUT-PINYIN-1\nhao\thao3\t好\t好\t9000\nni\tni3\t你\t你\t9000\n";
+            service.lexicon = mpn_lexicon_create(data.data(), data.size());
+            service.session = mpn_session_create(service.lexicon);
+            assert(service.lexicon && service.session);
+            const auto test = [&](WPARAM key) {
+                BOOL eaten = FALSE;
+                assert(service.OnTestKeyDown(&context, key, 0, &eaten) == S_OK);
+                return eaten != FALSE;
+            };
+            // Returns whether the key was eaten and what reached the host.
+            const auto press = [&](WPARAM key, LPARAM flags = 0) {
+                const bool tested = test(key);
+                context.text.clear();
+                BOOL eaten = FALSE;
+                assert(service.OnKeyDown(&context, key, flags, &eaten) == S_OK);
+                assert(tested == (eaten != FALSE));
+                return std::make_pair(eaten != FALSE, context.text);
+            };
+            const auto compose = [&](const char *keys) {
+                for (const char *c = keys; *c; ++c) {
+                    assert(mpn_key(service.session, *c));
+                }
+                service.refreshCandidates();
+            };
+            using Result = std::pair<bool, std::wstring>;
+            const Result passed{false, L""};
+            hold({});
+            // The first key makes this the active context.
+            assert(press(VK_OEM_COMMA) == Result(true, L"，"));
+            // Chinese punctuation, idle.
+            assert(press(VK_OEM_PERIOD) == Result(true, L"。"));
+            assert(press(VK_OEM_5) == Result(true, L"、"));
+            assert(press(VK_OEM_4) == Result(true, L"「"));
+            assert(press(VK_OEM_2) == passed); // / reaches the host as itself (FF14 commands)
+            assert(press(VK_OEM_7) == Result(true, L"‘"));
+            assert(press(VK_OEM_7) == Result(true, L"’"));
+            // Composing: the highlighted candidate first, then the mark.
+            compose("ni");
+            assert(press(VK_OEM_COMMA) == Result(true, L"你，"));
+            compose("hao");
+            assert(press(VK_OEM_2) == Result(true, L"好/"));
+            compose("ni");
+            // ' stays the syllable separator (pinyinMarkKind leaves it to the
+            // reading). Only queried: an open reading would show a popup.
+            assert(test(VK_OEM_7));
+            mpn_clear(service.session); service.resetCandidates();
+            // Shift layer.
+            hold({VK_SHIFT});
+            assert(press('1') == Result(true, L"！"));
+            assert(press('9') == Result(true, L"（"));
+            assert(press('0') == Result(true, L"）"));
+            assert(press('6') == Result(true, L"……"));
+            assert(press(VK_OEM_MINUS) == Result(true, L"——"));
+            assert(press(VK_OEM_1) == Result(true, L"："));
+            assert(press(VK_OEM_2) == Result(true, L"？"));
+            assert(press(VK_OEM_7) == Result(true, L"“"));
+            assert(press(VK_OEM_7) == Result(true, L"”"));
+            for (WPARAM key : {WPARAM('2'), WPARAM('A'), WPARAM(VK_OEM_PLUS), WPARAM(VK_OEM_5)})
+                assert(press(key) == passed); // unmapped Shift keys and Shift+letters
+            hold({});
+            compose("hao");
+            hold({VK_SHIFT});
+            assert(press(VK_OEM_PERIOD) == Result(true, L"好》"));
+            assert(press('1') == Result(true, L"！"));
+            // Caps Lock still leaves every key to the host.
+            BYTE state[256]{}; state[VK_SHIFT] = 0x80; state[VK_CAPITAL] = 1; assert(SetKeyboardState(state));
+            assert(press('1') == passed);
+            // Ctrl+. toggles, once per press, and persists the mode.
+            hold({VK_CONTROL});
+            assert(press(VK_OEM_PERIOD) == Result(true, L"") && readEnglishPunctuation(root) && service.englishPunctuation);
+            assert(press(VK_OEM_PERIOD, LPARAM(1) << 30) == Result(true, L"") && readEnglishPunctuation(root));
+            assert(press(VK_OEM_COMMA) == passed); // other Ctrl keys are the host's
+            hold({});
+            // English mode: idle punctuation is the host's, composing types it literally.
+            for (WPARAM key : {WPARAM(VK_OEM_COMMA), WPARAM(VK_OEM_PERIOD), WPARAM(VK_OEM_2), WPARAM(VK_OEM_4), WPARAM(VK_OEM_7)})
+                assert(press(key) == passed);
+            compose("ni");
+            assert(press(VK_OEM_PERIOD) == Result(true, L"你."));
+            compose("hao");
+            assert(press(VK_OEM_5) == Result(true, L"好\\"));
+            hold({VK_SHIFT});
+            assert(press('1') == passed && press(VK_OEM_7) == passed);
+            hold({});
+            // Behind a pending insertion punctuation is typed in order, not passed.
+            mpn_clear(service.session); service.resetCandidates();
+            service.delivery->queue.suspend();
+            service.delivery->enqueue(L"待");
+            assert(test(VK_OEM_COMMA) && test(VK_OEM_2));
+            service.delivery->queue.resume();
+            assert(press(VK_OEM_COMMA) == Result(true, L"待,"));
+            // Back to Chinese.
+            hold({VK_CONTROL});
+            assert(press(VK_OEM_PERIOD) == Result(true, L"") && !readEnglishPunctuation(root));
+            hold({});
+            assert(press(VK_OEM_COMMA) == Result(true, L"，"));
+            // Switched off, Ctrl+. is the host's and the mode stays.
+            DWORD off = 0;
+            HKEY input = nullptr;
+            assert(RegOpenKeyExW(root, L"Software\\Meowpuut\\Input", 0, KEY_SET_VALUE, &input) == ERROR_SUCCESS);
+            assert(RegSetValueExW(input, L"PunctuationHotkey", 0, REG_DWORD, reinterpret_cast<const BYTE *>(&off), sizeof(off)) == ERROR_SUCCESS);
+            RegCloseKey(input);
+            hold({VK_CONTROL});
+            assert(press(VK_OEM_PERIOD) == passed && !readEnglishPunctuation(root));
+            hold({});
+            assert(press(VK_OEM_COMMA) == Result(true, L"，"));
+            service.Deactivate();
+        }
+        assert(context.refs == 1);
+        RegCloseKey(root);
+        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+    }
 };
 }
 int wmain(int argc, wchar_t **argv) {
@@ -415,5 +586,6 @@ int wmain(int argc, wchar_t **argv) {
     ServiceFocusTest::userWords(argv[1]);
     ServiceFocusTest::fuzzyPinyin();
     ServiceFocusTest::typoCorrection();
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin and typo correction\n";
+    ServiceFocusTest::punctuation();
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction and punctuation\n";
 }

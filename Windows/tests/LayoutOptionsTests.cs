@@ -82,7 +82,25 @@ internal static class LayoutOptionsTests
                 input.SetValue(TypoCorrectionOptions.ValueName, "0");
                 Check(TypoCorrectionOptions.Read(input), "Wrong typo registry type means on");
             }
-            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds, presets, fuzzy pinyin pairs and typo correction.");
+            // CN-07: Chinese punctuation and the Ctrl+. hotkey unless saved otherwise.
+            Check(!PunctuationOptions.ReadEnglish(null) && PunctuationOptions.ReadHotkey(null), "Punctuation defaults without key");
+            using (var input = Registry.CurrentUser.CreateSubKey(path + @"\PunctuationInput")) {
+                Check(!PunctuationOptions.ReadEnglish(input) && PunctuationOptions.ReadHotkey(input), "Punctuation defaults");
+                PunctuationOptions.WriteEnglish(input, false); PunctuationOptions.WriteHotkey(input, true);
+                Check(input.GetValue(PunctuationOptions.EnglishValue) == null && input.GetValue(PunctuationOptions.HotkeyValue) == null, "Saving the defaults must not create the values");
+                PunctuationOptions.WriteEnglish(input, true); PunctuationOptions.WriteHotkey(input, false);
+                Check(input.GetValueKind(PunctuationOptions.EnglishValue) == RegistryValueKind.DWord && (int)input.GetValue(PunctuationOptions.EnglishValue) == 1
+                    && PunctuationOptions.ReadEnglish(input), "English punctuation persisted as DWORD 1");
+                Check(input.GetValueKind(PunctuationOptions.HotkeyValue) == RegistryValueKind.DWord && !PunctuationOptions.ReadHotkey(input), "Hotkey off persisted as DWORD 0");
+                PunctuationOptions.WriteEnglish(input, false); PunctuationOptions.WriteHotkey(input, true);
+                Check((int)input.GetValue(PunctuationOptions.EnglishValue) == 0 && !PunctuationOptions.ReadEnglish(input), "Chinese punctuation again");
+                Check((int)input.GetValue(PunctuationOptions.HotkeyValue) == 1 && PunctuationOptions.ReadHotkey(input), "Hotkey on again");
+                input.SetValue(PunctuationOptions.EnglishValue, 2, RegistryValueKind.DWord);
+                Check(!PunctuationOptions.ReadEnglish(input), "Only DWORD 1 means English");
+                input.SetValue(PunctuationOptions.EnglishValue, "1"); input.SetValue(PunctuationOptions.HotkeyValue, "0");
+                Check(!PunctuationOptions.ReadEnglish(input) && PunctuationOptions.ReadHotkey(input), "Wrong punctuation registry types keep the defaults");
+            }
+            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds, presets, fuzzy pinyin pairs, typo correction and punctuation.");
         } finally { Registry.CurrentUser.DeleteSubKeyTree(path, false); }
     }
 }
