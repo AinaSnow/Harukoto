@@ -1,5 +1,20 @@
 # 开发状态与接手入口
 
+## 2026-11-20 · DICT-02b 个人中文词的手动添加与修订
+
+- 前置：CN-05 已提交为 c59279b。本批未提交、未打包。
+- 核心接口（只新增，现有签名不变）：`mpn_personal_add_word(personal, reading, simplified, traditional)`、`mpn_personal_remove_word`、`mpn_personal_clear_words`、`mpn_personal_word_count`、`mpn_candidate_personal`。个人词放在已有的 `MPNPersonal` 里（CN-06c 加分同一对象；`mpn_personal_clear` 仍只清加分）。读音为字母、紧跟音节的声调数字和不连续撇号；身份为去声调读音＋简体文字。内部：`Personal` 新增个人词表、版本号与按词库缓存（加互斥锁）；`UserWords` 为某词库准备好的行（每音节一个声调数字，未写声调记为 5 并在位掩码里标“任何声调”）、读音索引和简拼索引；`Lexicon` 新增序号 `serial` 与 `to_traditional`（从 `mpn_custom_chinese` 抽出，行为不变）；候选元数据与路径各多一个 user 标记；`abbrev_options` 可同时查个人词索引；decode 的组句跨度取词库与个人词最长读音的较大者。
+- 排序：整串恰为个人词读音时个人词排整词列表最前（词库同文字词提前不重复；开模糊音时它在模糊整词之前）。组句与简拼里个人词按权重 3000（`user_weight`，约两字词前 10%）计，并按 CN-06c 的上限加分 `Personal::lifted(base, 3, top)`：词库没有该读音时为 3000 分＋0.6 奈特，同读音最好的词库词较弱时至多领先它 0.6 奈特，较强（≥约 5100 分）时低于它。词库也有的同文字词在组句里按自身分数加上限加分。理由：与 CN-06c“越过同读音最好的词只多 0.2 倍”的边界一致，不改变句子切分；单音节个人词因此不会在句中替换常用字。模糊音、句中纠错、逐段兜底、第二页阶梯和 `mpn_candidate_words` 不涉及个人词；注音词库不使用。
+- Windows：`SelectionMemory.h` 新增 `UserWordModel`（逐行解析、同词更新、最多 10,000 个）与 `UserWordTable`（按大小、修改时间、卷序号和文件索引判断变化，变了整份重读；打不开或超过 2 MiB 保留上次结果；不存在即空）；`Store` 增加 `pollUserWords`（每 2 秒至多一次，与开关无关）。`TextService::OnKeyDown` 不论开关都检查个人词；`attachPersonal` 改为：没有个人词且记忆关闭时摘下个人表（与改动前相同），否则挂上，个人词版本变化时整表重加，记忆关闭时清空加分并在重新开启时重建。`MixedComposition.h` 中个人词整串候选视为“有依据”，查询数据库对别的词的支持不会把它挤下。
+- 管理脚本：`manage-selection-memory.ps1` 新增 `-ListWords`、`-AddWord／-ReviseWord／-RemoveWord`（`-Text`、`-Traditional`、`-NewReading`、`-NewText`）、`-ExportWords`、`-ImportWords [-Replace]`、`-UndoWords`、`-ClearWords`，默认查看列出个人词，`-Clear` 的提示说明不动个人词。音节表 412 个（词库里有单字的 419 个音节去掉 m、eh、biang、fiao、lvan、yai、sei），连写取最少音节、首音节最长；写入时先存 `selection-memory-user.previous.tsv` 再临时文件原子替换，替换被输入法短暂占用时每 100 ms 重试至多 50 次。回退为交换两个版本。没有新增安装文件（脚本已在包内），package-ime.ps1 不变。设置窗口没有词条管理的位置，没有加界面。
+- 存储取舍：与 CN-06 共用目录、命名、`Store`、轮询节奏、脚本和 `MPNPersonal`；不共用追加日志格式（整表替换会让日志偏移量读错；导出／回退就是复制文件；旧版本合并日志时会丢掉不认识的行），不共用开关（显式词条不是学习）。
+- 测试：`mixed_candidates` 新增个人词一节（合成词库）与真实词库检查；`selection_memory` 新增个人词表解析与重读；`tsf_focus_cancel` 新增正式路径；`selection_memory_tool` 新增脚本全流程。CTest 仍为 56 项，全部通过（316.61 秒；补真实词库断言、重新完整构建并复制 DLL 后再跑一次，仍全部通过，331.72 秒）。
+- 评测：[调优集](benchmarks/chinese-tuned-dict02b.json)、[独立集](benchmarks/chinese-holdout-dict02b.json)、[整词](benchmarks/chinese-words-dev-dict02b.json) 与 cn05 报告相比，除修订号、源码哈希、耗时和采样内存外逐字段相同（名次、前 7 项、缺失、compose）。独立集只做了整体比较，没有逐条查看。
+- 耗时：见[选词记忆](SELECTION_MEMORY.md#测量dict-02b)。298 条输入逐键中位／p95 0.661／2.239 ms，1,000 个个人词 0.664／2.244 ms，10,000 个 0.669／2.303 ms；表变化后一次性准备 1,000 个约 2.6 ms、10,000 个约 19 ms，读 10,000 个词的文件约 7.8 ms，均在输入线程上。
+- 未验证：真实应用里的效果与生效时机；没有打包、安装；Android 未构建（只新增核心函数）；Core/tests 的 Python 检查未运行；实验独立引擎未接入。
+- 已知局限：只打两个首字母（zs）时个人词按权重 3000 竞争，通常不在第一页；模糊音、句中纠错不作用于个人词；个人词不按词学习（CN-06c），选中后只由选词记录按整串记住；没写声调的音节匹配任何声调，写了声调的只匹配同声调；只保留一个上一版本；两个脚本同时修改不加锁；连写 xian 只按一个音节理解。
+- 下一步：维护者验收；随下一个试用包实机抽查（添加人名、句中组出、修订后约 2 秒生效、回退、繁体）。
+
 ## 2026-11-19 · CN-05 纠错增强
 
 - 前置：CN-04 已提交为 8af8155。本批未提交、未打包。

@@ -60,7 +60,90 @@ try {
     Assert ($cleared -match '记录：0 条' -and $cleared -match '词数：0 个') 'cleared memory is empty'
     Remove-Item -LiteralPath $path, $words
     & $tool @common -Clear | Out-Null
-    Write-Output 'PASS: selection memory and personal words show, export, switch and clear'
+
+    # DICT-02b: hand-added words in a table beside the journals.
+    $user = Join-Path $folder 'selection-memory-user.tsv'
+    $rowsOf = { @([IO.File]::ReadAllLines($user, [Text.UTF8Encoding]::new($false)) | Where-Object { !$_.StartsWith('#') }) }
+    Assert ((& $tool @common -AddWord 'zhang san' -Text '张珊') -match "已添加个人词：zhang'san → 张珊") 'add splits and joins syllables'
+    Assert ((& $tool @common -AddWord 'zhāngsān' -Text '张珊' -Traditional '張珊') -match "已更新个人词：zhang1'san1 → 张珊（繁体 張珊）") 'tone marks; the same word is updated'
+    & $tool @common -AddWord 'xian' -Text '先先' | Out-Null
+    & $tool @common -AddWord "xi'an" -Text '西安市' | Out-Null
+    & $tool @common -AddWord 'fangan' -Text '方案甲' | Out-Null
+    $rows = & $rowsOf
+    Assert ($rows.Count -eq 4 -and $rows[0] -ceq "zhang1'san1`t张珊`t張珊" -and $rows[1] -ceq "xian`t先先" -and $rows[2] -ceq "xi'an`t西安市" -and
+        $rows[3] -ceq "fang'an`t方案甲") 'table rows: fewest syllables, longest first'
+    foreach ($bad in @(@('qxz', '坏'), @('zhang', "a`tb"), @('zhang', "a`u{7f}"), @('zhang1 2', '坏'), @('zhāng3', '坏'), @('zhang', ('长' * 65)),
+                       @(('zhang ' * 17), '坏'))) {
+        $rejected = $false
+        try { & $tool @common -AddWord $bad[0] -Text $bad[1] | Out-Null } catch { $rejected = $true }
+        Assert $rejected "rejects $($bad[0]) / $($bad[1])"
+    }
+    Assert ((& $rowsOf).Count -eq 4) 'rejected words change nothing'
+    # Revised in place: a new text drops the old traditional form.
+    & $tool @common -ReviseWord 'zhangsan' -Text '张珊' -NewText '章珊' | Out-Null
+    $rows = & $rowsOf
+    Assert ($rows[0] -ceq "zhang1'san1`t章珊" -and $rows.Count -eq 4) 'revise keeps the position'
+    $rejected = $false
+    try { & $tool @common -ReviseWord 'xian' -Text '先先' -NewReading "xi'an" -NewText '西安市' | Out-Null } catch { $rejected = $true }
+    Assert $rejected 'revising onto another word is refused'
+    $rejected = $false
+    try { & $tool @common -RemoveWord 'nihao' -Text '你好' | Out-Null } catch { $rejected = $true }
+    Assert $rejected 'removing a missing word is refused'
+    # Removed, then rolled back, and forward again.
+    & $tool @common -RemoveWord 'xian' -Text '先先' | Out-Null
+    Assert ((& $rowsOf).Count -eq 3) 'remove'
+    & $tool @common -UndoWords | Out-Null
+    Assert ((& $rowsOf) -contains "xian`t先先" -and (& $rowsOf).Count -eq 4) 'undo restores the previous version'
+    & $tool @common -UndoWords | Out-Null
+    Assert ((& $rowsOf).Count -eq 3) 'undo again swaps back'
+    & $tool @common -UndoWords | Out-Null
+    # Export, clear, import; a broken import changes nothing.
+    $exportFile = Join-Path $folder 'words.tsv'
+    Assert ((& $tool @common -ExportWords $exportFile) -match '已导出 4 个个人词') 'export words'
+    $before = [IO.File]::ReadAllText($user)
+    Assert ([IO.File]::ReadAllText($exportFile) -ceq $before) 'export is the table itself'
+    & $tool @common -ClearWords | Out-Null
+    Assert ((& $rowsOf).Count -eq 0) 'clear words'
+    Assert ((& $tool @common -ImportWords $exportFile) -match '新增 4 个') 'import'
+    Assert ([IO.File]::ReadAllText($user) -ceq $before) 'import restores the same table'
+    $broken = Join-Path $folder 'broken.tsv'
+    [IO.File]::WriteAllText($broken, "nihao`t你好`nbad reading`t坏`n", [Text.UTF8Encoding]::new($false))
+    $rejected = $false
+    try { & $tool @common -ImportWords $broken | Out-Null } catch { $rejected = $true }
+    Assert ($rejected -and [IO.File]::ReadAllText($user) -ceq $before) 'a broken import changes nothing'
+    [IO.File]::WriteAllText($broken, "`u{feff}ni hao`t你好`nzhang'san`t章珊`t章珊`n", [Text.UTF8Encoding]::new($false))
+    $rejected = $false
+    try { & $tool @common -ImportWords $broken | Out-Null } catch { $rejected = $true }
+    Assert $rejected 'stored readings have no spaces'
+    [IO.File]::WriteAllText($broken, "`u{feff}nihao`t你好`nzhang'san`t章珊`t章珊`n", [Text.UTF8Encoding]::new($false))
+    Assert ((& $tool @common -ImportWords $broken) -match '新增 1 个，更新 1 个') 'import merges'
+    $rows = & $rowsOf
+    Assert ($rows.Count -eq 5 -and $rows[0] -ceq "zhang'san`t章珊`t章珊" -and $rows[4] -ceq "ni'hao`t你好") 'merged rows'
+    Assert ((& $tool @common -ImportWords $broken -Replace) -match '现在共 2 个') 'import can replace'
+    & $tool @common -UndoWords | Out-Null
+    Assert ((& $rowsOf).Count -eq 5) 'undo after import'
+    # Replaced while an input service briefly has the table open: retried.
+    $ready = Join-Path $folder 'held'
+    $holder = Start-ThreadJob -ArgumentList $user, $ready {
+        param($file, $marker)
+        $held = [IO.File]::Open($file, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]'ReadWrite,Delete')
+        [IO.File]::WriteAllText($marker, '')
+        Start-Sleep -Milliseconds 700
+        $held.Dispose()
+    }
+    while (!(Test-Path -LiteralPath $ready)) { Start-Sleep -Milliseconds 20 }
+    & $tool @common -AddWord 'qing ci' -Text '晴词' | Out-Null
+    $holder | Wait-Job | Remove-Job
+    Assert ((& $rowsOf).Count -eq 6) 'replace while open'
+    # Shown, listed; neither the switch nor clearing the memory touches them.
+    $output = (& $tool @common) -join "`n"
+    Assert ($output -match '个人词数：6 个' -and $output -match "qing'ci → 晴词") 'show lists user words'
+    Assert (((& $tool @common -ListWords -Top 1) -join "`n") -match "词数：6 个`n zhang'san → 章珊（繁体 章珊）".Replace("`n ", "`n")) 'list words'
+    & $tool @common -Disable | Out-Null
+    & $tool @common -Clear | Out-Null
+    & $tool @common -Enable | Out-Null
+    Assert ((& $rowsOf).Count -eq 6) 'clear and switch leave user words'
+    Write-Output 'PASS: selection memory, personal words and user words show, export, import, revise, undo, switch and clear'
 } finally {
     Remove-Item -LiteralPath $folder -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $registry -Recurse -Force -ErrorAction SilentlyContinue

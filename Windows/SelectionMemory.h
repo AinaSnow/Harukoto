@@ -448,26 +448,172 @@ public:
     }
 };
 
+// DICT-02b: words the user added by hand ("<name>-user.tsv" beside the
+// journals). Unlike the journals this is a plain table that only the
+// management script writes, always as a whole and by atomic replacement, so
+// that export, import and rollback are copies of one file. Each row:
+//   reading<TAB>simplified[<TAB>traditional]
+// reading is pinyin letters with optional tone digits and apostrophes between
+// syllables; '#' starts a comment. Malformed rows are skipped one by one; a
+// later row for the same untoned reading and text replaces an earlier one.
+class UserWordModel {
+public:
+    struct Entry { std::string reading, text, traditional; };
+    static constexpr size_t MaxWords = 10000, MaxReadingBytes = 128, MaxTextBytes = 192;
+    static constexpr size_t MaxFile = 2 * 1024 * 1024;
+private:
+    std::vector<Entry> entries_;
+    std::map<std::pair<std::string, std::string>, size_t> index_;
+public:
+    // The untoned key, or empty for a malformed reading.
+    static std::string key(std::string_view reading) {
+        if (reading.empty() || reading.size() > MaxReadingBytes) return {};
+        std::string result;
+        char previous = '\'';
+        for (char c : reading) {
+            if (c >= 'a' && c <= 'z') result += c;
+            else if (c >= '1' && c <= '5') { if (previous < 'a' || previous > 'z') return {}; }
+            else if (c == '\'') { if (previous == '\'') return {}; }
+            else return {};
+            previous = c;
+        }
+        return result;
+    }
+    static bool text(std::string_view value, bool optional = false) {
+        if (value.empty()) return optional;
+        if (value.size() > MaxTextBytes) return false;
+        // UTF-8 checks are left to the core, which rejects malformed text;
+        // control bytes would break the table.
+        return std::none_of(value.begin(), value.end(), [](unsigned char c) { return c < 0x20 || c == 0x7f; });
+    }
+    const std::vector<Entry> &entries() const { return entries_; }
+    size_t size() const { return entries_.size(); }
+    bool empty() const { return entries_.empty(); }
+    void clear() { entries_.clear(); index_.clear(); }
+    bool add(std::string_view reading, std::string_view simplified, std::string_view traditional = {}) {
+        const auto bare = key(reading);
+        if (bare.empty() || !text(simplified) || !text(traditional, true)) return false;
+        const auto found = index_.find({bare, std::string(simplified)});
+        if (found != index_.end()) {
+            entries_[found->second].reading = reading;
+            entries_[found->second].traditional = traditional;
+            return true;
+        }
+        if (entries_.size() >= MaxWords) return false;
+        index_.emplace(std::make_pair(bare, std::string(simplified)), entries_.size());
+        entries_.push_back({std::string(reading), std::string(simplified), std::string(traditional)});
+        return true;
+    }
+    // Replaces the model by the rows of data.
+    void parse(std::string_view data) {
+        clear();
+        if (data.size() >= 3 && data.substr(0, 3) == "\xEF\xBB\xBF") data.remove_prefix(3);
+        for (size_t start = 0; start < data.size();) {
+            auto end = data.find('\n', start);
+            if (end == data.npos) end = data.size();
+            auto line = data.substr(start, end - start);
+            start = end + 1;
+            if (!line.empty() && line.back() == '\r') line.remove_suffix(1);
+            if (line.empty() || line.front() == '#') continue;
+            const auto first = line.find('\t');
+            if (first == line.npos) continue;
+            const auto second = line.find('\t', first + 1);
+            const auto rest = second == line.npos ? std::string_view() : line.substr(second + 1);
+            if (rest.find('\t') != rest.npos) continue;
+            add(line.substr(0, first), line.substr(first + 1, (second == line.npos ? line.size() : second) - first - 1), rest);
+        }
+    }
+};
+
+// The table file as last read. poll() looks at its size, time and identity
+// and re-reads the whole file only when one changed; a file that cannot be
+// read (locked, too large) keeps the last good table and is retried later.
+// A missing file is an empty table.
+class UserWordTable {
+    std::filesystem::path path_;
+    UserWordModel model_;
+    uint64_t revision_ = 0, stamp_[4] = {};
+    bool seen_ = false;
+    // Unique across every table in the process; 0 stands for "empty, never read".
+    static uint64_t next() { static std::atomic<uint64_t> counter{0}; return ++counter; }
+public:
+    explicit UserWordTable(std::filesystem::path path) : path_(std::move(path)) {}
+    const std::filesystem::path &path() const { return path_; }
+    const UserWordModel &model() const { return model_; }
+    // Changes whenever the table may have changed.
+    uint64_t revision() const { return revision_; }
+    // Returns true when the table changed.
+    bool refresh() {
+        const HANDLE file = detail::open(path_, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, OPEN_EXISTING);
+        if (file == INVALID_HANDLE_VALUE) {
+            const auto error = GetLastError();
+            if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND) return false;
+            std::fill(std::begin(stamp_), std::end(stamp_), 0);
+            seen_ = true;
+            if (model_.empty()) return false;
+            model_.clear(); revision_ = next();
+            return true;
+        }
+        BY_HANDLE_FILE_INFORMATION info{};
+        bool changed = false;
+        if (GetFileInformationByHandle(file, &info)) {
+            const uint64_t stamp[4] = {
+                (uint64_t(info.nFileSizeHigh) << 32) | info.nFileSizeLow,
+                (uint64_t(info.ftLastWriteTime.dwHighDateTime) << 32) | info.ftLastWriteTime.dwLowDateTime,
+                (uint64_t(info.nFileIndexHigh) << 32) | info.nFileIndexLow,
+                info.dwVolumeSerialNumber | 0x100000000ULL};
+            const uint64_t size = stamp[0];
+            std::string data;
+            if ((!seen_ || !std::equal(std::begin(stamp), std::end(stamp), std::begin(stamp_))) &&
+                size <= UserWordModel::MaxFile && detail::readAt(file, 0, size, data)) {
+                UserWordModel parsed;
+                parsed.parse(data);
+                model_ = std::move(parsed);
+                std::copy(std::begin(stamp), std::end(stamp), std::begin(stamp_));
+                seen_ = true; changed = true; revision_ = next();
+            }
+        }
+        CloseHandle(file);
+        return changed;
+    }
+};
+
 // Both journals of one user. CN-06a/b phrases keep their original file, which
 // older versions also read and compact; CN-06c words live beside it in
 // "<name>-words.tsv", so an older version can neither misread nor drop them.
 // One switch, one poll and one clear cover both.
+//
+// DICT-02b: the user's own words live in the same folder as "<name>-user.tsv"
+// and are polled by the same store, but independently of the switch: they are
+// explicit dictionary entries, not learning, so pollUserWords runs whether or
+// not selection memory is on, and clearing the journals leaves them alone.
 class Store {
     Journal<Model> phrases_;
     Journal<WordModel> words_;
-    ULONGLONG checked_ = 0;
-    bool loaded_ = false;
-    static std::filesystem::path wordsPath(const std::filesystem::path &path) {
+    UserWordTable user_;
+    ULONGLONG checked_ = 0, userChecked_ = 0;
+    bool loaded_ = false, userLoaded_ = false;
+    static std::filesystem::path sibling(const std::filesystem::path &path, const wchar_t *suffix) {
         auto name = path.stem();
-        name += L"-words";
+        name += suffix;
         name += path.extension();
         return path.parent_path() / name;
     }
 public:
-    explicit Store(std::filesystem::path path) : phrases_(path), words_(wordsPath(path)) {}
+    explicit Store(std::filesystem::path path) : phrases_(path), words_(sibling(path, L"-words")), user_(sibling(path, L"-user")) {}
     const Model &model() const { return phrases_.model(); }
     const WordModel &words() const { return words_.model(); }
     const std::filesystem::path &wordsFile() const { return words_.path(); }
+    const UserWordModel &userWords() const { return user_.model(); }
+    uint64_t userWordsRevision() const { return user_.revision(); }
+    const std::filesystem::path &userWordsFile() const { return user_.path(); }
+    // Cheap after the first call; looks at the table at most once per interval.
+    // Returns true when the user words changed.
+    bool pollUserWords(ULONGLONG now = GetTickCount64(), ULONGLONG interval = 2000) {
+        if (userLoaded_ && now - userChecked_ < interval) return false;
+        userChecked_ = now; userLoaded_ = true;
+        return user_.refresh();
+    }
     // Cheap after the first call; looks at the files at most once per interval.
     void poll(ULONGLONG now = GetTickCount64(), ULONGLONG interval = 2000) {
         if (loaded_ && now - checked_ < interval) return;

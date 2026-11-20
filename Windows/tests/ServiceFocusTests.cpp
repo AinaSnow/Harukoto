@@ -227,6 +227,78 @@ struct ServiceFocusTest {
         service.memory.reset(); std::filesystem::remove(path); std::filesystem::remove(words);
     }
 
+    // DICT-02b through the service: a word added to the user's table reaches
+    // the core at the next key after the table is looked at, with or without
+    // selection memory; edits, the other script and deletion follow it.
+    static void userWords(const std::filesystem::path &folder) {
+        const auto path = folder / (L"service-user-" + std::to_wstring(GetCurrentProcessId()) + L".tsv");
+        Service service;
+        const std::string data = "MEOWPUUT-PINYIN-1\n"
+            "san\tsan1\t三\t三\t8000\n"
+            "wo\two3\t我\t我\t9000\n"
+            "zhang\tzhang1\t張\t张\t8000\n"
+            "zhao\tzhao3\t找\t找\t8000\n";
+        service.lexicon = mpn_lexicon_create(data.data(), data.size());
+        service.session = mpn_session_create(service.lexicon);
+        assert(service.lexicon && service.session);
+        mpn_set_simplified(service.session, service.simplified);
+        service.memory = std::make_unique<selection_memory::Store>(path);
+        const auto table = service.memory->userWordsFile();
+        std::filesystem::remove(table); std::filesystem::remove(service.memory->wordsFile());
+        ULONGLONG now = GetTickCount64();
+        // As OnKeyDown does: read the switch, look at the table, attach.
+        const auto type = [&](const std::string &keys, bool enabled = true) {
+            service.memoryEnabled = enabled;
+            if (enabled) service.memory->poll(now);
+            service.memory->pollUserWords(now += 5000);
+            service.attachPersonal();
+            mpn_clear(service.session); mpn_clear_commit(service.session); service.resetCandidates();
+            for (char c : keys) assert(mpn_key(service.session, c));
+            service.refreshCandidates();
+            std::vector<std::string> texts;
+            for (const auto &choice : service.choices) texts.push_back(choice.text);
+            return texts;
+        };
+        const auto publish = [&](const std::string &rows) {
+            const auto temporary = folder / (L"service-user-" + std::to_wstring(GetCurrentProcessId()) + L".tmp");
+            { std::ofstream out(temporary, std::ios::binary | std::ios::trunc); out << rows; }
+            assert(MoveFileExW(temporary.c_str(), table.c_str(), MOVEFILE_REPLACE_EXISTING));
+        };
+        const auto plain = type("zhangsan", false), sentence = type("wozhaozhangsan", false);
+        assert(plain.front() == "张三" && sentence.front() == "我找张三");
+        assert(type("zhangsan") == plain);
+        publish("# 个人词\nzhang'san\t张珊\n");
+        assert(type("zhangsan").front() == "张珊" && type("wozhaozhangsan").front() == "我找张珊");
+        // Independent of the learning switch.
+        assert(type("zhangsan", false).front() == "张珊" && type("wozhaozhangsan", false).front() == "我找张珊");
+        // Choosing it commits it; with memory on it is also remembered as usual.
+        type("zhangsan");
+        std::wstring text;
+        assert(service.chooseCandidate(0, text));
+        text += wide(mpn_committed(service.session)); mpn_clear_commit(service.session);
+        assert(text == L"张珊" && !*mpn_input(service.session));
+        // Revised: the new text replaces the old one at the next look.
+        publish("zhang'san\t章珊\t章珊\n");
+        auto list = type("zhangsan", false);
+        assert(list.front() == "章珊" && std::find(list.begin(), list.end(), "张珊") == list.end());
+        // Traditional output takes the given traditional text, or converts.
+        service.simplified = false; mpn_set_simplified(service.session, 0);
+        assert(type("zhangsan", false).front() == "章珊");
+        publish("zhang'san\t张珊\n");
+        assert(type("zhangsan", false).front() == "張珊");
+        service.simplified = true; mpn_set_simplified(service.session, 1);
+        // Removed: the original lists again, with and without memory.
+        publish("");
+        assert(type("zhangsan", false) == plain && type("wozhaozhangsan", false) == sentence);
+        publish("zhang'san\t张珊\n");
+        assert(type("zhangsan").front() == "张珊");
+        std::filesystem::remove(table);
+        assert(type("zhangsan", false) == plain);
+        mpn_clear(service.session); service.resetCandidates();
+        const auto words = service.memory->wordsFile();
+        service.memory.reset(); std::filesystem::remove(path); std::filesystem::remove(words);
+    }
+
     // CN-03 through the service: the pairs read from the user's settings are
     // applied to the active session before a key, rebuild an open candidate
     // list, reach a session created later, and switched off give back the
@@ -340,7 +412,8 @@ struct ServiceFocusTest {
 int wmain(int argc, wchar_t **argv) {
     assert(argc == 2);
     ServiceFocusTest::run(); ServiceFocusTest::memory(argv[1]); ServiceFocusTest::personalWords(argv[1]);
+    ServiceFocusTest::userWords(argv[1]);
     ServiceFocusTest::fuzzyPinyin();
     ServiceFocusTest::typoCorrection();
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, fuzzy pinyin and typo correction\n";
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin and typo correction\n";
 }

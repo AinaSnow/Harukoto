@@ -373,6 +373,8 @@ public:
             // Selection memory is per user and can be switched off at any time.
             memoryEnabled = memory && selection_memory::enabled();
             if (memoryEnabled) memory->poll();
+            // DICT-02b: the user's own words apply whether or not learning is on.
+            if (memory) memory->pollUserWords();
             attachPersonal();
             // Fuzzy pinyin pairs are per user and apply from the next key.
             applyFuzzy(readFuzzyPinyin());
@@ -564,6 +566,8 @@ private:
     std::unique_ptr<MPNPersonal, decltype(&mpn_personal_destroy)> wordBonuses{nullptr, &mpn_personal_destroy};
     uint64_t personalRevision = 0;
     int64_t personalHour = 0;
+    // DICT-02b: revision of the user words last handed to the core table.
+    uint64_t userWordsRevision = 0;
     // Segments selected so far in the composition being completed.
     std::string composedReading, composedText;
     size_t composedSegments = 0;
@@ -845,17 +849,33 @@ private:
         if (applyTypoCorrection(session, enabled) && *mpn_input(session)) refreshCandidates();
     }
 
-    // Hands the learned word bonuses to the active session, or detaches them
-    // while selection memory is off, so the core behaves exactly as without.
+    // Hands the learned word bonuses and the user's own words (DICT-02b) to
+    // the active session. While selection memory is off the bonuses are
+    // removed; without user words either, the table is detached so the core
+    // behaves exactly as without.
     void attachPersonal() {
-        if (!memoryEnabled || !memory) { if (session) mpn_set_personal(session, nullptr); return; }
+        const bool userWords = memory && !memory->userWords().empty();
+        if ((!memoryEnabled || !memory) && !userWords) {
+            if (session) mpn_set_personal(session, nullptr);
+            if (wordBonuses && userWordsRevision) { mpn_personal_clear_words(wordBonuses.get()); userWordsRevision = 0; }
+            return;
+        }
         const auto hour = selection_memory::currentHour();
         if (!wordBonuses) {
             wordBonuses.reset(mpn_personal_create());
             if (!wordBonuses) { if (session) mpn_set_personal(session, nullptr); return; }
-            personalRevision = 0;
+            personalRevision = 0; userWordsRevision = 0;
         }
-        if (memory->words().revision() != personalRevision || hour != personalHour) {
+        if (memory->userWordsRevision() != userWordsRevision) {
+            mpn_personal_clear_words(wordBonuses.get());
+            for (const auto &entry : memory->userWords().entries())
+                mpn_personal_add_word(wordBonuses.get(), entry.reading.c_str(), entry.text.c_str(), entry.traditional.c_str());
+            userWordsRevision = memory->userWordsRevision();
+        }
+        if (!memoryEnabled) {
+            // Learning is off: no bonuses, and a rebuild when it comes back on.
+            if (personalRevision) { mpn_personal_clear(wordBonuses.get()); personalRevision = 0; }
+        } else if (memory->words().revision() != personalRevision || hour != personalHour) {
             mpn_personal_clear(wordBonuses.get());
             memory->words().each(hour, [&](bool script, std::string_view reading, const std::string &text, double bonus) {
                 mpn_personal_set(wordBonuses.get(), script, std::string(reading).c_str(), text.c_str(), bonus);

@@ -239,8 +239,11 @@ std::vector<WindowsCandidate> windowsCandidates(MPNSession *session, const std::
     size_t lastEvidence = 0;
     for (size_t i = 0; i < chinese.size(); ++i)
         if (evidence.count(mpn_candidate(session, i))) lastEvidence = i + 1;
+    // DICT-02b: a word the user added for exactly this input counts as backed,
+    // so evidence for other words cannot push it off the lead the core gave it.
     const auto backed = [&](size_t i) {
-        return evidence.count(mpn_candidate(session, i)) != 0 || (i + 1 < lastEvidence && mpn_candidate_fuzzy(session, i));
+        return evidence.count(mpn_candidate(session, i)) != 0 || (i + 1 < lastEvidence && mpn_candidate_fuzzy(session, i)) ||
+            (mpn_candidate_personal(session, i) && mpn_candidate_consumed(session, i) == input.size());
     };
     std::stable_partition(chinese.begin(), chinese.end(), backed);
     if (chineseLocked) {

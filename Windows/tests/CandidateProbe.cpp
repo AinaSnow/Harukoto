@@ -38,6 +38,9 @@ int main(int argc, char **argv) {
         // Optional --personal=N attaches N learned words (CN-06c) for timing
         // only; evaluation runs never pass it.
         size_t personalWords = 0;
+        // Optional --user-words=N adds N hand-added words (DICT-02b) for
+        // timing only; evaluation runs never pass it either.
+        size_t userWords = 0;
         // Optional --fuzzy=MASK enables CN-03 fuzzy pinyin pairs (MPN_FUZZY_*).
         uint32_t fuzzy = 0;
         // Optional --typo=0 turns CN-05 typo correction off (on by default);
@@ -47,13 +50,14 @@ int main(int argc, char **argv) {
         for (int i = 1; i < argc; ++i) {
             const std::string_view argument(argv[i]);
             if (argument.substr(0, 11) == "--personal=") personalWords = std::stoul(std::string(argument.substr(11)));
+            else if (argument.substr(0, 13) == "--user-words=") userWords = std::stoul(std::string(argument.substr(13)));
             else if (argument.substr(0, 8) == "--fuzzy=") fuzzy = static_cast<uint32_t>(std::stoul(std::string(argument.substr(8)), nullptr, 0));
             else if (argument.substr(0, 7) == "--typo=") typo = argument.substr(7) != "0";
             else if (argument == "--scores") scores = true;
             else positional.push_back(argv[i]);
         }
         argc = static_cast<int>(positional.size()); argv = positional.data();
-        if (argc != 3 && argc != 4) throw std::runtime_error("Usage: candidate_probe LEXICON hans|hant [SNAPSHOT_ROOT] [--personal=N] [--fuzzy=MASK] [--typo=0|1] [--scores]");
+        if (argc != 3 && argc != 4) throw std::runtime_error("Usage: candidate_probe LEXICON hans|hant [SNAPSHOT_ROOT] [--personal=N] [--user-words=N] [--fuzzy=MASK] [--typo=0|1] [--scores]");
         const bool simplified = std::string(argv[2]) == "hans";
         if (!simplified && std::string(argv[2]) != "hant") throw std::runtime_error("Invalid script");
         const auto started = Clock::now();
@@ -75,7 +79,7 @@ int main(int argc, char **argv) {
         if (evidence.dictionary("chi", simplified).empty()) throw std::runtime_error("Chinese evidence unavailable");
         MPNLexicon *lexicon;
         MPNPersonal *personal = nullptr;
-        double personalMs = 0;
+        double personalMs = 0, userMs = 0, userPrepareMs = 0;
         {
             std::ifstream file(dir / "native-pinyin.tsv", std::ios::binary);
             if (!file) throw std::runtime_error("Missing native dictionary");
@@ -88,6 +92,36 @@ int main(int argc, char **argv) {
                 if (!file.read(bytes.data(), size)) bytes.clear();
             }
             lexicon = mpn_lexicon_create(bytes.data(), bytes.size());
+            if (userWords) {
+                // Words the lexicon lacks, on the readings of multi-syllable
+                // lexicon words spread over the whole table (the lexicon's
+                // text with one character added), so they compete with real
+                // input; toned readings as the management script may write.
+                struct Row { std::string reading, text; };
+                std::vector<Row> rows;
+                std::istringstream lines(bytes);
+                std::string line;
+                std::getline(lines, line);
+                while (std::getline(lines, line) && line != "# context") {
+                    std::vector<std::string> fields;
+                    std::istringstream row(line);
+                    for (std::string field; std::getline(row, field, '\t');) fields.push_back(field);
+                    // Fully spelled readings only: every syllable has a vowel (no n3h3 rows).
+                    bool vowel = false, spelled = true;
+                    for (char c : fields.size() == 6 ? fields[1] : std::string()) {
+                        if (c >= '1' && c <= '5') { spelled = spelled && vowel; vowel = false; }
+                        else vowel = vowel || std::string_view("aeiouv").find(c) != std::string_view::npos;
+                    }
+                    if (fields.size() == 6 && spelled && fields[3].size() > 3 && std::count_if(fields[1].begin(), fields[1].end(), [](char c) { return c >= '1' && c <= '5'; }) >= 2)
+                        rows.push_back({fields[1], fields[3] + "\xe7\x94\xb2"}); // + 甲
+                }
+                if (!personal) personal = mpn_personal_create();
+                const auto built = Clock::now();
+                const size_t step = (std::max)(size_t(1), rows.size() / userWords);
+                for (size_t i = 0, added = 0; i < rows.size() && added < userWords; i += step, ++added)
+                    if (!mpn_personal_add_word(personal, rows[i].reading.c_str(), rows[i].text.c_str(), nullptr)) throw std::runtime_error("User word rejected");
+                userMs = ms(built);
+            }
             if (personalWords) {
                 // Spread over common multi-character words, with one to five
                 // selections' worth of bonus each, as the host hands them over.
@@ -104,7 +138,7 @@ int main(int argc, char **argv) {
                     const auto &text = fields[simplified ? 3 : 2];
                     if (text.size() > 3) rows.push_back({fields[0], text});
                 }
-                personal = mpn_personal_create();
+                if (!personal) personal = mpn_personal_create();
                 const auto built = Clock::now();
                 const size_t step = (std::max)(size_t(1), rows.size() / personalWords);
                 for (size_t i = 0, added = 0; i < rows.size() && added < personalWords; i += step, ++added)
@@ -117,11 +151,20 @@ int main(int argc, char **argv) {
         if (!session) throw std::runtime_error("Cannot create session");
         mpn_set_simplified(session, simplified);
         if (personal) mpn_set_personal(session, personal);
+        if (userWords) {
+            // The table is prepared for the lexicon at the first lookup.
+            const auto prepared = Clock::now();
+            mpn_key(session, 'a');
+            userPrepareMs = ms(prepared);
+            mpn_clear(session);
+        }
         mpn_set_fuzzy_pinyin(session, fuzzy);
         mpn_set_typo_correction(session, typo);
         std::cout << std::fixed << std::setprecision(4);
         std::cout << "{\"type\":\"startup\",\"load_ms\":" << ms(started) << ",\"theme_rows\":" << themeRows << ',';
-        if (personal) std::cout << "\"personal_words\":" << personalWords << ",\"personal_build_ms\":" << personalMs << ',';
+        if (personalWords) std::cout << "\"personal_words\":" << personalWords << ",\"personal_build_ms\":" << personalMs << ',';
+        if (userWords) std::cout << "\"user_words\":" << mpn_personal_word_count(personal) << ",\"user_add_ms\":" << userMs <<
+            ",\"user_first_key_ms\":" << userPrepareMs << ',';
         if (fuzzy) std::cout << "\"fuzzy\":" << mpn_fuzzy_pinyin(session) << ',';
         if (!typo) std::cout << "\"typo\":0,";
         std::cout << memory() << "}\n";

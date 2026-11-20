@@ -119,6 +119,36 @@ void mpn_set_personal(MPNSession *session, const MPNPersonal *personal);
 // (corrections, abbreviations, literal text). Valid until the next call.
 const char *mpn_candidate_words(MPNSession *session, size_t index);
 
+// User words (DICT-02b): words the user added by hand to the same personal
+// table, such as names or new terms the lexicon lacks. reading is pinyin
+// letters a-z, each syllable optionally ending in a tone digit 1-5, with
+// single apostrophes allowed between syllables (zhang'san, zhang1san1,
+// xi'an); letters between separators are split into syllables of the
+// session's lexicon (fewest syllables, then the longest first), and a word
+// whose reading does not split is ignored for that lexicon. A syllable
+// without a tone matches any typed tone. simplified is the text shown in
+// simplified output and the word's identity together with the untoned
+// reading: adding the same pair again updates it. traditional may be NULL or
+// empty, in which case the lexicon's simplified-to-traditional mapping is
+// used. Texts are non-empty UTF-8 of at most 192 bytes without control
+// characters. Returns 1 on success, 0 for invalid arguments.
+//
+// For its exact reading a user word leads the whole-word list (several in the
+// order added; a lexicon word of the same text moves up with it). In sentence
+// composition and through its initials (CN-04) it counts as a fairly common
+// word (weight 3000) at the learned-word cap, so it can replace rarer
+// homophones and individually spelled characters but not a common word of
+// the same reading; its candidates report mpn_candidate_personal. Fuzzy
+// pinyin and typo correction do not reach user words. Pinyin lexicons only.
+// mpn_personal_clear removes learned bonuses only, not user words.
+int mpn_personal_add_word(MPNPersonal *personal, const char *reading, const char *simplified, const char *traditional);
+// 1 when the word (untoned reading, simplified text) was present and removed.
+int mpn_personal_remove_word(MPNPersonal *personal, const char *reading, const char *simplified);
+void mpn_personal_clear_words(MPNPersonal *personal);
+size_t mpn_personal_word_count(const MPNPersonal *personal);
+// 1 when the candidate contains a user word, else 0.
+int mpn_candidate_personal(const MPNSession *session, size_t index);
+
 // Optional fuzzy pinyin (CN-03), per session; 0 (the default) changes nothing.
 // Each bit lets a typed complete syllable also stand for the syllable whose
 // initial or final differs by that pair, in whole-word lists and sentence

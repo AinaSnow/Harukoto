@@ -61,6 +61,33 @@
 - 只纠正成常用词；句子中间纠正出的词至少两个字。
 - 已知不足：拼音碰巧能读通的手误（jitian 读成“几天”、nihai 读成“你还”）不会纠正成“今天”“你好”；最后两个键里的漏打、多打（shoujhi、zhongwn）不纠正。
 
+### 添加自己的词（下一个试用包起，DICT-02b，尚未打包）
+
+词库里没有的人名、新词，可以自己加进去。加好后输入它的拼音，它排在第一个；在句子里也能组出来（wozhaozhangshan 出“我找张珊”），也能混着首字母打（zhangs 出“张珊”）。只打两个首字母（zs）时，它要和大量常用词竞争，通常不在第一页。
+
+在安装包解压目录或仓库的 Windows 目录下，用 PowerShell 7 运行：
+
+```powershell
+.\manage-selection-memory.ps1 -AddWord "zhang shan" -Text 张珊                 # 添加
+.\manage-selection-memory.ps1 -AddWord "zhang shan" -Text 张珊 -Traditional 張珊  # 指定繁体写法
+.\manage-selection-memory.ps1 -ListWords                                       # 查看
+.\manage-selection-memory.ps1 -ReviseWord zhangshan -Text 张珊 -NewText 张姗     # 修订文字（也可 -NewReading 改读音）
+.\manage-selection-memory.ps1 -RemoveWord zhangshan -Text 张珊                  # 删除
+.\manage-selection-memory.ps1 -ExportWords D:\my-words.tsv                     # 导出
+.\manage-selection-memory.ps1 -ImportWords D:\my-words.tsv                     # 导入（合并；加 -Replace 为整表替换）
+.\manage-selection-memory.ps1 -UndoWords                                       # 回退到上一次修改之前；再执行一次换回来
+.\manage-selection-memory.ps1 -ClearWords                                      # 全部删除（可用 -UndoWords 撤回）
+```
+
+- 读音可以写成 `zhang shan`、`zhang'shan`、`zhangshan`、`zhang1 shan1` 或 `zhāng shān`。连写时按最少音节拆开（xian 是一个音节，想要 xi'an 请加撇号或空格），ü 写 v（lv、nve）。只能用拼音音节，不认识的音节会被拒绝并说明原因。没写声调的音节，输入时打任何声调都能匹配；写了声调的，输入时打了别的声调就不匹配。
+- 同一读音、同一文字再添加一次是更新（比如补上繁体），不会出现两个。同一读音可以加几个不同的词，按添加的先后排。
+- 繁体模式下显示你给的繁体写法；没给时按词库逐字转换（张珊 → 張珊）。
+- 修改在各应用约 2 秒内的下一次按键时生效，不用重开应用。
+- 排序：这个读音的整词列表里它排第一（词库里也有同样的词时只是提前，不会出现两次）。在句子里，它像一个较常用的词那样参与组句：能胜过逐字拼出的结果和罕见的同音词，但不会顶掉同一读音下常用的词库词；只有一个音节的词不会在句子里替换常用字（加了 shi → 式，单独打 shi 时“式”第一，但 woshi 仍是“我是”）。模糊音和纠错不作用于个人词。
+- 个人词是你明确添加的词，不受选词记忆开关影响：关闭选词记忆后个人词照常可用；`-Clear` 只清除选词记录和个人词频，不动个人词，个人词用 `-ClearWords` 删除。
+- 每次修改前，上一版本保存为 `selection-memory-user.previous.tsv`，`-UndoWords` 在两者间切换（只保留一个上一版本）。最多 10,000 个词；每个词最多 16 个音节、192 字节。
+- 数据在 `%LOCALAPPDATA%\Meowpuut\selection-memory-user.tsv`，只在本机，卸载不会删除。格式与说明见[选词记忆](SELECTION_MEMORY.md#个人词dict-02b)。
+
 ## 用拼音、英语输入日语
 
 目前只支持已收录的明确触发词，不是任意中文或英语的自动翻译。

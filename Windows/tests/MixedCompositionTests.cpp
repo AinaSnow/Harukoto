@@ -155,6 +155,39 @@ static void verifyRealLexicon(const char *path) {
         return evidence;
     }, false);
     assert(!aliasChoices.empty() && aliasChoices.front().text == "略");
+    // DICT-02b on the real lexicon: a hand-added word leads its reading and
+    // joins sentences, a single syllable does not take over its common
+    // character, and unrelated input is untouched.
+    auto *plain = mpn_session_create(lexicon);
+    auto *personal = mpn_personal_create();
+    mpn_set_simplified(session, 1); mpn_set_simplified(plain, 1);
+    const auto firstOf = [](MPNSession *value, const char *keys) {
+        mpn_clear(value); type(value, keys); return std::string(mpn_candidate(value, 0));
+    };
+    std::vector<std::string> before;
+    const char *unrelated[] = {"wozaigongsi", "shijianhenchang", "nihao", "zhongguoren", "woshixuesheng"};
+    for (const char *keys : unrelated) before.push_back(firstOf(plain, keys));
+    mpn_set_personal(session, personal);
+    assert(mpn_personal_add_word(personal, "qing'ci", "晴词", nullptr) && mpn_personal_add_word(personal, "shi", "式", nullptr));
+    assert(firstOf(session, "qingci") == "晴词" && mpn_candidate_personal(session, 0));
+    assert(firstOf(session, "qingcishurufa") == "晴词输入法");
+    assert(firstOf(session, "shi") == "式" && firstOf(plain, "shi") != "式" && firstOf(session, "woshi") == firstOf(plain, "woshi"));
+    // The user guide's examples: a name, in a sentence and by its initials.
+    assert(mpn_personal_add_word(personal, "zhang'shan", "张珊", nullptr));
+    assert(firstOf(plain, "zhangshan") != "张珊" && firstOf(session, "zhangshan") == "张珊");
+    assert(firstOf(session, "wozhaozhangshan") == "我找张珊");
+    {
+        mpn_clear(session); type(session, "zhangs");
+        // Mixed abbreviation leads; two bare initials (zs) compete with
+        // hundreds of common words at weight 3000 and stay off the first page.
+        assert(std::string(mpn_candidate(session, 0)) == "张珊" && mpn_candidate_personal(session, 0));
+    }
+    assert(mpn_personal_remove_word(personal, "zhangshan", "张珊"));
+    for (size_t i = 0; i < std::size(unrelated); ++i) assert(firstOf(session, unrelated[i]) == before[i]);
+    mpn_set_simplified(session, 0);
+    assert(firstOf(session, "qingci") == "晴詞");
+    mpn_set_personal(session, nullptr);
+    mpn_personal_destroy(personal); mpn_session_destroy(plain);
     mpn_session_destroy(session);
     mpn_lexicon_destroy(lexicon);
 }
@@ -538,6 +571,155 @@ static void verifyPersonalWords() {
     mpn_session_destroy(plain); mpn_session_destroy(learning); mpn_lexicon_destroy(lexicon);
 }
 
+// DICT-02b: words the user added by hand.
+static void verifyUserWords() {
+    const std::string data = "MEOWPUUT-PINYIN-1\n"
+        "an\tan1\t安\t安\t7000\n"
+        "ci\tci2\t詞\t词\t7000\n"
+        "ci\tci2\t瓷\t瓷\t6000\n"
+        "de\tde5\t的\t的\t9000\n"
+        "feng\tfeng1\t風\t风\t7000\n"
+        "guo\tguo2\t國\t国\t8000\n"
+        "hao\thao3\t好\t好\t9000\n"
+        "ni\tni3\t你\t你\t9000\n"
+        "nihao\tni3hao3\t你好\t你好\t9000\n"
+        "qing\tqing1\t青\t青\t7000\n"
+        "qing\tqing2\t晴\t晴\t6500\n"
+        "qingci\tqing1ci2\t青瓷\t青瓷\t3479\n"
+        "san\tsan1\t三\t三\t8000\n"
+        "shi\tshi4\t是\t是\t9000\n"
+        "shi\tshi1\t詩\t诗\t6000\n"
+        "shiyan\tshi2yan4\t實驗\t实验\t6059\n"
+        "wo\two3\t我\t我\t9000\n"
+        "xi\txi1\t西\t西\t7000\n"
+        "xian\txian1\t先\t先\t8000\n"
+        "xian\txi1an1\t西安\t西安\t7000\n"
+        "yan\tyan2\t岩\t岩\t5000\n"
+        "zhang\tzhang1\t張\t张\t8000\n"
+        "zhao\tzhao3\t找\t找\t8000\n"
+        "zhong\tzhong1\t中\t中\t9000\n"
+        "zhongguo\tzhong1guo2\t中國\t中国\t10000\n"
+        "zuo\tzuo4\t做\t做\t8000\n";
+    auto *lexicon = makeLexicon(data);
+    auto *plain = mpn_session_create(lexicon), *user = mpn_session_create(lexicon);
+    auto *personal = mpn_personal_create();
+    assert(plain && user && personal);
+    mpn_set_simplified(plain, 1); mpn_set_simplified(user, 1);
+    mpn_set_personal(user, personal);
+    const auto run = [](MPNSession *session, const char *keys) {
+        mpn_clear(session); type(session, keys);
+        auto result = listed(session);
+        while (mpn_candidates_can_expand(session)) mpn_expand_candidates(session);
+        return std::make_pair(result, listed(session));
+    };
+    const auto first = [&](MPNSession *session, const char *keys) { return run(session, keys).first.front().text; };
+    const auto count = [&](MPNSession *session, const char *keys, const char *text) {
+        const auto all = run(session, keys).second;
+        return std::count_if(all.begin(), all.end(), [&](const Listed &item) { return item.text == text && item.consumed == std::strlen(keys); });
+    };
+    const char *inputs[] = {"zhangsan", "wozhaozhangsan", "qingci", "woqingci", "shiyan", "zuoshiyan", "shi", "woshi",
+                            "nihao", "xian", "xi'an", "zs", "zhang1san", "zhang3san", "ci", "zhongguo", "zhangs"};
+    const auto unchanged = [&] {
+        for (const char *keys : inputs) assert(run(plain, keys) == run(user, keys));
+    };
+    unchanged();
+    assert(first(plain, "zhangsan") == "张三" && first(plain, "woqingci") == "我青瓷" && first(plain, "zuoshiyan") == "做实验");
+
+    // Validation: readings of letters, tone digits and single apostrophes;
+    // non-empty bounded text without control characters.
+    for (const char *reading : {"", "zhang san", "1zhang", "zh''ang", "ZHANG", "zhang-san", "'zhang", "zhang11"})
+        assert(!mpn_personal_add_word(personal, reading, "张珊", nullptr));
+    for (const char *text : {"", "张\t珊", "张\n珊", "\x7f", "\xff", "\xe5\xbc"})
+        assert(!mpn_personal_add_word(personal, "zhangsan", text, nullptr));
+    assert(!mpn_personal_add_word(personal, "zhangsan", std::string(193, 'a').c_str(), nullptr));
+    assert(!mpn_personal_add_word(personal, "zhangsan", "张珊", "張\x01珊"));
+    assert(!mpn_personal_add_word(nullptr, "zhangsan", "张珊", nullptr) && !mpn_personal_add_word(personal, nullptr, "张珊", nullptr));
+    assert(mpn_personal_word_count(personal) == 0);
+    // Accepted but not syllables of this lexicon: ignored, nothing changes.
+    assert(mpn_personal_add_word(personal, "xyzq", "某词", nullptr) && mpn_personal_word_count(personal) == 1);
+    unchanged();
+    assert(mpn_personal_remove_word(personal, "xyzq", "某词") && !mpn_personal_remove_word(personal, "xyzq", "某词"));
+
+    // A name the lexicon lacks leads its reading, in either script, and wins
+    // in a sentence over spelling it character by character.
+    assert(mpn_personal_add_word(personal, "zhang'san", "张珊", nullptr));
+    auto list = run(user, "zhangsan").first;
+    assert(list[0].text == "张珊" && list[0].kind == MPN_CANDIDATE_EXACT && list[0].consumed == 8 && mpn_candidate_personal(user, 0));
+    assert(list[1].text == "张三" && !mpn_candidate_personal(user, 1));
+    assert(first(user, "wozhaozhangsan") == "我找张珊" && mpn_candidate_personal(user, 0));
+    assert(mpn_choose(user, 0) && std::string(mpn_committed(user)) == "我找张珊" && !*mpn_input(user));
+    mpn_clear_commit(user);
+    // Unspelled letters split into syllables: the same word.
+    assert(mpn_personal_add_word(personal, "zhangsan", "张珊", nullptr) && mpn_personal_word_count(personal) == 1);
+    assert(first(user, "zhangsan") == "张珊" && count(user, "zhangsan", "张珊") == 1);
+    // Untoned syllables accept any typed tone; toned ones only their own.
+    assert(first(user, "zhang3san") == "张珊" && first(user, "zhang'san") == "张珊");
+    assert(mpn_personal_add_word(personal, "zhang1'san", "张珊", nullptr) && mpn_personal_word_count(personal) == 1);
+    assert(first(user, "zhang1san") == "张珊" && count(user, "zhang3san", "张珊") == 0);
+    assert(mpn_personal_add_word(personal, "zhang'san", "张珊", nullptr));
+    // Traditional output: converted through the lexicon, or as given.
+    mpn_set_simplified(user, 0);
+    assert(first(user, "zhangsan") == "張珊");
+    assert(mpn_personal_add_word(personal, "zhang'san", "张珊", "章珊") && mpn_personal_word_count(personal) == 1);
+    assert(first(user, "zhangsan") == "章珊" && first(user, "wozhaozhangsan") == "我找章珊");
+    mpn_set_simplified(user, 1);
+    assert(first(user, "zhangsan") == "张珊");
+    // Through its initials (CN-04), alone and in a sentence.
+    assert(first(user, "zs") == "张珊" && mpn_candidate_personal(user, 0) && mpn_candidate_abbreviated(user, 0) == 2);
+    assert(first(user, "wozhaozs") == "我找张珊");
+    // Other readings are untouched.
+    for (const char *keys : {"nihao", "xian", "xi'an", "zhongguo", "qingci", "shi", "ci"}) assert(run(plain, keys) == run(user, keys));
+    // Longer than any lexicon reading, inside a sentence.
+    assert(mpn_personal_add_word(personal, "zhangsanfeng", "张三丰", nullptr));
+    assert(first(user, "zhangsanfeng") == "张三丰" && first(user, "wozhaozhangsanfeng") == "我找张三丰");
+    assert(mpn_personal_remove_word(personal, "zhang'san'feng", "张三丰"));
+
+    // A rare homophone yields in sentences too; a common one does not, and a
+    // single syllable never displaces its common character in a sentence.
+    assert(mpn_personal_add_word(personal, "qingci", "晴词", nullptr) && mpn_personal_add_word(personal, "shiyan", "诗岩", nullptr) &&
+           mpn_personal_add_word(personal, "shi", "式", nullptr));
+    list = run(user, "qingci").first;
+    assert(list[0].text == "晴词" && list[1].text == "青瓷" && first(user, "woqingci") == "我晴词");
+    assert(first(user, "shiyan") == "诗岩" && first(user, "zuoshiyan") == "做实验");
+    assert(first(user, "shi") == "式" && first(user, "woshi") == "我是");
+    // A lexicon word added by the user moves up instead of appearing twice.
+    assert(first(plain, "ci") == "词" && mpn_personal_add_word(personal, "ci", "瓷", nullptr));
+    assert(first(user, "ci") == "瓷" && count(user, "ci", "瓷") == 1);
+    // Several words of one reading: in the order added.
+    assert(mpn_personal_add_word(personal, "ci", "辞", nullptr));
+    list = run(user, "ci").first;
+    assert(list[0].text == "瓷" && list[1].text == "辞" && list[2].text == "词");
+    // Evidence for another word cannot push it down in the Windows list.
+    const auto evidence = [](const std::string &) { return ChineseEvidence{{"张三", 9000}}; };
+    run(user, "zhangsan");
+    assert(windowsCandidates(user, {}, evidence, false).front().text == "张珊");
+    run(plain, "zhangsan");
+    assert(windowsCandidates(plain, {}, evidence, false).front().text == "张三");
+
+    // Learned bonuses and user words are cleared separately.
+    assert(mpn_personal_set(personal, 1, "gongsi", "公司", 1));
+    mpn_personal_clear(personal);
+    assert(mpn_personal_word_count(personal) == 6 && first(user, "zhangsan") == "张珊");
+    assert(mpn_personal_remove_word(personal, "zhang1san1", "张珊") && mpn_personal_word_count(personal) == 5);
+    assert(first(user, "zhangsan") == "张三");
+    mpn_personal_clear_words(personal);
+    assert(mpn_personal_word_count(personal) == 0);
+    unchanged();
+    // A table shared by sessions of another lexicon is prepared for each.
+    assert(mpn_personal_add_word(personal, "zhang'san", "张珊", nullptr));
+    auto *other = makeLexicon(data);
+    auto *second = mpn_session_create(other);
+    mpn_set_simplified(second, 0); mpn_set_personal(second, personal);
+    assert(first(second, "zhangsan") == "張珊" && first(user, "zhangsan") == "张珊");
+    mpn_session_destroy(second); mpn_lexicon_destroy(other);
+    mpn_personal_destroy(personal);
+    assert(first(user, "zhangsan") == "张珊");
+    mpn_set_personal(user, nullptr);
+    unchanged();
+    assert(!mpn_candidate_personal(nullptr, 0) && !mpn_candidate_personal(user, 1000));
+    mpn_session_destroy(plain); mpn_session_destroy(user); mpn_lexicon_destroy(lexicon);
+}
+
 // CN-03: fuzzy pinyin pairs in the core decoder.
 static void verifyFuzzyPinyin() {
     const std::string data = "MEOWPUUT-PINYIN-1\n"
@@ -915,6 +1097,7 @@ int main(int argc, char **argv) {
     verifyAbbreviatedPinyin();
     verifyFuzzyPinyin();
     verifyPersonalWords();
+    verifyUserWords();
     verifyLazyExpansion();
     verifyLeadingWords();
     verifyCompositionStatistics();

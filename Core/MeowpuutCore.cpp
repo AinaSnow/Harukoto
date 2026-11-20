@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
@@ -9,6 +10,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <numeric>
 #include <set>
 #include <string>
@@ -130,6 +132,9 @@ struct Lexicon {
     size_t longestTraditionalPhrase = 0;
     size_t longest = 0;
     bool pinyin = false;
+    // DICT-02b: identifies this lexicon to caches derived from it (user words).
+    const uint64_t serial = next_serial();
+    static uint64_t next_serial() { static std::atomic<uint64_t> counter{0}; return ++counter; }
     std::array<std::vector<size_t>, 128> initials;
     std::array<std::vector<size_t>, 128> hansInitials;
     // CN-04: fully spelled words of 2..abbrev_max_syllables syllables, keyed
@@ -508,6 +513,29 @@ struct Lexicon {
         return result;
     }
 
+    // A simplified text in traditional characters: the longest recorded
+    // phrase at each position, else character by character.
+    std::string to_traditional(std::string_view input) const {
+        std::string result;
+        for (size_t i = 0; i < input.size();) {
+            bool matched = false;
+            for (size_t length = std::min(longestTraditionalPhrase, input.size() - i); length > 3; --length) {
+                const auto found = traditionalPhrases.find(input.substr(i, length));
+                if (found == traditionalPhrases.end()) continue;
+                result.append(found->second.first);
+                i += length; matched = true; break;
+            }
+            if (matched) continue;
+            const auto first = static_cast<unsigned char>(input[i]);
+            const size_t length = first < 0x80 ? 1 : first < 0xe0 ? 2 : first < 0xf0 ? 3 : 4;
+            const auto character = input.substr(i, std::min(length, input.size() - i));
+            const auto found = traditionalCharacters.find(character);
+            result.append(found == traditionalCharacters.end() ? character : found->second.first);
+            i += character.size();
+        }
+        return result;
+    }
+
     std::pair<size_t, size_t> range(std::string_view key) const {
         const auto bucket = std::lower_bound(buckets.begin(), buckets.end(), key,
                                              [](const Bucket &item, std::string_view reading) {
@@ -558,9 +586,155 @@ struct Fallback { std::string text; size_t consumed; double score; bool typo = f
 // Per-script personal bonuses keyed by a word's untoned reading (its lexicon
 // bucket) and then its text in that script. Owned by the host through
 // MPNPersonal; sessions only read it.
+// DICT-02b: words the user added by hand, prepared for one lexicon. A word
+// the lexicon lacks counts in sentence composition as a fairly common word of
+// user_weight that has reached the learned-word cap (see Personal::lifted):
+// it beats spelling its characters one by one and rare homophones (by at most
+// personal_cap * personal_lead), but not a common lexicon word of the same
+// reading, and a single syllable never displaces the common characters of
+// that syllable. Whole-word lists put it first (see decode).
+constexpr int user_weight = 3000;
+constexpr size_t user_max_syllables = 16, user_max_reading = 128, user_max_text = 192;
+
+struct UserWords {
+    // Rows "reading<TAB>traditional<TAB>simplified" with one tone digit per
+    // syllable ('5' where the user gave none); words view them.
+    std::vector<std::string> rows, bare;
+    std::vector<Word> words;
+    std::vector<uint32_t> loose;   // Syllables without a typed tone: any tone matches.
+    std::vector<uint32_t> sorted;  // Word indices by bare reading, then the order added.
+    std::vector<uint64_t> abbrevKeys; // CN-04 keys of words of 2..abbrev_max_syllables syllables,
+    std::vector<uint32_t> abbrevWords; // sorted, with their word indices.
+    size_t longest = 0;                // Longest bare reading.
+
+    std::pair<size_t, size_t> range(std::string_view sounds) const {
+        const auto first = std::lower_bound(sorted.begin(), sorted.end(), sounds,
+            [&](uint32_t index, std::string_view value) { return bare[index] < value; });
+        auto last = first;
+        while (last != sorted.end() && bare[*last] == sounds) ++last;
+        return {static_cast<size_t>(first - sorted.begin()), static_cast<size_t>(last - sorted.begin())};
+    }
+    bool has(std::pair<size_t, size_t> span, std::string_view text, bool hans) const {
+        for (size_t i = span.first; i < span.second; ++i) if (words[sorted[i]].text(hans) == text) return true;
+        return false;
+    }
+    std::pair<size_t, size_t> abbrev_range(uint64_t key, size_t letters, bool prefix) const {
+        const uint64_t last = prefix ? key + (uint64_t(1) << (5 * (Lexicon::abbrevLetters - letters))) : key + 1;
+        const auto first = std::lower_bound(abbrevKeys.begin(), abbrevKeys.end(), key);
+        const auto end = std::lower_bound(first, abbrevKeys.end(), last);
+        return {static_cast<size_t>(first - abbrevKeys.begin()), static_cast<size_t>(end - abbrevKeys.begin())};
+    }
+};
+
+// Reading::matches for a user word, whose untoned syllables accept any tone.
+bool user_matches(const Reading &reading, const Word &word, uint32_t loose, size_t start, size_t end) {
+    const size_t required = reading.boundary_count[end] - reading.boundary_count[start];
+    if (required == 0) return true;
+    size_t matched = 0, syllable = 0;
+    for (char key : word.reading()) {
+        if (!is_tone(key, true)) { ++start; continue; }
+        const char tone = reading.boundaries[start];
+        if (tone && tone != key && tone != '\'' && !(loose >> syllable & 1u)) return false;
+        matched += tone != 0;
+        ++syllable;
+    }
+    return matched == required;
+}
+
 struct Personal {
     using Texts = std::map<std::string, double, std::less<>>;
     std::array<std::map<std::string, Texts, std::less<>>, 2> readings; // [hans]
+
+    // DICT-02b: user words keyed by untoned reading and simplified text, as
+    // given: reading (letters, tone digits, apostrophes), traditional (may be
+    // empty: converted per lexicon) and the order added.
+    struct UserEntry { std::string reading, traditional; uint64_t order; };
+    std::map<std::pair<std::string, std::string>, UserEntry> userWords;
+    uint64_t userOrder = 0, userRevision = 0;
+    mutable std::mutex userMutex;
+    mutable std::shared_ptr<const UserWords> userCache;
+    mutable uint64_t userCacheLexicon = 0, userCacheRevision = 0;
+
+    // Splits letters into pinyin syllables known to the lexicon: fewest
+    // syllables, then the longest first syllable. Empty when impossible.
+    static std::vector<std::string_view> syllables(const Lexicon &lexicon, std::string_view letters) {
+        const size_t n = letters.size();
+        std::vector<size_t> best(n + 1, SIZE_MAX), next(n + 1, 0);
+        best[n] = 0;
+        for (size_t start = n; start-- > 0;)
+            for (size_t size = std::min(size_t(6), n - start); size >= 1; --size) {
+                if (best[start + size] == SIZE_MAX || best[start + size] + 1 >= best[start]) continue;
+                if (!std::binary_search(lexicon.singleReadings.begin(), lexicon.singleReadings.end(), letters.substr(start, size))) continue;
+                best[start] = best[start + size] + 1; next[start] = size;
+            }
+        std::vector<std::string_view> result;
+        if (best[0] == SIZE_MAX) return result;
+        for (size_t at = 0; at < n; at += next[at]) result.push_back(letters.substr(at, next[at]));
+        return result;
+    }
+
+    std::shared_ptr<const UserWords> user_words(const Lexicon &lexicon) const {
+        std::lock_guard<std::mutex> lock(userMutex);
+        if (userWords.empty() || !lexicon.pinyin) return nullptr;
+        if (userCache && userCacheLexicon == lexicon.serial && userCacheRevision == userRevision) return userCache;
+        auto built = std::make_shared<UserWords>();
+        std::vector<const std::pair<const std::pair<std::string, std::string>, UserEntry> *> entries;
+        for (const auto &entry : userWords) entries.push_back(&entry);
+        std::sort(entries.begin(), entries.end(), [](const auto *a, const auto *b) { return a->second.order < b->second.order; });
+        for (const auto *entry : entries) {
+            const auto &given = entry->second.reading;
+            std::string reading;
+            uint32_t loose = 0;
+            size_t count = 0;
+            bool valid = true;
+            for (size_t at = 0; at < given.size() && valid;) {
+                size_t stop = at;
+                while (stop < given.size() && given[stop] >= 'a' && given[stop] <= 'z') ++stop;
+                const char tone = stop < given.size() && given[stop] >= '1' && given[stop] <= '5' ? given[stop] : 0;
+                const auto pieces = syllables(lexicon, std::string_view(given).substr(at, stop - at));
+                valid = !pieces.empty() && count + pieces.size() <= user_max_syllables;
+                for (size_t i = 0; valid && i < pieces.size(); ++i) {
+                    reading.append(pieces[i]);
+                    const bool last = i + 1 == pieces.size();
+                    reading += last && tone ? tone : '5';
+                    if (!(last && tone)) loose |= 1u << count;
+                    ++count;
+                }
+                at = stop + (stop < given.size() ? 1 : 0);
+                if (tone && at < given.size() && given[at] == '\'') ++at;
+            }
+            if (!valid || !count) continue;
+            const auto &simplified = entry->first.second;
+            const auto traditional = entry->second.traditional.empty() ? lexicon.to_traditional(simplified) : entry->second.traditional;
+            built->rows.push_back(reading + '\t' + traditional + '\t' + simplified);
+            built->bare.push_back(entry->first.first);
+            built->loose.push_back(loose);
+            built->longest = std::max(built->longest, entry->first.first.size());
+        }
+        if (built->rows.empty()) { userCache.reset(); userCacheLexicon = lexicon.serial; userCacheRevision = userRevision; return nullptr; }
+        std::vector<std::pair<uint64_t, uint32_t>> abbrev;
+        for (size_t i = 0; i < built->rows.size(); ++i) {
+            built->words.push_back({built->rows[i], user_weight, user_weight});
+            built->sorted.push_back(static_cast<uint32_t>(i));
+            uint64_t key = 0;
+            size_t count = 0;
+            bool opening = true;
+            for (char c : built->words.back().reading()) {
+                if (is_tone(c, true)) { opening = true; continue; }
+                if (opening && count < abbrev_max_syllables) key |= Lexicon::abbrev_letter(c, count);
+                if (opening) ++count;
+                opening = false;
+            }
+            if (count >= 2 && count <= abbrev_max_syllables) abbrev.emplace_back(key, static_cast<uint32_t>(i));
+        }
+        std::stable_sort(built->sorted.begin(), built->sorted.end(), [&](uint32_t a, uint32_t b) { return built->bare[a] < built->bare[b]; });
+        std::stable_sort(abbrev.begin(), abbrev.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+        for (const auto &[key, index] : abbrev) { built->abbrevKeys.push_back(key); built->abbrevWords.push_back(index); }
+        userCache = std::move(built);
+        userCacheLexicon = lexicon.serial;
+        userCacheRevision = userRevision;
+        return userCache;
+    }
 
     const Texts *find(bool hans, std::string_view sounds) const {
         const auto &table = readings[hans ? 1 : 0];
@@ -972,7 +1146,7 @@ bool abbreviation_row(const Word &word) {
 // For every input start, the splits into pieces (complete syllables and
 // initials, at least one initial, two or more pieces) whose initials key
 // leads to dictionary words: a bounded walk pruned by the index.
-std::vector<std::vector<AbbrevOption>> abbrev_options(const Lexicon &lexicon, const Reading &reading) {
+std::vector<std::vector<AbbrevOption>> abbrev_options(const Lexicon &lexicon, const Reading &reading, const UserWords *user = nullptr) {
     const auto &sounds = reading.sounds;
     const size_t n = sounds.size();
     std::vector<std::vector<AbbrevOption>> result(n);
@@ -980,6 +1154,14 @@ std::vector<std::vector<AbbrevOption>> abbrev_options(const Lexicon &lexicon, co
         const Lexicon &lexicon;
         const Reading &reading;
         std::vector<AbbrevOption> &out;
+        const UserWords *user; // DICT-02b: its words lead to options too.
+        bool any(uint64_t key, size_t letters, bool prefix) const {
+            const auto range = lexicon.abbrev_range(key, letters, prefix);
+            if (range.first != range.second) return true;
+            if (!user) return false;
+            const auto own = user->abbrev_range(key, letters, prefix);
+            return own.first != own.second;
+        }
         size_t nodes = 0;
         AbbrevOption current{};
         bool inside(size_t position, size_t size) const {
@@ -989,7 +1171,7 @@ std::vector<std::vector<AbbrevOption>> abbrev_options(const Lexicon &lexicon, co
             if (++nodes > abbrev_start_nodes || out.size() >= abbrev_start_options) return;
             const auto saved = current;
             current.key |= Lexicon::abbrev_letter(reading.sounds[position], depth);
-            if (const auto range = lexicon.abbrev_range(current.key, depth + 1, true); range.first == range.second) {
+            if (!any(current.key, depth + 1, true)) {
                 current = saved;
                 return;
             }
@@ -997,10 +1179,7 @@ std::vector<std::vector<AbbrevOption>> abbrev_options(const Lexicon &lexicon, co
             if (initial) current.initials = static_cast<uint16_t>(current.initials | (1u << depth));
             current.count = static_cast<uint8_t>(depth + 1);
             current.end = position + size;
-            if (depth >= 1 && current.initials) {
-                const auto exact = lexicon.abbrev_range(current.key, depth + 1, false);
-                if (exact.first != exact.second) out.push_back(current);
-            }
+            if (depth >= 1 && current.initials && any(current.key, depth + 1, false)) out.push_back(current);
             run(position + size, depth + 1);
             current = saved;
         }
@@ -1021,7 +1200,7 @@ std::vector<std::vector<AbbrevOption>> abbrev_options(const Lexicon &lexicon, co
         }
     };
     for (size_t start = 0; start < n; ++start) {
-        Walk walk{lexicon, reading, result[start]};
+        Walk walk{lexicon, reading, result[start], user};
         walk.current.bounds[0] = static_cast<uint16_t>(start);
         walk.run(start, 0);
     }
@@ -1210,6 +1389,7 @@ struct CandidateMetadata {
     unsigned abbreviated = 0;
     bool trailing = false;
     bool typo = false; // CN-05: reached through a typo correction
+    bool user = false; // DICT-02b: contains a word the user added
 };
 struct Candidate {
     std::string text;
@@ -1261,6 +1441,10 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
         }
     };
     const auto whole = lexicon.range(reading.sounds);
+    // DICT-02b: the user's own words, prepared for this lexicon; null when
+    // there are none, which leaves every result unchanged.
+    const auto userHold = personal && lexicon.pinyin ? personal->user_words(lexicon) : nullptr;
+    const UserWords *user = userHold.get();
     // CN-04: abbreviations take part only in user-visible lookups of keys
     // that neither split into complete syllables nor spell a whole word.
     const bool visible = lexicon.pinyin && metadata && !completeOnly;
@@ -1268,7 +1452,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
     const bool abbreviating = visible && length >= 2 && !lexicon.abbrevKeys.empty() && !spelledKeys &&
         std::none_of(lexicon.words.begin() + whole.first, lexicon.words.begin() + whole.second,
                      [&](const Word &word) { return fully_spelled(word) && reading.matches(word, 0, length); });
-    const auto abbrevOptions = abbreviating ? abbrev_options(lexicon, reading) : std::vector<std::vector<AbbrevOption>>();
+    const auto abbrevOptions = abbreviating ? abbrev_options(lexicon, reading, user) : std::vector<std::vector<AbbrevOption>>();
     // CN-05: typo corrections inside keys that do not split into complete
     // syllables, without tones or separators; whole-input ones otherwise.
     const bool correcting = typo && visible && length >= 3 && length <= typo_max_sounds && !spelledKeys &&
@@ -1339,6 +1523,38 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             if (!wholeWeights.empty()) wholeWeights = std::move(sortedWeights);
         }
     }
+    if (user) {
+        // DICT-02b: words the user added for exactly this reading lead the
+        // whole-word list, in the order added. A lexicon word of the same
+        // text moves up with them rather than appearing twice.
+        const auto span = user->range(reading.sounds);
+        size_t position = 0;
+        for (size_t i = span.first; i < span.second; ++i) {
+            const auto index = user->sorted[i];
+            if (!user_matches(reading, user->words[index], user->loose[index], 0, length)) continue;
+            const std::string text(user->words[index].text(hans));
+            const auto existing = std::find(results.begin(), results.end(), text);
+            if (existing != results.end()) {
+                const auto at = static_cast<size_t>(existing - results.begin());
+                if (at < position) continue;
+                results.erase(existing);
+                if (metadata) metadata->erase(metadata->begin() + static_cast<std::ptrdiff_t>(at));
+                if (!wholeWeights.empty()) wholeWeights.erase(wholeWeights.begin() + static_cast<std::ptrdiff_t>(at));
+            } else seen.emplace(text);
+            results.insert(results.begin() + static_cast<std::ptrdiff_t>(position), text);
+            if (metadata) metadata->insert(metadata->begin() + static_cast<std::ptrdiff_t>(position),
+                {static_cast<uint32_t>(reading.unambiguous ? MPN_CANDIDATE_EXACT : MPN_CANDIDATE_UNKNOWN), MPN_SCORE_LEXICON,
+                 double(user_weight), false, 0, false, false, true});
+            // Fuzzy whole words are placed after it (see following, below).
+            if (!fuzzyOptions.empty()) wholeWeights.insert(wholeWeights.begin() + static_cast<std::ptrdiff_t>(position), std::numeric_limits<int>::max());
+            ++position;
+        }
+        if (results.size() > result_limit) {
+            results.resize(result_limit);
+            if (metadata) metadata->resize(result_limit);
+            if (wholeWeights.size() > result_limit) wholeWeights.resize(result_limit);
+        }
+    }
     if (results.size() == result_limit) return results;
 
     if (!fuzzyOptions.empty()) wholeNasal.assign(wholeWeights.size(), 0);
@@ -1382,7 +1598,9 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                   // CN-04: abbreviated syllables, and whether the only one is the final key.
                   unsigned abbreviated = 0; bool trailing = false;
                   // CN-05: one word was reached through a typo correction.
-                  bool typo = false; };
+                  bool typo = false;
+                  // DICT-02b: contains a word the user added.
+                  bool user = false; };
     // The sentence search beam is a latency bound, not a five-candidate UI cap.
     // Widen user-visible pinyin lookups within 32 letters only. Internal
     // completion probes and longer searches retain their existing bounded work.
@@ -1394,9 +1612,11 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
     struct WholeFuzzy { std::string_view text; double weight; };
     std::vector<WholeFuzzy> wholeFuzzy;
     suffixes[length].push_back({"", "", 0, true, true, lexicon.pairEnd});
+    // DICT-02b: a user word may be longer than every lexicon reading.
+    const size_t longest = std::max(lexicon.longest, user ? user->longest : size_t(0));
     for (size_t start = length; start-- > 0;) {
         std::vector<Path> paths;
-        for (size_t end = start + 1; end <= std::min(length, start + lexicon.longest); ++end) {
+        for (size_t end = start + 1; end <= std::min(length, start + longest); ++end) {
             if (suffixes[end].empty()) continue;
             // Exact whole-input words are already listed; fuzzy ones compete here.
             const bool wholeSpan = start == 0 && end == length;
@@ -1407,6 +1627,8 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             // from beyond its usual width, within a bounded scan.
             const auto *learned = personal ? personal->find(hans, span) : nullptr;
             size_t learnedLeft = learned ? learned->size() : 0;
+            // DICT-02b: user words of this reading.
+            const auto userSpan = user ? user->range(span) : std::pair<size_t, size_t>{0, 0};
             double top = -std::numeric_limits<double>::infinity();
             std::vector<std::string_view> used_spellings;
             used_spellings.reserve(pathLimit);
@@ -1417,8 +1639,9 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             // CN-05: whether a fully spelled exact word covers this span.
             bool typoBlocked = false;
             const auto extend = [&](const Word &word, double score, const FuzzyOption *fuzzyWord, double fuzzyWeight = 0,
-                                    unsigned abbreviated = 0, bool trailing = false, bool typoWord = false) {
-                const bool verified = verifiedSpelling(word);
+                                    unsigned abbreviated = 0, bool trailing = false, bool typoWord = false, bool userWord = false) {
+                // DICT-02b: a user word's syllables were checked against the lexicon.
+                const bool verified = userWord || verifiedSpelling(word);
                 for (const auto &suffix : suffixes[end]) {
                     // CN-05: one corrected word per candidate, never beside an abbreviation.
                     if (suffix.typo && (typoWord || abbreviated)) continue;
@@ -1441,6 +1664,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                         suffix.abbreviated + abbreviated,
                         abbreviated ? trailing && !suffix.abbreviated : suffix.trailing,
                         suffix.typo || typoWord,
+                        suffix.user || userWord,
                     });
                 }
             };
@@ -1459,7 +1683,9 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                 // out different words and sentence interpretations.
                 const auto spelling = word.text(true);
                 if (std::find(used_spellings.begin(), used_spellings.end(), spelling) != used_spellings.end()) continue;
-                const double bonus = Personal::bonus(learned, word.text(hans));
+                // DICT-02b: a lexicon word the user also added counts as learned to the cap.
+                const double bonus = userSpan.first != userSpan.second && user->has(userSpan, word.text(hans), hans)
+                    ? personal_cap : Personal::bonus(learned, word.text(hans));
                 if (used_spellings.size() >= pathLimit && bonus <= 0) continue;
                 used_spellings.push_back(spelling);
                 if (bonus > 0 && learnedLeft) --learnedLeft;
@@ -1470,6 +1696,21 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                 top = std::max(top, base);
                 const double score = Personal::lifted(base, bonus, top);
                 extend(word, score, nullptr);
+            }
+            for (size_t i = userSpan.first; i < userSpan.second && !wholeSpan; ++i) {
+                // DICT-02b: user words the lexicon lacks, at user_weight with
+                // the learned-word cap, beside the beam's lexicon words.
+                const auto index = user->sorted[i];
+                const auto &word = user->words[index];
+                if (!user_matches(reading, word, user->loose[index], start, end)) continue;
+                exactHere = exactHere || !fuzzyOptions.empty();
+                spelledHere = spelledHere || abbreviating;
+                typoBlocked = typoBlocked || correcting;
+                const auto spelling = word.text(true);
+                if (std::find(used_spellings.begin(), used_spellings.end(), spelling) != used_spellings.end()) continue;
+                used_spellings.push_back(spelling);
+                const double base = static_cast<double>(user_weight) / 700.0 - 19.0;
+                extend(word, Personal::lifted(base, personal_cap, top), nullptr, 0, 0, false, false, true);
             }
             if (!fuzzyOptions.empty()) {
                 // CN-03: words of fuzzy readings over this span, best first after
@@ -1511,8 +1752,21 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
             if (abbreviating && !spelledHere) {
                 // CN-04: words reached through initials over this span, best
                 // first after their penalty, in a beam of their own.
-                struct Short { const Word *word; double base; unsigned count; bool last; };
+                struct Short { const Word *word; double base; unsigned count; bool last; bool user = false; };
                 std::vector<Short> found;
+                if (user) for (const auto &option : abbrevOptions[start]) {
+                    // DICT-02b: user words reached through their initials.
+                    if (option.end != end) continue;
+                    const auto range = user->abbrev_range(option.key, option.count, false);
+                    for (size_t i = range.first; i < range.second; ++i) {
+                        const auto &word = user->words[user->abbrevWords[i]];
+                        bool last = false;
+                        const unsigned count = abbrev_matches(reading, option, word, last);
+                        if (!count) continue;
+                        found.push_back({&word, static_cast<double>(user_weight) / 700.0 - 19.0 - abbrev_penalty * count,
+                                         count, last && end == length, true});
+                    }
+                }
                 for (const auto &option : abbrevOptions[start]) {
                     if (option.end != end) continue;
                     const bool brief = option.count == 2 && option.initials == 3;
@@ -1556,14 +1810,14 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
                     used_spellings.push_back(spelling);
                     ++taken;
                     // CN-06c: a learned word keeps its bonus when typed by its initials.
-                    double bonus = 0;
-                    if (learning) {
+                    double bonus = item.user ? personal_cap : 0;
+                    if (learning && !item.user) {
                         std::string bare;
                         for (char key : item.word->reading()) if (!is_tone(key, true)) bare += key;
                         bonus = Personal::bonus(personal->find(hans, bare), item.word->text(hans));
                     }
                     shortTop = std::max(shortTop, item.base);
-                    extend(*item.word, Personal::lifted(item.base, bonus, shortTop), nullptr, 0, item.count, item.last);
+                    extend(*item.word, Personal::lifted(item.base, bonus, shortTop), nullptr, 0, item.count, item.last, false, item.user);
                 }
             }
             if (correcting && !typoBlocked) {
@@ -1672,7 +1926,7 @@ std::vector<std::string> decode(const Lexicon &lexicon, std::string_view input, 
         const auto kind = !reading.unambiguous ? MPN_CANDIDATE_UNKNOWN :
             (!path.spelled || path.fuzzy ? MPN_CANDIDATE_CORRECTION :
              (path.verified ? MPN_CANDIDATE_PATH : MPN_CANDIDATE_UNKNOWN));
-        append(path.text, {static_cast<uint32_t>(kind), MPN_SCORE_PATH, path.score, path.fuzzy, path.abbreviated, path.trailing, path.typo});
+        append(path.text, {static_cast<uint32_t>(kind), MPN_SCORE_PATH, path.score, path.fuzzy, path.abbreviated, path.trailing, path.typo, path.user});
         if (results.size() == result_limit) break;
     }
     if (completePath || abbreviationLead) appendFallback();
@@ -2682,22 +2936,7 @@ const char *mpn_custom_chinese(MPNSession *session, const char *text) {
     if (!text) return session->customChinese.c_str();
     const std::string_view input(text);
     if (session->hans) session->customChinese = input;
-    else for (size_t i = 0; i < input.size();) {
-        bool matched = false;
-        for (size_t length = std::min(session->lexicon->longestTraditionalPhrase, input.size() - i); length > 3; --length) {
-            const auto found = session->lexicon->traditionalPhrases.find(input.substr(i, length));
-            if (found == session->lexicon->traditionalPhrases.end()) continue;
-            session->customChinese.append(found->second.first);
-            i += length; matched = true; break;
-        }
-        if (matched) continue;
-        const auto first = static_cast<unsigned char>(input[i]);
-        const size_t length = first < 0x80 ? 1 : first < 0xe0 ? 2 : first < 0xf0 ? 3 : 4;
-        const auto character = input.substr(i, std::min(length, input.size() - i));
-        const auto found = session->lexicon->traditionalCharacters.find(character);
-        session->customChinese.append(found == session->lexicon->traditionalCharacters.end() ? character : found->second.first);
-        i += character.size();
-    }
+    else session->customChinese = session->lexicon->to_traditional(input);
     return session->customChinese.c_str();
 }
 
@@ -2942,6 +3181,97 @@ int mpn_personal_set(MPNPersonal *personal, int simplified, const char *reading,
 }
 void mpn_personal_clear(MPNPersonal *personal) {
     if (personal) for (auto &table : personal->value->readings) table.clear();
+}
+
+namespace {
+// DICT-02b: the untoned key of a user word's reading, or empty when the
+// reading is not letters with optional tone digits and single apostrophes.
+std::string user_reading_key(std::string_view reading) {
+    if (reading.empty() || reading.size() > user_max_reading) return {};
+    std::string key;
+    char previous = '\'';
+    for (char c : reading) {
+        if (c >= 'a' && c <= 'z') key += c;
+        else if (c >= '1' && c <= '5') { if (previous < 'a' || previous > 'z') return {}; }
+        else if (c == '\'') { if (previous == '\'') return {}; }
+        else return {};
+        previous = c;
+    }
+    return key;
+}
+// Non-empty, bounded UTF-8 without control characters.
+bool user_text(const char *text) {
+    if (!text) return false;
+    const std::string_view value(text);
+    if (value.empty() || value.size() > user_max_text) return false;
+    for (size_t i = 0; i < value.size();) {
+        const auto first = static_cast<unsigned char>(value[i]);
+        if (first < 0x20 || first == 0x7f) return false;
+        const size_t length = first < 0x80 ? 1 : first >= 0xc2 && first <= 0xdf ? 2 : first >= 0xe0 && first <= 0xef ? 3 : first >= 0xf0 && first <= 0xf4 ? 4 : 0;
+        if (!length || i + length > value.size()) return false;
+        uint32_t scalar = length == 1 ? first : first & (0xff >> (length + 1));
+        for (size_t k = 1; k < length; ++k) {
+            const auto next = static_cast<unsigned char>(value[i + k]);
+            if ((next & 0xc0) != 0x80) return false;
+            scalar = (scalar << 6) | (next & 0x3f);
+        }
+        if ((length == 3 && scalar < 0x800) || (length == 4 && (scalar < 0x10000 || scalar > 0x10ffff)) ||
+            (scalar >= 0xd800 && scalar <= 0xdfff) || (scalar >= 0x80 && scalar < 0xa0)) return false;
+        i += length;
+    }
+    return true;
+}
+} // namespace
+
+int mpn_personal_add_word(MPNPersonal *personal, const char *reading, const char *simplified, const char *traditional) {
+    if (!personal || !reading || !user_text(simplified) || (traditional && *traditional && !user_text(traditional))) return 0;
+    auto key = user_reading_key(reading);
+    if (key.empty()) return 0;
+    try {
+        auto &value = *personal->value;
+        std::lock_guard<std::mutex> lock(value.userMutex);
+        auto found = value.userWords.find({key, simplified});
+        if (found == value.userWords.end()) {
+            if (value.userWords.size() >= 100000) return 0;
+            value.userWords.emplace(std::make_pair(std::move(key), std::string(simplified)),
+                Personal::UserEntry{reading, traditional ? traditional : "", ++value.userOrder});
+        } else {
+            found->second.reading = reading;
+            found->second.traditional = traditional ? traditional : "";
+        }
+        ++value.userRevision;
+        return 1;
+    } catch (...) { return 0; }
+}
+int mpn_personal_remove_word(MPNPersonal *personal, const char *reading, const char *simplified) {
+    if (!personal || !reading || !simplified) return 0;
+    const auto key = user_reading_key(reading);
+    if (key.empty()) return 0;
+    try {
+        auto &value = *personal->value;
+        std::lock_guard<std::mutex> lock(value.userMutex);
+        const auto found = value.userWords.find({key, simplified});
+        if (found == value.userWords.end()) return 0;
+        value.userWords.erase(found);
+        ++value.userRevision;
+        return 1;
+    } catch (...) { return 0; }
+}
+void mpn_personal_clear_words(MPNPersonal *personal) {
+    if (!personal) return;
+    auto &value = *personal->value;
+    std::lock_guard<std::mutex> lock(value.userMutex);
+    if (value.userWords.empty()) return;
+    value.userWords.clear();
+    ++value.userRevision;
+}
+size_t mpn_personal_word_count(const MPNPersonal *personal) {
+    if (!personal) return 0;
+    std::lock_guard<std::mutex> lock(personal->value->userMutex);
+    return personal->value->userWords.size();
+}
+int mpn_candidate_personal(const MPNSession *session, size_t index) {
+    return session && index < session->candidates.size() && session->candidates[index].metadata.user ? 1 : 0;
 }
 void mpn_set_personal(MPNSession *session, const MPNPersonal *personal) {
     if (session) session->personal = personal ? personal->value : nullptr;

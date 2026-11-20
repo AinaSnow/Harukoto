@@ -331,6 +331,86 @@ static void storeWords(const std::filesystem::path &folder) {
     }
 }
 
+// DICT-02b: the user's own word table, its rows and its reloading.
+static void userWords(const std::filesystem::path &folder) {
+    UserWordModel model;
+    model.parse(std::string("\xEF\xBB\xBF# comment\r\nzhang'san\t张珊\r\n\nqingci\t晴词\t晴詞\n"
+        "bad reading\t坏\nZHANG\t坏\n'zhang\t坏\nzhang''san\t坏\nzhang11\t坏\nzhang\t\nzhang\t坏\x01\n"
+        "zhang\tA\tB\tC\nonlyreading\n") + std::string(129, 'a') + "\t长\nzhang\t" + std::string(193, 'x') + "\n"
+        "zhang1san1\t张珊\t張珊\nshi\t式");
+    // Malformed rows are skipped one by one; a later row for the same untoned
+    // reading and text updates the earlier one in place; the last row needs no newline.
+    assert(model.size() == 3);
+    assert(model.entries()[0].reading == "zhang1san1" && model.entries()[0].text == "张珊" && model.entries()[0].traditional == "張珊");
+    assert(model.entries()[1].text == "晴词" && model.entries()[1].traditional == "晴詞" && model.entries()[2].text == "式");
+    assert(UserWordModel::key("zhang1'san") == "zhangsan" && UserWordModel::key("xi'an") == "xian" && UserWordModel::key("zhang'") == "zhang");
+    assert(UserWordModel::key("").empty() && UserWordModel::key("1a").empty() && UserWordModel::key("a b").empty());
+    UserWordModel full;
+    for (size_t i = 0; i < UserWordModel::MaxWords + 5; ++i) full.add("shi", "式" + std::to_string(i));
+    assert(full.size() == UserWordModel::MaxWords);
+
+    // The table beside the journals: missing is empty; a replacement, an edit
+    // in place and a deletion are each seen at the next look, and an
+    // unchanged file is not read again.
+    const auto path = folder / L"selection-memory.tsv";
+    Store store(path);
+    assert(store.userWordsFile() == folder / L"selection-memory-user.tsv");
+    assert(!store.pollUserWords(1000) && store.userWords().empty() && store.userWordsRevision() == 0);
+    const auto write = [](const std::filesystem::path &file, const std::string &data) {
+        std::ofstream out(file, std::ios::binary | std::ios::trunc); out << data;
+    };
+    const auto temporary = folder / L"selection-memory-user.tmp";
+    write(temporary, "zhang'san\t张珊\n");
+    assert(MoveFileExW(temporary.c_str(), store.userWordsFile().c_str(), MOVEFILE_REPLACE_EXISTING));
+    assert(!store.pollUserWords(1500) && store.userWords().empty()); // Within the interval: not looked at.
+    assert(store.pollUserWords(4000) && store.userWords().size() == 1);
+    const auto first = store.userWordsRevision();
+    assert(first && !store.pollUserWords(7000) && store.userWordsRevision() == first);
+    // Same size, replaced: the identity changed.
+    write(temporary, "zhang'san\t张姗\n");
+    assert(MoveFileExW(temporary.c_str(), store.userWordsFile().c_str(), MOVEFILE_REPLACE_EXISTING));
+    assert(store.pollUserWords(10000) && store.userWords().entries()[0].text == "张姗" && store.userWordsRevision() != first);
+    // Edited in place.
+    write(store.userWordsFile(), "zhang'san\t张姗\nqing'ci\t晴词\n");
+    assert(store.pollUserWords(13000) && store.userWords().size() == 2);
+    // Locked against reading: the last good table stays and is retried.
+    {
+        const HANDLE lock = CreateFileW(store.userWordsFile().c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        assert(lock != INVALID_HANDLE_VALUE);
+        assert(!store.pollUserWords(16000) && store.userWords().size() == 2);
+        CloseHandle(lock);
+    }
+    // Too large: ignored, the last good table stays.
+    write(temporary, std::string(UserWordModel::MaxFile + 1, '#'));
+    assert(MoveFileExW(temporary.c_str(), store.userWordsFile().c_str(), MOVEFILE_REPLACE_EXISTING));
+    assert(!store.pollUserWords(19000) && store.userWords().size() == 2);
+    write(temporary, "shi\t式\n");
+    assert(MoveFileExW(temporary.c_str(), store.userWordsFile().c_str(), MOVEFILE_REPLACE_EXISTING));
+    assert(store.pollUserWords(22000) && store.userWords().size() == 1);
+    // Deleted: empty.
+    std::filesystem::remove(store.userWordsFile());
+    assert(store.pollUserWords(25000) && store.userWords().empty() && !store.pollUserWords(28000));
+    // Clearing the journals leaves the table alone.
+    write(store.userWordsFile(), "shi\t式\n");
+    assert(store.pollUserWords(31000) && store.userWords().size() == 1);
+    store.record("shi", "是", true); store.flush();
+    std::filesystem::resize_file(path, 0);
+    store.poll(40000);
+    assert(store.model().size() == 0 && store.userWords().size() == 1);
+    // Reading cost of a 10,000-word table, paid once per change.
+    std::string large;
+    for (size_t i = 0; i < UserWordModel::MaxWords; ++i) large += "zhang'san\t张" + std::to_string(i) + "\n";
+    write(temporary, large);
+    assert(MoveFileExW(temporary.c_str(), store.userWordsFile().c_str(), MOVEFILE_REPLACE_EXISTING));
+    const auto started = Clock::now();
+    assert(store.pollUserWords(50000) && store.userWords().size() == UserWordModel::MaxWords);
+    const double readMs = since(started);
+    const auto unchanged = Clock::now();
+    for (int i = 0; i < 100; ++i) assert(!store.pollUserWords(60000 + 3000 * ULONGLONG(i)));
+    std::cout << "user words: read " << large.size() << " bytes, " << UserWordModel::MaxWords << " words in " << readMs
+              << " ms; unchanged look " << since(unchanged) / 100 << " ms\n";
+}
+
 static void preference() {
     const std::wstring name = L"Software\\HarukotoSelectionMemoryTest-" + std::to_wstring(GetCurrentProcessId());
     HKEY root = nullptr;
@@ -357,6 +437,9 @@ int wmain(int argc, wchar_t **argv) {
     const auto wordsFolder = folder / L"words";
     std::filesystem::create_directories(wordsFolder);
     storeWords(wordsFolder);
+    const auto userFolder = folder / L"user";
+    std::filesystem::create_directories(userFolder);
+    userWords(userFolder);
     std::error_code ignored; std::filesystem::remove_all(folder, ignored);
-    std::cout << "PASS: selection memory ranking, word weights, journal sharing, clearing, compaction and switch\n";
+    std::cout << "PASS: selection memory ranking, word weights, journal sharing, clearing, compaction, switch and user words\n";
 }
