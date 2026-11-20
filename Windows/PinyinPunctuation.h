@@ -57,6 +57,33 @@ constexpr const wchar_t *pinyinShiftPunctuation(unsigned int key) {
 
 constexpr bool pinyinShiftMark(unsigned int key) { return key == 0xde || pinyinShiftPunctuation(key) != nullptr; }
 
+// The US-layout character of Shift with a digit or punctuation key.
+constexpr wchar_t pinyinShiftedAscii(unsigned int key) {
+    switch (key) {
+    case '1': return L'!'; case '2': return L'@'; case '3': return L'#'; case '4': return L'$'; case '5': return L'%';
+    case '6': return L'^'; case '7': return L'&'; case '8': return L'*'; case '9': return L'('; case '0': return L')';
+    case 0xba: return L':'; case 0xbb: return L'+'; case 0xbc: return L'<'; case 0xbd: return L'_'; case 0xbe: return L'>';
+    case 0xbf: return L'?'; case 0xc0: return L'~'; case 0xdb: return L'{'; case 0xdc: return L'|'; case 0xdd: return L'}';
+    case 0xde: return L'"';
+    default: return 0;
+    }
+}
+
+// What a printable key types on a US layout with Caps Lock off: letters,
+// digits, space and punctuation, with or without Shift. 0 for anything else.
+constexpr wchar_t pinyinLiteral(unsigned int key, bool shift) {
+    if (key >= 'A' && key <= 'Z') return static_cast<wchar_t>(shift ? key : key - 'A' + 'a');
+    if (key == 0x20) return L' ';
+    if (shift) return pinyinShiftedAscii(key);
+    if (key >= '0' && key <= '9') return static_cast<wchar_t>(key);
+    switch (key) {
+    case 0xbb: return L'=';
+    case 0xbd: return L'-';
+    case 0xc0: return L'`';
+    default: return pinyinAsciiPunctuation(key);
+    }
+}
+
 // Chinese quotes open and close alternately, one state per quote kind.
 struct PinyinQuotes {
     bool singleOpen = false, doubleOpen = false;
@@ -76,9 +103,13 @@ enum class PinyinMark { none, chinese, literal };
 //    idle; / passes through when idle and is a literal / while composing.
 //  - English mode: unshifted punctuation passes through when idle and is
 //    literal while composing; the Shift layer passes through as before.
+//  - Either mode, composing: any other Shift symbol (@ # % … in Chinese
+//    mode, all of them in English mode) is literal rather than reaching the
+//    host ahead of the composition (batch 2).
 // Composing punctuation first commits the highlighted candidate.
 constexpr PinyinMark pinyinMarkKind(unsigned int key, bool shift, bool english, bool composing) {
-    if (shift) return !english && pinyinShiftMark(key) ? PinyinMark::chinese : PinyinMark::none;
+    if (shift) return !english && pinyinShiftMark(key) ? PinyinMark::chinese
+        : composing && pinyinShiftedAscii(key) ? PinyinMark::literal : PinyinMark::none;
     if (key == 0xde) return composing || english ? PinyinMark::none : PinyinMark::chinese;
     if (!pinyinAsciiPunctuation(key)) return PinyinMark::none;
     if (english || key == 0xbf) return composing ? PinyinMark::literal : PinyinMark::none;
@@ -86,7 +117,7 @@ constexpr PinyinMark pinyinMarkKind(unsigned int key, bool shift, bool english, 
 }
 
 inline std::wstring pinyinMarkText(unsigned int key, bool shift, PinyinMark mark, PinyinQuotes &quotes) {
-    if (mark == PinyinMark::literal) return std::wstring(1, pinyinAsciiPunctuation(key));
+    if (mark == PinyinMark::literal) return std::wstring(1, shift ? pinyinShiftedAscii(key) : pinyinAsciiPunctuation(key));
     if (mark != PinyinMark::chinese) return {};
     if (key == 0xde) return std::wstring(1, quotes.next(shift));
     if (shift) return pinyinShiftPunctuation(key);

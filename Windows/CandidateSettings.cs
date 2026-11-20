@@ -40,6 +40,7 @@ internal static class CandidateSettings
         var savedLayout = LayoutOptions.Load();
         int font = savedLayout.Font, width = savedLayout.Width, fuzzyMask = 0;
         bool typoCorrection = true, englishPunctuation = false, punctuationHotkey = true;
+        int shiftToggle = ShiftToggleOptions.Either;
         try {
             using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Meowpuut\Input")) {
                 traditional.IsChecked = key != null && Convert.ToString(key.GetValue("TraditionalOutput", 0)) == "1";
@@ -47,6 +48,7 @@ internal static class CandidateSettings
                 typoCorrection = TypoCorrectionOptions.Read(key);
                 englishPunctuation = PunctuationOptions.ReadEnglish(key);
                 punctuationHotkey = PunctuationOptions.ReadHotkey(key);
+                shiftToggle = ShiftToggleOptions.Read(key);
             }
         } catch { /* Keep usable defaults if preferences are unavailable. */ }
         body.Children.Add(traditional);
@@ -66,6 +68,11 @@ internal static class CandidateSettings
         body.Children.Add(new TextBlock { Text = "纠错", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,0,0,8) });
         body.Children.Add(typo);
         body.Children.Add(new TextBlock { Text = "把相邻字母颠倒、漏打、多打或按到旁边的键读作想打的拼音，例如 zhonguo、nihoa 也能打出“中国”“你好”。每个候选最多纠正一处，读音完全一致的候选优先。关闭后不再给出任何纠错候选。默认开启。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,24) });
+        body.Children.Add(new TextBlock { Text = "中英文切换", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,0,0,8) });
+        var shiftMode = new ComboBox { Name = "ShiftToggle", ItemsSource = ShiftToggleOptions.Names, SelectedIndex = shiftToggle, Margin = new Thickness(0,0,0,8) };
+        AutomationProperties.SetName(shiftMode, "单按 Shift 切换中英文");
+        body.Children.Add(new Label { Content = "单按 Shift 切换中英文", Target = shiftMode, Padding = new Thickness(0,0,0,5) }); body.Children.Add(shiftMode);
+        body.Children.Add(new TextBlock { Text = "单独按一下 Shift（不按其他键、0.5 秒内松开）切换中文／英文；按住 Shift 打字、Shift 加鼠标点击不会切换。英文时所有按键交给应用。打拼音时切到英文，已打的字母原样上屏。每个应用各自记住中英文，重新打开应用后为中文。默认左右 Shift 都可以。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,24) });
         body.Children.Add(new TextBlock { Text = "标点", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,0,0,8) });
         var english = new CheckBox { Name = "EnglishPunctuation", Content = "使用英文标点", IsChecked = englishPunctuation, Margin = new Thickness(0,0,0,8) };
         var hotkey = new CheckBox { Name = "PunctuationHotkey", Content = "Ctrl+. 切换中英文标点", IsChecked = punctuationHotkey, Margin = new Thickness(0,0,0,8) };
@@ -160,7 +167,7 @@ internal static class CandidateSettings
         direction.SelectionChanged += (s,e) => refresh();
         autoReading.Checked += (s,e) => refresh(); autoReading.Unchecked += (s,e) => refresh();
         applyPreset.Click += (s,e) => { setDraft(LayoutOptions.Preset(presets.SelectedIndex)); status.Text = "预设已应用到草稿，保存后生效。"; };
-        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。简繁、模糊音、纠错、标点与词库设置保持。"; };
+        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。简繁、模糊音、纠错、中英文切换、标点与词库设置保持。"; };
         cancel.Click += (s,e) => window.Close();
         save.Click += (s,e) => {
             try {
@@ -177,6 +184,7 @@ internal static class CandidateSettings
                         englishPunctuation = english.IsChecked == true;
                     }
                     PunctuationOptions.WriteHotkey(input, hotkey.IsChecked == true);
+                    ShiftToggleOptions.Write(input, shiftMode.SelectedIndex);
                 }
                 status.Text = "已保存，下次输入按键时生效。取消只丢弃此后未保存的调整。";
             } catch (Exception error) { status.Text = "保存失败：" + error.Message; }

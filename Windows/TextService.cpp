@@ -3,6 +3,7 @@
 #endif
 #include <windows.h>
 #include <msctf.h>
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <fstream>
@@ -12,6 +13,8 @@
 #include "PendingDelivery.h"
 #include "PinyinPunctuation.h"
 #include "PunctuationMode.h"
+#include "ShiftToggle.h"
+#include <olectl.h>
 #include "ScriptMode.h"
 #include "ScriptPreference.h"
 #include "FuzzyPinyin.h"
@@ -171,9 +174,122 @@ HRESULT EditSession::DoEditSession(TfEditCookie cookie) {
     return result;
 }
 
-class Service final : public ITfTextInputProcessor, public ITfKeyEventSink, public ITfThreadMgrEventSink, public ITfThreadFocusSink, public RefCount {
+// CN-07 batch 2: the input mode item Windows shows beside the language
+// indicator in the taskbar (GUID_LBI_INPUTMODE; the TIP is registered with
+// the system tray capability). Values from ctffunc.h / msctf.h, defined
+// here so builds without them in uuid.lib still link; the focus test checks
+// them against the SDK.
+const GUID inputModeItem = {0x2c77a81e,0x41cc,0x4178,{0xa3,0xa7,0x5f,0x8a,0x98,0x75,0x68,0xe6}};
+const GUID systrayCapability = {0x25504fb4,0x7bab,0x4bc1,{0x9c,0x69,0xcf,0x81,0x89,0x0f,0x0e,0xf5}};
+
+// A taskbar icon showing one or two characters: white on the dark taskbar,
+// black on a light one. The caller owns the icon.
+HICON modeIcon(const wchar_t *text) {
+    DWORD light = 0, bytes = sizeof(light);
+    RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        L"SystemUsesLightTheme", RRF_RT_REG_DWORD, nullptr, &light, &bytes);
+    constexpr int size = 32;
+    BITMAPINFO info{};
+    info.bmiHeader = {sizeof(BITMAPINFOHEADER), size, -size, 1, 32, BI_RGB};
+    void *bits = nullptr;
+    HDC dc = CreateCompatibleDC(nullptr);
+    HBITMAP color = dc ? CreateDIBSection(dc, &info, DIB_RGB_COLORS, &bits, nullptr, 0) : nullptr;
+    const BYTE zeros[size * size / 8]{};
+    HBITMAP mask = CreateBitmap(size, size, 1, 1, zeros);
+    HICON icon = nullptr;
+    if (color && mask && bits) {
+        const HGDIOBJ previous = SelectObject(dc, color);
+        HFONT font = CreateFontW(-26, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei UI");
+        const HGDIOBJ previousFont = font ? SelectObject(dc, font) : nullptr;
+        SetBkMode(dc, TRANSPARENT);
+        SetTextColor(dc, RGB(255, 255, 255));
+        RECT area{0, 0, size, size};
+        DrawTextW(dc, text, -1, &area, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        GdiFlush();
+        // Grey-scale coverage becomes alpha over a single colour.
+        const DWORD ink = light == 1 ? 0 : 0xffffff;
+        auto *pixel = static_cast<DWORD *>(bits);
+        for (int i = 0; i < size * size; ++i) {
+            const DWORD value = pixel[i];
+            const DWORD alpha = (std::max)({value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff});
+            pixel[i] = alpha ? (alpha << 24) | ink : 0;
+        }
+        if (previousFont) SelectObject(dc, previousFont);
+        if (font) DeleteObject(font);
+        SelectObject(dc, previous);
+        ICONINFO parts{TRUE, 0, 0, mask, color};
+        icon = CreateIconIndirect(&parts);
+    }
+    if (mask) DeleteObject(mask);
+    if (color) DeleteObject(color);
+    if (dc) DeleteDC(dc);
+    return icon;
+}
+
+class Service;
+// The service whose mode hint the thread's timer hides.
+thread_local Service *hintOwner = nullptr;
+// Calls back into the service on the input thread; the service clears the
+// owner before releasing the item.
+class ModeButton final : public ITfLangBarItemButton, public ITfSource, public RefCount {
+public:
+    explicit ModeButton(Service *owner) : owner(owner) {}
+    ~ModeButton() override { if (sink) sink->Release(); }
+    Service *owner;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
+        *out = nullptr;
+        if (id == IID_IUnknown || id == IID_ITfLangBarItem || id == IID_ITfLangBarItemButton)
+            *out = static_cast<ITfLangBarItemButton *>(this);
+        else if (id == IID_ITfSource) *out = static_cast<ITfSource *>(this);
+        else return E_NOINTERFACE;
+        AddRef();
+        return S_OK;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return retain(); }
+    ULONG STDMETHODCALLTYPE Release() override { return release(); }
+    HRESULT STDMETHODCALLTYPE GetInfo(TF_LANGBARITEMINFO *info) override {
+        *info = {};
+        info->clsidService = serviceId;
+        info->guidItem = inputModeItem;
+        info->dwStyle = TF_LBI_STYLE_BTN_BUTTON | TF_LBI_STYLE_SHOWNINTRAY;
+        lstrcpynW(info->szDescription, L"晴词 中／英", ARRAYSIZE(info->szDescription));
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE GetStatus(DWORD *status) override { *status = 0; return S_OK; }
+    HRESULT STDMETHODCALLTYPE Show(BOOL) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetTooltipString(BSTR *tip) override;
+    HRESULT STDMETHODCALLTYPE OnClick(TfLBIClick click, POINT, const RECT *) override;
+    HRESULT STDMETHODCALLTYPE InitMenu(ITfMenu *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE OnMenuSelect(UINT) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetIcon(HICON *icon) override;
+    HRESULT STDMETHODCALLTYPE GetText(BSTR *text) override;
+    HRESULT STDMETHODCALLTYPE AdviseSink(REFIID id, IUnknown *unknown, DWORD *cookie) override {
+        if (id != IID_ITfLangBarItemSink) return CONNECT_E_CANNOTCONNECT;
+        if (sink) return CONNECT_E_ADVISELIMIT;
+        if (FAILED(unknown->QueryInterface(IID_ITfLangBarItemSink, reinterpret_cast<void **>(&sink)))) {
+            sink = nullptr;
+            return E_NOINTERFACE;
+        }
+        *cookie = 1;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE UnadviseSink(DWORD cookie) override {
+        if (cookie != 1 || !sink) return CONNECT_E_NOCONNECTION;
+        sink->Release();
+        sink = nullptr;
+        return S_OK;
+    }
+    void changed() { if (sink) sink->OnUpdate(TF_LBI_ICON | TF_LBI_TEXT | TF_LBI_TOOLTIP); }
+private:
+    ITfLangBarItemSink *sink = nullptr;
+};
+
+class Service final : public ITfTextInputProcessor, public ITfKeyEventSink, public ITfThreadMgrEventSink, public ITfThreadFocusSink,
+    public ITfCompartmentEventSink, public RefCount {
     friend struct ServiceFocusTest;
     friend struct ServiceReloadTest;
+    friend class ModeButton;
 public:
     ~Service() override { Deactivate(); }
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
@@ -186,6 +302,8 @@ public:
             *out = static_cast<ITfThreadMgrEventSink *>(this);
         else if (id == IID_ITfThreadFocusSink)
             *out = static_cast<ITfThreadFocusSink *>(this);
+        else if (id == IID_ITfCompartmentEventSink)
+            *out = static_cast<ITfCompartmentEventSink *>(this);
         else return E_NOINTERFACE;
         AddRef();
         return S_OK;
@@ -243,11 +361,12 @@ public:
         if (SUCCEEDED(result)) result = events->AdviseSink(IID_ITfThreadFocusSink,
             static_cast<ITfThreadFocusSink *>(this), &focusCookie);
         if (FAILED(result)) Deactivate();
-        else { runtimeStatus.open(); reportRuntimeStatus(); }
+        else { runtimeStatus.open(); reportRuntimeStatus(); attachMode(manager); }
         return result;
     }
 
     HRESULT STDMETHODCALLTYPE Deactivate() override {
+        detachMode();
         runtimeStatus.close();
         if (memory) { memory->flush(); memory.reset(); }
         wordBonuses.reset();
@@ -344,16 +463,31 @@ public:
         }
         return S_OK;
     }
-    HRESULT STDMETHODCALLTYPE OnTestKeyDown(ITfContext *context, WPARAM key, LPARAM, BOOL *eaten) override {
+    HRESULT STDMETHODCALLTYPE OnTestKeyDown(ITfContext *context, WPARAM key, LPARAM flags, BOOL *eaten) override {
+        trackKeyDown(key, flags);
         *eaten = accepts(context, key);
         return S_OK;
     }
-    HRESULT STDMETHODCALLTYPE OnTestKeyUp(ITfContext *, WPARAM, LPARAM, BOOL *eaten) override {
+    // Shift is never eaten: hosts keep seeing it as a modifier. A tap is
+    // acted on at its release, from whichever callback sees it first.
+    HRESULT STDMETHODCALLTYPE OnTestKeyUp(ITfContext *, WPARAM key, LPARAM flags, BOOL *eaten) override {
         *eaten = FALSE;
+        trackKeyUp(key, flags);
         return S_OK;
     }
-    HRESULT STDMETHODCALLTYPE OnKeyUp(ITfContext *, WPARAM, LPARAM, BOOL *eaten) override {
+    HRESULT STDMETHODCALLTYPE OnKeyUp(ITfContext *, WPARAM key, LPARAM flags, BOOL *eaten) override {
         *eaten = FALSE;
+        trackKeyUp(key, flags);
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE OnChange(REFGUID guid) override {
+        // Windows, the host or another service changed the open state.
+        if (IsEqualGUID(guid, GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)) {
+            bool open = true;
+            if (readOpenClose(open)) {
+                try { setMode(open); } catch (...) {}
+            }
+        }
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnPreservedKey(ITfContext *, REFGUID, BOOL *eaten) override {
@@ -362,6 +496,7 @@ public:
     }
     HRESULT STDMETHODCALLTYPE OnKeyDown(ITfContext *context, WPARAM key, LPARAM flags, BOOL *eaten) override {
         *eaten = FALSE;
+        trackKeyDown(key, flags);
         if (!accepts(context, key)) return S_OK;
         try {
             if (activeContext != context && !switchContext(context)) return S_OK;
@@ -388,15 +523,18 @@ public:
                 refreshCandidates();
             }
             // CN-07: punctuation mode, and what this key types in it.
-            englishPunctuation = readEnglishPunctuation(preferenceRoot);
-            const bool toggle = punctuationToggle(key);
+            if (readEnglishPunctuation(preferenceRoot) != englishPunctuation) {
+                englishPunctuation = !englishPunctuation;
+                if (button) button->changed();
+            }
+            const bool toggle = chineseMode && punctuationToggle(key);
             const bool shift = GetKeyState(VK_SHIFT) < 0;
-            PinyinMark mark = toggle ? PinyinMark::none
+            PinyinMark mark = toggle || !chineseMode ? PinyinMark::none
                 : pinyinMarkKind(static_cast<unsigned int>(key), shift, englishPunctuation, *mpn_input(session) != '\0');
             // Punctuation otherwise left to the host reaches here only when
             // accepts() kept it behind a pending insertion (which pump() above
             // may have delivered since): type it literally, in order.
-            if (mark == PinyinMark::none && !toggle && !shift && !*mpn_input(session)
+            if (chineseMode && mark == PinyinMark::none && !toggle && !shift && !*mpn_input(session)
                 && pinyinAsciiPunctuation(static_cast<unsigned int>(key)))
                 mark = PinyinMark::literal;
             // Editing returns to normal composition before handling the key.
@@ -433,13 +571,31 @@ public:
                 // Like the script shortcut: one toggle per press, persisted
                 // for every context and the next session.
                 if (!(static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30))
-                    && writeEnglishPunctuation(!englishPunctuation, preferenceRoot))
+                    && writeEnglishPunctuation(!englishPunctuation, preferenceRoot)) {
                     englishPunctuation = !englishPunctuation;
+                    if (button) button->changed();
+                    if (!*mpn_input(session)) showModeHint();
+                }
+                *eaten = TRUE;
+            } else if (!chineseMode) {
+                // English mode takes a key only to keep it behind a pending
+                // insertion (accepts()); it is typed as the host would.
+                if (const wchar_t literal = pinyinLiteral(static_cast<unsigned int>(key), shift)) text = literal;
                 *eaten = TRUE;
             } else if (mark != PinyinMark::none) {
                 finishCandidateText(text, start + highlighted);
                 text += pinyinMarkText(static_cast<unsigned int>(key), shift, mark, quotes);
                 highlighted = 0;
+                *eaten = TRUE;
+            } else if (shift && key >= 'A' && key <= 'Z') {
+                // A capital ends the reading as typed, like Space: the raw
+                // letters and the capital, so "i" Shift+P "hone" Space gives
+                // "iPhone ". Before batch 2 the capital reached the host
+                // ahead of the composition.
+                text = wide(mpn_committed(session)) + wide(mpn_input(session)) + static_cast<wchar_t>(key);
+                mpn_clear(session);
+                mpn_clear_commit(session);
+                resetCandidates();
                 *eaten = TRUE;
             } else if (key == VK_F4) {
                 expanded = !expanded;
@@ -549,16 +705,194 @@ private:
             GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0) && readPunctuationHotkey(preferenceRoot);
     }
 
+    // ---- CN-07 batch 2: Chinese/English mode ----------------------------
+    // The mode belongs to this service instance (one per input thread, so
+    // per application window thread) and starts Chinese on activation; it is
+    // not saved. It mirrors the thread's keyboard open/close compartment, so
+    // Windows (Ctrl+Space), the host and the taskbar indicator agree with it.
+
+    // Two bits per mouse button: pressed (odd bits) and the toggle bit that
+    // flips with every press this thread processes.
+    static constexpr unsigned int mousePressed = 0x2aa;
+    static unsigned int mouseState() {
+        unsigned int state = 0, offset = 0;
+        for (int button : {VK_LBUTTON, VK_RBUTTON, VK_MBUTTON, VK_XBUTTON1, VK_XBUTTON2}) {
+            const SHORT value = GetKeyState(button);
+            state |= ((value < 0 ? 2u : 0u) | (value & 1 ? 1u : 0u)) << offset;
+            offset += 2;
+        }
+        return state;
+    }
+    static bool otherModifiers() {
+        return GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0 || GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0;
+    }
+    void trackKeyDown(WPARAM key, LPARAM flags) {
+        if (key == VK_SHIFT)
+            shiftTap.down(rightShiftKey(flags), (static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30)) != 0,
+                otherModifiers(), mouseState(), GetTickCount64());
+        else shiftTap.other();
+    }
+    void trackKeyUp(WPARAM key, LPARAM flags) {
+        if (key != VK_SHIFT) return;
+        const unsigned int mouse = mouseState();
+        if (shiftTap.up(rightShiftKey(flags), otherModifiers() || (mouse & mousePressed), mouse, GetTickCount64(),
+                        readShiftToggle(preferenceRoot)) && session) {
+            try { setMode(!chineseMode); } catch (...) {}
+        }
+    }
+
+    ITfCompartment *openClose() const {
+        if (!threadManager) return nullptr;
+        ITfCompartmentMgr *manager = nullptr;
+        if (FAILED(threadManager->QueryInterface(IID_ITfCompartmentMgr, reinterpret_cast<void **>(&manager)))) return nullptr;
+        ITfCompartment *compartment = nullptr;
+        if (FAILED(manager->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &compartment))) compartment = nullptr;
+        manager->Release();
+        return compartment;
+    }
+    bool readOpenClose(bool &open) const {
+        ITfCompartment *compartment = openClose();
+        if (!compartment) return false;
+        VARIANT value{};
+        const HRESULT result = compartment->GetValue(&value);
+        compartment->Release();
+        const bool known = result == S_OK && value.vt == VT_I4;
+        if (known) open = value.lVal != 0;
+        VariantClear(&value);
+        return known;
+    }
+    void writeOpenClose(bool open) {
+        ITfCompartment *compartment = openClose();
+        if (!compartment) return;
+        VARIANT value{};
+        value.vt = VT_I4;
+        value.lVal = open ? 1 : 0;
+        compartment->SetValue(client, &value); // Reenters OnChange, which finds nothing to do.
+        compartment->Release();
+    }
+
+    // Switching to English while composing commits the raw letters, as Space
+    // does (mainstream behaviour): nothing typed is lost or converted.
+    void setMode(bool chinese) {
+        if (chinese == chineseMode) return;
+        chineseMode = chinese;
+        shiftTap.other();
+        if (!chinese && session && *mpn_input(session) && delivery && activeContext) {
+            std::wstring text = wide(mpn_committed(session)) + wide(mpn_input(session));
+            mpn_clear(session);
+            mpn_clear_commit(session);
+            resetCandidates();
+            delivery->enqueue(std::move(text));
+            delivery->pump();
+        }
+        writeOpenClose(chinese);
+        if (button) button->changed();
+        showModeHint();
+    }
+
+    void attachMode(ITfThreadMgr *manager) {
+        threadManager = manager;
+        threadManager->AddRef();
+        chineseMode = true;
+        writeOpenClose(true);
+        if (ITfCompartment *compartment = openClose()) {
+            ITfSource *source = nullptr;
+            if (SUCCEEDED(compartment->QueryInterface(IID_ITfSource, reinterpret_cast<void **>(&source)))) {
+                if (FAILED(source->AdviseSink(IID_ITfCompartmentEventSink, static_cast<ITfCompartmentEventSink *>(this), &openCookie)))
+                    openCookie = TF_INVALID_COOKIE;
+                source->Release();
+            }
+            compartment->Release();
+        }
+        ITfLangBarItemMgr *items = nullptr;
+        if (SUCCEEDED(threadManager->QueryInterface(IID_ITfLangBarItemMgr, reinterpret_cast<void **>(&items)))) {
+            button = new (std::nothrow) ModeButton(this);
+            if (button && FAILED(items->AddItem(button))) { button->owner = nullptr; button->Release(); button = nullptr; }
+            items->Release();
+        }
+    }
+    void detachMode() {
+        if (hintTimer) { KillTimer(nullptr, hintTimer); hintTimer = 0; }
+        if (hintOwner == this) hintOwner = nullptr;
+        if (!threadManager) return;
+        if (openCookie != TF_INVALID_COOKIE) {
+            if (ITfCompartment *compartment = openClose()) {
+                ITfSource *source = nullptr;
+                if (SUCCEEDED(compartment->QueryInterface(IID_ITfSource, reinterpret_cast<void **>(&source)))) {
+                    source->UnadviseSink(openCookie);
+                    source->Release();
+                }
+                compartment->Release();
+            }
+            openCookie = TF_INVALID_COOKIE;
+        }
+        if (button) {
+            ITfLangBarItemMgr *items = nullptr;
+            if (SUCCEEDED(threadManager->QueryInterface(IID_ITfLangBarItemMgr, reinterpret_cast<void **>(&items)))) {
+                items->RemoveItem(button);
+                items->Release();
+            }
+            button->owner = nullptr;
+            button->Release();
+            button = nullptr;
+        }
+        threadManager->Release();
+        threadManager = nullptr;
+    }
+
+    std::wstring modeTooltip() const {
+        return chineseMode ? (englishPunctuation ? L"晴词：中文 · 英文标点（Shift 切换）" : L"晴词：中文 · 中文标点（Shift 切换）")
+                           : L"晴词：英文（Shift 切换）";
+    }
+
+    // A brief mode hint near the caret after a switch, also when idle, in the
+    // candidate renderer (or the fallback popup); neither takes focus. Only
+    // in a real TSF activation (tests run without a keystroke manager).
+    static void CALLBACK hideHint(HWND, UINT, UINT_PTR id, DWORD) {
+        KillTimer(nullptr, id);
+        Service *service = hintOwner;
+        if (!service || service->hintTimer != id) return;
+        service->hintTimer = 0;
+        if (service->session && !*mpn_input(service->session)) service->hideCandidates();
+    }
+    void showModeHint() {
+        if (!keys || !session || *mpn_input(session)) return;
+        POINT anchor = candidateAnchor();
+        const std::wstring mode = chineseMode ? L"中" : L"英";
+        const std::wstring detail = chineseMode ? (englishPunctuation ? L"中文 · 英文标点" : L"中文 · 中文标点") : L"英文";
+        const auto payload = std::to_wstring(anchor.x) + L"\n" + std::to_wstring(anchor.y + 7) + L"\n"
+            + mode + L"\t0\t" + detail + L"\t0";
+        if (sendGlass(payload)) {
+            if (popup) ShowWindow(popup, SW_HIDE);
+        } else {
+            if (!popup) {
+                popup = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST,
+                                        L"STATIC", nullptr, WS_POPUP | WS_BORDER | SS_LEFTNOWORDWRAP | SS_NOPREFIX | SS_NOTIFY,
+                                        0, 0, 0, 0, nullptr, nullptr, module, nullptr);
+                if (!popup) return;
+                SendMessageW(popup, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), 0);
+                SetWindowLongPtrW(popup, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+                originalPopupProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(
+                    popup, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&candidateWindowProc)));
+            }
+            const std::wstring text = mode + L"  " + detail;
+            SetWindowTextW(popup, text.c_str());
+            popupIndices.clear();
+            SetWindowPos(popup, HWND_TOPMOST, anchor.x, anchor.y + 7, 140, 24, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        }
+        hintOwner = this;
+        if (hintTimer) KillTimer(nullptr, hintTimer);
+        hintTimer = SetTimer(nullptr, 0, 1000, &Service::hideHint);
+    }
+
     bool accepts(ITfContext *context, WPARAM key) const {
-        const bool shortcut = scriptShortcut(key) || punctuationToggle(key);
+        const auto code = static_cast<unsigned int>(key);
+        // In English mode Ctrl+. is the host's (CN-07 batch 2).
+        const bool shortcut = scriptShortcut(key) || (chineseMode && punctuationToggle(key));
         const bool shift = GetKeyState(VK_SHIFT) < 0;
-        // Of the Shift layer only Chinese punctuation is taken; Shift+letters,
-        // unmapped Shift keys and English mode pass to the host as before.
-        const bool shiftMark = shift && pinyinShiftMark(static_cast<unsigned int>(key))
-            && !readEnglishPunctuation(preferenceRoot);
         if (!session || !context || GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0
             || (!shortcut && (GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0
-            || (key != VK_TAB && shift && !shiftMark) || (GetKeyState(VK_CAPITAL) & 1)))) return false;
+            || (GetKeyState(VK_CAPITAL) & 1)))) return false;
         TF_STATUS status{};
         if (FAILED(context->GetStatus(&status)) || (status.dwDynamicFlags & TF_SD_READONLY)) return false;
         if (disabled(context)) return false;
@@ -567,22 +901,33 @@ private:
         if (focus && GetClassNameW(focus, className, ARRAYSIZE(className))
             && lstrcmpiW(className, L"Edit") == 0 && (GetWindowLongPtrW(focus, GWL_STYLE) & ES_PASSWORD))
             return false;
-        if (shortcut || shiftMark) return true;
-        if (key >= 'A' && key <= 'Z') return true;
+        if (shortcut) return true;
         auto saved = suspended.find(context);
         MPNSession *current = context == activeContext ? session : (saved == suspended.end() ? nullptr : saved->second.session);
         const bool composing = current && *mpn_input(current);
-        if (!shift && (pinyinAsciiPunctuation(static_cast<unsigned int>(key)))
-            && pinyinMarkKind(static_cast<unsigned int>(key), false, readEnglishPunctuation(preferenceRoot), composing) != PinyinMark::none)
+        const auto queued = context == activeContext ? delivery
+            : saved == suspended.end() ? nullptr : saved->second.delivery;
+        const bool pending = queued && !queued->queue.empty();
+        // English mode: every key is the host's, except that typed text must
+        // not overtake an insertion still owed to the host (such as the
+        // letters committed by switching mid-composition).
+        if (!chineseMode) return pending && pinyinLiteral(code, shift);
+        if (shift && key != VK_TAB) {
+            // While composing no Shift key may reach the host ahead of the
+            // composition (batch 2); idle, only Chinese punctuation is taken
+            // and Shift+letters and other Shift keys pass as before.
+            if (composing) return (code >= 'A' && code <= 'Z') || pinyinShiftedAscii(code);
+            return pinyinShiftMark(code) && !readEnglishPunctuation(preferenceRoot);
+        }
+        if (key >= 'A' && key <= 'Z') return true;
+        if (pinyinAsciiPunctuation(code)
+            && pinyinMarkKind(code, false, readEnglishPunctuation(preferenceRoot), composing) != PinyinMark::none)
             return true;
         if (!composing) {
-            const auto queued = context == activeContext ? delivery
-                : saved == suspended.end() ? nullptr : saved->second.delivery;
             // Selection may already have cleared the engine while TSF still
             // owes its text to the host. Keep literal digits/spaces and
             // punctuation behind it.
-            return !shift && queued && !queued->queue.empty() && (pinyinQueuedLiteral(static_cast<unsigned int>(key))
-                || pinyinAsciiPunctuation(static_cast<unsigned int>(key)));
+            return !shift && pending && (pinyinQueuedLiteral(code) || pinyinAsciiPunctuation(code));
         }
         const size_t currentPage = context == activeContext ? page : saved->second.page;
         const size_t currentCount = context == activeContext ? candidateCount() : saved->second.choices.size();
@@ -1136,6 +1481,13 @@ private:
     bool englishPunctuation = false;
     PinyinQuotes quotes;
     HKEY preferenceRoot = HKEY_CURRENT_USER;
+    // CN-07 batch 2: input mode, Shift tap, open/close compartment, taskbar item, hint timer.
+    bool chineseMode = true;
+    ShiftTap shiftTap;
+    ITfThreadMgr *threadManager = nullptr;
+    DWORD openCookie = TF_INVALID_COOKIE;
+    ModeButton *button = nullptr;
+    UINT_PTR hintTimer = 0;
     HWND popup = nullptr;
     HWND popupForeground = nullptr;
     WNDPROC originalPopupProc = nullptr;
@@ -1145,6 +1497,25 @@ private:
     HANDLE renderer = nullptr;
     std::wstring rendererName;
 };
+
+HRESULT ModeButton::GetTooltipString(BSTR *tip) {
+    *tip = SysAllocString(owner ? owner->modeTooltip().c_str() : L"晴词");
+    return *tip ? S_OK : E_OUTOFMEMORY;
+}
+HRESULT ModeButton::GetText(BSTR *text) {
+    *text = SysAllocString(!owner || owner->chineseMode ? L"中" : L"英");
+    return *text ? S_OK : E_OUTOFMEMORY;
+}
+HRESULT ModeButton::GetIcon(HICON *icon) {
+    *icon = modeIcon(!owner || owner->chineseMode ? L"中" : L"英");
+    return *icon ? S_OK : E_FAIL;
+}
+HRESULT ModeButton::OnClick(TfLBIClick click, POINT, const RECT *) {
+    if (owner && click == TF_LBI_CLK_LEFT) {
+        try { owner->setMode(!owner->chineseMode); } catch (...) {}
+    }
+    return S_OK;
+}
 
 class Factory final : public IClassFactory, public RefCount {
 public:
@@ -1197,6 +1568,9 @@ HRESULT registerProfile(bool install) {
     if (FAILED(hr)) return hr;
     hr = install ? categories->RegisterCategory(serviceId, GUID_TFCAT_TIP_KEYBOARD, serviceId)
                  : categories->UnregisterCategory(serviceId, GUID_TFCAT_TIP_KEYBOARD, serviceId);
+    // CN-07 batch 2: lets Windows show the 中／英 item in the taskbar.
+    if (install && SUCCEEDED(hr)) hr = categories->RegisterCategory(serviceId, systrayCapability, serviceId);
+    else if (!install) categories->UnregisterCategory(serviceId, systrayCapability, serviceId);
     categories->Release();
     // Remove only our old language profile, after the new profile and category
     // are registered. Re-registering the old DLL can still restore it on failure.

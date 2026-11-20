@@ -53,8 +53,14 @@ int main() {
         assert(type(0xdd, true, false, composing, quotes) == L"』");
         assert(type(0xde, true, false, composing, quotes) == L"“");
         assert(type(0xde, true, false, composing, quotes) == L"”");
-        // Unmapped Shift keys and Shift+letters are left to the host.
-        for (unsigned int key : {unsigned('2'), unsigned('3'), unsigned('5'), unsigned('7'), unsigned('8'), 0xbbu, 0xc0u, 0xdcu, unsigned('A'), unsigned('Z')}) {
+        // Unmapped Shift keys are left to the host when idle and literal
+        // while composing (batch 2); Shift+letters are not punctuation.
+        for (unsigned int key : {unsigned('2'), unsigned('3'), unsigned('5'), unsigned('7'), unsigned('8'), 0xbbu, 0xc0u, 0xdcu}) {
+            assert(!pinyinShiftMark(key));
+            assert(pinyinMarkKind(key, true, false, composing) == (composing ? PinyinMark::literal : PinyinMark::none));
+            if (composing) assert(type(key, true, false, true, quotes) == std::wstring(1, pinyinShiftedAscii(key)));
+        }
+        for (unsigned int key : {unsigned('A'), unsigned('Z')}) {
             assert(!pinyinShiftMark(key));
             assert(pinyinMarkKind(key, true, false, composing) == PinyinMark::none);
         }
@@ -84,12 +90,27 @@ int main() {
         assert(pinyinMarkKind(keys[i], false, true, false) == PinyinMark::none);
         assert(type(keys[i], false, true, true, quotes) == std::wstring(1, ascii[i]));
         assert(pinyinMarkKind(keys[i], true, true, false) == PinyinMark::none);
-        assert(pinyinMarkKind(keys[i], true, true, true) == PinyinMark::none);
+        assert(type(keys[i], true, true, true, quotes) == std::wstring(1, pinyinShiftedAscii(keys[i])));
     }
     assert(pinyinAsciiPunctuation(0xde) == L'\'');
     assert(pinyinMarkKind(0xde, false, true, false) == PinyinMark::none);
     assert(pinyinMarkKind(0xde, false, true, true) == PinyinMark::none); // still the separator
-    assert(pinyinMarkKind('1', true, true, true) == PinyinMark::none);
+    assert(type('1', true, true, true, quotes) == L"!" && type(0xde, true, true, true, quotes) == L"\"");
+    assert(pinyinMarkKind('A', true, true, true) == PinyinMark::none);
+
+    // Literal characters (US layout), used in English mode behind a pending insertion.
+    const std::wstring shifted = L")!@#$%^&*(";
+    for (unsigned int key = '0'; key <= '9'; ++key) {
+        assert(pinyinLiteral(key, false) == static_cast<wchar_t>(key));
+        assert(pinyinLiteral(key, true) == shifted[key - '0'] && pinyinShiftedAscii(key) == shifted[key - '0']);
+    }
+    assert(pinyinLiteral('A', false) == L'a' && pinyinLiteral('A', true) == L'A' && pinyinLiteral('Z', false) == L'z');
+    assert(pinyinLiteral(0x20, false) == L' ' && pinyinLiteral(0x20, true) == L' ');
+    const std::wstring plain = L";=,-./`[\\]'", upper = L":+<_>?~{|}\"";
+    const unsigned int punctuation[] = {0xba, 0xbb, 0xbc, 0xbd, 0xbe, 0xbf, 0xc0, 0xdb, 0xdc, 0xdd, 0xde};
+    for (size_t i = 0; i < plain.size(); ++i)
+        assert(pinyinLiteral(punctuation[i], false) == plain[i] && pinyinLiteral(punctuation[i], true) == upper[i]);
+    for (unsigned int key : {0x0du, 0x08u, 0x25u, 0x09u, 0x70u}) assert(!pinyinLiteral(key, false) && !pinyinLiteral(key, true));
     assert(!pinyinAsciiPunctuation('A') && !pinyinAsciiPunctuation(0x20));
 
     // Ctrl+. alone toggles; other modifiers leave the key to the host.

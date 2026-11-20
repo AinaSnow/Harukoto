@@ -100,7 +100,25 @@ internal static class LayoutOptionsTests
                 input.SetValue(PunctuationOptions.EnglishValue, "1"); input.SetValue(PunctuationOptions.HotkeyValue, "0");
                 Check(!PunctuationOptions.ReadEnglish(input) && PunctuationOptions.ReadHotkey(input), "Wrong punctuation registry types keep the defaults");
             }
-            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds, presets, fuzzy pinyin pairs, typo correction and punctuation.");
+            // CN-07 batch 2: Shift toggling, either Shift unless saved otherwise.
+            Check(ShiftToggleOptions.Read(null) == ShiftToggleOptions.Either && ShiftToggleOptions.Names.Length == 3, "Shift toggle default without key");
+            using (var input = Registry.CurrentUser.CreateSubKey(path + @"\ShiftInput")) {
+                Check(ShiftToggleOptions.Read(input) == ShiftToggleOptions.Either, "Shift toggle default");
+                ShiftToggleOptions.Write(input, ShiftToggleOptions.Either);
+                Check(input.GetValue(ShiftToggleOptions.ValueName) == null, "Saving the default must not create the value");
+                foreach (int setting in new[] { ShiftToggleOptions.Off, ShiftToggleOptions.LeftOnly, ShiftToggleOptions.Either }) {
+                    ShiftToggleOptions.Write(input, setting);
+                    Check(input.GetValueKind(ShiftToggleOptions.ValueName) == RegistryValueKind.DWord && (int)input.GetValue(ShiftToggleOptions.ValueName) == setting
+                        && ShiftToggleOptions.Read(input) == setting, "Shift toggle persisted as DWORD " + setting);
+                }
+                ShiftToggleOptions.Write(input, 7);
+                Check((int)input.GetValue(ShiftToggleOptions.ValueName) == ShiftToggleOptions.Either, "Unknown setting saved as the default");
+                input.SetValue(ShiftToggleOptions.ValueName, 3, RegistryValueKind.DWord);
+                Check(ShiftToggleOptions.Read(input) == ShiftToggleOptions.Either, "Unknown DWORD means the default");
+                input.SetValue(ShiftToggleOptions.ValueName, "0");
+                Check(ShiftToggleOptions.Read(input) == ShiftToggleOptions.Either, "Wrong Shift toggle registry type means the default");
+            }
+            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds, presets, fuzzy pinyin pairs, typo correction, punctuation and Shift toggling.");
         } finally { Registry.CurrentUser.DeleteSubKeyTree(path, false); }
     }
 }

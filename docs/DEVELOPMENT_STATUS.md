@@ -1,5 +1,20 @@
 # 开发状态与接手入口
 
+## 2026-11-20 · CN-07 第二批：中英文切换与状态提示
+
+- 前置：第一批（标点）已提交为 9ef4623。本批未提交、未打包。核心未改动。
+- Shift 单按（新增 `ShiftToggle.h`）：`ShiftTap` 纯状态机，Shift 按下时没有 Ctrl／Alt／Win、500 ms（`shiftTapLimit`）内松开、中间没有其他按键、两个 Shift 没有同时按、松开时没有修饰键或鼠标按住，且鼠标按键状态（含每次点击翻转的切换位）与按下时相同，才算一次。按下／松开在 OnTestKeyDown／OnKeyDown 与 OnTestKeyUp／OnKeyUp 都会喂入（TSF 只在吃键时才调用后者），重复通知与自动重复都忽略，所以只切换一次。Shift 从不吃键，应用照常看到修饰键。左右由扫描码（0x36 为右）区分。DWORD `ShiftToggle`：0 关闭、1 左右（默认）、2 仅左，其他值或类型为默认；每次松开 Shift 时读取。默认开启的理由：只有“单独、短按、无点击”才切换，FF14 中把 Shift 当修饰键（Shift+数字、Shift+点击）不会误切；仍提供仅左／关闭。
+- 模式归属：按服务实例（每个应用的输入线程），激活时为中文，不保存。理由：在 FF14 里切到英文不影响其他应用，重开应用或重启都回到中文，行为可预期；与 TSF 线程级的键盘开关隔间一致。模式与 `GUID_COMPARTMENT_KEYBOARD_OPENCLOSE` 同步：激活时设为开，切换时写入，`ITfCompartmentEventSink` 跟随 Windows（如 Ctrl+空格）或应用对它的修改。
+- 英文模式：所有按键交给应用（`accepts` 返回 false），只保留繁简快捷键；Ctrl+. 也交给应用（如 VS Code）。唯一例外：本上下文还有待 TSF 插入的文字时，可打印键（字母、数字、空格、符号，按美式布局与 Shift，`pinyinLiteral`）由输入法按原样输出，保持顺序。
+- 组字中切到英文：上屏已选部分加原始字母（同空格，但不加空格），清空候选。
+- 漏键修复：组字中 Shift+字母上屏原始字母加该大写字母（同空格的“原样”约定；i Shift+P hone 空格 → “iPhone ”）；其他 Shift 符号（中文标点下未映射的 @ # % & * + ~ | 等，英文标点下全部）上屏高亮候选后输出该符号（同英文标点组字时的规则，`pinyinMarkKind` 返回 literal）。空闲时 Shift+字母与未映射 Shift 键照旧交给应用。Caps Lock 打开时组字中按键仍交给应用（未改，见局限）。
+- 状态提示：(1) 任务栏输入模式图标：`ModeButton`（ITfLangBarItemButton＋ITfSource，GUID_LBI_INPUTMODE，TF_LBI_STYLE_SHOWNINTRAY），运行时绘制“中／英”图标（按 SystemUsesLightTheme 选黑白），提示文字含标点模式，左键单击切换；DllRegisterServer 增加 GUID_TFCAT_TIPCAP_SYSTRAYSUPPORT 类别（需重新安装注册）。(2) 切换后（含 Ctrl+.）在没有组字时于光标附近显示约 1 秒“中／英”与标点模式：沿用候选渲染器（无候选的负载，状态栏为说明），失败时用旧式弹出框；都不抢焦点；线程计时器隐藏，若宿主不分发线程消息则保留到下一次按键。测试中没有键盘管理器时不显示。
+- 其他：旧式弹出框的 Shift 点击保护（第一批）保留。
+- 测试：新增 CTest `shift_toggle`（单按、时长边界、设置、其他键、修饰键、鼠标点击、双 Shift、重复通知与自动重复、扫描码、注册表）；`pinyin_punctuation` 改为组字中未映射 Shift 符号为 literal，新增 `pinyinShiftedAscii`／`pinyinLiteral`；`tsf_focus_cancel` 新增 `inputMode()`：真实回调里左右单按切换、英文全部放行（含 Ctrl+.、Shift 键）、组字中切换上屏“ni”、英文下待上屏队列后的字母顺序、Shift+W 得“niW”、组字 Shift+2 得“你@”而空闲放行、Shift 作修饰键／Ctrl+Shift／Shift+点击不切换、三种设置，并核对自定义 GUID 与 SDK 的 GUID_LBI_INPUTMODE／GUID_TFCAT_TIPCAP_SYSTRAYSUPPORT 相同、图标能生成。LayoutOptionsTests 新增 Shift 设置持久化；test-preview.ps1 全部通过。CTest 共 58 项（原 57 项加 shift_toggle），完整构建并复制 DLL 后全部通过（321.54 秒）。
+- 未验证：任务栏图标是否实际出现（需安装注册，未安装）、深浅色效果、点击切换；光标提示在真实应用和 FF14 全屏下的效果与位置；Windows Ctrl+空格同步；TSF 是否对每个 Shift 松开调用 OnTestKeyUp（按文档推断，实机未验证）；没有打包。
+- 已知局限：鼠标点击只能察觉本线程处理过的（翻转位）；按美式布局；Caps Lock 打开时组字中的按键仍交给应用；英文模式下仅待上屏队列期间由输入法输出字符；提示计时器依赖宿主分发线程消息。
+- 下一步：维护者验收；随下一个试用包实机抽查（任务栏图标、FF14 中 Shift 单按与 Shift 修饰、组字中切换）。
+
 ## 2026-11-20 · CN-07 第一批：标点
 
 - 前置：DICT-02b 已提交为 65d6811。本批未提交、未打包。核心未改动。

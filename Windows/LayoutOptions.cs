@@ -80,6 +80,29 @@ internal static class PunctuationOptions
     }
 }
 
+// CN-07 batch 2: which Shift keys switch Chinese/English when tapped alone,
+// the DWORD ShiftToggle under Software\Meowpuut\Input read at every Shift
+// release: 0 none, 1 either (default), 2 left only; anything else is the default.
+internal static class ShiftToggleOptions
+{
+    internal const string ValueName = "ShiftToggle";
+    internal const int Off = 0, Either = 1, LeftOnly = 2;
+    internal static readonly string[] Names = { "关闭", "左右 Shift", "仅左 Shift" };
+    internal static int Read(RegistryKey input)
+    {
+        if (input == null) return Either;
+        var value = input.GetValue(ValueName);
+        return value is int && (int)value >= Off && (int)value <= LeftOnly ? (int)value : Either;
+    }
+    // Leaves an unchanged value alone, so saving other settings never creates it.
+    internal static void Write(RegistryKey input, int setting)
+    {
+        if (setting < Off || setting > LeftOnly) setting = Either;
+        if (Read(input) == setting && (input.GetValue(ValueName) is int || setting == Either)) return;
+        input.SetValue(ValueName, setting, RegistryValueKind.DWord);
+    }
+}
+
 // Layout is published as one registry value. Readers never observe half a layout.
 internal sealed class LayoutOptions
 {

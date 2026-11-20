@@ -1,5 +1,6 @@
 // Exercise the actual TSF callbacks without registering or installing an IME.
 #include "../TextService.cpp"
+#include <ctffunc.h>
 #include <cassert>
 #include <iostream>
 
@@ -578,6 +579,139 @@ struct ServiceFocusTest {
         RegCloseKey(root);
         assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
     }
+
+    // CN-07 batch 2 through the real key callbacks: Shift taps switch
+    // Chinese/English, English passes everything to the host, switching
+    // mid-composition commits the letters, and no Shift key reaches the host
+    // ahead of a composition.
+    static void inputMode() {
+        const std::wstring path = L"Software\\HarukotoInputModeService-" + std::to_wstring(GetCurrentProcessId());
+        HKEY root = nullptr;
+        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        const auto setting = [&](DWORD value) {
+            HKEY input = nullptr;
+            assert(RegCreateKeyExW(root, L"Software\\Meowpuut\\Input", 0, nullptr, 0, KEY_SET_VALUE, nullptr, &input, nullptr) == ERROR_SUCCESS);
+            assert(RegSetValueExW(input, L"ShiftToggle", 0, REG_DWORD, reinterpret_cast<const BYTE *>(&value), sizeof(value)) == ERROR_SUCCESS);
+            RegCloseKey(input);
+        };
+        RecordingContext context;
+        {
+            Service service;
+            service.preferenceRoot = root;
+            const std::string data = "MEOWPUUT-PINYIN-1\nhao\thao3\t好\t好\t9000\nni\tni3\t你\t你\t9000\n";
+            service.lexicon = mpn_lexicon_create(data.data(), data.size());
+            service.session = mpn_session_create(service.lexicon);
+            assert(service.lexicon && service.session);
+            const auto test = [&](WPARAM key) {
+                BOOL eaten = FALSE;
+                assert(service.OnTestKeyDown(&context, key, 0, &eaten) == S_OK);
+                return eaten != FALSE;
+            };
+            const auto press = [&](WPARAM key) {
+                const bool tested = test(key);
+                context.text.clear();
+                BOOL eaten = FALSE;
+                assert(service.OnKeyDown(&context, key, 0, &eaten) == S_OK);
+                assert(tested == (eaten != FALSE));
+                return std::make_pair(eaten != FALSE, context.text);
+            };
+            const auto compose = [&](const char *keys) {
+                for (const char *c = keys; *c; ++c) assert(mpn_key(service.session, *c));
+                service.refreshCandidates();
+            };
+            // Shift down and up as the TSF callbacks see them; never eaten.
+            const LPARAM left = LPARAM(0x2a) << 16, right = LPARAM(0x36) << 16, release = (LPARAM(1) << 30) | (LPARAM(1) << 31);
+            const auto shiftDown = [&](LPARAM side = LPARAM(0x2a) << 16) {
+                hold({VK_SHIFT});
+                BOOL eaten = TRUE;
+                assert(service.OnTestKeyDown(&context, VK_SHIFT, side | 1, &eaten) == S_OK && !eaten);
+            };
+            const auto shiftUp = [&](LPARAM side = LPARAM(0x2a) << 16) {
+                hold({});
+                BOOL eaten = TRUE;
+                assert(service.OnTestKeyUp(&context, VK_SHIFT, side | release | 1, &eaten) == S_OK && !eaten);
+                eaten = TRUE;
+                assert(service.OnKeyUp(&context, VK_SHIFT, side | release | 1, &eaten) == S_OK && !eaten); // counted once
+            };
+            const auto tap = [&](LPARAM side = LPARAM(0x2a) << 16) { shiftDown(side); shiftUp(side); };
+            using Result = std::pair<bool, std::wstring>;
+            const Result passed{false, L""};
+            hold({});
+            assert(press(VK_OEM_COMMA) == Result(true, L"，") && service.chineseMode);
+            // Left and right taps toggle.
+            tap(left); assert(!service.chineseMode);
+            for (WPARAM key : {WPARAM('A'), WPARAM('1'), WPARAM(VK_SPACE), WPARAM(VK_OEM_COMMA), WPARAM(VK_OEM_2), WPARAM(VK_OEM_7), WPARAM(VK_RETURN)})
+                assert(press(key) == passed);
+            hold({VK_SHIFT});
+            assert(press('1') == passed && press('A') == passed);
+            hold({VK_CONTROL});
+            assert(press(VK_OEM_PERIOD) == passed && !readEnglishPunctuation(root)); // Ctrl+. is the host's in English
+            hold({});
+            tap(right); assert(service.chineseMode);
+            assert(press(VK_OEM_COMMA) == Result(true, L"，"));
+            // Switching mid-composition commits the raw letters.
+            compose("ni");
+            context.text.clear();
+            tap(); assert(!service.chineseMode && context.text == L"ni" && !*mpn_input(service.session) && service.choices.empty());
+            tap(); assert(service.chineseMode);
+            // English mode keeps typing behind an insertion still owed to the host.
+            tap(); assert(!service.chineseMode);
+            service.delivery->queue.suspend();
+            service.delivery->enqueue(L"待");
+            assert(test('A') && test(VK_SPACE) && !test(VK_RETURN) && !test(VK_LEFT));
+            service.delivery->queue.resume();
+            assert(press('A') == Result(true, L"待a"));
+            tap(); assert(service.chineseMode);
+            // The leak: a Shift key while composing no longer reaches the host first.
+            compose("ni");
+            hold({VK_SHIFT});
+            assert(press('W') == Result(true, L"niW")); // raw letters and the capital, like Space
+            hold({});
+            compose("ni");
+            hold({VK_SHIFT});
+            assert(press('2') == Result(true, L"你@") && press('2') == passed); // idle: the host's, as before
+            hold({});
+            // Shift used as a modifier is not a tap.
+            shiftDown();
+            assert(press('1') == Result(true, L"！"));
+            shiftUp(); assert(service.chineseMode);
+            shiftDown();
+            assert(press('A') == passed); // idle Shift+letter, the host's
+            shiftUp(); assert(service.chineseMode);
+            hold({VK_CONTROL});
+            { BOOL eaten = FALSE; service.OnTestKeyDown(&context, VK_SHIFT, left | 1, &eaten); assert(!eaten); }
+            shiftUp(); assert(service.chineseMode); // Ctrl+Shift
+            // A click while Shift was held (Shift+click selects text).
+            shiftDown();
+            { BYTE state[256]{}; state[VK_SHIFT] = 0x80; state[VK_LBUTTON] = 1; assert(SetKeyboardState(state)); }
+            { BOOL eaten = TRUE; service.OnTestKeyUp(&context, VK_SHIFT, left | release | 1, &eaten); assert(!eaten); }
+            assert(service.chineseMode);
+            hold({});
+            // Settings: off, left only, either again.
+            setting(shiftToggleOff);
+            tap(left); tap(right); assert(service.chineseMode);
+            setting(shiftToggleLeft);
+            tap(right); assert(service.chineseMode);
+            tap(left); assert(!service.chineseMode);
+            tap(left); assert(service.chineseMode);
+            setting(shiftToggleEither);
+            tap(right); assert(!service.chineseMode);
+            tap(right); assert(service.chineseMode);
+            service.Deactivate();
+        }
+        assert(context.refs == 1);
+        RegCloseKey(root);
+        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+#ifdef _MSC_VER
+        // The taskbar item and capability GUIDs defined in TextService.cpp.
+        assert(IsEqualGUID(inputModeItem, GUID_LBI_INPUTMODE));
+        assert(IsEqualGUID(systrayCapability, GUID_TFCAT_TIPCAP_SYSTRAYSUPPORT));
+#endif
+        // The icon renders.
+        HICON icon = modeIcon(L"中");
+        assert(icon);
+        DestroyIcon(icon);
+    }
 };
 }
 int wmain(int argc, wchar_t **argv) {
@@ -587,5 +721,6 @@ int wmain(int argc, wchar_t **argv) {
     ServiceFocusTest::fuzzyPinyin();
     ServiceFocusTest::typoCorrection();
     ServiceFocusTest::punctuation();
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction and punctuation\n";
+    ServiceFocusTest::inputMode();
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation and Chinese/English mode\n";
 }
