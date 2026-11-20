@@ -215,6 +215,40 @@ int mpn_typo_correction(const MPNSession *session);
 // 1 when the candidate rests on a CN-05 typo correction, else 0.
 int mpn_candidate_typo(const MPNSession *session, size_t index);
 
+// Candidate diagnostics (DICT-02a). Read-only: neither function changes the
+// session's candidates, ranking or composition (they may prepare the user
+// words for the lexicon, as any lookup does). The returned buffer is valid until the next call of either function
+// on the session.
+//
+// mpn_candidate_explain: the highest-scoring split of the candidate's text
+// over the keys it consumes into lexicon and user words, as the sentence
+// decoder scores it, one line per word:
+//   reading<TAB>text<TAB>source<TAB>weight<TAB>prior<TAB>base<TAB>bonus<TAB>lift<TAB>join<LF>
+// reading is the word's toned spelling; source is "lexicon", "user" or
+// "lexicon+user"; weight is the lexicon weight in the session's script (3000
+// for a user word); prior is the corpus correction in nats; base is
+// weight / 700 - 19 + prior; bonus is the personal bonus offered (CN-06c
+// learned word, or the cap for a DICT-02b user word); lift is what the bonus
+// adds after the decoder's bounded rule; join is the collocation and context
+// bonus towards the rest of the text (and the phrase start for the first
+// word, the phrase end for the last). Values have four decimals. For a
+// sentence candidate (MPN_SCORE_PATH) the sum of base + lift + join over the
+// lines equals its score when the decoder took the same split. Empty for a
+// candidate that reports mpn_candidate_fuzzy, mpn_candidate_typo or
+// mpn_candidate_abbreviated, and when the text does not split into words of
+// those keys (Japanese text, literal suffixes).
+const char *mpn_candidate_explain(MPNSession *session, size_t index);
+// mpn_explain_text: where a text exists, for reverse lookup. One line per entry:
+//   lexicon<TAB>reading<TAB>traditional<TAB>simplified<TAB>weight<TAB>simplified weight<TAB>prior<TAB>pair<LF>
+//   user<TAB>reading<TAB>traditional<TAB>simplified<LF>
+//   context<TAB>phrase<TAB>weight<TAB>simplified weight<TAB>authored<LF>
+// lexicon rows whose traditional or simplified text equals text (pair is 1
+// when the word has collocation statistics); user words of the attached
+// personal table prepared for this lexicon; the context phrase equal to the
+// text or its traditional form (authored is 1 for an editorial phrase). At
+// most 512 lines.
+const char *mpn_explain_text(MPNSession *session, const char *text);
+
 // Optional Japanese words for mixed pinyin/romaji. Registration and decoding
 // are local to the session; a returned string remains valid until the next call.
 // Weight 3500 denotes an ambiguous all-kanji pinyin alias: it participates in

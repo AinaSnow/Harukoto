@@ -40,6 +40,9 @@ try {
     Copy-Item -LiteralPath (Join-Path $root 'scripts/base_dictionary.py') -Destination (Join-Path $stage 'scripts')
     if ($MSVC) {
         Copy-Item -LiteralPath (Join-Path $build 'msvc/Release/harukoto_base_dictionary_check.exe') -Destination $stage
+        # DICT-02a: read-only candidate diagnostics, run through Explain.cmd.
+        Copy-Item -LiteralPath (Join-Path $build 'msvc/Release/harukoto_candidate_explain.exe') -Destination $stage
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Explain.cmd') -Destination $stage
     }
     Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_dictionary.py') -Destination (Join-Path $stage 'scripts')
     Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_packages.py') -Destination (Join-Path $stage 'scripts')
@@ -54,7 +57,7 @@ try {
     foreach ($name in 'coverage.json','source-checks.json') {
         Copy-Item -LiteralPath (Join-Path $root "Resources/DictionaryPackages/ff14/full/$name") -Destination $ff14
     }
-    foreach ($name in 'SELECTION_MEMORY.md','USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','FF14_DICTIONARY.md','FF14_FULL_DICTIONARY.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','DEVELOPMENT_PLAN.md','UI_LAYOUT_EDITOR.md','CHINESE_EVALUATION.md','WINDOWS_DIAGNOSIS.md','WINDOWS_VALIDATION.md','BRAND.md') {
+    foreach ($name in 'SELECTION_MEMORY.md','CANDIDATE_EXPLAIN.md','USER_GUIDE.md','DICTIONARY_PACKAGES.md','FF14_TERMS.md','FF14_DICTIONARY.md','FF14_FULL_DICTIONARY.md','JAPANESE_INPUT_ROADMAP.md','DEVELOPMENT_STATUS.md','DEVELOPMENT_CHANGELOG.md','DEVELOPMENT_PLAN.md','UI_LAYOUT_EDITOR.md','CHINESE_EVALUATION.md','WINDOWS_DIAGNOSIS.md','WINDOWS_VALIDATION.md','BRAND.md') {
         Copy-Item -LiteralPath (Join-Path $root "docs/$name") -Destination (Join-Path $stage 'docs')
     }
     New-Item -ItemType Directory -Force (Join-Path $stage 'docs/benchmarks') | Out-Null

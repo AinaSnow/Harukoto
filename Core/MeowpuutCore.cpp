@@ -6,6 +6,7 @@
 #include <charconv>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <map>
@@ -2278,6 +2279,113 @@ std::vector<std::pair<std::string, std::string>> composition(const Lexicon &lexi
     std::reverse(result.begin(), result.end());
     return result;
 }
+
+// DICT-02a: diagnostics only, never used for ranking. The best-scoring split
+// of text over the sounds of input into lexicon and user words, each scored
+// as the sentence decoder scores it (see decode): its base from weight and
+// prior, the personal lift under the running best of its span in beam order,
+// and the join towards the rest of the text. Limits are generous; the beam
+// width and path limits of the decoder are not applied.
+std::string explain_composition(const Lexicon &lexicon, const Personal *personal, std::string_view input,
+                                std::string_view text, bool hans) {
+    if (!lexicon.pinyin || input.empty() || text.empty() || input.size() > 96 || text.size() > 512) return {};
+    const Reading reading(input, true);
+    const auto &sounds = reading.sounds;
+    if (sounds.empty()) return {};
+    const auto userHold = personal ? personal->user_words(lexicon) : nullptr;
+    const UserWords *user = userHold.get();
+    constexpr double none = -std::numeric_limits<double>::infinity();
+    struct Piece {
+        std::string reading, text, traditional;
+        const char *source;
+        int weight;
+        double prior, base, bonus, lift;
+        uint32_t pair;
+    };
+    std::map<std::pair<size_t, size_t>, std::vector<Piece>> spans;
+    size_t scanned = 0;
+    const auto options = [&](size_t start, size_t end) -> const std::vector<Piece> & {
+        const auto found = spans.find({start, end});
+        if (found != spans.end()) return found->second;
+        std::vector<Piece> pieces;
+        const auto span = std::string_view(sounds).substr(start, end - start);
+        const auto range = lexicon.range(span);
+        const auto *learned = personal ? personal->find(hans, span) : nullptr;
+        const auto userSpan = user ? user->range(span) : std::pair<size_t, size_t>{0, 0};
+        double top = none;
+        std::vector<std::string_view> used;
+        for (size_t index = range.first; index < range.second && scanned < 400000; ++index, ++scanned) {
+            const auto &word = lexicon.word(index, hans);
+            if (!reading.matches(word, start, end)) continue;
+            const auto spelling = word.text(true);
+            if (std::find(used.begin(), used.end(), spelling) != used.end()) continue;
+            used.push_back(spelling);
+            const bool mine = userSpan.first != userSpan.second && user->has(userSpan, word.text(hans), hans);
+            const double bonus = mine ? personal_cap : Personal::bonus(learned, word.text(hans));
+            const double base = static_cast<double>(word.score(hans)) / 700.0 - 19.0 + word.prior / 100.0;
+            top = std::max(top, base);
+            const auto piece = word.text(hans);
+            if (text.find(piece) == text.npos) continue;
+            pieces.push_back({std::string(word.reading()), std::string(piece), std::string(word.text(false)),
+                              mine ? "lexicon+user" : "lexicon", word.score(hans), word.prior / 100.0, base, bonus,
+                              Personal::lifted(base, bonus, top) - base, word.pair});
+        }
+        for (size_t i = userSpan.first; i < userSpan.second; ++i) {
+            const auto index = user->sorted[i];
+            const auto &word = user->words[index];
+            if (!user_matches(reading, word, user->loose[index], start, end)) continue;
+            const auto spelling = word.text(true);
+            if (std::find(used.begin(), used.end(), spelling) != used.end()) continue;
+            used.push_back(spelling);
+            const double base = static_cast<double>(user_weight) / 700.0 - 19.0;
+            const auto piece = word.text(hans);
+            if (text.find(piece) == text.npos) continue;
+            pieces.push_back({std::string(word.reading()), std::string(piece), std::string(word.text(false)), "user",
+                              user_weight, 0, base, personal_cap, Personal::lifted(base, personal_cap, top) - base, 0});
+        }
+        return spans.emplace(std::make_pair(start, end), std::move(pieces)).first->second;
+    };
+    const size_t longest = std::max(lexicon.longest, user ? user->longest : size_t(0));
+    struct Best { double value = -std::numeric_limits<double>::infinity(); std::vector<std::pair<const Piece *, double>> path; std::string traditional; uint32_t first = 0; };
+    std::map<std::pair<size_t, size_t>, Best> memo;
+    // Positions only grow, so the recursion is at most one level per sound.
+    const auto solve = [&](const auto &self, size_t at, size_t done) -> const Best & {
+        const auto found = memo.find({at, done});
+        if (found != memo.end()) return found->second;
+        Best best;
+        if (at == sounds.size()) {
+            if (done == text.size()) { best.value = 0; best.first = lexicon.pairEnd; }
+        } else if (done < text.size()) {
+            for (size_t end = at + 1; end <= std::min(sounds.size(), at + longest); ++end) {
+                for (const auto &piece : options(at, end)) {
+                    if (piece.text.size() > text.size() - done || text.compare(done, piece.text.size(), piece.text) != 0) continue;
+                    const auto &rest = self(self, end, done + piece.text.size());
+                    if (rest.value == none) continue;
+                    const double join = lexicon.join_bonus(piece.traditional, rest.traditional, hans, false, !lexicon.pairs.empty()) +
+                        lexicon.pair_bonus(piece.pair, rest.first) + (at == 0 ? lexicon.pair_bonus(lexicon.pairBegin, piece.pair) : 0);
+                    const double value = piece.base + piece.lift + join + rest.value;
+                    if (value <= best.value) continue;
+                    best.value = value;
+                    best.path.assign(1, {&piece, join});
+                    best.path.insert(best.path.end(), rest.path.begin(), rest.path.end());
+                    best.traditional = piece.traditional + rest.traditional;
+                    best.first = piece.pair;
+                }
+            }
+        }
+        return memo.emplace(std::make_pair(at, done), std::move(best)).first->second;
+    };
+    const auto &best = solve(solve, 0, 0);
+    if (best.value == none) return {};
+    std::string result;
+    char number[160];
+    for (const auto &[piece, join] : best.path) {
+        std::snprintf(number, sizeof(number), "\t%d\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\n", piece->weight, piece->prior, piece->base,
+                      piece->bonus, piece->lift, join);
+        result += piece->reading + '\t' + piece->text + '\t' + piece->source + number;
+    }
+    return result;
+}
 } // namespace
 
 struct MPNLexicon { std::shared_ptr<const Lexicon> value; };
@@ -2289,6 +2397,8 @@ struct MPNSession {
     // leaves every result exactly as without it.
     std::shared_ptr<const Personal> personal;
     std::string candidateWords;
+    // DICT-02a: the buffer of mpn_candidate_explain and mpn_explain_text.
+    std::string explanation;
     std::string input, preedit, committed, mixedPinyin, segmentContext, exactPinyin, customChinese;
     std::vector<JapaneseWord> japanese;
     std::vector<Candidate> candidates;
@@ -3289,4 +3399,62 @@ const char *mpn_candidate_words(MPNSession *session, size_t index) {
             session->candidateWords += reading + '\t' + piece + '\n';
     } catch (...) { session->candidateWords.clear(); }
     return session->candidateWords.c_str();
+}
+
+const char *mpn_candidate_explain(MPNSession *session, size_t index) {
+    if (!session) return "";
+    session->explanation.clear();
+    if (index >= session->candidates.size()) return session->explanation.c_str();
+    try {
+        const auto &candidate = session->candidates[index];
+        // Fuzzy, typo and abbreviated readings are not scored word by word over the typed keys.
+        if (candidate.consumed > session->input.size() || candidate.literalTail > candidate.text.size() ||
+            candidate.metadata.fuzzy || candidate.metadata.typo || candidate.metadata.abbreviated)
+            return session->explanation.c_str();
+        const auto text = std::string_view(candidate.text).substr(0, candidate.text.size() - candidate.literalTail);
+        session->explanation = explain_composition(*session->lexicon, session->learned(),
+            std::string_view(session->input).substr(0, candidate.consumed), text, session->hans);
+    } catch (...) { session->explanation.clear(); }
+    return session->explanation.c_str();
+}
+
+const char *mpn_explain_text(MPNSession *session, const char *text) {
+    if (!session) return "";
+    session->explanation.clear();
+    if (!text || !*text || std::strlen(text) > 512) return session->explanation.c_str();
+    try {
+        const std::string_view wanted(text);
+        const auto &lexicon = *session->lexicon;
+        size_t lines = 0;
+        char number[96];
+        for (const auto &word : lexicon.words) {
+            if (lines == 512) break;
+            if (word.text(true) != wanted && word.text(false) != wanted) continue;
+            std::snprintf(number, sizeof(number), "\t%d\t%d\t%.2f\t%d\n", word.weight, word.hansWeight, word.prior / 100.0, word.pair ? 1 : 0);
+            session->explanation += "lexicon\t" + std::string(word.reading()) + '\t' + std::string(word.text(false)) + '\t' +
+                std::string(word.text(true)) + number;
+            ++lines;
+        }
+        if (const auto user = session->personal ? session->personal->user_words(lexicon) : nullptr) {
+            for (const auto &word : user->words) {
+                if (lines == 512) break;
+                if (word.text(true) != wanted && word.text(false) != wanted) continue;
+                session->explanation += "user\t" + std::string(word.reading()) + '\t' + std::string(word.text(false)) + '\t' +
+                    std::string(word.text(true)) + '\n';
+                ++lines;
+            }
+        }
+        std::vector<std::string> phrases{std::string(wanted)};
+        if (const auto traditional = lexicon.to_traditional(wanted); traditional != wanted) phrases.push_back(traditional);
+        for (const auto &phrase : phrases) {
+            const auto entry = std::lower_bound(lexicon.context.begin(), lexicon.context.end(), std::string_view(phrase),
+                [](const Lexicon::ContextScore &item, std::string_view value) { return item.first < value; });
+            if (lines == 512 || entry == lexicon.context.end() || entry->first != phrase) continue;
+            const bool authored = !lexicon.contextAuthored.empty() && lexicon.contextAuthored[entry - lexicon.context.begin()];
+            std::snprintf(number, sizeof(number), "\t%d\t%d\t%d\n", entry->weight, entry->hansWeight, authored ? 1 : 0);
+            session->explanation += "context\t" + phrase + number;
+            ++lines;
+        }
+    } catch (...) { session->explanation.clear(); }
+    return session->explanation.c_str();
 }

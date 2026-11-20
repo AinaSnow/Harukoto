@@ -64,6 +64,10 @@ $managerFiles = foreach ($name in 'dictionary-manager.pyw','japanese_packages.py
     if (!(Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing dictionary manager file: $path" }
     $path
 }
+if ($Prebuilt -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Explain.cmd')) -and
+    !(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'harukoto_candidate_explain.exe') -PathType Leaf)) {
+    throw 'Explain.cmd is present but harukoto_candidate_explain.exe is missing.'
+}
 if ($VerifyOnly) {
     Write-Output 'All Meowpuut installation files are present.'
     return

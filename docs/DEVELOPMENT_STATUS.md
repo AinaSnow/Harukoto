@@ -1,5 +1,17 @@
 # 开发状态与接手入口
 
+## 2026-11-20 · DICT-02a：候选来源与冲突诊断
+
+- 前置：WIN-08 反馈已提交为 80d5110。本批未提交、未打包。
+- 新增只读工具 `harukoto_candidate_explain.exe`（`Windows/CandidateExplain.cpp`，逻辑在 `CandidateExplain.h`）与 `Explain.cmd`。读输入法实际所用的数据：注册的 DLL 目录（或已安装的基础词库快照）、主题启用快照及同快照 state.json、japanese-custom.tsv、selection-memory 三张表、HKCU 设置；按 windowsCandidates＋选词记忆＋CN-07 同一代码重建候选，另用不挂个人数据的会话对照。输出来源、核心按词得分、个人数据影响、冲突；`--text` 反查、`--audit` 全表检查。说明见[候选诊断](CANDIDATE_EXPLAIN.md)。
+- 只读保证：日志只经 `Journal::refresh`（不调用 poll／flush／compact），个人词表 `UserWordTable::refresh`，SQLite 只读打开，注册表只读，无网络。
+- 核心新增 `mpn_candidate_explain`（最高分切分的逐词权重、先验、基础分、个人加分与实得、衔接，模糊音／纠错／简拼候选返回空）与 `mpn_explain_text`（词库、个人词、衔接短语表反查），只读、现有签名不变。
+- 打包：MSVC 包根目录加入 exe 与 Explain.cmd，docs 加 CANDIDATE_EXPLAIN.md；`Install.ps1 -VerifyOnly` 在有 Explain.cmd 时检查 exe。不进 Program Files、不加快捷方式。
+- 测试：新增 CTest `candidate_explain`（合成词库与合成主题／记忆／个人词／自定义表：来源、得分合计等于生成分、记忆提前与插入、个人词重复、主题排在基础整词前、多处定义、未启用主题、反查、检查、记忆开关关闭；核心候选在调用前后不变；进程内和 exe 运行后所有文件字节与修改时间不变）。完整 MSVC Release 构建、DLL 已复制到 ime，60 项 CTest 全部通过（321.94 秒）。
+- 评测：tuned／holdout／words-dev 写入 `docs/benchmarks/chinese-*-dict02a.json`，与 dict02b 报告去掉耗时、哈希、时间、修订等字段后完全相同（只比较整体，未逐条查看 holdout）。
+- 本机真实数据：gongsi、yitaizhiguang、aetheryte 运行约 1.2 秒；组句候选合计与生成分一致。
+- 未验证：安装包内运行（未打包）、他人机器上的数据组合、繁体与模糊音下的输出。局限见说明文档。
+
 ## 2026-11-20 · WIN-08 实机反馈
 
 - 维护者安装 alpha.27 后在 FF14（无边框窗口）试用，报告游戏内输入没有问题；问到如何翻页后，改为方向键／Tab 越过本页末项时自动翻页（8174c77，未打包）。维护者确认显示的是游戏自己的候选框，说明 FF14 接手了候选列表（UI-less 路径生效）；Diagnose 字段没有留证。
