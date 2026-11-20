@@ -102,6 +102,7 @@ CN-06 即原 LEARN-01，说明见[选词记忆](SELECTION_MEMORY.md)。CN-06c �
 
 | 编号 | 任务 | 验收条件 |
 | --- | --- | --- |
+| WIN-08（代码完成，待打包、重新安装和 FF14 实机） | 游戏内输入兼容（FF14） | 用户报告：游戏里没有晴词候选、与外面不同；切进游戏后输入法“掉了”。结果：候选列表实现 ITfCandidateListUIElement（含 Behavior），出现时 BeginUIElement、变化时 UpdateUIElement、消失时 EndUIElement；应用回答不显示（UI-less）时隐藏自己的候选窗，并把拼音写成真正的 TSF 组字（IMM32 游戏读作组字串）；注册 GUID_TFCAT_TIPCAP_UIELEMENTENABLED（需重新安装）；HKCU InlineComposition 0 自动／1 总是／2 从不。OPENCLOSE：只有用户切换改偏好，应用关闭暂时切英文、重新打开恢复，Shift 总能回中文，应用切换不弹提示。诊断新增输入模式、候选由谁绘制、开关改动、UI 元素与组字计数，Diagnose 另报语言列表与默认输入法覆盖。未验证：FF14 实际是否接手候选、组字显示与开关时机，见[操作指南](USER_GUIDE.md#游戏中输入ff14-等win-08尚未打包需重新安装)清单 |
 | VAL-01 | 每版实机抽查 | 每个 alpha 安装后在记事本、QQ、FF14 各走一遍固定短清单（组句、翻页、部分选词、简繁、主题词，以及当批新功能），按[验收表](WINDOWS_VALIDATION.md)留证；这是抽查，不替代阶段三的完整矩阵 |
 
 ### 建议顺序

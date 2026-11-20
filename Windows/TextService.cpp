@@ -25,6 +25,7 @@
 #include "JapanesePackages.h"
 #include "ThemeReload.h"
 #include "RuntimeStatus.h"
+#include "GameInput.h"
 #include <new>
 #include <string>
 #include "WordEvidence.h"
@@ -181,6 +182,10 @@ HRESULT EditSession::DoEditSession(TfEditCookie cookie) {
 // them against the SDK.
 const GUID inputModeItem = {0x2c77a81e,0x41cc,0x4178,{0xa3,0xa7,0x5f,0x8a,0x98,0x75,0x68,0xe6}};
 const GUID systrayCapability = {0x25504fb4,0x7bab,0x4bc1,{0x9c,0x69,0xcf,0x81,0x89,0x0f,0x0e,0xf5}};
+// WIN-08: GUID_TFCAT_TIPCAP_UIELEMENTENABLED (the TIP offers its UI as UI
+// elements, so hosts may draw it themselves), and our candidate list's own id.
+const GUID uiElementCapability = {0x49d2f9cf,0x1f5e,0x11d7,{0xa6,0xd3,0x00,0x06,0x5b,0x84,0x43,0x5c}};
+const GUID candidateElementGuid = {0x6c1a3f2e,0x8b0d,0x4e57,{0x9a,0x41,0x2d,0x7f,0x3b,0x9c,0x5e,0x18}};
 
 // A taskbar icon showing one or two characters: white on the dark taskbar,
 // black on a light one. The caller owns the icon.
@@ -285,13 +290,92 @@ private:
     ITfLangBarItemSink *sink = nullptr;
 };
 
+// WIN-08: the candidate list as a TSF UI element. Hosts that draw their own
+// IME UI (games) read the candidates through it; TSF's IMM32 layer also
+// serves ImmGetCandidateList from it. Strings are the candidate texts as
+// shown, without readings or markers; indices are those of the full list,
+// seven to a page, so digit keys select the same entries. Calls back into
+// the service on the input thread; the service clears the owner before
+// releasing the element.
+class CandidateElement final : public ITfCandidateListUIElementBehavior, public RefCount {
+public:
+    explicit CandidateElement(Service *owner) : owner(owner) {}
+    Service *owner;
+    DWORD updated = TF_CLUIE_DOCUMENTMGR | TF_CLUIE_COUNT | TF_CLUIE_SELECTION | TF_CLUIE_STRING
+        | TF_CLUIE_PAGEINDEX | TF_CLUIE_CURRENTPAGE;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
+        if (!out) return E_POINTER;
+        *out = nullptr;
+        if (id == IID_IUnknown || id == IID_ITfUIElement || id == IID_ITfCandidateListUIElement
+            || id == IID_ITfCandidateListUIElementBehavior)
+            *out = static_cast<ITfCandidateListUIElementBehavior *>(this);
+        else return E_NOINTERFACE;
+        AddRef();
+        return S_OK;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return retain(); }
+    ULONG STDMETHODCALLTYPE Release() override { return release(); }
+    HRESULT STDMETHODCALLTYPE GetDescription(BSTR *text) override {
+        if (!text) return E_INVALIDARG;
+        *text = SysAllocString(L"晴词候选");
+        return *text ? S_OK : E_OUTOFMEMORY;
+    }
+    HRESULT STDMETHODCALLTYPE GetGUID(GUID *id) override {
+        if (!id) return E_INVALIDARG;
+        *id = candidateElementGuid;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE Show(BOOL show) override;
+    HRESULT STDMETHODCALLTYPE IsShown(BOOL *shown) override;
+    HRESULT STDMETHODCALLTYPE GetUpdatedFlags(DWORD *flags) override {
+        if (!flags) return E_INVALIDARG;
+        *flags = updated;
+        updated = 0;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE GetDocumentMgr(ITfDocumentMgr **manager) override;
+    HRESULT STDMETHODCALLTYPE GetCount(UINT *count) override;
+    HRESULT STDMETHODCALLTYPE GetSelection(UINT *index) override;
+    HRESULT STDMETHODCALLTYPE GetString(UINT index, BSTR *text) override;
+    HRESULT STDMETHODCALLTYPE GetPageIndex(UINT *index, UINT size, UINT *pages) override;
+    HRESULT STDMETHODCALLTYPE SetPageIndex(UINT *, UINT) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetCurrentPage(UINT *page) override;
+    HRESULT STDMETHODCALLTYPE SetSelection(UINT index) override;
+    HRESULT STDMETHODCALLTYPE Finalize() override;
+    HRESULT STDMETHODCALLTYPE Abort() override;
+};
+
+// WIN-08: writes the reading into the document as a TSF composition, or ends
+// one (ending: the composition to end, already detached from the service).
+class CompositionEdit final : public ITfEditSession, public RefCount {
+public:
+    CompositionEdit(Service *service, ITfContext *context, ITfComposition *ending);
+    ~CompositionEdit() override;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
+        *out = nullptr;
+        if (id != IID_IUnknown && id != IID_ITfEditSession) return E_NOINTERFACE;
+        *out = static_cast<ITfEditSession *>(this);
+        AddRef();
+        return S_OK;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return retain(); }
+    ULONG STDMETHODCALLTYPE Release() override { return release(); }
+    HRESULT STDMETHODCALLTYPE DoEditSession(TfEditCookie cookie) override;
+private:
+    Service *service;
+    ITfContext *context;
+    ITfComposition *ending;
+};
+
 class Service final : public ITfTextInputProcessor, public ITfKeyEventSink, public ITfThreadMgrEventSink, public ITfThreadFocusSink,
-    public ITfCompartmentEventSink, public RefCount {
+    public ITfCompartmentEventSink, public ITfCompositionSink, public RefCount {
     friend struct ServiceFocusTest;
     friend struct ServiceReloadTest;
     friend class ModeButton;
+    friend class CandidateElement;
+    friend class CompositionEdit;
 public:
-    ~Service() override { Deactivate(); }
+    ~Service() override { destroying = true; Deactivate(); }
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
         *out = nullptr;
         if (id == IID_IUnknown || id == IID_ITfTextInputProcessor)
@@ -304,6 +388,8 @@ public:
             *out = static_cast<ITfThreadFocusSink *>(this);
         else if (id == IID_ITfCompartmentEventSink)
             *out = static_cast<ITfCompartmentEventSink *>(this);
+        else if (id == IID_ITfCompositionSink)
+            *out = static_cast<ITfCompositionSink *>(this);
         else return E_NOINTERFACE;
         AddRef();
         return S_OK;
@@ -366,6 +452,9 @@ public:
     }
 
     HRESULT STDMETHODCALLTYPE Deactivate() override {
+        // While the thread manager is still known: the host's UI element ends.
+        endCandidateElement();
+        endComposition();
         detachMode();
         runtimeStatus.close();
         if (memory) { memory->flush(); memory.reset(); }
@@ -444,6 +533,8 @@ public:
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnPopContext(ITfContext *context) override {
+        // A composition in a removed context ends with it; no edit session.
+        if (composition && compositionContext == context) releaseComposition();
         if (context == activeContext) {
             if (delivery) delivery->queue.close();
             delivery.reset();
@@ -481,13 +572,30 @@ public:
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnChange(REFGUID guid) override {
-        // Windows, the host or another service changed the open state.
+        // Windows, the host or another service changed the open state
+        // (WIN-08: see OpenCloseRule). Our own writes come back as echoes.
         if (IsEqualGUID(guid, GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)) {
             bool open = true;
-            if (readOpenClose(open)) {
-                try { setMode(open); } catch (...) {}
+            if (readOpenClose(open) && openRule.observed(open)) {
+                try { setMode(openRule.chinese, false); } catch (...) {}
+                reportRuntimeStatus();
             }
         }
+        return S_OK;
+    }
+    // WIN-08: the host or TSF ended our composition (focus moved, a game
+    // cancelled it). What it contains stays the host's; the reading is dropped.
+    HRESULT STDMETHODCALLTYPE OnCompositionTerminated(TfEditCookie, ITfComposition *ended) override {
+        if (!ended || ended != composition) return S_OK;
+        releaseComposition();
+        ++game.compositionsTerminated;
+        try {
+            if (session) mpn_cancel_composition(session);
+            resetCandidates();
+            endCandidateElement();
+            hideOwnWindow();
+        } catch (...) {}
+        reportRuntimeStatus();
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnPreservedKey(ITfContext *, REFGUID, BOOL *eaten) override {
@@ -522,6 +630,8 @@ public:
                 simplified = preference;
                 refreshCandidates();
             }
+            // WIN-08: when the reading is also written as a composition.
+            inlineSetting = readInlineComposition(preferenceRoot);
             // CN-07: punctuation mode, and what this key types in it.
             if (readEnglishPunctuation(preferenceRoot) != englishPunctuation) {
                 englishPunctuation = !englishPunctuation;
@@ -702,12 +812,19 @@ public:
 
             text += wide(mpn_committed(session));
             if (!text.empty()) {
+                // WIN-08: an inline reading leaves the document before the
+                // text replacing it arrives; what remains starts a new one.
+                endComposition();
                 // Ownership transfers to the same-context queue before core commit is cleared.
                 delivery->enqueue(std::move(text));
                 mpn_clear_commit(session);
                 delivery->pump();
             }
-            if (activeContext == context && session && delivery && delivery->queue.canDeliver()) updatePopup();
+            if (activeContext == context && session && delivery && delivery->queue.canDeliver()) {
+                updatePopup();
+                syncComposition();
+            }
+            reportRuntimeStatus();
         } catch (...) {
             // Do not discard a composition or replay an already handled key.
             sendGlass({});
@@ -722,7 +839,14 @@ private:
             if (entry.second.delivery) entry.second.delivery->queue.suspend();
     }
 
+    // The candidates are gone: our window, the host's UI element and an
+    // inline reading.
     void hideCandidates() {
+        endCandidateElement();
+        endComposition();
+        hideOwnWindow();
+    }
+    void hideOwnWindow() {
         popupForeground = nullptr;
         sendGlass({});
         if (popup) ShowWindow(popup, SW_HIDE);
@@ -840,13 +964,24 @@ private:
         VARIANT value{};
         value.vt = VT_I4;
         value.lVal = open ? 1 : 0;
-        compartment->SetValue(client, &value); // Reenters OnChange, which finds nothing to do.
+        compartment->SetValue(client, &value); // Reenters OnChange as an echo (OpenCloseRule).
         compartment->Release();
     }
 
     // Switching to English while composing commits the raw letters, as Space
     // does (mainstream behaviour): nothing typed is lost or converted.
-    void setMode(bool chinese) {
+    // user: the user's own switch (Shift, taskbar), which sets the preferred
+    // mode, is written to the open/close compartment and shows the hint. A
+    // change from outside (WIN-08) does none of these.
+    void setMode(bool chinese, bool user = true) {
+        if (user) {
+            const bool wasOpen = openRule.open;
+            openRule.user(chinese);
+            if (chinese == chineseMode) {
+                if (wasOpen != chinese) writeOpenClose(chinese);
+                return;
+            }
+        }
         if (chinese == chineseMode) return;
         chineseMode = chinese;
         shiftTap.other();
@@ -855,18 +990,20 @@ private:
             mpn_clear(session);
             mpn_clear_commit(session);
             resetCandidates();
+            hideCandidates(); // ends an inline reading before its letters arrive
             delivery->enqueue(std::move(text));
             delivery->pump();
         }
-        writeOpenClose(chinese);
+        if (user) writeOpenClose(chinese);
         if (button) button->changed();
-        showModeHint();
+        if (user) showModeHint();
     }
 
     void attachMode(ITfThreadMgr *manager) {
         threadManager = manager;
         threadManager->AddRef();
         chineseMode = true;
+        openRule.activate();
         writeOpenClose(true);
         if (ITfCompartment *compartment = openClose()) {
             ITfSource *source = nullptr;
@@ -1111,10 +1248,20 @@ private:
     void reportRuntimeStatus() noexcept {
         try {
             using base_dictionary::Metadata;
+            // WIN-08: how the host handles input (no text): the input mode,
+            // open/close changes from outside, who draws the candidates and
+            // inline compositions.
+            const auto count = [](unsigned value) { return std::to_string(value); };
             runtimeStatus.publish("\"service_version\":\"0.4.4-alpha.26\",\"base_version\":" +
                 Metadata::quote(baseSnapshot ? baseSnapshot->version() : std::string()) + "," +
                 (themeReload ? themeReload->diagnosticFields() :
-                    "\"base_generation\":\"\",\"theme_generation\":\"\",\"pending_base_generation\":\"\",\"phase\":\"unavailable\",\"last_apply_failed\":false"));
+                    "\"base_generation\":\"\",\"theme_generation\":\"\",\"pending_base_generation\":\"\",\"phase\":\"unavailable\",\"last_apply_failed\":false")
+                + ",\"input_mode\":\"" + (chineseMode ? "chinese" : openRule.hostClosed ? "host_closed" : "english")
+                + "\",\"open_close_changes\":" + count(openRule.changes) + ",\"host_closes\":" + count(openRule.hostCloses)
+                + ",\"candidate_ui\":\"" + game.candidateUi + "\",\"ui_elements\":" + count(game.elementsBegun)
+                + ",\"ui_elements_host_drawn\":" + count(game.elementsHostDrawn) + ",\"ui_element_failures\":" + count(game.elementFailures)
+                + ",\"compositions\":" + count(game.compositions) + ",\"composition_failures\":" + count(game.compositionFailures)
+                + ",\"compositions_terminated\":" + count(game.compositionsTerminated));
         } catch (...) {}
     }
     bool switchContext(ITfContext *context) {
@@ -1551,8 +1698,14 @@ private:
 
     void updatePopup() {
         if (!*mpn_input(session)) {
+            endCandidateElement();
             sendGlass({});
             if (popup) ShowWindow(popup, SW_HIDE);
+            return;
+        }
+        // WIN-08: the host may draw the candidates itself.
+        if (!presentCandidates()) {
+            hideOwnWindow();
             return;
         }
         auto display = preeditText() + (simplified ? L"  简" : L"  繁") + (englishPunctuation ? L" · 英文标点" : L"") + (fullWidthOn() ? L" · 全角" : L"") + (notice.empty() ? L"" : L" · " + notice);
@@ -1639,6 +1792,218 @@ private:
                      SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
 
+    // ---- WIN-08: candidate UI element and inline composition ------------
+
+    ITfUIElementMgr *uiElements() const {
+        if (!threadManager) return nullptr;
+        ITfUIElementMgr *manager = nullptr;
+        if (FAILED(threadManager->QueryInterface(IID_ITfUIElementMgr, reinterpret_cast<void **>(&manager)))) return nullptr;
+        return manager;
+    }
+
+    // Begins the candidate element when candidates appear, or tells the host
+    // what changed. False: the host draws them and our window stays hidden.
+    // Without a UI element manager (or when it fails) our window is used.
+    bool presentCandidates() {
+        std::vector<std::string> texts;
+        texts.reserve(choices.size());
+        for (const auto &choice : choices) texts.push_back(choice.text);
+        const size_t selection = page * pageSize + highlighted;
+        if (!candidateElement) {
+            ITfUIElementMgr *manager = uiElements();
+            if (!manager) {
+                game.candidateUi = "own";
+                return true;
+            }
+            auto *element = new (std::nothrow) CandidateElement(this);
+            BOOL show = TRUE;
+            DWORD id = TF_INVALID_UIELEMENTID;
+            // The host may read the element during the call: the state is ready.
+            const HRESULT result = element ? manager->BeginUIElement(element, &show, &id) : E_OUTOFMEMORY;
+            manager->Release();
+            if (FAILED(result) || id == TF_INVALID_UIELEMENTID) {
+                if (element) { element->owner = nullptr; element->Release(); }
+                ++game.elementFailures;
+                game.candidateUi = "own_fallback";
+                return true;
+            }
+            candidateElement = element;
+            candidateElementId = id;
+            candidateShown = show != FALSE;
+            ++game.elementsBegun;
+            if (!candidateShown) ++game.elementsHostDrawn;
+        } else {
+            DWORD flags = 0;
+            if (texts != shownTexts) flags |= TF_CLUIE_COUNT | TF_CLUIE_STRING | TF_CLUIE_PAGEINDEX;
+            if (selection != shownSelection) flags |= TF_CLUIE_SELECTION;
+            if (page != shownPage) flags |= TF_CLUIE_CURRENTPAGE;
+            if (flags) {
+                candidateElement->updated |= flags;
+                if (ITfUIElementMgr *manager = uiElements()) {
+                    manager->UpdateUIElement(candidateElementId);
+                    manager->Release();
+                }
+            }
+        }
+        shownTexts = std::move(texts);
+        shownSelection = selection;
+        shownPage = page;
+        game.candidateUi = candidateShown ? "own" : "host";
+        return candidateShown;
+    }
+
+    void endCandidateElement() {
+        if (!candidateElement) return;
+        auto *element = candidateElement;
+        const DWORD id = candidateElementId;
+        candidateElement = nullptr;
+        candidateElementId = TF_INVALID_UIELEMENTID;
+        shownTexts.clear();
+        if (ITfUIElementMgr *manager = uiElements()) {
+            manager->EndUIElement(id);
+            manager->Release();
+        }
+        element->owner = nullptr;
+        element->Release();
+    }
+
+    // The host's Show() on the element: it hands the candidates back to us
+    // or takes them over.
+    void showCandidatesByHost(bool show) {
+        if (!candidateElement || candidateShown == show) return;
+        candidateShown = show;
+        if (show) {
+            if (session && activeContext) updatePopup();
+        } else {
+            hideOwnWindow();
+        }
+        try { syncComposition(); } catch (...) {}
+    }
+
+    bool inlineWanted() const {
+        if (!session || !*mpn_input(session) || inlineSetting == inlineCompositionNever) return false;
+        return inlineSetting == inlineCompositionAlways || (candidateElement && !candidateShown);
+    }
+
+    void releaseComposition() {
+        if (composition) composition->Release();
+        if (compositionContext) compositionContext->Release();
+        composition = nullptr;
+        compositionContext = nullptr;
+    }
+
+    // Edit sessions are synchronous where the host allows, else queued in order.
+    void requestComposition(ITfContext *context, ITfComposition *ending) {
+        auto *edit = new (std::nothrow) CompositionEdit(this, context, ending);
+        if (!edit) return;
+        HRESULT result = E_FAIL;
+        const HRESULT request = context->RequestEditSession(client, edit, TF_ES_SYNC | TF_ES_READWRITE, &result);
+        if (request == TF_E_SYNCHRONOUS || result == TF_E_SYNCHRONOUS)
+            context->RequestEditSession(client, edit, TF_ES_ASYNC | TF_ES_READWRITE, &result);
+        edit->Release();
+    }
+
+    // Ends the inline reading: it is detached at once, its text removed
+    // whenever the edit session runs.
+    void endComposition() {
+        if (!composition) return;
+        // No edit session from the destructor: it would hold a reference
+        // to an object being destroyed. TSF ends the composition itself.
+        if (destroying) { releaseComposition(); return; }
+        ITfComposition *ending = composition;
+        ITfContext *context = compositionContext;
+        composition = nullptr;
+        compositionContext = nullptr;
+        requestComposition(context, ending);
+        ending->Release();
+        context->Release();
+    }
+
+    // After a key: the document's inline reading follows the current one.
+    void syncComposition() {
+        if (composition && compositionContext != activeContext) endComposition();
+        if (inlineWanted() && activeContext) requestComposition(activeContext, nullptr);
+        else endComposition();
+    }
+
+    static void finishComposition(TfEditCookie cookie, ITfComposition *ending) {
+        ITfRange *range = nullptr;
+        if (SUCCEEDED(ending->GetRange(&range)) && range) {
+            range->SetText(cookie, 0, L"", 0);
+            range->Release();
+        }
+        ending->EndComposition(cookie);
+    }
+
+    // Runs in an edit session: the reading as it is when the session runs.
+    HRESULT applyComposition(TfEditCookie cookie, ITfContext *context) {
+        if (context != activeContext) return S_OK;
+        const std::wstring text = inlineWanted() ? preeditText() : std::wstring();
+        if (text.empty()) {
+            if (composition && compositionContext == context) {
+                ITfComposition *ending = composition;
+                ending->AddRef();
+                releaseComposition();
+                finishComposition(cookie, ending);
+                ending->Release();
+            }
+            return S_OK;
+        }
+        if (composition && compositionContext != context) releaseComposition();
+        HRESULT result = S_OK;
+        bool startedNow = false;
+        if (!composition) {
+            ITfInsertAtSelection *insert = nullptr;
+            ITfContextComposition *compose = nullptr;
+            ITfRange *start = nullptr;
+            ITfComposition *started = nullptr;
+            result = context->QueryInterface(IID_ITfInsertAtSelection, reinterpret_cast<void **>(&insert));
+            if (SUCCEEDED(result)) result = insert->InsertTextAtSelection(cookie, TF_IAS_QUERYONLY, nullptr, 0, &start);
+            if (SUCCEEDED(result) && !start) result = E_FAIL;
+            if (SUCCEEDED(result)) result = context->QueryInterface(IID_ITfContextComposition, reinterpret_cast<void **>(&compose));
+            if (SUCCEEDED(result)) result = compose->StartComposition(cookie, start, static_cast<ITfCompositionSink *>(this), &started);
+            if (SUCCEEDED(result) && !started) result = E_FAIL;
+            if (start) start->Release();
+            if (compose) compose->Release();
+            if (insert) insert->Release();
+            if (FAILED(result)) {
+                ++game.compositionFailures;
+                return result;
+            }
+            composition = started;
+            compositionContext = context;
+            context->AddRef();
+            ++game.compositions;
+            startedNow = true;
+        }
+        ITfRange *range = nullptr;
+        result = composition->GetRange(&range);
+        if (SUCCEEDED(result) && range) {
+            result = range->SetText(cookie, 0, text.c_str(), static_cast<LONG>(text.size()));
+            // The caret after the reading, where the host expects it.
+            ITfRange *caret = nullptr;
+            if (SUCCEEDED(result) && SUCCEEDED(range->Clone(&caret)) && caret) {
+                if (SUCCEEDED(caret->Collapse(cookie, TF_ANCHOR_END))) {
+                    TF_SELECTION selection{caret, {TF_AE_NONE, FALSE}};
+                    context->SetSelection(cookie, 1, &selection);
+                }
+                caret->Release();
+            }
+            range->Release();
+        }
+        // A host may only take the list while a composition exists: once the
+        // first one does, it is told to read everything again.
+        if (startedNow && candidateElement) {
+            candidateElement->updated |= TF_CLUIE_DOCUMENTMGR | TF_CLUIE_COUNT | TF_CLUIE_SELECTION | TF_CLUIE_STRING
+                | TF_CLUIE_PAGEINDEX | TF_CLUIE_CURRENTPAGE;
+            if (ITfUIElementMgr *manager = uiElements()) {
+                manager->UpdateUIElement(candidateElementId);
+                manager->Release();
+            }
+        }
+        return result;
+    }
+
     ITfKeystrokeMgr *keys = nullptr;
     ITfSource *events = nullptr;
     DWORD eventCookie = TF_INVALID_COOKIE;
@@ -1688,7 +2053,114 @@ private:
     HWND lastForeground = nullptr;
     HANDLE renderer = nullptr;
     std::wstring rendererName;
+    // WIN-08: the open/close rule, the candidate element (with what the host
+    // was last told), the inline reading and counters for Diagnose.
+    OpenCloseRule openRule;
+    bool destroying = false;
+    CandidateElement *candidateElement = nullptr;
+    DWORD candidateElementId = TF_INVALID_UIELEMENTID;
+    bool candidateShown = true;
+    std::vector<std::string> shownTexts;
+    size_t shownSelection = 0, shownPage = 0;
+    DWORD inlineSetting = inlineCompositionAuto;
+    ITfComposition *composition = nullptr;
+    ITfContext *compositionContext = nullptr;
+    struct {
+        const char *candidateUi = "none";
+        unsigned elementsBegun = 0, elementsHostDrawn = 0, elementFailures = 0;
+        unsigned compositions = 0, compositionFailures = 0, compositionsTerminated = 0;
+    } game;
 };
+
+CompositionEdit::CompositionEdit(Service *service, ITfContext *context, ITfComposition *ending)
+    : service(service), context(context), ending(ending) {
+    service->AddRef();
+    context->AddRef();
+    if (ending) ending->AddRef();
+}
+CompositionEdit::~CompositionEdit() {
+    if (ending) ending->Release();
+    context->Release();
+    service->Release();
+}
+HRESULT CompositionEdit::DoEditSession(TfEditCookie cookie) {
+    try {
+        if (ending) {
+            Service::finishComposition(cookie, ending);
+            return S_OK;
+        }
+        return service->applyComposition(cookie, context);
+    } catch (...) { return E_FAIL; }
+}
+
+HRESULT CandidateElement::Show(BOOL show) {
+    if (owner) {
+        try { owner->showCandidatesByHost(show != FALSE); } catch (...) {}
+    }
+    return S_OK;
+}
+HRESULT CandidateElement::IsShown(BOOL *shown) {
+    if (!shown) return E_INVALIDARG;
+    *shown = owner && owner->candidateElement == this && owner->candidateShown;
+    return S_OK;
+}
+HRESULT CandidateElement::GetDocumentMgr(ITfDocumentMgr **manager) {
+    if (!manager) return E_INVALIDARG;
+    *manager = nullptr;
+    if (!owner || !owner->activeContext) return E_FAIL;
+    return owner->activeContext->GetDocumentMgr(manager);
+}
+HRESULT CandidateElement::GetCount(UINT *count) {
+    if (!count) return E_INVALIDARG;
+    *count = owner ? static_cast<UINT>(owner->candidateCount()) : 0;
+    return S_OK;
+}
+HRESULT CandidateElement::GetSelection(UINT *index) {
+    if (!index) return E_INVALIDARG;
+    *index = owner ? static_cast<UINT>(owner->page * pageSize + owner->highlighted) : 0;
+    return S_OK;
+}
+HRESULT CandidateElement::GetString(UINT index, BSTR *text) {
+    if (!text) return E_INVALIDARG;
+    *text = nullptr;
+    if (!owner || index >= owner->candidateCount()) return E_INVALIDARG;
+    try {
+        *text = SysAllocString(owner->candidateText(index).c_str());
+    } catch (...) { return E_OUTOFMEMORY; }
+    return *text ? S_OK : E_OUTOFMEMORY;
+}
+HRESULT CandidateElement::GetPageIndex(UINT *index, UINT size, UINT *pages) {
+    if (!pages) return E_INVALIDARG;
+    const size_t count = owner ? owner->candidateCount() : 0;
+    const UINT total = static_cast<UINT>(count ? (count + pageSize - 1) / pageSize : 1);
+    *pages = total;
+    if (!index) return S_OK;
+    for (UINT i = 0; i < size && i < total; ++i) index[i] = static_cast<UINT>(i * pageSize);
+    return S_OK;
+}
+HRESULT CandidateElement::GetCurrentPage(UINT *page) {
+    if (!page) return E_INVALIDARG;
+    *page = owner ? static_cast<UINT>(owner->page) : 0;
+    return S_OK;
+}
+HRESULT CandidateElement::SetSelection(UINT index) {
+    if (!owner || index >= owner->candidateCount()) return E_INVALIDARG;
+    owner->page = index / pageSize;
+    owner->highlighted = index % pageSize;
+    try { owner->updatePopup(); } catch (...) {}
+    return S_OK;
+}
+// Like Enter and Esc in the candidate window.
+HRESULT CandidateElement::Finalize() {
+    if (!owner || !owner->activeContext) return E_FAIL;
+    BOOL eaten = FALSE;
+    return owner->OnKeyDown(owner->activeContext, VK_RETURN, 0, &eaten);
+}
+HRESULT CandidateElement::Abort() {
+    if (!owner || !owner->activeContext) return E_FAIL;
+    BOOL eaten = FALSE;
+    return owner->OnKeyDown(owner->activeContext, VK_ESCAPE, 0, &eaten);
+}
 
 HRESULT ModeButton::GetTooltipString(BSTR *tip) {
     *tip = SysAllocString(owner ? owner->modeTooltip().c_str() : L"晴词");
@@ -1763,6 +2235,9 @@ HRESULT registerProfile(bool install) {
     // CN-07 batch 2: lets Windows show the 中／英 item in the taskbar.
     if (install && SUCCEEDED(hr)) hr = categories->RegisterCategory(serviceId, systrayCapability, serviceId);
     else if (!install) categories->UnregisterCategory(serviceId, systrayCapability, serviceId);
+    // WIN-08: the candidate list is offered as a UI element (games draw it).
+    if (install && SUCCEEDED(hr)) hr = categories->RegisterCategory(serviceId, uiElementCapability, serviceId);
+    else if (!install) categories->UnregisterCategory(serviceId, uiElementCapability, serviceId);
     categories->Release();
     // Remove only our old language profile, after the new profile and category
     // are registered. Re-registering the old DLL can still restore it on failure.

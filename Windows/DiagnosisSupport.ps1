@@ -39,6 +39,23 @@ function Convert-HarukotoRuntimeRecord {
     }
     $phases = @{idle='空闲／上次检查完成'; loading='后台检查或加载中'; waiting_boundary='已准备，等待组字边界'; failed='更新失败，沿用旧版'; unavailable='重载状态不可用'}
     if (!$phases.ContainsKey($value.phase)) { throw '未知运行时状态' }
+    # WIN-08 fields, absent in older services: input mode, open/close from
+    # the host, who draws the candidates, inline compositions. No text.
+    $modes = @{chinese='中文'; english='英文'; host_closed='英文（应用关闭了输入法）'}
+    $candidateViews = @{none='尚未出现候选'; own='晴词候选窗'; host='应用自绘（UI-less）'; own_fallback='晴词候选窗（应用不支持 UI 元素）'}
+    $game = $null
+    if ($value.ContainsKey('input_mode')) {
+        if (!$modes.ContainsKey($value.input_mode) -or !$candidateViews.ContainsKey($value.candidate_ui)) { throw '未知游戏输入状态' }
+        $counts = [ordered]@{}
+        foreach ($key in 'open_close_changes','host_closes','ui_elements','ui_elements_host_drawn','ui_element_failures','compositions','composition_failures','compositions_terminated') {
+            if (($value[$key] -isnot [long] -and $value[$key] -isnot [int]) -or $value[$key] -lt 0) { throw '无效游戏输入计数' }
+            $counts[$key] = $value[$key]
+        }
+        $game = [pscustomobject]@{ InputMode=$modes[$value.input_mode]; CandidateUi=$candidateViews[$value.candidate_ui]
+            OpenCloseChanges=$counts.open_close_changes; HostCloses=$counts.host_closes
+            UiElements=$counts.ui_elements; UiElementsHostDrawn=$counts.ui_elements_host_drawn; UiElementFailures=$counts.ui_element_failures
+            Compositions=$counts.compositions; CompositionFailures=$counts.composition_failures; CompositionsTerminated=$counts.compositions_terminated }
+    }
     $relation = if (!$PublishedGeneration) { '无可比较的发布指针' }
         elseif ($value.base_generation -ceq $PublishedGeneration) { '已采用发布版本' }
         else { '尚未采用当前发布版本' }
@@ -50,6 +67,9 @@ function Convert-HarukotoRuntimeRecord {
         BaseSource=$(if ($value.base_generation) {'用户快照'} else {'安装目录（未报告内容哈希）'})
         Phase=$phases[$value.phase]; LastApplyFailed=$value.last_apply_failed; Publication=$relation
         ObservationAgeSeconds=[math]::Round(($NowTick - $value.observed_tick_ms) / 1000, 1)
+        InputMode=$(if ($game) {$game.InputMode} else {'未报告（旧版）'})
+        CandidateUi=$(if ($game) {$game.CandidateUi} else {'未报告（旧版）'})
+        GameInput=$game
     }
 }
 

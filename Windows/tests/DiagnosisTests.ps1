@@ -5,6 +5,26 @@ function Assert-Equal($Actual, $Expected) { if ($Actual -ne $Expected) { throw "
 Assert-Equal (Compare-HarukotoModule @{Sha256='abc'} @{Sha256='abc'}) '一致'
 Assert-Equal (Compare-HarukotoModule @{Sha256='abc'} @{Sha256='def'}) '不同，需重启应用'
 Assert-Equal (Compare-HarukotoModule @{Sha256='abc'} @{Sha256=$null}) '无法确认'
+# WIN-08 runtime fields: optional (older services), validated when present.
+$record = [ordered]@{format=1; thread_id=7; slot_id=0; observed_tick_ms=1; service_version='x'; base_version=''
+    base_generation=''; theme_generation=''; pending_base_generation=''; phase='idle'; last_apply_failed=$false}
+$old = Convert-HarukotoRuntimeRecord ($record | ConvertTo-Json -Compress) $null
+Assert-Equal $old.InputMode '未报告（旧版）'
+if ($null -ne $old.GameInput) { throw 'Game fields invented for an old record' }
+$record += [ordered]@{input_mode='host_closed'; open_close_changes=3; host_closes=2; candidate_ui='host'; ui_elements=4
+    ui_elements_host_drawn=4; ui_element_failures=0; compositions=4; composition_failures=0; compositions_terminated=1}
+$game = Convert-HarukotoRuntimeRecord ($record | ConvertTo-Json -Compress) $null
+Assert-Equal $game.InputMode '英文（应用关闭了输入法）'
+Assert-Equal $game.CandidateUi '应用自绘（UI-less）'
+Assert-Equal $game.GameInput.HostCloses 2
+Assert-Equal $game.GameInput.CompositionsTerminated 1
+foreach ($bad in @(@{candidate_ui='other'}, @{input_mode='klingon'}, @{host_closes=-1}, @{compositions='many'})) {
+    $broken = [ordered]@{} + $record
+    foreach ($key in $bad.Keys) { $broken[$key] = $bad[$key] }
+    $rejected = $false
+    try { Convert-HarukotoRuntimeRecord ($broken | ConvertTo-Json -Compress) $null | Out-Null } catch { $rejected = $true }
+    if (!$rejected) { throw "Invalid game field accepted: $($bad.Keys)" }
+}
 $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $root = Join-Path $tempBase ('harukoto-diagnosis-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $root | Out-Null

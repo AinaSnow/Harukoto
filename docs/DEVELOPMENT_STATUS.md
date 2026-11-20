@@ -1,5 +1,21 @@
 # 开发状态与接手入口
 
+## 2026-11-20 · WIN-08：游戏内输入兼容（FF14）
+
+- 前置：CN-07 第七批已提交为 1b5e91d。本批未提交、未打包；改动注册类别，需重新安装。核心未改动。
+- 用户报告（FF14，无边框窗口，约 alpha.26）：游戏里没有单独的晴词候选、与游戏外不同；切到游戏后输入法掉了。没有游戏可测，以下原因由代码推断：
+  - 服务没有任何 TSF UI 元素（无 ITfUIElement／BeginUIElement），也没有组字（只用 InsertTextAtSelection 上屏，拼音只画在自己的候选窗）。自绘输入法 UI 的游戏通过 UI 元素（IMM32 游戏经 TSF 兼容层的 ImmGetCandidateList）和组字串取候选与拼音，所以游戏里拿不到；而我们的候选窗位置依赖 GetTextExt／光标，游戏常给不出，可能不在可见位置。
+  - CN-07 第二批起中英文与 GUID_COMPARTMENT_KEYBOARD_OPENCLOSE 双向同步：游戏在聊天框无焦点时关闭输入法（ImmSetOpenStatus 等），晴词随之切成英文；游戏若不再打开，就一直停在英文，表现为“掉了”。还会在游戏里弹“英”提示。
+  - 其他可能（未能区分）：每个应用使用不同输入法、Activate 失败（游戏进程未加载 DLL）。Diagnose 现在可分辨。
+- 候选 UI 元素（TextService.cpp `CandidateElement`）：实现 ITfCandidateListUIElementBehavior。有输入时 `presentCandidates` 调 BeginUIElement（调用前状态已就绪），之后按文字／高亮／页变化设 TF_CLUIE_* 并 UpdateUIElement，输入清空、焦点变化、上下文弹出、停用时 EndUIElement。GetString 只给候选文字（不含读音、[日]、纠错标记）；索引为整个列表、每页 7 个，与数字键一致；SetPageIndex 返回 E_NOTIMPL；SetSelection／Finalize／Abort 分别等于移高亮、Enter、Esc。pbShow 为 FALSE（或之后 Show(FALSE)）时隐藏自己的候选窗；没有 UI 元素管理器或 Begin 失败时照旧用自己的候选窗。中英／全角提示不受影响（只在空闲时出现）。
+- 组字（`applyComposition`，在编辑会话里按会话运行时的状态写）：`InlineComposition`（HKCU\Software\Meowpuut\Input，`GameInput.h`，每键读）0 自动（默认，只在应用自绘候选时）、1 总是、2 从不。组字范围从选区 StartComposition，文字为候选窗里的拼音（`preeditText`），光标置于末尾；上屏前先清空并结束组字，再走原有投递队列，剩余拼音另起组字；Esc、焦点变化、切英文时结束。应用或 TSF 结束组字（OnCompositionTerminated）时丢弃当前拼音。没有显示属性提供者。默认 0 时普通应用行为与改动前完全一致。
+- OPENCLOSE（`OpenCloseRule`）：只有用户切换（Shift、任务栏图标）改偏好并写隔间；与已知值相同的通知视为回声（含自己的写入）；外部关闭→暂时英文、偏好不变、不弹提示（`host_closed`）；外部打开→若之前是外部关闭则恢复偏好，否则（用户选了英文后 Ctrl+空格之类）为中文并成为偏好，与改动前一致；Shift 任何时候都可切回。没有做“焦点回来自动重开”：同一事件在游戏里也可能发生在未聚焦聊天框时，会吃掉 WASD。
+- 注册：`registerProfile` 新增 GUID_TFCAT_TIPCAP_UIELEMENTENABLED（值经测试与 SDK 对照），卸载时移除。需要重新安装。注意：IMMERSIVESUPPORT 并未注册（之前只注册了 SYSTRAYSUPPORT）。
+- 诊断：运行时记录新增 `input_mode`、`open_close_changes`、`host_closes`、`candidate_ui`（none／own／host／own_fallback）、`ui_elements`、`ui_elements_host_drawn`、`ui_element_failures`、`compositions`、`composition_failures`、`compositions_terminated`（只有计数和状态，无文字）；每键与开关变化时发布。DiagnosisSupport.ps1 可选解析（旧版显示“未报告”），diagnose-ime.ps1 显示这些字段，并新增“输入设置”：语言列表是否含晴词、默认输入法覆盖、InlineComposition 与 ShiftToggle。
+- 测试：`tsf_focus_cancel` 新增 `gameInput()`，带假线程管理器（开关隔间、UI 元素管理器）和可组字的假上下文：应用自绘时候选窗不显示、元素的数量／文字／选中／页／更新标志、方向键只报 SELECTION、数字键先结束组字再上屏、SetSelection＋Finalize、Abort、应用结束组字、Show(TRUE) 交回；应用不接手时无组字；InlineComposition 1／2；无 UI 元素管理器；应用关闭／打开、组字中关闭上屏字母、Shift 重开并写隔间、显式打开、回声不计数；GUID 与 SDK 对照；`OpenCloseRule` 单独测试。`installation_diagnosis` 新增运行时记录新旧字段解析与非法值拒绝。CTest 仍为 59 项。
+- 未验证：FF14 是否回答 pbShow=FALSE、是否经 TSF 兼容层显示我们的候选和组字串、何时调用开关；“掉了”的真实原因。清单见操作指南“游戏中输入”。
+- 已知局限：没有 ITfReadingInformationUIElement；候选文字不带读音和标记；组字没有下划线（无显示属性）；游戏里只能靠 Shift 恢复中文；中英提示在游戏中仍会出现（用户自己切换时）。
+
 ## 2026-11-20 · CN-07 第七批：全角半角（CN-07 完成）
 
 - 前置：第六批已提交为 389901c。本批未提交、未打包。核心未改动。CN-07 七批（标点、中英文切换与状态提示、-= 翻页、以词定字、候选中忘记、数字与日期、全角半角）全部完成，常用符号推迟另立。

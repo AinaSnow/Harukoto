@@ -5,27 +5,116 @@
 #include <iostream>
 
 namespace {
+class RecordingContext;
+// WIN-08: a range and a composition just rich enough for the service's inline
+// reading. Heap objects, deleted at their last release.
+class FakeRange final : public ITfRange {
+public:
+    FakeRange(RecordingContext *context, bool composition) : context(context), composition(composition) {}
+    ULONG refs = 1;
+    RecordingContext *context;
+    bool composition;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
+        *out = nullptr;
+        if (id != IID_IUnknown && id != IID_ITfRange) return E_NOINTERFACE;
+        *out = static_cast<ITfRange *>(this);
+        AddRef();
+        return S_OK;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return ++refs; }
+    ULONG STDMETHODCALLTYPE Release() override { const ULONG left = --refs; if (!left) delete this; return left; }
+    HRESULT STDMETHODCALLTYPE GetText(TfEditCookie, DWORD, WCHAR *, ULONG, ULONG *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE SetText(TfEditCookie, DWORD, const WCHAR *value, LONG length) override;
+    HRESULT STDMETHODCALLTYPE GetFormattedText(TfEditCookie, IDataObject **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetEmbedded(TfEditCookie, REFGUID, REFIID, IUnknown **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE InsertEmbedded(TfEditCookie, DWORD, IDataObject *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE ShiftStart(TfEditCookie, LONG, LONG *, const TF_HALTCOND *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE ShiftEnd(TfEditCookie, LONG, LONG *, const TF_HALTCOND *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE ShiftStartToRange(TfEditCookie, ITfRange *, TfAnchor) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE ShiftEndToRange(TfEditCookie, ITfRange *, TfAnchor) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE ShiftStartRegion(TfEditCookie, TfShiftDir, BOOL *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE ShiftEndRegion(TfEditCookie, TfShiftDir, BOOL *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE IsEmpty(TfEditCookie, BOOL *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE Collapse(TfEditCookie, TfAnchor) override { composition = false; return S_OK; }
+    HRESULT STDMETHODCALLTYPE IsEqualStart(TfEditCookie, ITfRange *, TfAnchor, BOOL *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE IsEqualEnd(TfEditCookie, ITfRange *, TfAnchor, BOOL *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE CompareStart(TfEditCookie, ITfRange *, TfAnchor, LONG *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE CompareEnd(TfEditCookie, ITfRange *, TfAnchor, LONG *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE AdjustForInsert(TfEditCookie, ULONG, BOOL *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetGravity(TfGravity *, TfGravity *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE SetGravity(TfEditCookie, TfGravity, TfGravity) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE Clone(ITfRange **clone) override { *clone = new FakeRange(context, false); return S_OK; }
+    HRESULT STDMETHODCALLTYPE GetContext(ITfContext **) override { return E_NOTIMPL; }
+};
+
+class FakeComposition final : public ITfComposition {
+public:
+    explicit FakeComposition(RecordingContext *context) : context(context) {}
+    ULONG refs = 1;
+    RecordingContext *context;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
+        *out = nullptr;
+        if (id != IID_IUnknown && id != IID_ITfComposition) return E_NOINTERFACE;
+        *out = static_cast<ITfComposition *>(this);
+        AddRef();
+        return S_OK;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return ++refs; }
+    ULONG STDMETHODCALLTYPE Release() override { const ULONG left = --refs; if (!left) delete this; return left; }
+    HRESULT STDMETHODCALLTYPE GetRange(ITfRange **range) override { *range = new FakeRange(context, true); return S_OK; }
+    HRESULT STDMETHODCALLTYPE ShiftStart(TfEditCookie, ITfRange *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE ShiftEnd(TfEditCookie, ITfRange *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE EndComposition(TfEditCookie) override;
+};
+
 // A writable host context that records what the service inserts. Edit
 // sessions run synchronously; there is no compartment, so input is enabled.
-class RecordingContext final : public ITfContext, public ITfInsertAtSelection {
+// With composable set it also accepts a composition (WIN-08): its text is
+// `reading` while `composing`.
+class RecordingContext final : public ITfContext, public ITfInsertAtSelection, public ITfContextComposition {
 public:
     ULONG refs = 1;
     std::wstring text;
+    bool composable = false, composing = false;
+    std::wstring reading;
+    unsigned compositions = 0, compositionsEnded = 0;
+    ITfCompositionSink *sink = nullptr;
+    ITfComposition *current = nullptr; // not owned
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
         *out = nullptr;
         if (id == IID_IUnknown || id == IID_ITfContext) *out = static_cast<ITfContext *>(this);
         else if (id == IID_ITfInsertAtSelection) *out = static_cast<ITfInsertAtSelection *>(this);
+        else if (id == IID_ITfContextComposition && composable) *out = static_cast<ITfContextComposition *>(this);
         else return E_NOINTERFACE;
         AddRef();
         return S_OK;
     }
     ULONG STDMETHODCALLTYPE AddRef() override { return ++refs; }
     ULONG STDMETHODCALLTYPE Release() override { assert(refs); return --refs; }
-    HRESULT STDMETHODCALLTYPE InsertTextAtSelection(TfEditCookie, DWORD, const WCHAR *value, LONG length, ITfRange **range) override {
+    HRESULT STDMETHODCALLTYPE InsertTextAtSelection(TfEditCookie, DWORD flags, const WCHAR *value, LONG length, ITfRange **range) override {
+        if (flags & TF_IAS_QUERYONLY) {
+            *range = new FakeRange(this, false);
+            return S_OK;
+        }
+        assert(!composing); // committed text never lands inside a reading
         text.append(value, length);
         *range = nullptr;
         return S_OK;
     }
+    HRESULT STDMETHODCALLTYPE StartComposition(TfEditCookie, ITfRange *, ITfCompositionSink *compositionSink, ITfComposition **out) override {
+        assert(!composing);
+        auto *started = new FakeComposition(this);
+        composing = true;
+        reading.clear();
+        sink = compositionSink;
+        current = started;
+        ++compositions;
+        *out = started;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE EnumCompositions(IEnumITfCompositionView **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE FindComposition(TfEditCookie, ITfRange *, IEnumITfCompositionView **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE TakeOwnership(TfEditCookie, ITfCompositionView *, ITfCompositionSink *, ITfComposition **) override { return E_NOTIMPL; }
     HRESULT STDMETHODCALLTYPE InsertEmbeddedAtSelection(TfEditCookie, DWORD, IDataObject *, ITfRange **) override { return E_NOTIMPL; }
     HRESULT STDMETHODCALLTYPE RequestEditSession(TfClientId, ITfEditSession *edit, DWORD, HRESULT *out) override {
         *out = edit->DoEditSession(1);
@@ -45,6 +134,133 @@ public:
     HRESULT STDMETHODCALLTYPE EnumProperties(IEnumTfProperties **) override { return E_NOTIMPL; }
     HRESULT STDMETHODCALLTYPE GetDocumentMgr(ITfDocumentMgr **) override { return E_NOTIMPL; }
     HRESULT STDMETHODCALLTYPE CreateRangeBackup(TfEditCookie, ITfRange *, ITfRangeBackup **) override { return E_NOTIMPL; }
+};
+
+HRESULT FakeRange::SetText(TfEditCookie, DWORD, const WCHAR *value, LONG length) {
+    if (!composition || !context->composing) return E_FAIL;
+    context->reading.assign(value, length);
+    return S_OK;
+}
+HRESULT FakeComposition::EndComposition(TfEditCookie) {
+    assert(context->composing && context->current == this);
+    context->composing = false;
+    context->current = nullptr;
+    ++context->compositionsEnded;
+    return S_OK;
+}
+
+// WIN-08: the thread's keyboard open/close compartment, which the host
+// (a game) may set too. Notifies synchronously, as TSF does.
+class FakeCompartment final : public ITfCompartment, public ITfSource {
+public:
+    ULONG refs = 1;
+    VARIANT value{};
+    unsigned writes = 0;
+    ITfCompartmentEventSink *sink = nullptr;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
+        *out = nullptr;
+        if (id == IID_IUnknown || id == IID_ITfCompartment) *out = static_cast<ITfCompartment *>(this);
+        else if (id == IID_ITfSource) *out = static_cast<ITfSource *>(this);
+        else return E_NOINTERFACE;
+        AddRef();
+        return S_OK;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return ++refs; }
+    ULONG STDMETHODCALLTYPE Release() override { assert(refs); return --refs; }
+    HRESULT STDMETHODCALLTYPE SetValue(TfClientId, const VARIANT *next) override {
+        value = *next;
+        ++writes;
+        if (sink) sink->OnChange(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE);
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE GetValue(VARIANT *out) override { *out = value; return value.vt == VT_EMPTY ? S_FALSE : S_OK; }
+    HRESULT STDMETHODCALLTYPE AdviseSink(REFIID id, IUnknown *unknown, DWORD *cookie) override {
+        if (id != IID_ITfCompartmentEventSink || sink) return E_FAIL;
+        if (FAILED(unknown->QueryInterface(IID_ITfCompartmentEventSink, reinterpret_cast<void **>(&sink)))) return E_FAIL;
+        *cookie = 7;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE UnadviseSink(DWORD cookie) override {
+        if (cookie != 7 || !sink) return E_FAIL;
+        sink->Release();
+        sink = nullptr;
+        return S_OK;
+    }
+    bool open() const { return value.vt == VT_I4 && value.lVal != 0; }
+    // What ImmSetOpenStatus or a Ctrl+Space does.
+    void host(bool next) {
+        VARIANT changed{};
+        changed.vt = VT_I4;
+        changed.lVal = next ? 1 : 0;
+        SetValue(99, &changed);
+    }
+};
+
+// WIN-08: a thread manager offering the open/close compartment and, unless
+// switched off, a UI element manager that answers `show` (a game that draws
+// the candidates itself answers FALSE).
+class FakeThreadManager final : public ITfThreadMgr, public ITfCompartmentMgr, public ITfUIElementMgr {
+public:
+    ULONG refs = 1;
+    FakeCompartment openClose;
+    bool uiElements = true;
+    BOOL show = TRUE;
+    ITfUIElement *element = nullptr;
+    DWORD id = TF_INVALID_UIELEMENTID;
+    unsigned begun = 0, updates = 0, ended = 0;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void **out) override {
+        *out = nullptr;
+        if (iid == IID_IUnknown || iid == IID_ITfThreadMgr) *out = static_cast<ITfThreadMgr *>(this);
+        else if (iid == IID_ITfCompartmentMgr) *out = static_cast<ITfCompartmentMgr *>(this);
+        else if (iid == IID_ITfUIElementMgr && uiElements) *out = static_cast<ITfUIElementMgr *>(this);
+        else return E_NOINTERFACE;
+        AddRef();
+        return S_OK;
+    }
+    ULONG STDMETHODCALLTYPE AddRef() override { return ++refs; }
+    ULONG STDMETHODCALLTYPE Release() override { assert(refs); return --refs; }
+    HRESULT STDMETHODCALLTYPE Activate(TfClientId *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE Deactivate() override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE CreateDocumentMgr(ITfDocumentMgr **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE EnumDocumentMgrs(IEnumTfDocumentMgrs **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetFocus(ITfDocumentMgr **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE SetFocus(ITfDocumentMgr *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE AssociateFocus(HWND, ITfDocumentMgr *, ITfDocumentMgr **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE IsThreadFocus(BOOL *) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetFunctionProvider(REFCLSID, ITfFunctionProvider **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE EnumFunctionProviders(IEnumTfFunctionProviders **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetGlobalCompartment(ITfCompartmentMgr **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE GetCompartment(REFGUID guid, ITfCompartment **out) override {
+        *out = nullptr;
+        if (!IsEqualGUID(guid, GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)) return E_NOTIMPL;
+        openClose.AddRef();
+        *out = &openClose;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE ClearCompartment(TfClientId, REFGUID) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE EnumCompartments(IEnumGUID **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE BeginUIElement(ITfUIElement *next, BOOL *shown, DWORD *out) override {
+        assert(!element && *shown); // one list at a time; the TIP asks to show
+        element = next;
+        element->AddRef();
+        id = *out = 40 + ++begun;
+        *shown = show;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE UpdateUIElement(DWORD updated) override {
+        assert(element && updated == id);
+        ++updates;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE EndUIElement(DWORD ending) override {
+        assert(element && ending == id);
+        element->Release();
+        element = nullptr;
+        ++ended;
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE GetUIElement(DWORD, ITfUIElement **) override { return E_NOTIMPL; }
+    HRESULT STDMETHODCALLTYPE EnumUIElements(IEnumTfUIElements **) override { return E_NOTIMPL; }
 };
 
 // Holds modifier keys in this thread's keyboard state, as GetKeyState sees them.
@@ -1254,6 +1470,199 @@ struct ServiceFocusTest {
         RegCloseKey(root);
         assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
     }
+
+    // WIN-08 through the real key callbacks: a host that draws the
+    // candidates itself (pbShow FALSE) gets them from the UI element and the
+    // reading as a composition, and our window stays hidden; a host that
+    // leaves them to us sees no change; the open/close compartment set by
+    // the host switches the mode without stranding the user in English.
+    static void gameInput() {
+        const std::wstring path = L"Software\\HarukotoGameInputService-" + std::to_wstring(GetCurrentProcessId());
+        HKEY root = nullptr;
+        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        const auto option = [&](DWORD value) {
+            HKEY input = nullptr;
+            assert(RegCreateKeyExW(root, L"Software\\Meowpuut\\Input", 0, nullptr, 0, KEY_SET_VALUE, nullptr, &input, nullptr) == ERROR_SUCCESS);
+            assert(RegSetValueExW(input, L"InlineComposition", 0, REG_DWORD, reinterpret_cast<const BYTE *>(&value), sizeof(value)) == ERROR_SUCCESS);
+            RegCloseKey(input);
+        };
+        RecordingContext context;
+        context.composable = true;
+        FakeThreadManager manager;
+        {
+            Service service;
+            service.preferenceRoot = root;
+            const std::string data = "MEOWPUUT-PINYIN-1\nni\tni3\t你\t你\t9000\nni\tni2\t泥\t泥\t5000\n";
+            service.lexicon = mpn_lexicon_create(data.data(), data.size());
+            service.session = mpn_session_create(service.lexicon);
+            assert(service.lexicon && service.session);
+            service.attachMode(&manager);
+            assert(manager.openClose.open() && manager.openClose.sink && service.chineseMode && !service.openRule.changes);
+            using Result = std::pair<bool, std::wstring>;
+            const Result passed{false, L""};
+            const auto press = [&](WPARAM key) {
+                BOOL tested = FALSE, eaten = FALSE;
+                assert(service.OnTestKeyDown(&context, key, 0, &tested) == S_OK);
+                context.text.clear();
+                assert(service.OnKeyDown(&context, key, 0, &eaten) == S_OK);
+                assert(tested == eaten);
+                return std::make_pair(eaten != FALSE, context.text);
+            };
+            const auto type = [&] { assert(press('N').first && press('I').first && *mpn_input(service.session)); };
+            const auto list = [&] {
+                ITfCandidateListUIElementBehavior *element = nullptr;
+                assert(manager.element && SUCCEEDED(manager.element->QueryInterface(IID_ITfCandidateListUIElementBehavior,
+                    reinterpret_cast<void **>(&element))));
+                return element;
+            };
+            const auto find = [&](const char *text) {
+                for (size_t i = 0; i < service.choices.size(); ++i) if (service.choices[i].text == text) return i;
+                assert(false);
+                return size_t(0);
+            };
+            const auto ownWindowShown = [&] { return service.popup && IsWindowVisible(service.popup); };
+            hold({});
+
+            // 1. The host draws the candidates: element, inline reading, our window hidden.
+            manager.show = FALSE;
+            type();
+            assert(manager.begun == 1 && manager.element && std::string(service.game.candidateUi) == "host" && !ownWindowShown());
+            assert(context.composing && context.compositions == 1 && context.reading == service.preeditText());
+            assert(context.reading.find(L"ni") != std::wstring::npos && context.text.empty());
+            {
+                auto *element = list();
+                UINT count = 0, selection = 9, current = 9, pages = 0;
+                assert(element->GetCount(&count) == S_OK && count == service.choices.size() && count >= 2);
+                BSTR first = nullptr;
+                assert(element->GetString(0, &first) == S_OK && std::wstring(first) == L"你");
+                SysFreeString(first);
+                assert(element->GetString(count, &first) == E_INVALIDARG && !first);
+                assert(element->GetSelection(&selection) == S_OK && !selection);
+                assert(element->GetCurrentPage(&current) == S_OK && !current);
+                assert(element->GetPageIndex(nullptr, 0, &pages) == S_OK && pages == (count + 6) / 7);
+                UINT starts[8]{9, 9};
+                assert(element->GetPageIndex(starts, 8, &pages) == S_OK && starts[0] == 0);
+                DWORD flags = 0;
+                assert(element->GetUpdatedFlags(&flags) == S_OK && (flags & TF_CLUIE_STRING) && (flags & TF_CLUIE_COUNT));
+                assert(element->GetUpdatedFlags(&flags) == S_OK && !flags);
+                BOOL shown = TRUE;
+                assert(element->IsShown(&shown) == S_OK && !shown);
+                GUID id{};
+                assert(element->GetGUID(&id) == S_OK && IsEqualGUID(id, candidateElementGuid));
+                BSTR description = nullptr;
+                assert(element->GetDescription(&description) == S_OK && description);
+                SysFreeString(description);
+                // Moving the highlight tells the host just that.
+                const auto updates = manager.updates;
+                assert(press(VK_DOWN).first && manager.updates == updates + 1);
+                assert(element->GetUpdatedFlags(&flags) == S_OK && flags == TF_CLUIE_SELECTION);
+                assert(element->GetSelection(&selection) == S_OK && selection == 1);
+                element->Release();
+            }
+            // A digit commits: the reading leaves the document first, the text follows.
+            assert(press(static_cast<WPARAM>('1' + find("你"))) == Result(true, L"你"));
+            assert(!context.composing && context.reading.empty() && context.compositionsEnded == 1);
+            assert(!manager.element && manager.ended == 1 && service.game.elementsHostDrawn == 1);
+            // The host selects and finalizes, or aborts.
+            type();
+            {
+                auto *element = list();
+                assert(element->SetSelection(static_cast<UINT>(find("泥"))) == S_OK && service.highlighted == find("泥"));
+                context.text.clear();
+                assert(element->Finalize() == S_OK && context.text == L"泥" && !context.composing && !manager.element);
+                element->Release();
+            }
+            type();
+            {
+                auto *element = list();
+                context.text.clear();
+                assert(element->Abort() == S_OK && context.text.empty() && !*mpn_input(service.session));
+                assert(!context.composing && !manager.element);
+                element->Release();
+            }
+            // The host ends the composition (focus moved, a game's cancel): the reading is dropped.
+            type();
+            assert(context.composing && context.sink);
+            context.composing = false; // TSF leaves the text to the host
+            assert(context.sink->OnCompositionTerminated(1, context.current) == S_OK);
+            context.current = nullptr;
+            assert(!*mpn_input(service.session) && service.choices.empty() && !manager.element);
+            assert(service.game.compositionsTerminated == 1 && !service.composition);
+            // The host hands the list back with Show(TRUE): our window, no inline reading.
+            type();
+            assert(context.composing);
+            assert(manager.element->Show(TRUE) == S_OK && service.candidateShown && !context.composing);
+            assert(std::string(service.game.candidateUi) == "own");
+            assert(press(VK_ESCAPE).first && !*mpn_input(service.session) && !manager.element);
+
+            // 2. The host leaves the candidates to us: as before, no inline reading.
+            manager.show = TRUE;
+            const auto compositions = context.compositions;
+            type();
+            assert(manager.element && std::string(service.game.candidateUi) == "own" && !context.composing);
+            assert(press(VK_ESCAPE).first && !manager.element && context.compositions == compositions);
+            // InlineComposition 1: the reading inline also beside our window; 2: never.
+            option(inlineCompositionAlways);
+            type();
+            assert(context.composing && std::string(service.game.candidateUi) == "own");
+            assert(press(VK_ESCAPE).first && !context.composing && !manager.element);
+            option(inlineCompositionNever);
+            manager.show = FALSE;
+            type();
+            assert(!context.composing && std::string(service.game.candidateUi) == "host");
+            assert(press(VK_ESCAPE).first && !manager.element);
+            option(inlineCompositionAuto);
+            // Without a UI element manager: our window, as before.
+            manager.uiElements = false;
+            const auto begun = manager.begun;
+            type();
+            assert(manager.begun == begun && std::string(service.game.candidateUi) == "own" && !context.composing);
+            assert(press(VK_ESCAPE).first);
+            manager.uiElements = true;
+
+            // 3. Open/close from the host. Our own writes are echoes, not changes.
+            assert(!service.openRule.changes);
+            manager.openClose.host(false);
+            assert(!service.chineseMode && service.openRule.hostClosed && service.openRule.preferred);
+            assert(press('A') == passed && press(VK_OEM_COMMA) == passed);
+            manager.openClose.host(true); // the chat box again: Chinese again
+            assert(service.chineseMode && !service.openRule.hostClosed && press(VK_OEM_COMMA) == Result(true, L"，"));
+            // Closed mid-composition: the letters are committed, the inline reading ends first.
+            type();
+            assert(context.composing && manager.element);
+            context.text.clear();
+            manager.openClose.host(false);
+            assert(context.text == L"ni" && !context.composing && !manager.element && !service.chineseMode);
+            // A host that never reopens: the user's switch (Shift tap) reopens and is written.
+            const auto writes = manager.openClose.writes;
+            service.setMode(true);
+            assert(service.chineseMode && manager.openClose.open() && manager.openClose.writes == writes + 1);
+            assert(!service.openRule.hostClosed && service.openRule.changes == 3 && service.openRule.hostCloses == 2);
+            // The user's English; an explicit open (Ctrl+Space) is Chinese, as before.
+            service.setMode(false);
+            assert(!manager.openClose.open() && !service.openRule.preferred);
+            manager.openClose.host(true);
+            assert(service.chineseMode && service.openRule.preferred);
+            // A repeated value is no change.
+            manager.openClose.host(true);
+            assert(service.openRule.changes == 4);
+            service.Deactivate();
+        }
+        assert(context.refs == 1 && manager.refs == 1 && manager.openClose.refs == 1 && !manager.openClose.sink);
+        assert(!manager.element && !context.composing);
+        RegCloseKey(root);
+        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+#ifdef _MSC_VER
+        assert(IsEqualGUID(uiElementCapability, GUID_TFCAT_TIPCAP_UIELEMENTENABLED));
+#endif
+        // The rule on its own.
+        OpenCloseRule rule;
+        rule.activate();
+        assert(!rule.observed(true) && rule.observed(false) && !rule.chinese && rule.hostClosed && rule.preferred);
+        assert(std::string(rule.mode()) == "host_closed" && rule.observed(true) && rule.chinese);
+        assert(!rule.user(false) && rule.observed(true) && rule.chinese && rule.preferred);
+        assert(rule.user(false) == false && rule.observed(true) && rule.observed(false) && rule.observed(true) && rule.chinese);
+    }
 };
 }
 int wmain(int argc, wchar_t **argv) {
@@ -1269,5 +1678,6 @@ int wmain(int argc, wchar_t **argv) {
     ServiceFocusTest::forgetting(argv[1]);
     ServiceFocusTest::quickInput(argv[1]);
     ServiceFocusTest::fullWidth();
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode, -/= paging, [ ] character picking, forgetting, numbers, dates and full width\n";
+    ServiceFocusTest::gameInput();
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode, -/= paging, [ ] character picking, forgetting, numbers, dates, full width, candidate UI element, inline composition and host open/close\n";
 }
