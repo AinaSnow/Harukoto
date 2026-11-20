@@ -44,6 +44,37 @@ class FullFF14Tests(unittest.TestCase):
         self.assertTrue(any(r[0] == 'xiexie' and r[3] == 'ありがとう' for r in package['entries']))
         self.assertTrue(any(not r[3] for r in package['entries']))
 
+    def test_reading_overrides_and_provenance(self):
+        from ff14_readings import load_overrides
+        report = json.loads((BUNDLE / 'coverage.json').read_text(encoding='utf-8'))
+        audit = json.loads((BUNDLE / 'reviewed-source.json').read_text(encoding='utf-8'))['entries']
+        self.assertEqual(json.loads((BUNDLE / 'manifest.json').read_text(encoding='utf-8'))['version'], report['version'])
+        self.assertEqual(sum(report['pinyin_review'].values()), report['total_records'])
+        allowed = {'auto', 'evidence', 'reviewed', 'completion-search-key', 'curated-0.2.0'}
+        self.assertTrue(all(e['pinyin_review'] in allowed for e in audit))
+        overrides = load_overrides()
+        self.assertEqual(report['reading_overrides'], len(overrides))
+        by_text = {}
+        for e in audit: by_text.setdefault(e['zh_cn'], []).append(e)
+        for (eid, text), row in overrides.items():
+            targets = [e for e in by_text[text] if eid in ('*', e['id']) and e['pinyin_review'] == row['status']]
+            self.assertTrue(targets, text)
+            for e in targets: self.assertIn(row['reading'], e['triggers']['pinyin'])
+        # 长 defaults to zhang in pypinyin; base-lexicon word evidence (长靴/长椅/褪色/调配) fixes it.
+        package = load_package(BUNDLE / 'manifest.json')
+        keys = {(r[0], r[5]) for r in package['entries']}
+        for good, bad, text in (('yuzhouchangyi', 'yuzhouzhangyi', '宇宙长椅'), ('tuisejingcu', 'tuishaijingcu', '褪色晶簇'),
+                                ('juemiaodetiaopeiyongpin', 'juemiaodediaopeiyongpin', '绝妙的调配用品')):
+            self.assertTrue((good, text) in keys, good)
+            self.assertFalse((bad, text) in keys, bad)
+        # Cross-boundary evidence is rejected: 骑士长 keeps zhang.
+        self.assertTrue(('zongqishizhangdexiaoxianghua', '总骑士长的肖像画') in keys)
+        # Item gaps are classified, never translated.
+        gaps = (ROOT / 'DataSources/FF14/item-gaps.tsv').read_text(encoding='utf-8').splitlines()
+        rows = [line.split('\t') for line in gaps if not line.startswith(('#', 'id\t'))]
+        self.assertEqual(len(rows), report['sources']['Item']['excluded'])
+        self.assertTrue(all(r[-1] == '未确认日文译名，不收录' for r in rows))
+
     def test_large_update_enable_and_rollback(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

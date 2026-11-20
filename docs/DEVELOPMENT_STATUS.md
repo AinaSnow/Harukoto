@@ -1,5 +1,17 @@
 # 开发状态与接手入口
 
+## 2026-11-20 · FF14-03：缺口与读音质量（部分完成）
+
+- 前置：DICT-02a 已提交为 0d64cd8。本批未提交、未打包。详见 [FF14 全量词库](FF14_FULL_DICTIONARY.md)“0.3.1 读音质量与缺口”一节。
+- 缺口：scripts/audit-ff14-readings.py 读固定来源缓存核对 362 条物品，日英同 ID 行整行为空、同名无已对齐 ID，全部判为国服独有（复制品 330、节日／活动／赛事 17、冒险录 11、兑换券／教材 4），写入 DataSources/FF14/item-gaps.tsv，不收录、不猜译名。
+- 读音：新增 scripts/ff14_readings.py（逐字自动拼音，无修订时与 0.3.0 逐条相同）。审计用构建产物 .build/windows/ime/native-pinyin.tsv 中覆盖多音字的最长词读音作证据：100,032 个多音字位置中一致 66,381、按证据修订 790、需人工 2,997、低风险未核 29,864。拒收跨词边界误配和有争议读音（长的、卡的、要的、之长、劲舞、熟成、利爪、伽玛、大巴扎），理由写在脚本 REJECT。
+- 修订表 DataSources/FF14/reading-overrides.tsv（786 行，id／text／reading／status／note；evidence＝词证据、程序判定、代理核对，reviewed＝人工复核，当前 0 行）。build-ff14-full.py 读修订表替换自动拼音，未匹配行报错；reviewed-source.json 每条加 pinyin_review，coverage.json 加计数（auto 55,425／evidence 796／reviewed 0／completion-search-key 1,247／curated-0.2.0 204）。
+- 版本 0.3.0→0.3.1：来源、记录数（57,672）与触发组数（113,463）不变，只改拼音；同版本不同内容会被导入拒绝，故需升版本号。重建两次逐字节一致；审计重跑结果不变。
+- 测试：test_japanese_ff14_full.py 新增修订与来源检查（每条修订生效、计数、跨边界拒收、缺口不收录）。完整 CTest 60 项在一次运行中全部通过（324.12 秒，含 ff14_full_production 真实 C++ 加载 0.3.1 全部触发）。
+- 打字验证：harukoto_candidate_explain 用新包的主题快照（.build/ff14-03-local，--bundled、关模糊音／纠错／记忆）：changjingtuoge 首选长颈驼革、第 4 项ダルメルレザー；tuisejingcu 首选褪色晶簇；zhangjingtuoge、tuishaijingcu 不再出主题词。japanese_packages 实测 0.3.0→0.3.1 更新保持启用，回退回到 0.3.0。
+- 人工复核：[读音人工复核清单](FF14_READING_REVIEW.md)（前 50 组，按记录数 × 地名 5 × 任务多音字 4／其他高风险 2 排序；如长弓、长杖、长外衣、长须，水晶都的“都”，卡扎纳尔的“扎”，角尊的“角”），全表 DataSources/FF14/reading-audit.tsv。
+- 未做：人工复核（reviewed 行为 0）；中文评测在 FF14 开启下的前后对比；打包与游戏内抽查；Completion 和精选词条的拼音不在审计范围（前者用原生检索词）。
+
 ## 2026-11-20 · DICT-02a：候选来源与冲突诊断
 
 - 前置：WIN-08 反馈已提交为 80d5110。本批未提交、未打包。

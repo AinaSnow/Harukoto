@@ -9,12 +9,14 @@ from pathlib import Path
 
 from pypinyin import lazy_pinyin, Style, __version__ as pinyin_version
 from ff14_completion import completion_reading
+from ff14_readings import chinese_key, load_overrides
 from japanese_dictionary import kana, label, trigger
 from japanese_packages import load_package
 
 CN_REV = '3ba064a64e21ff62b587d886701bbe6e74d8d224'
 JP_REV = 'a67c23b00fe8cb254855d06b59845958b55d28f3'
 SHEETS = ('Item', 'PlaceName', 'Completion')
+VERSION = '0.3.1'
 # Explicit input conveniences, not official names or source-transcribed aliases.
 ALIASES = {
     'placename-27': ['haidu'], 'placename-39': ['sendu'], 'placename-51': ['shadu'],
@@ -72,6 +74,7 @@ def build(folder, curated_path, output):
     if output.exists(): raise ValueError('输出目录已存在，请使用新目录')
     curated = json.loads(curated_path.read_text(encoding='utf-8'))
     known = {entry['id']: entry for entry in curated['entries']}
+    overrides, used = load_overrides(), set()
     pinned = Path(__file__).resolve().parents[1] / 'Resources/DictionaryPackages/ff14/full/source-checks.json'
     expected = {s['file']: s['sha256'] for s in json.loads(pinned.read_text(encoding='utf-8'))['sources']}
     records, exclusions, sources, counts = [], [], [], {}
@@ -104,10 +107,16 @@ def build(folder, curated_path, output):
                 # Completion supplies native pinyin search keys. Other sheets use
                 # reproducible automatic pinyin; these are not human-reviewed readings.
                 key = cn.get('GroupTitle', '') if sheet == 'Completion' else ''
-                try: keys['pinyin'] = [trigger(key)] if key else [input_key(chinese, True)]
+                # FF14-03: reading-overrides.tsv replaces automatic pinyin
+                # (evidence = base-lexicon word reading, reviewed = human review).
+                fix = None if key else overrides.get((eid, chinese)) or overrides.get(('*', chinese))
+                pinyin_review = 'completion-search-key' if key else fix['status'] if fix else 'auto'
+                try: keys['pinyin'] = [trigger(key)] if key else [trigger(fix['reading'] if fix else chinese_key(chinese))]
                 except ValueError:
-                    try: keys['pinyin'] = [input_key(chinese, True)]
+                    pinyin_review = 'auto'
+                    try: keys['pinyin'] = [trigger(chinese_key(chinese))]
                     except ValueError: pass
+                if fix: used.add((fix['id'], fix['text']))
                 if english:
                     try: keys['english'] = [input_key(english)]
                     except ValueError: pass
@@ -131,20 +140,24 @@ def build(folder, curated_path, output):
                 previous = known.get(eid)
                 if previous and previous['ja'] == japanese and previous['zh_cn'] == chinese:
                     reading, reading_source = previous['kana'], 'curated-0.2.0'
+                    if not fix: pinyin_review = 'curated-0.2.0'
                     for kind in keys: keys[kind] = sorted(set(keys[kind] + [trigger(x) for x in previous['triggers'][kind]]))
                 records.append({'id': eid, 'zh_cn': chinese, 'ja': japanese, 'kana': reading,
                                 'english': english, 'triggers': keys, 'reading_source': reading_source,
-                                'input_aliases': ALIASES.get(eid, [])})
+                                'pinyin_review': pinyin_review, 'input_aliases': ALIASES.get(eid, [])})
                 stats['included'] += 1
             except ValueError as error:
                 exclusions.append({'id': eid, 'zh_cn': cn[column], 'reason': str(error)})
                 stats['excluded'] += 1
         counts[sheet] = stats
+    stale = sorted(text for _, text in set(overrides) - used)
+    if stale: raise ValueError('读音修订未匹配任何记录：' + '、'.join(stale[:20]))
     for entry in curated['entries']:
         if entry['category'] == 'job':
-            records.append({key: entry[key] for key in ('id', 'zh_cn', 'ja', 'kana', 'english', 'triggers')})
-    manifest = dict(curated['package'], name='FF14 全量名称与定型文', version='0.3.0',
-                    source='固定中日英 Item、PlaceName、Completion 全表按 ID 对齐；保留职业。需晴词 alpha.9+；缺假名仅输出表记，拼音自动生成；覆盖与缺口见 coverage.json。',
+            records.append(dict({key: entry[key] for key in ('id', 'zh_cn', 'ja', 'kana', 'english', 'triggers')},
+                                pinyin_review='curated-0.2.0'))
+    manifest = dict(curated['package'], name='FF14 全量名称与定型文', version=VERSION,
+                    source='固定中日英 Item、PlaceName、Completion 全表按 ID 对齐；保留职业。需晴词 alpha.9+；缺假名仅输出表记；拼音自动生成，部分依基础词库词读音修订（pinyin_review）；覆盖与缺口见 coverage.json。',
                     license='术语及简短定型表达，游戏数据权利归 SQUARE ENIX；无官方背书；来源、版本和排除项见随包记录。')
     lines = ['# ' + manifest['name']]
     for row in records:
@@ -158,13 +171,18 @@ def build(folder, curated_path, output):
         (output / name).write_text(json.dumps(obj, ensure_ascii=False, separators=(',', ':')) + '\n', encoding='utf-8')
     write('manifest.json', manifest)
     package = load_package(output / 'manifest.json')
-    report = {'version': '0.3.0', 'scope': list(SHEETS), 'sources': counts, 'total_records': len(records),
+    review_counts = {}
+    for row in records: review_counts[row['pinyin_review']] = review_counts.get(row['pinyin_review'], 0) + 1
+    report = {'version': VERSION, 'scope': list(SHEETS), 'sources': counts, 'total_records': len(records),
               'trigger_rows': len(package['entries']), 'with_kana': sum(bool(r['kana']) for r in records),
-              'exclusions': exclusions, 'limits': '全量指固定来源三个表的全部非空名称均已处理；缺日文或动态索引排除。非全游戏全部文本。自动拼音可能有多音字误读；无假名不伪造。'}
+              'pinyin_review': dict(sorted(review_counts.items())), 'reading_overrides': len(overrides),
+              'exclusions': exclusions, 'limits': '全量指固定来源三个表的全部非空名称均已处理；缺日文或动态索引排除。非全游戏全部文本。'
+              '自动拼音可能有多音字误读；无假名不伪造。pinyin_review：auto=自动拼音未复核，evidence=依基础词库词读音修订（程序判定，非人工），'
+              'reviewed=人工复核。362 条物品缺口均为国服独有（日英同 ID 整行为空），分类见 DataSources/FF14/item-gaps.tsv，不猜译名。'}
     write('coverage.json', report)
     write('source-checks.json', {'accessed': '2026-11-10', 'sources': sources, 'pypinyin': pinyin_version,
                                'cn_revision': CN_REV, 'ja_en_revision': JP_REV, 'ja_en_version': '7.56'})
-    write('reviewed-source.json', {'format': 'ff14-bulk-audit-v1', 'review': '程序按同表 ID 对齐；未逐项人工审核，非原精选审核格式', 'entries': records})
+    write('reviewed-source.json', {'format': 'ff14-bulk-audit-v1', 'review': '程序按同表 ID 对齐；未逐项人工审核，非原精选审核格式。pinyin_review 标明拼音来源：auto 自动对齐、evidence 基础词库词证据修订、reviewed 人工复核','entries': records})
     print(json.dumps({k: v for k, v in report.items() if k != 'exclusions'}, ensure_ascii=False))
 
 
