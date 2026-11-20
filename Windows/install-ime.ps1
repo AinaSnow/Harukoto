@@ -92,6 +92,12 @@ if ($Register) {
     $packageFiles = @($sourceDll, $sourceLexicon, $sourceJapanese, $sourceEvidence, $renderer) + @($managerFiles)
     $conjugationData = Join-Path $build 'japanese-conjugations.bin'
     if (Test-Path -LiteralPath $conjugationData -PathType Leaf) { $packageFiles += $conjugationData }
+    # Experimental engine programs (WIN-03) are optional payload files; the
+    # input service does not start them yet.
+    foreach ($name in $script:HarukotoEngineHostName, $script:HarukotoEngineOwnerName) {
+        $engineProgram = Join-Path $build $name
+        if (Test-Path -LiteralPath $engineProgram -PathType Leaf) { $packageFiles += $engineProgram }
+    }
     $version = ($packageFiles | ForEach-Object { (Get-FileHash -LiteralPath $_).Hash.Substring(0, 12) }) -join '-'
     $install = Join-Path $env:ProgramFiles "Meowpuut/IME/$version"
     $dll = Join-Path $install 'MeowpuutTip.dll'
@@ -109,6 +115,25 @@ if ($Register) {
         (Start-Process -FilePath "$env:WINDIR/System32/regsvr32.exe" -ArgumentList @('/s','/u', ('"' + $path + '"')) -PassThru -Wait -WindowStyle Hidden).ExitCode
     }
     Invoke-MeowpuutRegistration -Dll $dll -PreviousDll $previousDll -RegisterServer $registerServer -UnregisterServer $unregisterServer -GetRegisteredDll $getRegisteredDll
+    # WIN-03 step 1: approve this version's engine programs only after the new
+    # input service is registered. A failed registration returned above and
+    # left the previous approvals untouched. Typing does not use them yet.
+    $enginePrograms = @(foreach ($name in $script:HarukotoEngineHostName, $script:HarukotoEngineOwnerName) {
+        $engineProgram = Join-Path $install $name
+        if (Test-Path -LiteralPath $engineProgram -PathType Leaf) { $engineProgram }
+    })
+    if ($enginePrograms.Count -eq 2) {
+        try {
+            $release = Publish-HarukotoEngineRelease -VersionDirectory $install -Id $version
+            Write-Host "Engine release approved: $($release.Id), sequence $($release.Sequence)."
+        } catch {
+            Write-Warning "Engine release metadata was not updated; the in-process input path is unaffected. $_"
+        }
+    } elseif ($enginePrograms.Count) {
+        Write-Warning 'Only one engine program is present; engine release metadata unchanged.'
+    } else {
+        Write-Host 'No engine programs in this package; engine release metadata unchanged.'
+    }
     return
 }
 

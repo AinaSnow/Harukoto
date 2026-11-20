@@ -2,6 +2,7 @@ param([switch]$Unregister, [switch]$VerifyOnly)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'PowerShellHost.ps1')
 . (Join-Path $PSScriptRoot 'InputProfile.ps1')
+. (Join-Path $PSScriptRoot 'InstallSupport.ps1')
 $hostPath = Get-MeowpuutPowerShell
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Run this script with PowerShell 7.' }
 if ($VerifyOnly) { Write-Output 'Uninstaller is available.'; return }
@@ -33,6 +34,11 @@ try {
                 }
                 Write-Host 'Machine registration removed. Version files retained for apps that still hold the DLL.'
             }
+            # Version files stay on disk, but no engine remains approved.
+            try {
+                Unpublish-HarukotoEngineRelease
+                Write-Host 'Engine release metadata removed.'
+            } catch { Write-Warning "Engine release metadata could not be removed: $_" }
         } finally { if ($lock) { $lock.Dispose() } }
         return
     }

@@ -126,12 +126,13 @@ CN-01a（完成）→ CN-01d（完成）→ CN-08（完成）→ CN-06a（完成
 
 - WIN-03a：主题、个人表、基础词库整包热更新（alpha.18 至 alpha.22）。
 - WIN-03b 实验层：协议与消息、认证管道、有界执行器、真实查询宿主、所有者进程与 Job 监督、单实例竞争、最多 8 个接入槽及退出监测／撤销／动态补充、只读诊断、部署固定与映像核对、接收方独立核对。
+- 剩余第 1 步：可信发行元数据来源（安装器写 HKLM，接入方只读该处），待安装实测。
 
 ### 剩余任务（按原设计顺序）
 
 | 顺序 | 任务 | 验收条件 |
 | --- | --- | --- |
-| 1 | 可信发行元数据来源 | 明确预期程序路径与哈希由谁写入、存在哪里、谁能修改；接入方只从该来源取得批准值，不从公开诊断或候选自报值取得 |
+| 1（完成，待安装实测） | 可信发行元数据来源 | 明确预期程序路径与哈希由谁写入、存在哪里、谁能修改；接入方只从该来源取得批准值，不从公开诊断或候选自报值取得。已定为提权安装器写入的 HKLM\SOFTWARE\Harukoto\EngineReleases，读取方 EngineRelease.h 严格校验并核对键与版本目录 ACL，失败留在进程内路径，见[可信发行元数据](ENGINE_RELEASE.md)；真实提权写入及低完整性／沙箱读取待安装实测 |
 | 2 | 发现握手 | 普通应用里的接入方能找到本登录会话的引擎并证明其身份；公开控制对象不能仅凭映像校验接入；错误映像、其他用户、远程管道被拒绝。需确认普通权限、管理员权限和沙箱应用三类宿主各自能否完成握手，不能的明确回退方式 |
 | 3 | 竞争失败后的交接 | 单实例竞争失败的一方能安全接到已存在的引擎，不启动第二个、不丢失或重放请求 |
 | 4 | 正式常驻生命周期 | 引擎不随某个启动方退出而被回收；空闲、崩溃、注销时的启动与退出规则明确；崩溃后可恢复且不重放选词 |
@@ -152,7 +153,7 @@ CN-01a（完成）→ CN-01d（完成）→ CN-08（完成）→ CN-06a（完成
 - 接入 TSF 是迄今改动实际输入路径最大的一步，必须保留开关。
 - 进程间往返会给每次按键增加延迟，现有测量为四客户端中位约 1.2 ms、最大约 7.6 ms，但不含 TSF 与渲染，真实体感待测。
 
-入口文档：[热更新计划](HOT_RELOAD.md)、[接收方校验](ENGINE_VERIFIED_PEER.md)、[部署校验](ENGINE_DEPLOYMENT.md)、[只读诊断](ENGINE_DIAGNOSTICS.md)、[动态补充](ENGINE_ADMISSION.md)、[受控接入](ENGINE_REGISTRATION.md)、[单实例范围](ENGINE_INSTANCE.md)、[独立所有者](ENGINE_OWNER.md)、[私有控制](ENGINE_CONTROL.md)、[查询测量](ENGINE_PERFORMANCE.md)、[进程间测量](ENGINE_IPC_PERFORMANCE.md)。
+入口文档：[热更新计划](HOT_RELOAD.md)、[可信发行元数据](ENGINE_RELEASE.md)、[接收方校验](ENGINE_VERIFIED_PEER.md)、[部署校验](ENGINE_DEPLOYMENT.md)、[只读诊断](ENGINE_DIAGNOSTICS.md)、[动态补充](ENGINE_ADMISSION.md)、[受控接入](ENGINE_REGISTRATION.md)、[单实例范围](ENGINE_INSTANCE.md)、[独立所有者](ENGINE_OWNER.md)、[私有控制](ENGINE_CONTROL.md)、[查询测量](ENGINE_PERFORMANCE.md)、[进程间测量](ENGINE_IPC_PERFORMANCE.md)。
 
 ## 阶段三：发布
 

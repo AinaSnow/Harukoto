@@ -1,5 +1,14 @@
 # 开发状态与接手入口
 
+## 2026-11-21 · WIN-03 第 1 步：可信发行元数据来源
+
+- 前置：alpha.29 已打包（f5df2c6，文档 77ce616）。本批未提交、未打包。TSF 与实际输入路径未改动。
+- 决定：信任根为 `HKLM\SOFTWARE\Harukoto\EngineReleases`（64 位视图），每个版本目录一个 REG_MULTI_SZ 值（固定 8 行：format／id／sequence／protocol／host／host-sha256／owner／owner-sha256）。不用版本目录内清单：旧 TIP 找不到新版本，且属于“候选同目录清单”。安装器显式设置键及父键描述符（O:BA，SY／BA 完全控制，BU／AC／LPAC registryRead 只读，不继承）。
+- 读取方 `Windows/EngineRelease.h`：严格解析与上限（≤8 值、单值 ≤8 KiB、路径 ≤1024、固定程序名、目录名等于 id）；键及上级键、版本目录及上级目录须只由 SYSTEM／Administrators／TrustedInstaller 可写（CREATOR OWNER 占位 ACE 忽略，条件 ACE 含写入即拒绝）；单个坏值只排除自己，未知格式跳过；`select` 取协议号相同且 sequence 最大者，并列不批准。Missing／Unprotected／Invalid 一律不批准。
+- 写入方 `InstallSupport.ps1`：`Publish-HarukotoEngineRelease` 在注册成功后从 Program Files 内已复制文件计算哈希，sequence＝最大值＋1，写后读回核对，清理损坏与已删除版本、最多保留 4 个；失败只警告。`Unpublish-HarukotoEngineRelease` 由卸载在注销注册后调用。`package-ime.ps1 -MSVC` 打包 harukoto_engine_host.exe／harukoto_engine_owner.exe；alpha.29 等无引擎程序的包升级时不建键。
+- 测试：新增 CTest `engine_release`（解析、解码边界、SDDL 判定、System32／Program Files／HKLM\SOFTWARE 为受保护而临时目录／HKCU 不受保护、HKCU 测试键上的多版本／损坏／超限／并列／ACL 拒绝）和 `engine_release_install`（PowerShell 写入经 C++ 读取器核对，10 项，只写 HKCU 测试键）。InstallSupportTests.ps1 14 项仍通过。完整构建后 62 项 CTest 在一次运行中全部通过（402.18 秒）。TIP 未改，未复制 DLL。
+- 未做：真实提权安装写 HKLM、低完整性／AppContainer／LPAC 进程读取、管理员宿主——待安装实测。下一步为第 2 步发现握手。
+
 ## 2026-11-21 · alpha.29 试用包
 
 - 版本号升至 0.4.4-alpha.29（f5df2c6），内容为 alpha.28 加常用符号（55e8def）。从干净提交重新生成词库、完整 MSVC Release 构建并复制 DLL 到 ime 目录，60 项 CTest 在一次运行中全部通过（372.77 秒）。
@@ -805,7 +814,8 @@
 | `Windows/compile-lexicon.py` | Windows 增强日语表生成；跨平台三列表保持原格式 |
 | `Windows/tests` | 中文回归、日语候选、词表导入与布局测试 |
 | `Windows/install-ime.ps1`、`package-ime.ps1` | 版本目录安装、注册、设置入口与分发打包 |
-| `Windows/InstallSupport.ps1` | 可测试的注册恢复逻辑与版本文件 SHA-256 校验 |
+| `Windows/InstallSupport.ps1` | 可测试的注册恢复逻辑、版本文件 SHA-256 校验、引擎发行元数据写入／删除 |
+| `Windows/EngineRelease.h` | 读取 HKLM 中安装器批准的引擎路径与哈希（WIN-03 第 1 步），严格校验与 ACL 核对 |
 | `Windows/Setup.cs`、`build-setup.ps1` | 单文件 EXE 安装向导、内置官方 PS7、应用列表卸载入口 |
 | `Windows/uninstall-ime.ps1` | 移除机器注册和当前用户配置，保留词表、版本文件及缓存 |
 | `Windows/CandidateWindow.xaml` | 当前简洁候选外观；旧 GlassPreview.xaml 仅用于独立实验预览 |

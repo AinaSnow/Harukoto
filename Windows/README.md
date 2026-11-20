@@ -112,7 +112,11 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 
 已有版本文件内容相同则复用，不覆盖被应用占用的文件；内容不同则停止。旧版本目录不会自动删除。注册阶段使用文件锁避免并发修改；这不代表完整安装过程具有事务隔离。用户语言配置、快捷方式或渲染器启动发生在机器注册之后，这些后续阶段失败时不会自动回滚注册，可保留日志并重试。注册恢复尚不等于通用卸载或完整系统状态还原。
 
-`InstallSupportTests.ps1` 的 14 项检查使用模拟注册调用和临时文件，覆盖失败恢复、锁定文件与真实入口日志，不修改系统输入法。完整 UAC、TSF 和应用兼容性验收按[Windows 验收记录](../docs/WINDOWS_VALIDATION.md)执行。
+`InstallSupportTests.ps1` 的 14 项检查使用模拟注册调用和临时文件，覆盖失败恢复、锁定文件与真实入口日志，不修改系统输入法。
+
+MSVC 包另含实验引擎程序 `harukoto_engine_host.exe`、`harukoto_engine_owner.exe`，输入法不会启动它们。注册成功后，安装器把这两个文件的路径与 SHA-256 写入 `HKLM\SOFTWARE\Harukoto\EngineReleases`（只有管理员可写），作为日后接入引擎时唯一的批准来源；写入失败只警告，不影响输入。卸载时删除该键。格式与威胁模型见[可信发行元数据](../docs/ENGINE_RELEASE.md)，CTest `engine_release`／`engine_release_install` 只使用 HKCU 测试键。
+
+完整 UAC、TSF 和应用兼容性验收按[Windows 验收记录](../docs/WINDOWS_VALIDATION.md)执行。
 
 开发版支持拼音出日文汉字、英语出片假名、表记与假名分别选词及本地自定义词表导入。包含 41 组基础触发词和十条活用示例；F6 活用面板支持整段显式触发词。敬语、完整日语整句和生词本尚未实现，详见[日语辅助输入与分阶段计划](../docs/JAPANESE_INPUT_ROADMAP.md)。
 

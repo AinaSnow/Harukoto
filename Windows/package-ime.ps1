@@ -43,6 +43,11 @@ try {
         # DICT-02a: read-only candidate diagnostics, run through Explain.cmd.
         Copy-Item -LiteralPath (Join-Path $build 'msvc/Release/harukoto_candidate_explain.exe') -Destination $stage
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Explain.cmd') -Destination $stage
+        # WIN-03: experimental engine programs. The installer only records their
+        # digests (docs/ENGINE_RELEASE.md); the input service does not start them.
+        foreach ($name in 'harukoto_engine_host.exe','harukoto_engine_owner.exe') {
+            Copy-Item -LiteralPath (Join-Path $build "msvc/Release/$name") -Destination $payload
+        }
     }
     Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_dictionary.py') -Destination (Join-Path $stage 'scripts')
     Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_packages.py') -Destination (Join-Path $stage 'scripts')

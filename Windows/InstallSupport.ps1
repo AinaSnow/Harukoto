@@ -58,3 +58,147 @@ function Copy-MeowpuutPayload {
         }
     }
 }
+
+# WIN-03 step 1: approved engine deployments, see docs/ENGINE_RELEASE.md.
+# Only the elevated installer writes this key (64-bit view; the -Register phase
+# requires x64 PowerShell). One REG_MULTI_SZ value per version directory, so
+# each version is published by a single atomic registry write.
+$script:HarukotoEngineReleaseKey = 'HKLM:\SOFTWARE\Harukoto\EngineReleases'
+$script:HarukotoEngineReleaseFormat = 'format=harukoto-engine-release/1'
+# Must equal ProtocolVersion in Windows/EngineProtocol.h (checked by tests).
+$script:HarukotoEngineProtocol = 1
+# Owner Administrators; SYSTEM/Administrators full; users, app containers and
+# the LPAC registryRead capability read only. Not inherited from the parent.
+$script:HarukotoEngineReleaseSddl = 'O:BAD:PAI(A;CI;KA;;;SY)(A;CI;KA;;;BA)(A;CI;KR;;;BU)(A;CI;KR;;;AC)(A;CI;KR;;;S-1-15-3-1024-1065365936-1281604716-3511738428-1654721687-432734479-3232135806-4053264122-3456934681)'
+$script:HarukotoEngineHostName = 'harukoto_engine_host.exe'
+$script:HarukotoEngineOwnerName = 'harukoto_engine_owner.exe'
+
+function Test-HarukotoEngineReleaseId([string]$Id) {
+    return $Id -cmatch '^[0-9A-Za-z][0-9A-Za-z._-]{0,239}$'
+}
+
+function Get-HarukotoEngineReleaseField {
+    param([string[]]$Lines, [Parameter(Mandatory)][string]$Name)
+    foreach ($line in @($Lines)) {
+        if ($line -and $line.StartsWith("$Name=", [StringComparison]::Ordinal)) { return $line.Substring($Name.Length + 1) }
+    }
+    return $null
+}
+
+function Set-HarukotoEngineReleaseSecurity {
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Sddl)
+    if ($Path -notmatch '^(HKLM|HKCU):\\(.+)$') { throw "Unsupported registry path: $Path" }
+    $hive = if ($Matches[1] -eq 'HKLM') { [Microsoft.Win32.RegistryHive]::LocalMachine } else { [Microsoft.Win32.RegistryHive]::CurrentUser }
+    $sections = [Security.AccessControl.AccessControlSections]::Access
+    $rights = [Security.AccessControl.RegistryRights]'ReadKey, ChangePermissions'
+    if ($Sddl.StartsWith('O:', [StringComparison]::Ordinal)) {
+        $sections = $sections -bor [Security.AccessControl.AccessControlSections]::Owner
+        $rights = $rights -bor [Security.AccessControl.RegistryRights]::TakeOwnership
+    }
+    $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hive, [Microsoft.Win32.RegistryView]::Registry64)
+    try {
+        $item = $base.OpenSubKey($Matches[2], [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, $rights)
+        if (!$item) { throw "Registry key not found: $Path" }
+        try {
+            $security = $item.GetAccessControl($sections)
+            $security.SetSecurityDescriptorSddlForm($Sddl, $sections)
+            $item.SetAccessControl($security)
+        } finally { $item.Dispose() }
+    } finally { $base.Dispose() }
+}
+
+function New-HarukotoEngineRelease {
+    param(
+        [Parameter(Mandatory)][string]$Id,
+        [Parameter(Mandatory)][long]$Sequence,
+        [Parameter(Mandatory)][int]$Protocol,
+        [Parameter(Mandatory)][string]$EngineHost,
+        [Parameter(Mandatory)][string]$HostSha256,
+        [Parameter(Mandatory)][string]$Owner,
+        [Parameter(Mandatory)][string]$OwnerSha256
+    )
+    return [string[]]@(
+        $script:HarukotoEngineReleaseFormat, "id=$Id", "sequence=$Sequence", "protocol=$Protocol",
+        "host=$EngineHost", "host-sha256=$HostSha256", "owner=$Owner", "owner-sha256=$OwnerSha256"
+    )
+}
+
+# Publish the engine programs of an installed version directory. Digests are
+# computed from the installed copies, never from the package or a running
+# process. Older versions stay listed for the upgrade window; entries whose
+# programs are gone are pruned, and at most $Limit entries are kept.
+function Publish-HarukotoEngineRelease {
+    param(
+        [Parameter(Mandatory)][string]$VersionDirectory,
+        [Parameter(Mandatory)][string]$Id,
+        [string]$KeyPath = $script:HarukotoEngineReleaseKey,
+        [string]$Sddl = $script:HarukotoEngineReleaseSddl,
+        [int]$Protocol = $script:HarukotoEngineProtocol,
+        [ValidateRange(1, 8)][int]$Limit = 4
+    )
+    if (!(Test-HarukotoEngineReleaseId $Id)) { throw "Invalid engine release id: $Id" }
+    if ($Protocol -lt 1 -or $Protocol -gt 65535) { throw "Invalid engine protocol: $Protocol" }
+    $folder = [IO.Path]::GetFullPath($VersionDirectory).TrimEnd('\')
+    if ((Split-Path $folder -Leaf) -cne $Id) { throw 'The engine release id must name its version directory.' }
+    if ($folder -notmatch '^[A-Za-z]:\\[^\\]') { throw "Engine programs must be on a local drive path: $folder" }
+    if ((Get-Item -LiteralPath $folder -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing a redirected engine directory.' }
+    $files = foreach ($name in $script:HarukotoEngineHostName, $script:HarukotoEngineOwnerName) {
+        $path = Join-Path $folder $name
+        if (!(Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing engine program: $path" }
+        [pscustomobject]@{ Path = $path; Sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() }
+    }
+    if (!(Test-Path -LiteralPath $KeyPath)) {
+        $parent = Split-Path $KeyPath
+        if (!(Test-Path -LiteralPath $parent)) {
+            New-Item -Path $parent -Force | Out-Null
+            Set-HarukotoEngineReleaseSecurity -Path $parent -Sddl $Sddl
+        }
+        New-Item -Path $KeyPath | Out-Null
+    }
+    # Re-apply every time so an earlier, looser descriptor is corrected.
+    Set-HarukotoEngineReleaseSecurity -Path (Split-Path $KeyPath) -Sddl $Sddl
+    Set-HarukotoEngineReleaseSecurity -Path $KeyPath -Sddl $Sddl
+    $key = Get-Item -LiteralPath $KeyPath
+    $existing = @(foreach ($name in $key.GetValueNames()) {
+        $lines = $null
+        if ($key.GetValueKind($name) -eq [Microsoft.Win32.RegistryValueKind]::MultiString) { $lines = [string[]]$key.GetValue($name) }
+        $sequence = Get-HarukotoEngineReleaseField $lines 'sequence'
+        [pscustomobject]@{
+            Name = $name
+            Sequence = if ($sequence -cmatch '^[1-9][0-9]{0,15}$') { [long]$sequence } else { 0L }
+            Host = Get-HarukotoEngineReleaseField $lines 'host'
+        }
+    })
+    $next = 1L
+    foreach ($entry in $existing) { if ($entry.Sequence -ge $next) { $next = $entry.Sequence + 1 } }
+    $lines = New-HarukotoEngineRelease -Id $Id -Sequence $next -Protocol $Protocol -EngineHost $files[0].Path -HostSha256 $files[0].Sha256 -Owner $files[1].Path -OwnerSha256 $files[1].Sha256
+    if ((($lines -join "`0").Length + 2) * 2 -gt 8192) { throw 'Engine release entry exceeds the 8 KiB reader limit.' }
+    New-ItemProperty -LiteralPath $KeyPath -Name $Id -PropertyType MultiString -Value $lines -Force | Out-Null
+    $key = Get-Item -LiteralPath $KeyPath
+    if ($key.GetValueKind($Id) -ne [Microsoft.Win32.RegistryValueKind]::MultiString -or
+        (([string[]]$key.GetValue($Id)) -join "`n") -cne ($lines -join "`n")) {
+        throw 'Engine release entry could not be verified after writing.'
+    }
+    # Prune: malformed entries and versions whose host program is gone, then
+    # the lowest sequences beyond the limit. The new entry is always kept.
+    $kept = [Collections.Generic.List[object]]::new()
+    foreach ($entry in $existing) {
+        if ($entry.Name -ceq $Id) { continue }
+        if ($entry.Sequence -gt 0 -and $entry.Host -and (Test-Path -LiteralPath $entry.Host -PathType Leaf)) { $kept.Add($entry) }
+        else { Remove-ItemProperty -LiteralPath $KeyPath -Name $entry.Name }
+    }
+    $sorted = @($kept | Sort-Object Sequence -Descending)
+    for ($i = $Limit - 1; $i -lt $sorted.Count; $i++) { Remove-ItemProperty -LiteralPath $KeyPath -Name $sorted[$i].Name }
+    return [pscustomobject]@{ Id = $Id; Sequence = $next; Host = $files[0]; Owner = $files[1] }
+}
+
+# Uninstall: no engine stays approved once the input service is removed.
+function Unpublish-HarukotoEngineRelease {
+    param([string]$KeyPath = $script:HarukotoEngineReleaseKey)
+    if (Test-Path -LiteralPath $KeyPath) { Remove-Item -LiteralPath $KeyPath -Recurse }
+    $parent = Split-Path $KeyPath
+    if ((Test-Path -LiteralPath $parent)) {
+        $item = Get-Item -LiteralPath $parent
+        if ($item.SubKeyCount -eq 0 -and $item.ValueCount -eq 0) { Remove-Item -LiteralPath $parent }
+    }
+}
