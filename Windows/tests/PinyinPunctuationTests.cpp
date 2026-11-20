@@ -113,6 +113,19 @@ int main() {
     for (unsigned int key : {0x0du, 0x08u, 0x25u, 0x09u, 0x70u}) assert(!pinyinLiteral(key, false) && !pinyinLiteral(key, true));
     assert(!pinyinAsciiPunctuation('A') && !pinyinAsciiPunctuation(0x20));
 
+    // Batch 4: [ ] pick a character only while composing and without Shift.
+    assert(pinyinWordCharacterKey(0xdb, false, true) && pinyinWordCharacterKey(0xdd, false, true));
+    assert(!pinyinWordCharacterKey(0xdb, false, false) && !pinyinWordCharacterKey(0xdd, true, true));
+    assert(!pinyinWordCharacterKey(0xdc, false, true) && !pinyinWordCharacterKey(0xbd, false, true));
+    assert(pinyinWordCharacter("中国人", false) == "中" && pinyinWordCharacter("中国人", true) == "人");
+    assert(pinyinWordCharacter("好", false) == "好" && pinyinWordCharacter("好", true) == "好");
+    assert(pinyinWordCharacter("", false).empty() && pinyinWordCharacter("", true).empty());
+    assert(pinyinWordCharacter("ab", false) == "a" && pinyinWordCharacter("ab", true) == "b");
+    // Four-byte UTF-8 (a surrogate pair in UTF-16) stays whole at either end.
+    const std::string astral = "\xf0\xaa\x9a\xa5", dragon = "\xe9\xbe\x98"; // U+2A6A5, U+9F98
+    assert(pinyinWordCharacter(astral + dragon, false) == astral && pinyinWordCharacter(dragon + astral, true) == astral);
+    assert(pinyinWordCharacter(astral, false) == astral && pinyinWordCharacter(astral, true) == astral);
+
     // Batch 3: - and = page only while composing and without Shift.
     assert(pinyinPagingKey(0xbd, false, true) && pinyinPagingKey(0xbb, false, true));
     assert(!pinyinPagingKey(0xbd, false, false) && !pinyinPagingKey(0xbb, false, false));

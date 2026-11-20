@@ -792,6 +792,123 @@ struct ServiceFocusTest {
         RegCloseKey(root);
         assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
     }
+
+    // CN-07 batch 4 through the real key callbacks: [ and ] commit the first
+    // and last character of the highlighted candidate, the rest of the
+    // reading keeps composing, nothing is learned, and idle, English mode,
+    // Shift and non-Chinese candidates keep their own behaviour.
+    static void wordCharacters(const std::filesystem::path &folder) {
+        const std::wstring path = L"Software\\HarukotoWordCharacterService-" + std::to_wstring(GetCurrentProcessId());
+        HKEY root = nullptr;
+        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        const auto memoryPath = folder / (L"service-pick-" + std::to_wstring(GetCurrentProcessId()) + L".tsv");
+        RecordingContext context;
+        {
+            Service service;
+            service.preferenceRoot = root;
+            const std::string data = "MEOWPUUT-PINYIN-1\n"
+                "guo\tguo2\t國\t国\t8000\n"
+                "hehe\the1he1\t\xf0\xaa\x9a\xa5\xe9\xbe\x98\t\xf0\xaa\x9a\xa5\xe9\xbe\x98\t9000\n"
+                "ren\tren2\t人\t人\t9000\n"
+                "zhong\tzhong1\t中\t中\t9000\n"
+                "zhongguo\tzhong1guo2\t中國\t中国\t10000\n";
+            service.lexicon = mpn_lexicon_create(data.data(), data.size());
+            service.session = mpn_session_create(service.lexicon);
+            assert(service.lexicon && service.session);
+            mpn_set_simplified(service.session, service.simplified);
+            std::filesystem::remove(memoryPath);
+            service.memory = std::make_unique<selection_memory::Store>(memoryPath);
+            std::filesystem::remove(service.memory->wordsFile());
+            const auto press = [&](WPARAM key) {
+                BOOL tested = FALSE, eaten = FALSE;
+                assert(service.OnTestKeyDown(&context, key, 0, &tested) == S_OK);
+                context.text.clear();
+                assert(service.OnKeyDown(&context, key, 0, &eaten) == S_OK);
+                assert(tested == eaten);
+                return std::make_pair(eaten != FALSE, context.text);
+            };
+            const auto compose = [&](const char *keys) {
+                for (const char *c = keys; *c; ++c) assert(mpn_key(service.session, *c));
+                service.refreshCandidates();
+            };
+            // Highlights a core candidate, on a later page if need be.
+            const auto highlight = [&](const std::string &text) {
+                for (int pass = 0; pass < 4; ++pass) {
+                    for (size_t i = 0; i < service.choices.size(); ++i)
+                        if (service.choices[i].text == text && service.choices[i].coreIndex) {
+                            service.page = i / pageSize; service.highlighted = i % pageSize;
+                            return true;
+                        }
+                    service.expandCandidates();
+                }
+                return false;
+            };
+            using Result = std::pair<bool, std::wstring>;
+            hold({});
+            // Idle: 「」 as before (this also makes the context active).
+            assert(press(VK_OEM_4) == Result(true, L"「") && press(VK_OEM_6) == Result(true, L"」"));
+            // First and last character of the highlighted word.
+            compose("zhongguo");
+            assert(service.choices.front().text == "中国");
+            assert(press(VK_OEM_4) == Result(true, L"中") && !*mpn_input(service.session) && service.choices.empty());
+            compose("zhongguo");
+            assert(press(VK_OEM_6) == Result(true, L"国") && !*mpn_input(service.session));
+            // The highlighted one, not the first.
+            compose("zhongguo");
+            assert(highlight("中"));
+            assert(press(VK_OEM_6) == Result(true, L"中") && std::string(mpn_input(service.session)) == "guo");
+            assert(service.chineseLocked && !service.choices.empty());
+            assert(press('1') == Result(true, L"国") && !*mpn_input(service.session));
+            // A word that covers part of the reading: the rest keeps composing.
+            mpn_set_segment_context(service.session, nullptr); // a fresh document position
+            compose("zhongguoren");
+            assert(highlight("中国"));
+            assert(press(VK_OEM_6) == Result(true, L"国") && std::string(mpn_input(service.session)) == "ren");
+            const std::string ranked = mpn_segment_context(service.session); // ranked after the character
+            assert(ranked == "國"); // not 中國, the whole word
+            assert(press('1') == Result(true, L"人"));
+            // Characters outside the BMP stay whole (a UTF-16 surrogate pair).
+            compose("hehe");
+            assert(press(VK_OEM_4) == Result(true, L"\U0002A6A5"));
+            compose("hehe");
+            assert(press(VK_OEM_6) == Result(true, L"龘"));
+            // Nothing learned, with selection memory on.
+            service.memoryEnabled = true;
+            compose("zhongguo");
+            assert(highlight("中"));
+            assert(press(VK_OEM_4) == Result(true, L"中"));
+            mpn_clear(service.session); service.resetCandidates();
+            assert(service.memory->recall("zhongguo", true).empty() && service.memory->recall("zhong", true).empty());
+            assert(service.memory->words().bonus("zhong", "中", true, selection_memory::currentHour()) == 0);
+            assert(service.memory->words().bonus("zhongguo", "中国", true, selection_memory::currentHour()) == 0);
+            // A Japanese (non-core) candidate highlighted: taken, nothing happens.
+            compose("zhongguo");
+            WindowsCandidate japanese{"中国語", std::nullopt};
+            japanese.japanese = true;
+            service.choices.insert(service.choices.begin(), japanese);
+            service.highlighted = 0;
+            assert(press(VK_OEM_4) == Result(true, L"") && press(VK_OEM_6) == Result(true, L""));
+            assert(std::string(mpn_input(service.session)) == "zhongguo");
+            mpn_clear(service.session); service.resetCandidates();
+            // Shift+[ ] while composing: 『』 after the highlighted candidate, as in batch 1.
+            compose("zhongguo");
+            hold({VK_SHIFT});
+            assert(press(VK_OEM_4) == Result(true, L"中国『"));
+            assert(press(VK_OEM_6) == Result(true, L"』"));
+            hold({});
+            // English mode: the host's.
+            service.setMode(false);
+            assert(press(VK_OEM_4) == Result(false, L"") && press(VK_OEM_6) == Result(false, L""));
+            service.setMode(true);
+            const auto words = service.memory->wordsFile();
+            service.memory.reset();
+            std::filesystem::remove(memoryPath); std::filesystem::remove(words);
+            service.Deactivate();
+        }
+        assert(context.refs == 1);
+        RegCloseKey(root);
+        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+    }
 };
 }
 int wmain(int argc, wchar_t **argv) {
@@ -803,5 +920,6 @@ int wmain(int argc, wchar_t **argv) {
     ServiceFocusTest::punctuation();
     ServiceFocusTest::inputMode();
     ServiceFocusTest::paging();
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode and -/= paging\n";
+    ServiceFocusTest::wordCharacters(argv[1]);
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode, -/= paging and [ ] character picking\n";
 }

@@ -529,12 +529,15 @@ public:
             }
             const bool toggle = chineseMode && punctuationToggle(key);
             const bool shift = GetKeyState(VK_SHIFT) < 0;
-            PinyinMark mark = toggle || !chineseMode ? PinyinMark::none
+            // CN-07 batch 4: [ ] pick a character (以词定字) while composing.
+            const bool wordKey = chineseMode && !toggle
+                && pinyinWordCharacterKey(static_cast<unsigned int>(key), shift, *mpn_input(session) != '\0');
+            PinyinMark mark = toggle || !chineseMode || wordKey ? PinyinMark::none
                 : pinyinMarkKind(static_cast<unsigned int>(key), shift, englishPunctuation, *mpn_input(session) != '\0');
             // Punctuation otherwise left to the host reaches here only when
             // accepts() kept it behind a pending insertion (which pump() above
             // may have delivered since): type it literally, in order.
-            if (chineseMode && mark == PinyinMark::none && !toggle && !shift && !*mpn_input(session)
+            if (chineseMode && !wordKey && mark == PinyinMark::none && !toggle && !shift && !*mpn_input(session)
                 && pinyinAsciiPunctuation(static_cast<unsigned int>(key)))
                 mark = PinyinMark::literal;
             // Editing returns to normal composition before handling the key.
@@ -581,6 +584,13 @@ public:
                 // English mode takes a key only to keep it behind a pending
                 // insertion (accepts()); it is typed as the host would.
                 if (const wchar_t literal = pinyinLiteral(static_cast<unsigned int>(key), shift)) text = literal;
+                *eaten = TRUE;
+            } else if (wordKey) {
+                // Only for a core (Chinese) candidate in the normal list; with
+                // a Japanese, English or F6 form highlighted, or no candidate,
+                // the key is taken and does nothing.
+                if (!conjugationPanel.active() && count)
+                    pickCharacter(start + (std::min)(highlighted, count - 1), key == VK_OEM_6, text);
                 *eaten = TRUE;
             } else if (mark != PinyinMark::none) {
                 finishCandidateText(text, start + highlighted);
@@ -1182,6 +1192,30 @@ private:
         }
         if (memoryEnabled && learn && !form && consumed && consumed <= input.size()) remember(input, consumed, chosen, words);
         else { composedReading.clear(); composedText.clear(); composedSegments = 0; }
+        return true;
+    }
+
+    // CN-07 batch 4, 以词定字: the candidate consumes the same keys as when
+    // chosen (the rest of the reading stays in composition), but only its
+    // first or last character is committed. Mainstream behaviour; mapping a
+    // single character back to its own syllables is not available from the
+    // core. Like an F6 form it is not learned: neither selection memory
+    // (CN-06a) nor word frequency (CN-06c) records it, because the reading
+    // and the committed text no longer correspond. The next segment is
+    // ranked after the character, not the whole word.
+    bool pickCharacter(size_t index, bool last, std::wstring &text) {
+        if (index >= candidateCount() || !choices[index].coreIndex) return false;
+        const std::string context = mpn_segment_context(session);
+        const size_t before = std::string(mpn_committed(session)).size();
+        if (!mpn_choose(session, *choices[index].coreIndex)) return false;
+        const std::string committed = mpn_committed(session);
+        const std::string character = pinyinWordCharacter(committed.substr((std::min)(before, committed.size())), last);
+        text += wide(committed.substr(0, (std::min)(before, committed.size())).c_str()) + wide(character.c_str());
+        mpn_clear_commit(session);
+        chineseLocked = *mpn_input(session) != '\0';
+        if (chineseLocked) mpn_set_segment_context(session, (context + character).c_str());
+        composedReading.clear(); composedText.clear(); composedSegments = 0;
+        refreshCandidates();
         return true;
     }
 

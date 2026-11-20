@@ -136,6 +136,29 @@ constexpr bool pinyinPagingKey(unsigned int key, bool shift, bool composing) {
     return composing && !shift && (key == 0xbd || key == 0xbb); // VK_OEM_MINUS, VK_OEM_PLUS
 }
 
+// CN-07 batch 4, 以词定字: while composing, [ and ] commit the first and the
+// last character of the highlighted candidate. Idle they stay 「」, and
+// Shift+[ ] stay 『』.
+constexpr bool pinyinWordCharacterKey(unsigned int key, bool shift, bool composing) {
+    return composing && !shift && (key == 0xdb || key == 0xdd); // VK_OEM_4, VK_OEM_6
+}
+
+// The first or last code point of UTF-8 text (one to four bytes, so
+// characters outside the BMP stay whole). Empty for empty text.
+inline std::string pinyinWordCharacter(const std::string &text, bool last) {
+    if (text.empty()) return {};
+    const auto continuation = [&](size_t i) { return (static_cast<unsigned char>(text[i]) & 0xc0) == 0x80; };
+    size_t begin = 0, end = 1;
+    if (last) {
+        end = text.size();
+        begin = end - 1;
+        while (begin > 0 && continuation(begin)) --begin;
+    } else {
+        while (end < text.size() && continuation(end)) ++end;
+    }
+    return text.substr(begin, end - begin);
+}
+
 // The other digits remain literal input when no corresponding candidate is
 // displayed, rather than reaching the editor ahead of an active composition.
 constexpr bool pinyinDigitSelects(unsigned int key, std::size_t start, std::size_t count) {
