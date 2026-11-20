@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../Core/MeowpuutCore.h"
+#include "QuickInput.h"
 #include <algorithm>
 #include <cstdlib>
 #include <istream>
@@ -118,7 +119,41 @@ struct WindowsCandidate {
     bool strong = false;
     std::string annotation;
     bool directJapanese = false; // Explicit bridge choices stay visible when collapsed.
+    bool generated = false;      // CN-07 batch 6: a number, date or time; never learned.
 };
+
+// CN-07 batch 6: the generated candidates of the merge layer. In number
+// mode (v then digits, kept by the host beside the core's "v") they are the
+// whole list, followed by what was typed; for an exact vrq / vsj / vxq they
+// come first and the ordinary candidates follow. Nothing else changes, so
+// a-z input other than the three triggers is ranked exactly as before.
+inline std::vector<WindowsCandidate> quickCandidates(const std::string &input, const std::string &number, const quick_input::Moment &now) {
+    std::vector<WindowsCandidate> result;
+    const auto items = !number.empty() && input == "v" ? quick_input::numberCandidates(number)
+        : number.empty() && quick_input::trigger(input) ? quick_input::dateCandidates(input, now) : std::vector<quick_input::Item>{};
+    for (const auto &item : items) {
+        WindowsCandidate candidate{item.text, {}};
+        candidate.annotation = item.label;
+        candidate.generated = true;
+        result.push_back(std::move(candidate));
+    }
+    if (!number.empty() && input == "v") {
+        WindowsCandidate raw{input + number, {}};
+        raw.annotation = "原样";
+        raw.generated = true;
+        result.push_back(std::move(raw));
+    }
+    return result;
+}
+
+inline void mergeQuickCandidates(std::vector<WindowsCandidate> &choices, std::vector<WindowsCandidate> quick) {
+    if (quick.empty()) return;
+    // A generated text the list already has keeps only its first place.
+    choices.erase(std::remove_if(choices.begin(), choices.end(), [&](const WindowsCandidate &c) {
+        return std::any_of(quick.begin(), quick.end(), [&](const WindowsCandidate &q) { return q.text == c.text && !c.coreIndex; });
+    }), choices.end());
+    choices.insert(choices.begin(), std::make_move_iterator(quick.begin()), std::make_move_iterator(quick.end()));
+}
 
 // CN-05: the label shown on the reading line of a core candidate that rests
 // on a typo correction (mpn_candidate_typo: in-sentence and whole-input

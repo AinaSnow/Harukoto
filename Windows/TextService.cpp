@@ -527,6 +527,34 @@ public:
                 englishPunctuation = !englishPunctuation;
                 if (button) button->changed();
             }
+            std::wstring text;
+            // CN-07 batch 6, number mode: digits (and one decimal point) typed
+            // after a lone "v" are kept here beside the core's "v" and offered
+            // as Chinese numerals, capitals, amounts. Space or Enter commits
+            // the highlighted form, Backspace removes a digit, Esc cancels;
+            // punctuation commits it and is typed after it as usual; a letter,
+            // ' [ or ] commits it and then starts again as if idle.
+            bool numberDone = false;
+            if (chineseMode && GetKeyState(VK_SHIFT) >= 0 && GetKeyState(VK_CONTROL) >= 0) {
+                const char typed = key >= '0' && key <= '9' ? static_cast<char>(key) : key == VK_OEM_PERIOD ? '.' : '\0';
+                const bool numbering = !numberInput.empty();
+                if (typed && std::string(mpn_input(session)) == "v" && (numbering || typed != '.')) {
+                    // Past the limit or a second point: taken and ignored.
+                    if (quick_input::accepts(numberInput, typed)) { numberInput += typed; refreshCandidates(); }
+                    numberDone = true;
+                } else if (numbering && key == VK_BACK) {
+                    numberInput.pop_back();
+                    refreshCandidates();
+                    numberDone = true;
+                } else if (numbering && key == VK_SPACE) {
+                    chooseCandidate(page * pageSize + highlighted, text);
+                    refreshCandidates();
+                    numberDone = true;
+                } else if (numbering && ((key >= 'A' && key <= 'Z') || key == VK_OEM_7 || key == VK_OEM_4 || key == VK_OEM_6)) {
+                    chooseCandidate(page * pageSize + highlighted, text);
+                    refreshCandidates();
+                }
+            }
             const bool toggle = chineseMode && punctuationToggle(key);
             const bool shift = GetKeyState(VK_SHIFT) < 0;
             // CN-07 batch 4: [ ] pick a character (以词定字) while composing.
@@ -548,8 +576,9 @@ public:
             const size_t start = page * pageSize;
             const size_t total = candidateCount();
             const size_t count = total > start ? (std::min)(pageSize, total - start) : 0;
-            std::wstring text;
-            if (key == VK_F6 || (conjugationPanel.active() && (key == VK_ESCAPE || key == VK_BACK))) {
+            if (numberDone) {
+                *eaten = TRUE;
+            } else if (key == VK_F6 || (conjugationPanel.active() && (key == VK_ESCAPE || key == VK_BACK))) {
                 if (!(static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30))) {
                     if (conjugationPanel.active()) conjugationPanel.close(choices, page, highlighted, expanded);
                     else conjugationPanel.open(currentConjugations(), choices, mpn_input(session), page, highlighted, expanded);
@@ -1100,6 +1129,7 @@ private:
     }
 
     void resetCandidates() {
+        numberInput.clear();
         composedReading.clear(); composedText.clear(); composedSegments = 0;
         conjugationPanel.clear();
         choices.clear();
@@ -1130,6 +1160,11 @@ private:
             resetCandidates();
             return;
         }
+        // CN-07 batch 6: in number mode the generated forms are the list.
+        if (!numberInput.empty()) {
+            choices = quickCandidates(mpn_input(session), numberInput, clock());
+            return;
+        }
         choices = windowsCandidates(session, japaneseWords, [&](const std::string &input) {
             return currentEvidence().dictionary(input, simplified);
         }, chineseLocked);
@@ -1140,6 +1175,8 @@ private:
                 return c.coreIndex ? mpn_candidate_consumed(session, *c.coreIndex) : input.size();
             });
         }
+        // vrq / vsj / vxq: the date, time or weekday first.
+        mergeQuickCandidates(choices, quickCandidates(mpn_input(session), {}, clock()));
     }
 
     size_t candidateCount() const { return choices.size(); }
@@ -1175,6 +1212,15 @@ private:
         }
     }
 
+    // The reading as shown: the core's, then any number typed after the v.
+    std::wstring preeditText() const { return wide(mpn_preedit(session)) + std::wstring(numberInput.begin(), numberInput.end()); }
+
+    static quick_input::Moment localMoment() {
+        SYSTEMTIME now{};
+        GetLocalTime(&now);
+        return {now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond};
+    }
+
     std::wstring candidateText(size_t index) const { return wide(choices[index].text.c_str()); }
 
     std::wstring candidateReading(size_t index) const {
@@ -1193,7 +1239,9 @@ private:
         if (index >= candidateCount()) return false;
         const std::string input = mpn_input(session), chosen = choices[index].text;
         const size_t consumed = choices[index].coreIndex ? mpn_candidate_consumed(session, *choices[index].coreIndex) : input.size();
-        const bool form = conjugationPanel.active(); // A conjugated form is not a reading of the input.
+        // A conjugated form is not a reading of the input, nor is a generated
+        // number or date (CN-07 batch 6): neither is learned.
+        const bool form = conjugationPanel.active() || choices[index].generated;
         // CN-06c: the dictionary words making up a core candidate, read
         // before mpn_choose replaces the candidate list. Japanese, English
         // and other non-core candidates are not learned word by word.
@@ -1475,7 +1523,7 @@ private:
             if (popup) ShowWindow(popup, SW_HIDE);
             return;
         }
-        auto display = wide(mpn_preedit(session)) + (simplified ? L"  简" : L"  繁") + (englishPunctuation ? L" · 英文标点" : L"") + (notice.empty() ? L"" : L" · " + notice);
+        auto display = preeditText() + (simplified ? L"  简" : L"  繁") + (englishPunctuation ? L" · 英文标点" : L"") + (notice.empty() ? L"" : L" · " + notice);
         const bool canConjugate = !conjugationPanel.active() && page * pageSize + highlighted < choices.size() &&
             conjugationFor(currentConjugations(), choices[page * pageSize + highlighted], mpn_input(session));
         const std::wstring conjugationHint = conjugationPanel.active() ? L"  活用 · F6/Esc 返回" : canConjugate ? L"  F6 活用" : L"";
@@ -1515,7 +1563,7 @@ private:
                 anchor.y = (std::max)(work.top, anchor.y - 155);
         }
         auto payload = std::to_wstring(anchor.x) + L"\n" + std::to_wstring(anchor.y + 7) + L"\n"
-            + wide(mpn_preedit(session)) + L"\t" + std::to_wstring(highlighted);
+            + preeditText() + L"\t" + std::to_wstring(highlighted);
         const size_t pageCount = (candidateCount() + pageSize - 1) / pageSize;
         payload += simplified ? L"\t简" : L"\t繁";
         if (englishPunctuation) payload += L" · 英文标点";
@@ -1585,6 +1633,10 @@ private:
     HKEY preferenceRoot = HKEY_CURRENT_USER;
     // CN-07 batch 5: shown in the candidate window's status until the next key.
     std::wstring notice;
+    // CN-07 batch 6: digits typed after a lone "v" (number mode), and the
+    // clock for dates (tests set a fixed one).
+    std::string numberInput;
+    quick_input::Moment (*clock)() = &Service::localMoment;
     // CN-07 batch 2: input mode, Shift tap, open/close compartment, taskbar item, hint timer.
     bool chineseMode = true;
     ShiftTap shiftTap;

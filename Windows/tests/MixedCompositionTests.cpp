@@ -1092,7 +1092,51 @@ static void verifyTypoCorrection() {
     mpn_lexicon_destroy(lexicon);
 }
 
+// CN-07 batch 6: generated numbers and dates in the merge layer.
+static void verifyQuickCandidates() {
+    const std::string data = "MEOWPUUT-PINYIN-2\n"
+        "qun\tqun2\t群\t群\t7000\t7000\nren\tren2\t人\t人\t8000\t8000\nrenqun\tren2qun2\t人群\t人群\t9000\t9000\n";
+    auto *lexicon = mpn_lexicon_create(data.data(), data.size());
+    auto *session = mpn_session_create(lexicon);
+    assert(lexicon && session);
+    const auto lookup = [](const std::string &) { return ChineseEvidence{}; };
+    const quick_input::Moment now{2026, 11, 20, 14, 30, 5};
+    const auto list = [&](const char *keys) {
+        mpn_clear(session);
+        for (const char *c = keys; *c; ++c) assert(mpn_key(session, *c));
+        return windowsCandidates(session, {}, lookup, false);
+    };
+    // Not a trigger: nothing generated, the list is untouched.
+    for (const char *keys : {"rq", "renqun", "v", "vr", "vrqa"}) {
+        auto choices = list(keys), merged = choices;
+        assert(quickCandidates(keys, {}, now).empty());
+        mergeQuickCandidates(merged, quickCandidates(keys, {}, now));
+        assert(merged.size() == choices.size());
+        for (size_t i = 0; i < merged.size(); ++i) assert(merged[i].text == choices[i].text && !merged[i].generated);
+    }
+    // vrq: the dates first, generated, then the ordinary list in its order.
+    auto choices = list("vrq");
+    auto merged = choices;
+    mergeQuickCandidates(merged, quickCandidates("vrq", {}, now));
+    assert(merged.size() == choices.size() + 6 && merged[0].text == "2026年11月20日" && merged[0].annotation == "日期");
+    for (size_t i = 0; i < 6; ++i) assert(merged[i].generated && !merged[i].coreIndex);
+    for (size_t i = 0; i < choices.size(); ++i) assert(merged[6 + i].text == choices[i].text && !merged[6 + i].generated);
+    // A generated text the list already had as a non-core entry is not repeated.
+    std::vector<WindowsCandidate> duplicate{{"14:30", std::nullopt}, {"x", std::nullopt}};
+    mergeQuickCandidates(duplicate, quickCandidates("vsj", {}, now));
+    assert(std::count_if(duplicate.begin(), duplicate.end(), [](const auto &c) { return c.text == "14:30"; }) == 1);
+    assert(duplicate.front().text == "14:30" && duplicate.front().generated && duplicate.back().text == "x");
+    // Number mode: the forms, then what was typed; only after a lone v.
+    const auto numbers = quickCandidates("v", "123", now);
+    assert(numbers.size() == 6 && numbers.front().text == "一百二十三" && numbers.back().text == "v123" && numbers.back().annotation == "原样");
+    assert(std::all_of(numbers.begin(), numbers.end(), [](const auto &c) { return c.generated && !c.coreIndex; }));
+    assert(quickCandidates("vr", "123", now).empty() && quickCandidates("v", {}, now).empty());
+    mpn_session_destroy(session);
+    mpn_lexicon_destroy(lexicon);
+}
+
 int main(int argc, char **argv) {
+    verifyQuickCandidates();
     verifyTypoCorrection();
     verifyAbbreviatedPinyin();
     verifyFuzzyPinyin();

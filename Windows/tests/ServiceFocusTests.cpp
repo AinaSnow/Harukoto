@@ -1042,6 +1042,111 @@ struct ServiceFocusTest {
         RegCloseKey(root);
         assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
     }
+
+    // CN-07 batch 6 through the real key callbacks: v then digits offers
+    // numerals, capitals and amounts; vrq / vsj / vxq the date, time and
+    // weekday from the (fixed) clock; nothing generated is learned.
+    static void quickInput(const std::filesystem::path &folder) {
+        const std::wstring path = L"Software\\HarukotoQuickInputService-" + std::to_wstring(GetCurrentProcessId());
+        HKEY root = nullptr;
+        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        const auto memoryPath = folder / (L"service-quick-" + std::to_wstring(GetCurrentProcessId()) + L".tsv");
+        RecordingContext context;
+        {
+            Service service;
+            service.preferenceRoot = root; // selection memory on, Chinese punctuation
+            service.clock = [] { return quick_input::Moment{2026, 11, 20, 14, 30, 5}; };
+            const std::string data = "MEOWPUUT-PINYIN-1\nni\tni3\t你\t你\t9000\n";
+            service.lexicon = mpn_lexicon_create(data.data(), data.size());
+            service.session = mpn_session_create(service.lexicon);
+            assert(service.lexicon && service.session);
+            std::filesystem::remove(memoryPath);
+            service.memory = std::make_unique<selection_memory::Store>(memoryPath);
+            const auto words = service.memory->wordsFile();
+            std::filesystem::remove(words);
+            const auto press = [&](WPARAM key) {
+                BOOL tested = FALSE, eaten = FALSE;
+                assert(service.OnTestKeyDown(&context, key, 0, &tested) == S_OK);
+                context.text.clear();
+                assert(service.OnKeyDown(&context, key, 0, &eaten) == S_OK);
+                assert(tested == eaten);
+                return std::make_pair(eaten != FALSE, context.text);
+            };
+            const auto type = [&](const char *keys) {
+                for (const char *c = keys; *c; ++c) {
+                    const WPARAM key = *c >= 'a' && *c <= 'z' ? WPARAM(*c - 'a' + 'A') : *c == '.' ? WPARAM(VK_OEM_PERIOD) : WPARAM(*c);
+                    assert(press(key) == std::make_pair(true, std::wstring()));
+                }
+            };
+            using Result = std::pair<bool, std::wstring>;
+            hold({});
+            assert(press(VK_OEM_COMMA) == Result(true, L"，") && service.memoryEnabled);
+            // v123: the forms of the number; Space commits the highlighted one.
+            type("v123");
+            assert(service.numberInput == "123" && std::string(mpn_input(service.session)) == "v" && service.preeditText() == L"v123");
+            assert(service.choices.front().text == "一百二十三" && service.choices.front().generated);
+            assert(service.choices[1].text == "壹佰贰拾叁" && service.choices[2].text == "壹佰贰拾叁元整" && service.choices.back().text == "v123");
+            assert(service.candidateReading(1) == L"大写");
+            assert(press(VK_SPACE) == Result(true, L"一百二十三") && !*mpn_input(service.session) && service.numberInput.empty());
+            // An amount with a decimal; a second point is ignored; Enter commits the highlighted form.
+            type("v100.5.");
+            assert(service.numberInput == "100.5");
+            service.highlighted = 2;
+            assert(service.choices[2].text == "壹佰元伍角整" && press(VK_RETURN) == Result(true, L"壹佰元伍角整"));
+            // Digits extend the number, so arrows (or Tab) choose among the forms.
+            type("v8");
+            assert(press(VK_RIGHT).first && service.highlighted == 1 && press(VK_RETURN) == Result(true, L"捌"));
+            // Backspace removes digits, then the v as usual; Esc cancels.
+            type("v12");
+            assert(press(VK_BACK) == Result(true, L"") && service.numberInput == "1" && service.choices.front().text == "一");
+            assert(press(VK_BACK) == Result(true, L"") && service.numberInput.empty() && std::string(mpn_input(service.session)) == "v");
+            assert(!service.choices.empty() && std::none_of(service.choices.begin(), service.choices.end(), [](const auto &c) { return c.generated; }));
+            assert(press(VK_BACK) == Result(true, L"") && !*mpn_input(service.session));
+            type("v9");
+            assert(press(VK_ESCAPE) == Result(true, L"") && !*mpn_input(service.session) && service.numberInput.empty());
+            // Punctuation commits the form and follows it; a letter, [ commit it and start again.
+            type("v123");
+            assert(press(VK_OEM_COMMA) == Result(true, L"一百二十三，"));
+            type("v12");
+            assert(press('N') == Result(true, L"十二") && std::string(mpn_input(service.session)) == "n");
+            assert(press('I') == Result(true, L"") && press(VK_SPACE) == Result(true, L"ni "));
+            type("v5");
+            assert(press(VK_OEM_4) == Result(true, L"五「"));
+            type("v5");
+            hold({VK_SHIFT});
+            assert(press('1') == Result(true, L"五！"));
+            hold({});
+            // At most MaxNumber digits.
+            type("v");
+            for (size_t i = 0; i < quick_input::MaxNumber + 3; ++i) assert(press('9') == Result(true, L""));
+            assert(service.numberInput.size() == quick_input::MaxNumber);
+            assert(press(VK_ESCAPE).first);
+            // Dates, times and weekdays from the clock, first in the list; the ordinary list follows.
+            type("vrq");
+            assert(service.choices.front().text == "2026年11月20日" && service.choices[1].text == "2026-11-20" && service.numberInput.empty());
+            assert(press(VK_RETURN) == Result(true, L"2026年11月20日"));
+            type("vsj");
+            assert(press('3') == Result(true, L"下午2点30分"));
+            type("vxq");
+            assert(press(VK_SPACE) == Result(true, L"vxq ")); // Space keeps its raw-letters meaning outside number mode
+            type("vxq");
+            assert(service.choices.front().text == "星期五" && press('1') == Result(true, L"星期五"));
+            // Nothing generated was learned.
+            service.memory->flush();
+            for (const char *reading : {"v", "vrq", "vsj", "vxq"}) assert(service.memory->recall(reading, true).empty());
+            assert(service.memory->words().size() == 0);
+            // English mode: the host's.
+            service.setMode(false);
+            assert(press('V') == Result(false, L"") && press('1') == Result(false, L""));
+            service.setMode(true);
+            service.memory.reset();
+            std::filesystem::remove(memoryPath); std::filesystem::remove(words);
+            service.Deactivate();
+        }
+        assert(context.refs == 1);
+        RegCloseKey(root);
+        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+    }
 };
 }
 int wmain(int argc, wchar_t **argv) {
@@ -1055,5 +1160,6 @@ int wmain(int argc, wchar_t **argv) {
     ServiceFocusTest::paging();
     ServiceFocusTest::wordCharacters(argv[1]);
     ServiceFocusTest::forgetting(argv[1]);
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode, -/= paging, [ ] character picking and forgetting\n";
+    ServiceFocusTest::quickInput(argv[1]);
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode, -/= paging, [ ] character picking, forgetting, numbers and dates\n";
 }
