@@ -87,9 +87,24 @@ public:
         for (auto &item : ranked) result.push_back(std::move(item.first));
         return result;
     }
+    // CN-07 batch 5: the user forgot this selection. True when one was removed.
+    bool forget(std::string_view reading, std::string_view text, bool simplified) {
+        const auto group = readings_.find(key(reading, simplified));
+        if (group == readings_.end()) return false;
+        const auto found = group->second.find(std::string(text));
+        if (found == group->second.end()) return false;
+        group->second.erase(found); --entries_;
+        if (group->second.empty()) readings_.erase(group);
+        return true;
+    }
     // Journal row: count<TAB>script<TAB>reading<TAB>text<LF>.
     static std::string row(std::string_view reading, std::string_view text, bool simplified, uint32_t count = 1) {
         return std::to_string(count) + (simplified ? "\ts\t" : "\tt\t") + std::string(reading) + '\t' + std::string(text) + '\n';
+    }
+    // A forget row: -<TAB>script<TAB>reading<TAB>text<LF>. Versions before
+    // CN-07 batch 5 skip it as malformed (no count).
+    static std::string forgetRow(std::string_view reading, std::string_view text, bool simplified) {
+        return std::string("-") + (simplified ? "\ts\t" : "\tt\t") + std::string(reading) + '\t' + std::string(text) + '\n';
     }
     // Replays complete rows; malformed rows are skipped one by one. Returns
     // the number of bytes consumed, never splitting a row.
@@ -105,6 +120,11 @@ public:
             const auto second = first == line.npos ? line.npos : line.find('\t', first + 1);
             const auto third = second == line.npos ? line.npos : line.find('\t', second + 1);
             if (third == line.npos || first == 0 || first > 2) continue;
+            if (line.substr(0, first) == "-") {
+                const auto script = line.substr(first + 1, second - first - 1);
+                if (script == "s" || script == "t") forget(line.substr(second + 1, third - second - 1), line.substr(third + 1), script == "s");
+                continue;
+            }
             uint32_t count = 0;
             bool digits = true;
             for (char c : line.substr(0, first)) { digits = digits && c >= '0' && c <= '9'; count = count * 10 + static_cast<uint32_t>(c - '0'); }
@@ -262,6 +282,20 @@ public:
         settle(texts, group);
         return true;
     }
+    // CN-07 batch 5: the user forgot this word; its bonus is gone and a later
+    // selection starts again from nothing. True when one was removed.
+    bool forget(std::string_view reading, std::string_view text, bool simplified, int64_t hour) {
+        if (hour <= 0) return false;
+        const auto group = readings_.find(key(reading, simplified));
+        if (group == readings_.end()) return false;
+        const auto found = group->second.find(std::string(text));
+        if (found == group->second.end()) return false;
+        latest_ = (std::max)(latest_, hour);
+        group->second.erase(found); --entries_;
+        if (group->second.empty()) readings_.erase(group);
+        revision_ = stamp();
+        return true;
+    }
     static double bonus(double weight) {
         return weight < MinWeight ? 0 : (std::min)(BonusCap, std::log1p(weight));
     }
@@ -293,8 +327,10 @@ public:
     }
     // Journal rows. A selection: +<TAB>s|t<TAB>reading<TAB>text<TAB>hour.
     // A compacted weight in hundredths: =NNN<TAB>s|t<TAB>reading<TAB>text<TAB>hour.
-    static std::string event(std::string_view reading, std::string_view text, bool simplified, int64_t hour) {
-        return std::string("+") + (simplified ? "\ts\t" : "\tt\t") + std::string(reading) + '\t' + std::string(text) + '\t' + std::to_string(hour) + '\n';
+    // A forget (CN-07 batch 5): -<TAB>s|t<TAB>reading<TAB>text<TAB>hour;
+    // versions before it skip the row as unknown.
+    static std::string event(std::string_view reading, std::string_view text, bool simplified, int64_t hour, char kind = '+') {
+        return std::string(1, kind) + (simplified ? "\ts\t" : "\tt\t") + std::string(reading) + '\t' + std::string(text) + '\t' + std::to_string(hour) + '\n';
     }
     size_t replay(std::string_view data) {
         size_t consumed = 0;
@@ -322,6 +358,7 @@ public:
             int64_t hour = 0, hundredths = 0;
             if (!number(fields[4], 100000000, hour)) continue;
             if (fields[0] == "+") select(fields[2], fields[3], fields[1] == "s", hour);
+            else if (fields[0] == "-") forget(fields[2], fields[3], fields[1] == "s", hour);
             else if (fields[0].size() > 1 && fields[0][0] == '=' && number(fields[0].substr(1), int64_t(MaxWeight * 100), hundredths))
                 restore(fields[2], fields[3], fields[1] == "s", hundredths / 100.0, hour);
         }
@@ -631,6 +668,19 @@ public:
     // CN-06c: one confirmed dictionary word.
     void recordWord(std::string_view reading, std::string_view text, bool simplified, int64_t hour = currentHour()) {
         if (words_.model().select(reading, text, simplified, hour)) words_.append(WordModel::event(reading, text, simplified, hour));
+    }
+    // CN-07 batch 5: forget one remembered selection or one learned word.
+    // The forget is journalled only when something was removed here; other
+    // processes apply it at their next look. True when something was removed.
+    bool forget(std::string_view reading, std::string_view text, bool simplified) {
+        if (!phrases_.model().forget(reading, text, simplified)) return false;
+        phrases_.append(Model::forgetRow(reading, text, simplified));
+        return true;
+    }
+    bool forgetWord(std::string_view reading, std::string_view text, bool simplified, int64_t hour = currentHour()) {
+        if (!words_.model().forget(reading, text, simplified, hour)) return false;
+        words_.append(WordModel::event(reading, text, simplified, hour, '-'));
+        return true;
     }
     bool flush() {
         const bool phrases = phrases_.flush();

@@ -136,6 +136,13 @@ constexpr bool pinyinPagingKey(unsigned int key, bool shift, bool composing) {
     return composing && !shift && (key == 0xbd || key == 0xbb); // VK_OEM_MINUS, VK_OEM_PLUS
 }
 
+// CN-07 batch 5: Ctrl+Delete or Shift+Delete (as in Rime and other IMEs)
+// forgets what was learned for the highlighted candidate. Only one of Ctrl
+// and Shift, no Alt or Windows key; taken only while composing.
+constexpr bool pinyinForgetShortcut(unsigned int key, bool control, bool shift, bool alt, bool windows) {
+    return key == 0x2e && control != shift && !alt && !windows; // VK_DELETE
+}
+
 // CN-07 batch 4, 以词定字: while composing, [ and ] commit the first and the
 // last character of the highlighted candidate. Idle they stay 「」, and
 // Shift+[ ] stay 『』.

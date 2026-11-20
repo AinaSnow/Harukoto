@@ -44,6 +44,18 @@ try {
     $word = $exported | Where-Object { $_.Kind -eq '个人词频' -and $_.Text -eq '实验' }
     Assert ($word -and $word.Reading -eq 'shiyan' -and $word.Count -eq '1' -and $word.Script -eq '简体') 'exported word content'
 
+    # CN-07 batch 5: forget rows written by the input service ("-" rows) remove
+    # what came before them; a later selection is counted again from one.
+    $forgetRows = "3`ts`thao`t号`n1`ts`tshi`t是`n-`ts`thao`t号`n-`tt`tshi`t是`n-`tx`tshi`t是`n1`ts`thao`t号`n-`ts`tni`t你`n"
+    $forgetWords = "+`ts`tgongsi`t公司`t$hour`n+`ts`tgongsi`t攻丝`t$hour`n-`ts`tgongsi`t公司`t$hour`n-`ts`tshi`t是`t$hour`n"
+    $forgetPath = Join-Path $folder 'forget.tsv'
+    [IO.File]::WriteAllText($forgetPath, $forgetRows, [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $folder 'forget-words.tsv'), $forgetWords, [Text.UTF8Encoding]::new($false))
+    $output = (& $tool -Path $forgetPath -RegistryPath $registry -Hour $hour) -join "`n"
+    Assert ($output -match '记录：2 条' -and $output -match '简体  hao → 号  （1 次）' -and $output -match '简体  shi → 是  （1 次）') 'forget rows remove earlier selections, other scripts stay'
+    Assert ($output -match '词数：1 个' -and $output -match '简体  gongsi → 攻丝' -and $output -notmatch 'gongsi → 公司') 'forget rows remove learned words'
+    Assert ((& $tool -Path $forgetPath -RegistryPath $registry -Hour $hour -Export $csv) -match '已导出 3 条') 'export after forgetting'
+
     & $tool @common -Disable | Out-Null
     Assert ((Get-ItemProperty -LiteralPath $registry).SelectionMemory -eq 0) 'disable writes the switch'
     Assert (((& $tool @common) -join "`n") -match '状态：关闭') 'disabled state is shown'

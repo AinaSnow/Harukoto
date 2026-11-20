@@ -507,7 +507,7 @@ public:
             if (activeContext != context || !session || !delivery || !delivery->queue.canDeliver()) return S_OK;
             pollDictionaries();
             // Selection memory is per user and can be switched off at any time.
-            memoryEnabled = memory && selection_memory::enabled();
+            memoryEnabled = memory && selection_memory::enabled(preferenceRoot);
             if (memoryEnabled) memory->poll();
             // DICT-02b: the user's own words apply whether or not learning is on.
             if (memory) memory->pollUserWords();
@@ -544,6 +544,7 @@ public:
             if (conjugationPanel.active() && (scriptShortcut(key) || key == VK_SPACE ||
                 (key >= 'A' && key <= 'Z') || mark != PinyinMark::none || key == VK_OEM_7))
                 conjugationPanel.close(choices, page, highlighted, expanded);
+            notice.clear(); // A notice lasts until the next key.
             const size_t start = page * pageSize;
             const size_t total = candidateCount();
             const size_t count = total > start ? (std::min)(pageSize, total - start) : 0;
@@ -579,6 +580,12 @@ public:
                     if (button) button->changed();
                     if (!*mpn_input(session)) showModeHint();
                 }
+                *eaten = TRUE;
+            } else if (chineseMode && forgetShortcut(key) && *mpn_input(session)) {
+                // CN-07 batch 5: forget what was learned for the highlighted
+                // candidate; the composition stays open, rebuilt at once.
+                if (!(static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30)))
+                    notice = count ? forgetCandidate(start + (std::min)(highlighted, count - 1)) : L"没有学到的记录";
                 *eaten = TRUE;
             } else if (!chineseMode) {
                 // English mode takes a key only to keep it behind a pending
@@ -708,6 +715,11 @@ private:
         const bool disabled = SUCCEEDED(result) && value.vt == VT_I4 && value.lVal != 0;
         VariantClear(&value);
         return disabled;
+    }
+
+    static bool forgetShortcut(WPARAM key) {
+        return pinyinForgetShortcut(static_cast<unsigned int>(key), GetKeyState(VK_CONTROL) < 0, GetKeyState(VK_SHIFT) < 0,
+            GetKeyState(VK_MENU) < 0, GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0);
     }
 
     // CN-07: Ctrl+. unless switched off in the settings.
@@ -902,8 +914,11 @@ private:
         // In English mode Ctrl+. is the host's (CN-07 batch 2).
         const bool shortcut = scriptShortcut(key) || (chineseMode && punctuationToggle(key));
         const bool shift = GetKeyState(VK_SHIFT) < 0;
+        // Ctrl/Shift+Delete passes the modifier check here and is taken only
+        // while composing (below).
+        const bool forget = forgetShortcut(key);
         if (!session || !context || GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0
-            || (!shortcut && (GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0
+            || (!shortcut && !forget && (GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0
             || (GetKeyState(VK_CAPITAL) & 1)))) return false;
         TF_STATUS status{};
         if (FAILED(context->GetStatus(&status)) || (status.dwDynamicFlags & TF_SD_READONLY)) return false;
@@ -920,6 +935,7 @@ private:
         const auto queued = context == activeContext ? delivery
             : saved == suspended.end() ? nullptr : saved->second.delivery;
         const bool pending = queued && !queued->queue.empty();
+        if (forget) return chineseMode && composing;
         // English mode: every key is the host's, except that typed text must
         // not overtake an insertion still owed to the host (such as the
         // letters committed by switching mid-composition).
@@ -1195,6 +1211,53 @@ private:
         return true;
     }
 
+    // CN-07 batch 5: forget what the IME learned for a candidate, never the
+    // base dictionary:
+    //  - CN-06a/b: the selection of its text for the keys it consumes (the
+    //    actual input, so a fuzzy, typo or abbreviated reading is forgotten
+    //    as typed) in the current script, including a remembered phrase that
+    //    selection memory put in the list;
+    //  - CN-06c: the learned weight of each dictionary word it is made of
+    //    (by word, wherever it is typed). Abbreviated and corrected
+    //    candidates report no words, so only their selection is forgotten.
+    // A DICT-02b word the user added by hand is not removed here: the table
+    // has one writer, the management script, with an undo; the notice points
+    // to it. Returns the notice for the candidate window.
+    std::wstring forgetCandidate(size_t index) {
+        if (index >= candidateCount() || conjugationPanel.active()) return L"没有学到的记录";
+        const WindowsCandidate candidate = choices[index];
+        const std::string input = mpn_input(session);
+        const size_t consumed = candidate.coreIndex ? mpn_candidate_consumed(session, *candidate.coreIndex) : input.size();
+        const bool personal = candidate.coreIndex && mpn_candidate_personal(session, *candidate.coreIndex);
+        bool forgot = false;
+        if (memory) {
+            memory->poll();
+            if (consumed && consumed <= input.size()) forgot = memory->forget(input.substr(0, consumed), candidate.text, simplified);
+            if (candidate.coreIndex) {
+                const std::string words = mpn_candidate_words(session, *candidate.coreIndex);
+                const auto hour = selection_memory::currentHour();
+                for (size_t start = 0; start < words.size();) {
+                    const auto end = words.find('\n', start), tab = words.find('\t', start);
+                    if (end == words.npos || tab == words.npos || tab > end) break;
+                    forgot = memory->forgetWord(std::string_view(words).substr(start, tab - start),
+                        std::string_view(words).substr(tab + 1, end - tab - 1), simplified, hour) || forgot;
+                    start = end + 1;
+                }
+            }
+            if (forgot) memory->flush();
+        }
+        if (forgot) {
+            // New bonuses for the core, then the same reading ranked again.
+            attachPersonal();
+            const std::string context = mpn_segment_context(session);
+            mpn_set_segment_context(session, context.c_str());
+            refreshCandidates();
+        }
+        if (personal) return forgot ? L"已忘记学习记录；个人词请用 manage-selection-memory.ps1 -RemoveWord 删除"
+                                    : L"这是手动添加的个人词，请用 manage-selection-memory.ps1 -RemoveWord 删除";
+        return forgot ? L"已忘记" : L"没有学到的记录";
+    }
+
     // CN-07 batch 4, 以词定字: the candidate consumes the same keys as when
     // chosen (the rest of the reading stays in composition), but only its
     // first or last character is committed. Mainstream behaviour; mapping a
@@ -1412,7 +1475,7 @@ private:
             if (popup) ShowWindow(popup, SW_HIDE);
             return;
         }
-        auto display = wide(mpn_preedit(session)) + (simplified ? L"  简" : L"  繁") + (englishPunctuation ? L" · 英文标点" : L"");
+        auto display = wide(mpn_preedit(session)) + (simplified ? L"  简" : L"  繁") + (englishPunctuation ? L" · 英文标点" : L"") + (notice.empty() ? L"" : L" · " + notice);
         const bool canConjugate = !conjugationPanel.active() && page * pageSize + highlighted < choices.size() &&
             conjugationFor(currentConjugations(), choices[page * pageSize + highlighted], mpn_input(session));
         const std::wstring conjugationHint = conjugationPanel.active() ? L"  活用 · F6/Esc 返回" : canConjugate ? L"  F6 活用" : L"";
@@ -1457,6 +1520,7 @@ private:
         payload += simplified ? L"\t简" : L"\t繁";
         if (englishPunctuation) payload += L" · 英文标点";
         if (themeReload && themeReload->failed()) payload += L" · 词库更新失败，沿用旧版";
+        if (!notice.empty()) payload += L" · " + notice;
         payload += conjugationHint;
         if (pageCount > 1 || (!conjugationPanel.active() && mpn_candidates_can_expand(session)))
             payload += L"  ·  " + std::to_wstring(page + 1) + L" / " + std::to_wstring(pageCount);
@@ -1519,6 +1583,8 @@ private:
     bool englishPunctuation = false;
     PinyinQuotes quotes;
     HKEY preferenceRoot = HKEY_CURRENT_USER;
+    // CN-07 batch 5: shown in the candidate window's status until the next key.
+    std::wstring notice;
     // CN-07 batch 2: input mode, Shift tap, open/close compartment, taskbar item, hint timer.
     bool chineseMode = true;
     ShiftTap shiftTap;

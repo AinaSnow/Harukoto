@@ -1,5 +1,18 @@
 # 开发状态与接手入口
 
+## 2026-11-20 · CN-07 第五批：候选中忘记学到的词
+
+- 前置：第四批已提交为 a20a599。本批未提交、未打包。核心未改动（用已有的 `mpn_candidate_consumed`／`mpn_candidate_words`／`mpn_candidate_personal`）。
+- 快捷键：组字时 Ctrl+Delete 或 Shift+Delete（`pinyinForgetShortcut`：只按其中一个，无 Alt／Win；与 Rime 相同）。`accepts` 只为这个组合放行 Ctrl／Shift，且只在中文模式组字时接收；空闲、英文模式、Ctrl+Shift+Delete、单独 Delete 都照旧交给应用。按住重复只执行一次。没有做 Ctrl+Shift+数字。
+- 作用（`TextService::forgetCandidate`）：(1) CN-06a／b：删除“候选消耗的那段实际输入 → 候选文字”（当前简繁），包括选词记忆插入的整句候选——模糊音、纠错、简拼候选按用户实际打的拼音忘记；(2) CN-06c：删除 `mpn_candidate_words` 列出的每个组成词的权重（按词、当前简繁），简拼和纠错候选没有组成词，只忘记 (1)。随后 flush、`attachPersonal` 重建加分表、重设同一上下文让核心重新解码、重建候选，组字保持；状态栏（`notice`，到下一次按键）显示“已忘记”或“没有学到的记录”。基础词库从不改动。
+- DICT-02b 个人词：不删除，只忘记为它学到的记录，提示用 `manage-selection-memory.ps1 -RemoveWord`。理由：个人词表只由脚本整表原子写入并可 -UndoWords 回退，输入法写入会多一个写入者；按两次删除在游戏中误触不可恢复。
+- 存储（`SelectionMemory.h`）：`Model::forget`／`forgetRow`（`-<TAB>s|t<TAB>读音<TAB>文字`），`WordModel::forget`（`-<TAB>s|t<TAB>读音<TAB>词<TAB>小时`，改 revision），`Store::forget`／`forgetWord` 只有真删掉时才追加；重放按顺序执行，之后再选从头记起；合并（compact）不写被忘记的条目和“-”行。其他进程靠原有 2 秒轮询读到。旧版本：输入法与脚本把“-”行当坏行跳过（选词要求数字次数，个人词频只认 +／=），不报错但旧进程不忘记；旧进程合并时会丢掉“-”行使记录恢复——已写入 SELECTION_MEMORY.md。管理脚本 Read-Memory／Read-Words 处理“-”行，查看与导出一致。
+- 其他：`selection_memory::enabled` 改为读 `preferenceRoot`（生产仍为 HKCU，测试可隔离）。
+- 撤销：没有；重新选择即重新记住。
+- 测试：`selection_memory` 新增 `forgetting()`（两种模型的 forget、另一简繁不受影响、行格式、重放顺序与重新学习、坏行、两个进程共享与重新学习、无可忘记时不写、合并去掉被忘记条目和“-”行）；`selection_memory_tool`（ps1）新增“-”行的查看与导出；`tsf_focus_cancel` 新增 `forgetting()`：Enter 学会“号”后 Ctrl+Delete 忘记（选词与词权重、两个日志的“-”行、另一个 Store 读到、组字保留、首位恢复“好”）、基础候选无记录不写文件、提示到下一键清除、Shift+Delete、Ctrl+Shift+Delete 与单独 Delete 放行、空闲与英文放行、个人词“张珊”不删除且提示脚本、学到的记录被忘记而个人词仍在首位。CTest 仍为 58 项，完整构建并复制 DLL 后全部通过（314.51 秒）。
+- 未验证：真实应用中的效果与提示显示；多个应用同时使用时的实际同步；没有打包。
+- 已知局限：简拼／纠错候选的词权重无法从候选忘记；整句候选会忘记句中所有学到的词；只忘记当前简繁；旧版本进程合并会恢复被忘记的记录。
+
 ## 2026-11-20 · CN-07 第四批：以词定字 [ ]
 
 - 前置：第三批已提交为 98c5163。本批未提交、未打包。核心未改动（只用已有的 `mpn_choose`、`mpn_segment_context`／`mpn_set_segment_context`）。

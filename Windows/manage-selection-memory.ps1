@@ -217,6 +217,11 @@ function Read-Memory {
     $order = 0
     foreach ($line in Read-Lines $Path) {
         $fields = $line.Split("`t")
+        # CN-07 第五批：“-”行是在候选中忘记的选词，删除之前的记录（之后再选会重新记住）。
+        if ($fields.Count -eq 4 -and $fields[0] -eq '-' -and $fields[1] -in 's', 't') {
+            $entries.Remove($fields[1] + "`t" + $fields[2] + "`t" + $fields[3])
+            continue
+        }
         if ($fields.Count -ne 4 -or $fields[0] -notmatch '^[0-9]{1,2}$' -or [int]$fields[0] -lt 1 -or
             $fields[1] -notin 's', 't' -or $fields[2] -notmatch "^[a-z']{1,128}$" -or !$fields[3]) { continue }
         $key = $fields[1] + "`t" + $fields[2] + "`t" + $fields[3]
@@ -244,6 +249,15 @@ function Read-Words {
         if ($fields.Count -ne 5 -or $fields[1] -notin 's', 't' -or $fields[2] -notmatch '^[a-z]{1,128}$' -or !$fields[3] -or
             $fields[3] -match '[\x00-\x1f\x7f]' -or $fields[4] -notmatch '^[0-9]{1,9}$' -or [long]$fields[4] -lt 1) { continue }
         $at = [long]$fields[4]
+        $group = $fields[1] + "`t" + $fields[2]
+        if ($fields[0] -eq '-') {
+            # CN-07 第五批：在候选中忘记的词，权重清零。
+            if ($groups.ContainsKey($group)) {
+                $groups[$group].Remove($fields[3])
+                if ($groups[$group].Count -eq 0) { $groups.Remove($group) }
+            }
+            continue
+        }
         if ($fields[0] -eq '+') { $amount = 1.0; $selection = $true }
         elseif ($fields[0] -match '^=([0-9]{1,9})$' -and [long]$Matches[1] -ge 1 -and [long]$Matches[1] -le 2000) { $amount = [long]$Matches[1] / 100.0; $selection = $false }
         else { continue }

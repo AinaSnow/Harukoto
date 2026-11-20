@@ -909,6 +909,139 @@ struct ServiceFocusTest {
         RegCloseKey(root);
         assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
     }
+
+    // CN-07 batch 5 through the real key callbacks: Ctrl+Delete or
+    // Shift+Delete forgets what was learned for the highlighted candidate,
+    // rebuilds the list at once and journals the forget; a candidate with
+    // nothing learned is left alone, a hand-added word is not deleted, and
+    // the keys are the host's when idle or in English mode.
+    static void forgetting(const std::filesystem::path &folder) {
+        const std::wstring path = L"Software\\HarukotoForgetService-" + std::to_wstring(GetCurrentProcessId());
+        HKEY root = nullptr;
+        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        const auto memoryPath = folder / (L"service-forget-" + std::to_wstring(GetCurrentProcessId()) + L".tsv");
+        RecordingContext context;
+        {
+            Service service;
+            service.preferenceRoot = root; // selection memory on (absent switch), Chinese punctuation
+            const std::string data = "MEOWPUUT-PINYIN-1\n"
+                "hao\thao3\t好\t好\t9000\nhao\thao4\t号\t号\t8000\n"
+                "san\tsan1\t三\t三\t8000\nzhang\tzhang1\t張\t张\t8000\n";
+            service.lexicon = mpn_lexicon_create(data.data(), data.size());
+            service.session = mpn_session_create(service.lexicon);
+            assert(service.lexicon && service.session);
+            mpn_set_simplified(service.session, service.simplified);
+            std::filesystem::remove(memoryPath);
+            service.memory = std::make_unique<selection_memory::Store>(memoryPath);
+            const auto words = service.memory->wordsFile(), table = service.memory->userWordsFile();
+            std::filesystem::remove(words);
+            const std::string tableRows = "zhang'san\t张珊\n";
+            { std::ofstream out(table, std::ios::binary | std::ios::trunc); out << tableRows; }
+            const auto read = [](const std::filesystem::path &file) {
+                std::ifstream in(file, std::ios::binary);
+                return std::string{std::istreambuf_iterator<char>(in), {}};
+            };
+            const auto press = [&](WPARAM key) {
+                BOOL tested = FALSE, eaten = FALSE;
+                assert(service.OnTestKeyDown(&context, key, 0, &tested) == S_OK);
+                context.text.clear();
+                assert(service.OnKeyDown(&context, key, 0, &eaten) == S_OK);
+                assert(tested == eaten);
+                return std::make_pair(eaten != FALSE, context.text);
+            };
+            const auto compose = [&](const char *keys) {
+                for (const char *c = keys; *c; ++c) assert(mpn_key(service.session, *c));
+                service.refreshCandidates();
+            };
+            const auto highlight = [&](const std::string &text) {
+                for (size_t i = 0; i < service.choices.size() && i < pageSize; ++i)
+                    if (service.choices[i].text == text) { service.highlighted = i; return true; }
+                return false;
+            };
+            using Result = std::pair<bool, std::wstring>;
+            const Result taken{true, L""}, passed{false, L""};
+            hold({});
+            assert(press(VK_OEM_COMMA) == Result(true, L"，") && service.memoryEnabled); // active context, memory and table loaded
+            // Learn 号 for hao: selection memory and its word weight.
+            compose("hao");
+            assert(service.choices.front().text == "好" && highlight("号"));
+            assert(press(VK_RETURN) == Result(true, L"号"));
+            const auto hour = selection_memory::currentHour();
+            assert(service.memory->recall("hao", true) == std::vector<std::string>{"号"});
+            assert(service.memory->words().weight("hao", "号", true, hour) > 0);
+            compose("hao");
+            assert(service.choices.front().text == "号");
+            // Ctrl+Delete on it: forgotten, rebuilt at once, composition kept.
+            hold({VK_CONTROL});
+            assert(press(VK_DELETE) == taken && service.notice == L"已忘记");
+            assert(std::string(mpn_input(service.session)) == "hao" && service.choices.front().text == "好");
+            assert(service.memory->recall("hao", true).empty() && service.memory->words().weight("hao", "号", true, hour) == 0);
+            assert(read(memoryPath).find("-\ts\thao\t号\n") != std::string::npos);
+            assert(read(words).find("-\ts\thao\t号\t") != std::string::npos);
+            // Another process sees the forget at its next look.
+            {
+                selection_memory::Store other(memoryPath);
+                other.poll(1000);
+                assert(other.recall("hao", true).empty() && other.words().weight("hao", "号", true, hour) == 0);
+            }
+            // Nothing learned for the highlighted base candidate: nothing changes.
+            const auto journal = read(memoryPath), wordJournal = read(words);
+            assert(press(VK_DELETE) == taken && service.notice == L"没有学到的记录");
+            assert(read(memoryPath) == journal && read(words) == wordJournal && service.choices.front().text == "好");
+            hold({});
+            // The notice lasts until the next key.
+            assert(press(VK_RIGHT) == taken && service.notice.empty());
+            mpn_clear(service.session); service.resetCandidates();
+            // Learned again, then Shift+Delete.
+            compose("hao");
+            assert(highlight("号") && press(VK_RETURN) == Result(true, L"号"));
+            compose("hao");
+            assert(service.choices.front().text == "号");
+            hold({VK_SHIFT});
+            assert(press(VK_DELETE) == taken && service.notice == L"已忘记" && service.choices.front().text == "好");
+            // Both modifiers, or Delete alone, are not the shortcut (Delete stays the host's as before).
+            hold({VK_SHIFT, VK_CONTROL});
+            assert(press(VK_DELETE) == passed);
+            hold({});
+            assert(press(VK_DELETE) == passed);
+            mpn_clear(service.session); service.resetCandidates();
+            // Idle and English mode: the host's.
+            hold({VK_CONTROL});
+            assert(press(VK_DELETE) == passed);
+            hold({VK_SHIFT});
+            assert(press(VK_DELETE) == passed);
+            hold({});
+            service.setMode(false);
+            hold({VK_CONTROL});
+            assert(press(VK_DELETE) == passed);
+            hold({});
+            service.setMode(true);
+            // A hand-added word is not deleted; the notice points to the script.
+            compose("zhangsan");
+            assert(service.choices.front().text == "张珊" && mpn_candidate_personal(service.session, *service.choices.front().coreIndex));
+            hold({VK_CONTROL});
+            assert(press(VK_DELETE) == taken && service.notice.find(L"-RemoveWord") != std::wstring::npos);
+            assert(service.notice.find(L"已忘记") == std::wstring::npos);
+            assert(read(table) == tableRows && service.choices.front().text == "张珊");
+            hold({});
+            // What was learned for it is forgotten; the word itself stays.
+            mpn_clear(service.session); service.resetCandidates();
+            compose("zhangsan");
+            assert(press(VK_RETURN) == Result(true, L"张珊") && service.memory->recall("zhangsan", true) == std::vector<std::string>{"张珊"});
+            compose("zhangsan");
+            hold({VK_CONTROL});
+            assert(press(VK_DELETE) == taken && service.notice.find(L"已忘记学习记录") == 0);
+            assert(service.memory->recall("zhangsan", true).empty() && read(table) == tableRows && service.choices.front().text == "张珊");
+            hold({});
+            mpn_clear(service.session); service.resetCandidates();
+            service.memory.reset();
+            std::filesystem::remove(memoryPath); std::filesystem::remove(words); std::filesystem::remove(table);
+            service.Deactivate();
+        }
+        assert(context.refs == 1);
+        RegCloseKey(root);
+        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+    }
 };
 }
 int wmain(int argc, wchar_t **argv) {
@@ -921,5 +1054,6 @@ int wmain(int argc, wchar_t **argv) {
     ServiceFocusTest::inputMode();
     ServiceFocusTest::paging();
     ServiceFocusTest::wordCharacters(argv[1]);
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode, -/= paging and [ ] character picking\n";
+    ServiceFocusTest::forgetting(argv[1]);
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode, -/= paging, [ ] character picking and forgetting\n";
 }

@@ -428,6 +428,82 @@ static void preference() {
     assert(RegDeleteTreeW(HKEY_CURRENT_USER, name.c_str()) == ERROR_SUCCESS);
 }
 
+// CN-07 batch 5: forgetting a selection or a learned word, in the models,
+// the journals (shared with other processes) and compaction.
+static void forgetting(const std::filesystem::path &folder) {
+    Model model;
+    model.record("hao", "号", true); model.record("hao", "好", true); model.record("hao", "号", false);
+    assert(model.forget("hao", "号", true) && !model.forget("hao", "号", true) && model.size() == 2);
+    assert(model.recall("hao", true) == Texts{"好"} && model.recall("hao", false) == Texts{"号"}); // the other script stays
+    assert(model.forget("hao", "好", true) && model.recall("hao", true).empty() && !model.forget("ni", "你", true));
+    // Rows: a forget removes what came before it; a later selection starts again from one.
+    Model replayed;
+    const std::string rows = Model::row("hao", "号", true, 5) + Model::forgetRow("hao", "号", true) + Model::row("hao", "号", true) +
+        Model::forgetRow("ni", "你", true) + "-\tx\thao\t号\n-\ts\tHAO\t号\n";
+    assert(Model::forgetRow("hao", "号", false) == "-\tt\thao\t号\n");
+    assert(replayed.replay(rows) == rows.size());
+    assert(replayed.recall("hao", true) == Texts{"号"} && replayed.snapshot() == "1\ts\thao\t号\n");
+
+    constexpr int64_t hour = 480000;
+    WordModel words;
+    words.select("gongsi", "公司", true, hour); words.select("gongsi", "公司", true, hour); words.select("shi", "是", true, hour);
+    const auto revision = words.revision();
+    assert(words.forget("gongsi", "公司", true, hour) && words.revision() != revision);
+    assert(words.bonus("gongsi", "公司", true, hour) == 0 && words.size() == 1 && !words.forget("gongsi", "公司", true, hour));
+    assert(!words.forget("shi", "是", false, hour) && words.weight("shi", "是", true, hour) == 1);
+    WordModel wordsReplayed;
+    const std::string wordRows = WordModel::event("gongsi", "公司", true, hour) + WordModel::event("gongsi", "公司", true, hour, '-') +
+        WordModel::event("gongsi", "攻丝", true, hour) + "-\ts\tgongsi\t攻丝\t0\n";
+    assert(WordModel::event("gongsi", "公司", true, hour, '-') == "-\ts\tgongsi\t公司\t480000\n");
+    assert(wordsReplayed.replay(wordRows) == wordRows.size());
+    assert(wordsReplayed.weight("gongsi", "公司", true, hour) == 0 && wordsReplayed.weight("gongsi", "攻丝", true, hour) == 1);
+    assert(wordsReplayed.snapshot().find("公司") == std::string::npos);
+
+    // Journals: another process applies the forget at its next look, and a
+    // later selection is learned again.
+    const auto path = folder / L"selection-memory.tsv", wordsPath = folder / L"selection-memory-words.tsv";
+    {
+        Store first(path), second(path);
+        first.poll(1000); second.poll(1000);
+        first.record("hao", "号", true); first.recordWord("hao", "号", true, hour);
+        assert(first.flush());
+        second.poll(4000);
+        assert(second.recall("hao", true) == Texts{"号"} && second.words().weight("hao", "号", true, hour) == 1);
+        assert(!second.forget("hao", "好", true) && second.forget("hao", "号", true));
+        assert(second.forgetWord("hao", "号", true, hour) && !second.forgetWord("hao", "号", true, hour));
+        assert(second.flush());
+        assert(bytes(path) == "1\ts\thao\t号\n-\ts\thao\t号\n");
+        assert(bytes(wordsPath) == "+\ts\thao\t号\t480000\n-\ts\thao\t号\t480000\n");
+        const auto before = first.words().revision();
+        first.poll(8000);
+        assert(first.recall("hao", true).empty() && first.words().weight("hao", "号", true, hour) == 0 && first.words().revision() != before);
+        first.record("hao", "号", true);
+        assert(first.flush());
+        second.poll(12000);
+        assert(second.recall("hao", true) == Texts{"号"});
+        // Nothing to forget writes nothing.
+        const auto size = bytes(path).size();
+        assert(!first.forget("ni", "你", true) && first.flush() && bytes(path).size() == size);
+    }
+    // Compaction keeps neither the forgotten entries nor the forget rows.
+    {
+        std::string longRows, longWordRows;
+        while (longRows.size() < CompactAt + 100) longRows += "1\ts\tnihao\t你好\n1\ts\tshi\t是\n";
+        longRows += Model::forgetRow("shi", "是", true);
+        for (int i = 0; longWordRows.size() < CompactAt + 100; ++i)
+            longWordRows += WordModel::event("gongsi", i % 2 ? "公司" : "攻丝", true, hour);
+        longWordRows += WordModel::event("gongsi", "攻丝", true, hour, '-');
+        std::ofstream(path, std::ios::binary | std::ios::trunc) << longRows;
+        std::ofstream(wordsPath, std::ios::binary | std::ios::trunc) << longWordRows;
+    }
+    Store compacted(path);
+    compacted.poll(1000);
+    const auto text = bytes(path), wordText = bytes(wordsPath);
+    assert(text == std::to_string(MaxCount) + "\ts\tnihao\t你好\n");
+    assert(wordText.find("攻丝") == std::string::npos && wordText.find("公司") != std::string::npos && wordText.find('-') == std::string::npos);
+    assert(compacted.recall("shi", true).empty() && compacted.words().weight("gongsi", "攻丝", true, hour) == 0);
+}
+
 int wmain(int argc, wchar_t **argv) {
     assert(argc == 2);
     model(); words(); candidates(); preference();
@@ -440,6 +516,9 @@ int wmain(int argc, wchar_t **argv) {
     const auto userFolder = folder / L"user";
     std::filesystem::create_directories(userFolder);
     userWords(userFolder);
+    const auto forgetFolder = folder / L"forget";
+    std::filesystem::create_directories(forgetFolder);
+    forgetting(forgetFolder);
     std::error_code ignored; std::filesystem::remove_all(folder, ignored);
-    std::cout << "PASS: selection memory ranking, word weights, journal sharing, clearing, compaction, switch and user words\n";
+    std::cout << "PASS: selection memory ranking, word weights, journal sharing, clearing, compaction, switch, user words and forgetting\n";
 }
