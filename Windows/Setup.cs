@@ -9,7 +9,7 @@ using Microsoft.Win32;
 
 internal static class Setup
 {
-    internal const string ProductVersion = "0.4.4-alpha.28";
+    internal const string ProductVersion = "0.4.4-alpha.29";
     private const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Meowpuut";
     private static string work;
     [STAThread] private static void Main(string[] args)
