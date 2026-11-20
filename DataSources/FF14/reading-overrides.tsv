@@ -155,6 +155,7 @@ id	text	reading	status	note
 *	威望洋葱长靴	weiwangyangcongchangxue	evidence	依据基础词库词读音：长@4 zhang→chang（词：长靴）
 *	学术长靴	xueshuchangxue	evidence	依据基础词库词读音：长@2 zhang→chang（词：长靴）
 *	学究长靴	xuejiuchangxue	evidence	依据基础词库词读音：长@2 zhang→chang（词：长靴）
+*	学识宝库迦巴勒幻想图书馆	xueshibaokujiabalehuanxiangtushuguan	evidence	依据基础词库词读音：勒@6 lei→le（词：巴勒）
 *	宇宙铑金长杆	yuzhoulaojinchanggan	evidence	依据基础词库词读音：长@4 zhang→chang（词：长杆）
 *	宇宙长椅	yuzhouchangyi	evidence	依据基础词库词读音：长@2 zhang→chang（词：长椅）
 *	宇宙长颈驼笛	yuzhouchangjingtuodi	evidence	依据基础词库词读音：长@2 zhang→chang（词：长颈）
@@ -476,6 +477,7 @@ id	text	reading	status	note
 *	碳纤布巧匠长靴	tanxianbuqiaojiangchangxue	evidence	依据基础词库词读音：长@5 zhang→chang（词：长靴）
 *	神谱咏咒长裙	shenpuyongzhouchangqun	evidence	依据基础词库词读音：长@4 zhang→chang（词：长裙）
 *	神谱治愈长裙	shenpuzhiyuchangqun	evidence	依据基础词库词读音：长@4 zhang→chang（词：愈长、长裙）
+*	秘本宝库迦巴勒幻想图书馆	mibenbaokujiabalehuanxiangtushuguan	evidence	依据基础词库词读音：勒@6 lei→le（词：巴勒）
 *	秘银长筒靴	miyinchangtongxue	evidence	依据基础词库词读音：长@2 zhang→chang（词：长筒靴）
 *	空贼制敌长靴	kongzeizhidichangxue	evidence	依据基础词库词读音：长@4 zhang→chang（词：长靴）
 *	空贼制敌长靴（复制品）	kongzeizhidichangxuefuzhipin	evidence	依据基础词库词读音：长@4 zhang→chang（词：长靴）
@@ -499,6 +501,7 @@ id	text	reading	status	note
 *	纻布咏咒长裙	zhubuyongzhouchangqun	evidence	依据基础词库词读音：长@4 zhang→chang（词：长裙）
 *	纻布治愈长裙	zhubuzhiyuchangqun	evidence	依据基础词库词读音：长@4 zhang→chang（词：愈长、长裙）
 *	绛红草布最后的独角兽长裙	jianghongcaobuzuihoudedujiaoshouchangqun	evidence	依据基础词库词读音：长@10 zhang→chang（词：长裙）
+*	绝妙傀儡师——都灵	juemiaokuileishiduling	evidence	依据基础词库词读音：都@7 dou→du（词：都灵）
 *	绝妙的调配用品	juemiaodetiaopeiyongpin	evidence	依据基础词库词读音：调@3 diao→tiao（词：调配）
 *	绝妙的调配用品的材料	juemiaodetiaopeiyongpindecailiao	evidence	依据基础词库词读音：调@3 diao→tiao（词：调配）
 *	统一规格的特殊长杆	tongyiguigedeteshuchanggan	evidence	依据基础词库词读音：长@7 zhang→chang（词：长杆）
@@ -536,12 +539,16 @@ id	text	reading	status	note
 *	莱韦耶勒尔套装	laiweiyeleertaozhuang	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
 *	莱韦耶勒尔府	laiweiyeleerfu	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
 *	莱韦耶勒尔府前	laiweiyeleerfuqian	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
+*	莱韦耶勒尔注药III	laiweiyeleerzhuyaoiii	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
+*	莱韦耶勒尔灵橡清汁	laiweiyeleerlingxiangqingzhi	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
 *	莱韦耶勒尔特制外套	laiweiyeleertezhiwaitao	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
 *	莱韦耶勒尔特制帽	laiweiyeleertezhimao	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
 *	莱韦耶勒尔特制手套	laiweiyeleertezhishoutao	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
 *	莱韦耶勒尔特制皮鞋	laiweiyeleertezhipixie	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
 *	莱韦耶勒尔特制装备箱	laiweiyeleertezhizhuangbeixiang	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
 *	莱韦耶勒尔特制长裤	laiweiyeleertezhichangku	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
+*	莱韦耶勒尔箭毒	laiweiyeleerjiandu	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
+*	莱韦耶勒尔诊断	laiweiyeleerzhenduan	evidence	依据基础词库词读音：勒@3 lei→le（词：勒尔）
 *	萨雷安出使者长裙	saleianchushizhechangqun	evidence	依据基础词库词读音：长@6 zhang→chang（词：长裙）
 *	萨雷安出使者长靴	saleianchushizhechangxue	evidence	依据基础词库词读音：长@6 zhang→chang（词：长靴）
 *	萨雷安哲学者长裙	saleianzhexuezhechangqun	evidence	依据基础词库词读音：长@6 zhang→chang（词：长裙）
@@ -587,6 +594,7 @@ id	text	reading	status	note
 *	褪色的古书	tuisedegushu	evidence	依据基础词库词读音：色@1 shai→se（词：褪色）
 *	褪色的古典	tuisedegudian	evidence	依据基础词库词读音：色@1 shai→se（词：褪色）
 *	褪色的纸片	tuisedezhipian	evidence	依据基础词库词读音：色@1 shai→se（词：褪色）
+*	褪色的记忆	tuisedejiyi	evidence	依据基础词库词读音：色@1 shai→se（词：褪色）
 *	西格玛长杆	xigemachanggan	evidence	依据基础词库词读音：长@3 zhang→chang（词：长杆）
 *	贝希摩斯重头盔	beiximosizhongtoukui	evidence	依据基础词库词读音：重@4 chong→zhong（词：重头）
 *	贝希摩斯重头盔（复制品）	beiximosizhongtoukuifuzhipin	evidence	依据基础词库词读音：重@4 chong→zhong（词：重头）
@@ -635,6 +643,7 @@ id	text	reading	status	note
 *	述事长靴+2	shushichangxueer	evidence	依据基础词库词读音：长@2 zhang→chang（词：长靴）
 *	述事长靴·常风	shushichangxuechangfeng	evidence	依据基础词库词读音：长@2 zhang→chang（词：长靴）
 *	造物院御敌长裙	zaowuyuanyudichangqun	evidence	依据基础词库词读音：长@5 zhang→chang（词：长裙）
+*	那布里亚勒斯讨伐战	nabuliyalesitaofazhan	evidence	依据基础词库词读音：勒@4 lei→le（词：勒斯）
 *	邪鬼长靴	xieguichangxue	evidence	依据基础词库词读音：长@2 zhang→chang（词：长靴）
 *	里克斯长靴	likesichangxue	evidence	依据基础词库词读音：长@3 zhang→chang（词：长靴）
 *	重建用的长靴	chongjianyongdechangxue	evidence	依据基础词库词读音：长@4 zhang→chang（词：长靴）
@@ -767,6 +776,7 @@ id	text	reading	status	note
 *	高质的钵杵	gaozhidebochu	evidence	依据基础词库词读音：的@2 di→de（词：质的）
 *	鬼船游击露趾长靴	guichuanyoujiluzhichangxue	evidence	依据基础词库词读音：长@6 zhang→chang（词：长靴）
 *	魔女长靴	monvchangxue	evidence	依据基础词库词读音：长@2 zhang→chang（词：长靴）
+*	魔纹重置	mowenchongzhi	evidence	依据基础词库词读音：重@2 zhong→chong（词：重置）
 *	鲁什芒德纪念医院	lushimangdejinianyiyuan	evidence	依据基础词库词读音：什@1 shen→shi（词：鲁什）
 *	鹦喙长靴	yinghuichangxue	evidence	依据基础词库词读音：长@2 zhang→chang（词：长靴）
 *	鹦式长靴	yingshichangxue	evidence	依据基础词库词读音：长@2 zhang→chang（词：长靴）

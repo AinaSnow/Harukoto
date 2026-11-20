@@ -130,6 +130,30 @@ def audit_readings(records, lexicon, existing):
     return rows, overrides, counts
 
 
+COLLISION_WEIGHT = 3000
+
+
+def common_collisions(audit, coverage, native_pinyin):
+    """FF14-04：技能／副本触发与基础词库常用词（权重≥3000）同读音的列表，供构建时丢弃这些触发。
+    含已丢弃的触发（dropped_triggers），重跑结果稳定。"""
+    keys = collections.defaultdict(list)
+    for r in list(audit) + coverage['exclusions']:
+        if not r['id'].startswith(('action-', 'contentfindercondition-')): continue
+        for group in (r.get('triggers', {}), r.get('dropped_triggers', {})):
+            for values in group.values():
+                for k in values: keys[k].append(r['zh_cn'])
+    best = {}
+    with native_pinyin.open(encoding='utf-8') as stream:
+        if next(stream).strip() != 'MEOWPUUT-PINYIN-2': raise ValueError('不是 native-pinyin.tsv')
+        for line in stream:
+            parts = line.rstrip('\n').split('\t')
+            if len(parts) != 6 or parts[0] not in keys: continue
+            weight = int(parts[4])
+            if weight >= COLLISION_WEIGHT and (parts[0] not in best or weight > best[parts[0]][1]):
+                best[parts[0]] = (parts[3], weight)
+    return [{'reading': k, 'word': w, 'weight': n, 'example': sorted(set(keys[k]))[0]} for k, (w, n) in sorted(best.items())]
+
+
 def read_sheet(path):
     with path.open(encoding='utf-8-sig', newline='') as stream: rows = list(csv.reader(stream))
     header = next(h for h in rows if h and h[0] == '#')
@@ -205,13 +229,15 @@ def main():
     parser.add_argument('sources', type=Path, help='fetch-ff14-sources.py 缓存目录')
     parser.add_argument('native_pinyin', type=Path, help='构建产物 native-pinyin.tsv')
     parser.add_argument('--write-overrides', action='store_true')
+    parser.add_argument('--bundle', type=Path, default=BUNDLE, help='已构建的全量包目录（默认仓库内）')
     args = parser.parse_args()
-    audit = json.loads((BUNDLE / 'reviewed-source.json').read_text(encoding='utf-8'))['entries']
-    coverage = json.loads((BUNDLE / 'coverage.json').read_text(encoding='utf-8'))
+    audit = json.loads((args.bundle / 'reviewed-source.json').read_text(encoding='utf-8'))['entries']
+    coverage = json.loads((args.bundle / 'coverage.json').read_text(encoding='utf-8'))
     aligned = collections.defaultdict(list)
     for r in audit:
         if r['id'].startswith('item-'): aligned[r['zh_cn']].append(r['id'])
-    records = [r for r in audit if r['id'].startswith(('item-', 'placename-'))
+    # FF14-04: 技能、副本名同样用自动拼音，纳入审计。
+    records = [r for r in audit if r['id'].startswith(('item-', 'placename-', 'action-', 'contentfindercondition-'))
                and r.get('reading_source') != 'curated-0.2.0']
     wanted = {r['zh_cn'][i:j] for r in records for i in range(len(r['zh_cn']))
               for j in range(i + 2, min(len(r['zh_cn']), i + 8) + 1)}
@@ -231,6 +257,10 @@ def main():
         write_tsv(OVERRIDES, merged, COLUMNS,
                   '# FF14 全量包读音修订。status: evidence=依据基础词库（native-pinyin）词读音，程序判定、代理核对拒收表；'
                   'reviewed=人工复核。id=* 作用于所有同名自动拼音记录。由 audit-ff14-readings.py --write-overrides 重建 evidence 行，reviewed 行保留。\n')
+        collisions = common_collisions(audit, coverage, args.native_pinyin)
+        write_tsv(OUT / 'common-reading-collisions.tsv', collisions, ['reading', 'word', 'weight', 'example'],
+                  f'# 生成：scripts/audit-ff14-readings.py。技能／副本触发与基础词库常用词（权重≥{COLLISION_WEIGHT}）同读音；'
+                  'build-ff14-full.py 丢弃这些触发，避免日常输入出现技能／副本候选。word 为基础词库最高权重的同读音词。\n')
     text, group_count = checklist(rows)
     (ROOT / 'docs/FF14_READING_REVIEW.md').write_text(text, encoding='utf-8')
     status = collections.Counter(r['status'] for r in rows)

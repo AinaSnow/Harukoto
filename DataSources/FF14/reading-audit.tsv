@@ -13,7 +13,10 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 七狱长靴+1	1	item	item-22115	qiyuzhangxueyi		needs-review		长@2 自动 zhang，可读 chang/zhang，词证据冲突：狱长=zhang、长靴=chang
 七狱长靴+2	1	item	item-22190	qiyuzhangxueer		needs-review		长@2 自动 zhang，可读 chang/zhang，词证据冲突：狱长=zhang、长靴=chang
 七狱长靴·常风	1	item	item-22265	qiyuzhangxuechangfeng		needs-review		长@2 自动 zhang，可读 chang/zhang，词证据冲突：狱长=zhang、长靴=chang
+万变水波	1	action	action-18296	wanbianshuibo		needs-review		波@3 自动 bo，可读 bei/bi/bo，词证据冲突：水波=bo/po
 三角龙角笛	1	item	item-26780	sanjiaolongjiaodi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
+三重惩戒	1	action	action-11482	sanchongchengjie		needs-review		重@1 自动 chong，可读 chong/tong/zhong，词证据冲突：三重=chong、重惩=zhong
+三重灾祸	2	action	action-18953,action-25826	sanchongzaihuo		needs-review		重@1 自动 chong，可读 chong/tong/zhong，词证据冲突：三重=chong、重灾=zhong
 三重石	1	item	item-27723	sanchongshi		needs-review		重@1 自动 chong，可读 chong/tong/zhong，词证据冲突：三重=chong、重石=zhong
 三重石原石	1	item	item-27729	sanchongshiyuanshi		needs-review		重@1 自动 chong，可读 chong/tong/zhong，词证据冲突：三重=chong、重石=zhong
 三重石咏咒手镯	1	item	item-26182	sanchongshiyongzhoushouzhuo		needs-review		重@1 自动 chong，可读 chong/tong/zhong，词证据冲突：三重=chong、重石=zhong
@@ -57,11 +60,12 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 中角羊	1	item	item-43573	zhongjiaoyang		needs-review		角@1 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 丰水手炮	1	item	item-24650	fengshuishoupao		needs-review		炮@3 自动 pao，可读 bao/pao，基础词库无覆盖词
 丰水手炮+1	1	item	item-24666	fengshuishoupaoyi		needs-review		炮@3 自动 pao，可读 bao/pao，基础词库无覆盖词
+为了更强	1	contentfindercondition	contentfindercondition-270	weilegengqiang		needs-review		强@3 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
 义军不死鸟之尾	1	item	item-30934	yijunbusiniaozhiwei		needs-review		尾@6 自动 wei，可读 wei/yi，基础词库无覆盖词
 乌兹长刃斧	1	item	item-9085	wuzizhangrenfu		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 乌勒尔角笛	1	item	item-43599	wuleierjiaodi	wuleerjiaodi	evidence+needs-review	勒@1 lei→le（词：勒尔）	角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 乐座街	2	placename	placename-1953,placename-2901	lezuojie		needs-review		乐@0 自动 le，可读 le/yue，基础词库无覆盖词
-乐欲之所瓯博讷修道院	1	placename	placename-2864	leyuzhisuooubonexiudaoyuan		needs-review		乐@0 自动 le，可读 le/yue，基础词库无覆盖词
+乐欲之所瓯博讷修道院	2	placename	placename-2864,contentfindercondition-636	leyuzhisuooubonexiudaoyuan		needs-review		乐@0 自动 le，可读 le/yue，基础词库无覆盖词
 乐水园	1	placename	placename-2924	leshuiyuan		needs-review		乐@0 自动 le，可读 le/yue，基础词库无覆盖词
 九宫幻卡：人马王洛弗卡勒	1	item	item-21186	jiugonghuankarenmawangluofukalei	jiugonghuankarenmawangluofukale	evidence	勒@11 lei→le（词：卡勒）	
 九宫幻卡：伊塞勒	1	item	item-12272	jiugonghuankayisailei	jiugonghuankayisaile	evidence	勒@7 lei→le（词：塞勒）	
@@ -109,6 +113,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 九宫幻卡：魔导死亡爪	1	item	item-16759	jiugonghuankamodaosiwangzhao		needs-review		爪@9 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 九宫幻卡：魔邪象族	1	item	item-37336	jiugonghuankamoxiexiangzu		needs-review		邪@6 自动 xie，可读 she/xie/xu/ya/ye，词证据冲突：魔邪=xie/ye
 乡村秋千双人长椅	1	item	item-40678	xiangcunqiuqianshuangrenzhangyi	xiangcunqiuqianshuangrenchangyi	evidence	长@6 zhang→chang（词：长椅）	
+乾坤斗气弹	1	action	action-36950	qiankundouqidan		needs-review		弹@4 自动 dan，可读 dan/tan，基础词库无覆盖词
 云杉木材	1	item	item-5378	yunshamucai		needs-review		杉@1 自动 sha，可读 sha/shan，词证据冲突：云杉=shan、杉木=sha/shan
 云杉木鞋	1	item	item-3947	yunshamuxie		needs-review		杉@1 自动 sha，可读 sha/shan，词证据冲突：云杉=shan、杉木=sha/shan
 云神手炮	1	item	item-11427	yunshenshoupao		needs-review		炮@3 自动 pao，可读 bao/pao，基础词库无覆盖词
@@ -320,6 +325,8 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 俾斯麦之角	1	item	item-12256	bisimaizhijiao		needs-review		俾@0 自动 bi，可读 bei/bi/pi，词证据冲突：俾斯麦=bei/bi；角@4 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 俾斯麦早餐组合	1	item	item-28977	bisimaizaocanzuhe		needs-review		俾@0 自动 bi，可读 bei/bi/pi，词证据冲突：俾斯麦=bei/bi
 俾斯麦武器箱（品级175）	1	item	item-36142	bisimaiwuqixiangpinjiyiqiwu		needs-review		俾@0 自动 bi，可读 bei/bi/pi，词证据冲突：俾斯麦=bei/bi
+俾斯麦歼殛战	1	contentfindercondition	contentfindercondition-89	bisimaijianjizhan		needs-review		俾@0 自动 bi，可读 bei/bi/pi，词证据冲突：俾斯麦=bei/bi
+俾斯麦歼灭战	1	contentfindercondition	contentfindercondition-88	bisimaijianmiezhan		needs-review		俾@0 自动 bi，可读 bei/bi/pi，词证据冲突：俾斯麦=bei/bi
 俾斯麦灵泉	1	item	item-12111	bisimailingquan		needs-review		俾@0 自动 bi，可读 bei/bi/pi，词证据冲突：俾斯麦=bei/bi
 俾斯麦的额头	1	placename	placename-3459	bisimaideetou		needs-review		俾@0 自动 bi，可读 bei/bi/pi，词证据冲突：俾斯麦=bei/bi
 俾斯麦装甲	1	item	item-12082	bisimaizhuangjia		needs-review		俾@0 自动 bi，可读 bei/bi/pi，词证据冲突：俾斯麦=bei/bi
@@ -377,7 +384,9 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 兽主青铜重盾+3	1	item	item-50764	shouzhuqingtongzhongdunsan		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 兽主青铜重盾+4	1	item	item-50771	shouzhuqingtongzhongdunsi		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 兽斗间	1	placename	placename-694	shoudoujian		needs-review		斗@1 自动 dou，可读 dou/zhu，基础词库无覆盖词
+兽爪彩绘	1	action	action-34666	shouzhaocaihui		needs-review		爪@1 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 兽爪指甲	1	item	item-10046	shouzhaozhijia		needs-review		爪@1 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
+兽爪构想	1	action	action-34672	shouzhaogouxiang		needs-review		爪@1 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 兽牧青铜重盾	1	item	item-47472	shoumuqingtongzhongdun		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 兽王青铜重盾	1	item	item-51737	shouwangqingtongzhongdun		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 兽育青铜重盾	1	item	item-50733	shouyuqingtongzhongdun		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
@@ -405,6 +414,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 冰神寒冰重刺剑	1	item	item-20381	bingshenhanbingzhongcijian		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 冰神钻石爪	1	item	item-9550	bingshenzuanshizhao		needs-review		爪@4 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 冰神钻石重刺剑	1	item	item-20383	bingshenzuanshizhongcijian		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
+冲击炮	1	action	action-41629	chongjipao		needs-review		炮@2 自动 pao，可读 bao/pao，基础词库无覆盖词
 凯吉古拉角笛	1	item	item-43600	kaijigulajiaodi		needs-review		角@4 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 凯撒裂爪	1	item	item-9492	kaisaliezhao		needs-review		爪@3 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 凯撒裂爪·本我	1	item	item-10055	kaisaliezhaobenwo		needs-review		爪@3 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
@@ -413,8 +423,12 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 凯旋利爪	1	item	item-36964	kaixuanlizhua		needs-review		爪@3 自动 zhua，可读 zhao/zhua，证据拒收：利爪（爪在此读 zhao／zhua 均常见，需人工决定是否两读）
 凯旋斜角笔	1	item	item-43661	kaixuanxiejiaobi		needs-review		斜@2 自动 xie，可读 cha/xia/xie/ye，词证据冲突：斜角=xia/xie
 凯特西猫耳	1	item	item-15935	kaiteximaoer		needs-review		猫@3 自动 mao，可读 mao/miao，词证据冲突：猫耳=m/mao；耳@4 自动 er，可读 er/reng，词证据冲突：猫耳=e/er
+凶禽爪	1	action	action-16150	xiongqinzhao		needs-review		爪@2 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
+分裂弹	1	action	action-2866	fenliedan		needs-review		弹@2 自动 dan，可读 dan/tan，基础词库无覆盖词
+划圆斩	1	action	action-7513	huayuanzhan		needs-review		划@0 自动 hua，可读 guo/hua/huai，基础词库无覆盖词
 初学者长靴	1	item	item-14038	chuxuezhezhangxue	chuxuezhechangxue	evidence	长@3 zhang→chang（词：长靴）	
 利爪牢笼	2	placename	placename-1885,placename-2385	lizhualaolong		needs-review		爪@1 自动 zhua，可读 zhao/zhua，证据拒收：利爪（爪在此读 zhao／zhua 均常见，需人工决定是否两读）
+利鹰坚爪	1	action	action-44931	liyingjianzhao		needs-review		爪@3 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 利齿蛤蜊	1	item	item-12719	lichigeli		needs-review		蛤@2 自动 ge，可读 e/ge/ha，词证据冲突：蛤蜊=ge/ha
 制革熟练点	1	item	item-51319	zhigeshuliandian		needs-review		熟@2 自动 shu，可读 shou/shu，词证据冲突：熟练=shou/shu
 刺球爆弹怪的刺	1	item	item-19923	ciqiubaodanguaideci		needs-review		弹@3 自动 dan，可读 dan/tan，基础词库无覆盖词
@@ -426,7 +440,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 前魔导咏咒长裙	1	item	item-50948	qianmodaoyongzhouzhangqun	qianmodaoyongzhouchangqun	evidence	长@5 zhang→chang（词：长裙）	
 前魔导治愈长裙	1	item	item-50943	qianmodaozhiyuzhangqun	qianmodaozhiyuchangqun	evidence	长@5 zhang→chang（词：愈长、长裙）	
 剑斗间	1	placename	placename-693	jiandoujian		needs-review		斗@1 自动 dou，可读 dou/zhu，基础词库无覆盖词
-剑斗领域日影地修炼所	1	placename	placename-1068	jiandoulingyuriyingdixiuliansuo		needs-review		斗@1 自动 dou，可读 dou/zhu，基础词库无覆盖词
+剑斗领域日影地修炼所	2	placename	placename-1068,contentfindercondition-21	jiandoulingyuriyingdixiuliansuo		needs-review		斗@1 自动 dou，可读 dou/zhu，基础词库无覆盖词
 加固角盔	1	item	item-2725	jiagujiaokui		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 加特勒	1	item	item-50777	jiatelei	jiatele	evidence	勒@2 lei→le（词：特勒）	
 加隆德巧匠长靴	1	item	item-15519	jialongdeqiaojiangzhangxue	jialongdeqiaojiangchangxue	evidence	长@5 zhang→chang（词：长靴）	
@@ -544,8 +558,10 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 印茄木材	1	item	item-29960	yinjiamucai		needs-review		茄@1 自动 jia，可读 jia/qie，基础词库无覆盖词
 卸铁爪	1	item	item-18346	xietiezhao		needs-review		爪@2 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 厚土长杖	1	item	item-15916	houtuzhangzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+原初的血气	1	action	action-25751	yuanchudexueqi		needs-review		血@3 自动 xue，可读 xie/xue，词证据冲突：血气=xie/xue
 参宿七天仪	1	item	item-18747	cansuqitianyi		needs-review		参@0 自动 can，可读 can/cen/shen，基础词库无覆盖词；宿@1 自动 su，可读 qi/su/xiu，基础词库无覆盖词
 友谊圈	1	placename	placename-5106	youyiquan		needs-review		圈@2 自动 quan，可读 juan/quan，基础词库无覆盖词
+双将	1	action	action-36979	shuangjiang		needs-review		将@1 自动 jiang，可读 jiang/qiang，基础词库无覆盖词
 发型样式：半双马尾	1	item	item-44507	faxingyangshibanshuangmayi	faxingyangshibanshuangmawei	evidence	尾@8 yi→wei（词：双马尾）	
 发型样式：卷发	1	item	item-13704	faxingyangshijuanfa		needs-review		卷@5 自动 juan，可读 gun/juan/jun/quan，词证据冲突：卷发=juan/quan
 发型样式：总骑士长	1	item	item-17472	faxingyangshizongqishizhang		needs-review		长@8 自动 zhang，可读 chang/zhang，基础词库无覆盖词
@@ -555,7 +571,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 发型样式：编发高马尾	1	item	item-44865	faxingyangshibianfagaomayi	faxingyangshibianfagaomawei	evidence	尾@9 yi→wei（词：马尾）	
 发型样式：长直发	1	item	item-46798	faxingyangshizhangzhifa	faxingyangshichangzhifa	evidence	长@5 zhang→chang（词：长直）	
 叙诗长靴	1	item	item-11803	xushizhangxue	xushichangxue	evidence	长@2 zhang→chang（词：长靴）	
-古代遗迹喀恩埋没圣堂	1	placename	placename-1058	gudaiyijikaenmaimoshengtang		needs-review		埋@6 自动 mai，可读 mai/man，词证据冲突：埋没=m/mai；没@7 自动 mo，可读 me/mei/mo，词证据冲突：埋没=m/mo
+古代遗迹喀恩埋没圣堂	2	placename	placename-1058,contentfindercondition-9	gudaiyijikaenmaimoshengtang		needs-review		埋@6 自动 mai，可读 mai/man，词证据冲突：埋没=m/mai；没@7 自动 mo，可读 me/mei/mo，词证据冲突：埋没=m/mo
 古典重盾	1	item	item-2244	gudianzhongdun		needs-review		重@2 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 古典长靴	1	item	item-3911	gudianzhangxue	gudianchangxue	evidence	长@2 zhang→chang（词：长靴）	
 古典风格手炮	1	item	item-35027	gudianfenggeshoupao		needs-review		炮@5 自动 pao，可读 bao/pao，基础词库无覆盖词
@@ -578,12 +594,16 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 叶大妖角笛	1	item	item-21054	yedayaojiaodi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 司书长室	1	placename	placename-1797	sishuzhangshi		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 名匠药液	1	item	item-44167	mingjiangyaoye		needs-review		液@3 自动 ye，可读 shi/ye，词证据冲突：药液=ye/yi
+吸血	1	action	action-11395	xixue		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血=xie/xue
 吸血八目鳗	1	item	item-5012	xixuebamuman		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血=xie/xue
 吸血匕首	1	item	item-9224	xixuebishou		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血=xie/xue
 吸血枝	1	item	item-5547	xixuezhi		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血=xie/xue
+吸血深渊	1	action	action-3641	xixueshenyuan		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血=xie/xue
 吸血草杯的卷须	1	item	item-27773	xixuecaobeidejuanxu		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血=xie/xue
 吸血藤的树汁	1	item	item-27774	xixuetengdeshuzhi		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血=xie/xue
+吸血触	1	action	action-49097	xixuechu		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血=xie/xue
 吸血鞭	1	item	item-8766	xixuebian		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血=xie/xue
+吸血鬼之牙	1	action	action-47012	xixueguizhiya		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血鬼=xie/xue
 吸血鬼坎肩	1	item	item-16613	xixueguikanjian		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血鬼=xie/xue
 吸血鬼的灵药	1	item	item-30967	xixueguidelingyao		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血鬼=xie/xue
 吸血鬼的秘药	1	item	item-30952	xixueguidemiyao		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：吸血鬼=xie/xue
@@ -624,10 +644,13 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 喀恩埋没圣堂（苏醒遗迹）	1	placename	placename-1403	kaenmaimoshengtangsuxingyiji		needs-review		埋@2 自动 mai，可读 mai/man，词证据冲突：埋没=m/mai；没@3 自动 mo，可读 me/mei/mo，词证据冲突：埋没=m/mo
 喀恩长筒靴	1	item	item-31491	kaenzhangtongxue	kaenchangtongxue	evidence	长@2 zhang→chang（词：长筒靴）	
 喀恩长靴	1	item	item-31485	kaenzhangxue	kaenchangxue	evidence	长@2 zhang→chang（词：长靴）	
+嗅觉干扰弹	1	action	action-27434	xiujueganraodan		needs-review		弹@4 自动 dan，可读 dan/tan，基础词库无覆盖词
+嗜血	1	action	action-3625	shixue		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：嗜血=xie/xue
 嗜血长剑	1	item	item-10024	shixuechangjian		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：嗜血=xie/xue
 噩梦之种	1	item	item-15630	emengzhizhong		needs-review		种@3 自动 zhong，可读 chong/zhong，基础词库无覆盖词
 园艺熟练点	1	item	item-51324	yuanyishuliandian		needs-review		熟@2 自动 shu，可读 shou/shu，词证据冲突：熟练=shou/shu
 图尔长靴	1	item	item-51955	tuerzhangxue	tuerchangxue	evidence	长@2 zhang→chang（词：长靴）	
+图拉尔威爪猎手	1	contentfindercondition	contentfindercondition-1002	tulaerweizhaolieshou		needs-review		爪@4 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 圆顶城塞	1	placename	placename-4937	yuandingchengsai		needs-review		塞@3 自动 sai，可读 sai/se，基础词库无覆盖词
 土华咒角	1	item	item-2071	tuhuazhoujiao		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 土神长杖	1	item	item-14893	tushenzhangzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
@@ -646,10 +669,12 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 圣辉长弓	1	item	item-48177	shenghuizhanggong		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 圣龙长靴	1	item	item-30766	shenglongzhangxue	shenglongchangxue	evidence	长@2 zhang→chang（词：长靴）	
 地中天道秘密基地	1	placename	placename-4748	dizhongtiandaomimijidi		needs-review		秘@4 自动 mi，可读 bi/bie/mi，词证据冲突：秘密=m/mi
+地烈劲	1	action	action-70	diliejin		needs-review		劲@2 自动 jin，可读 jin/jing，基础词库无覆盖词
 地狱爪	1	item	item-1748	diyuzhao		needs-review		爪@2 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 地狱犬利爪	1	item	item-20983	diyuquanlizhua		needs-review		爪@4 自动 zhua，可读 zhao/zhua，证据拒收：利爪（爪在此读 zhao／zhua 均常见，需人工决定是否两读）
 地狱犬长弓	1	item	item-20986	diyuquanzhanggong		needs-review		长@3 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 地狱犬长杖	1	item	item-20991	diyuquanzhangzhang		needs-review		长@3 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+坚角清汁	1	action	action-24298	jianjiaoqingzhi		needs-review		角@1 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 坡弗露运输公司	1	placename	placename-4557	pofuluyunshugongsi		needs-review		露@2 自动 lu，可读 lou/lu，基础词库无覆盖词
 埋没遗迹	1	placename	placename-855	maimoyiji		needs-review		埋@0 自动 mai，可读 mai/man，词证据冲突：埋没=m/mai；没@1 自动 mo，可读 me/mei/mo，词证据冲突：埋没=m/mo
 城塞兜帽	1	item	item-31518	chengsaidoumao		needs-review		塞@1 自动 sai，可读 sai/se，基础词库无覆盖词
@@ -717,9 +742,10 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 天青斗场	1	placename	placename-2548	tianqingdouchang		needs-review		斗@2 自动 dou，可读 dou/zhu，基础词库无覆盖词
 太阳柠檬	1	item	item-4811	taiyangningmeng		needs-review		柠@2 自动 ning，可读 chu/ning/zhu，词证据冲突：柠檬=n/ning
 太阳柠檬种子	1	item	item-7728	taiyangningmengzhongzi		needs-review		柠@2 自动 ning，可读 chu/ning/zhu，词证据冲突：柠檬=n/ning
-失传强放逐	1	item	item-30901	shichuanqiangfangzhu		needs-review		强@2 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
-失传强麻痹	1	item	item-30900	shichuanqiangmabi		needs-review		强@2 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
-失落之都拉巴纳斯塔	1	placename	placename-2372	shiluozhidoulabanasita		needs-review		都@3 自动 dou，可读 dou/du，基础词库无覆盖词
+失传强放逐	2	item	item-30901,action-20702	shichuanqiangfangzhu		needs-review		强@2 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
+失传强麻痹	2	item	item-30900,action-20701	shichuanqiangmabi		needs-review		强@2 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
+失落之都拉巴纳斯塔	2	placename	placename-2372,contentfindercondition-281	shiluozhidoulabanasita		needs-review		都@3 自动 dou，可读 dou/du，基础词库无覆盖词
+失血箭	1	action	action-110	shixuejian		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：失血=xie/xue
 头狼长靴	1	item	item-50815	toulangzhangxue	toulangchangxue	evidence	长@2 zhang→chang（词：长靴）	
 头领薄饼章鱼	1	item	item-30438	toulingbaobingzhangyu		needs-review		薄@2 自动 bao，可读 bao/bo/bu，词证据冲突：薄饼=bao/bo
 奇坦那咏咒斗服	1	item	item-26083	qitannayongzhoudoufu		needs-review		斗@5 自动 dou，可读 dou/zhu，基础词库无覆盖词
@@ -793,6 +819,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 娜娜莫新门（西萨纳兰方面）	1	placename	placename-779	nanamoxinmenxisanalanfangmian		needs-review		娜@0 自动 na，可读 na/nuo，词证据冲突：娜娜=n/na；娜@1 自动 na，可读 na/nuo，词证据冲突：娜娜=n/na
 学术长靴	1	item	item-11838	xueshuzhangxue	xueshuchangxue	evidence	长@2 zhang→chang（词：长靴）	
 学究长靴	1	item	item-33991	xuejiuzhangxue	xuejiuchangxue	evidence	长@2 zhang→chang（词：长靴）	
+学识宝库迦巴勒幻想图书馆	1	contentfindercondition	contentfindercondition-31	xueshibaokujiabaleihuanxiangtushuguan	xueshibaokujiabalehuanxiangtushuguan	evidence	勒@6 lei→le（词：巴勒）	
 学院长裤	1	item	item-32807	xueyuanzhangku		needs-review		长@2 自动 zhang，可读 chang/zhang，词证据冲突：院长=zhang、长裤=chang
 学院长裤套装	1	item	item-45410	xueyuanzhangkutaozhuang		needs-review		长@2 自动 zhang，可读 chang/zhang，词证据冲突：院长=zhang、长裤=chang
 宇宙墨尾足鱼	1	item	item-52141	yuzhoumoweizuyu		needs-review		尾@3 自动 wei，可读 wei/yi，基础词库无覆盖词
@@ -838,12 +865,13 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 对龙城塞指挥椅	1	item	item-6521	duilongchengsaizhihuiyi		needs-review		塞@3 自动 sai，可读 sai/se，基础词库无覆盖词
 对龙城塞烽火笼	1	item	item-6506	duilongchengsaifenghuolong		needs-review		塞@3 自动 sai，可读 sai/se，基础词库无覆盖词
 对龙城塞的木材	1	item	item-7158	duilongchengsaidemucai		needs-review		塞@3 自动 sai，可读 sai/se，基础词库无覆盖词
-对龙城塞石卫塔	1	placename	placename-1060	duilongchengsaishiweita		needs-review		塞@3 自动 sai，可读 sai/se，基础词库无覆盖词
+对龙城塞石卫塔	2	placename	placename-1060,contentfindercondition-11	duilongchengsaishiweita		needs-review		塞@3 自动 sai，可读 sai/se，基础词库无覆盖词
 对龙弩炮哈尔德拉斯	1	placename	placename-1514	duilongnupaohaerdelasi		needs-review		炮@3 自动 pao，可读 bao/pao，基础词库无覆盖词
 对龙弩炮弗拉维安	1	placename	placename-1510	duilongnupaofulaweian		needs-review		炮@3 自动 pao，可读 bao/pao，基础词库无覆盖词
 对龙弩炮西尔韦特雷尔	1	placename	placename-1512	duilongnupaoxierweiteleier		needs-review		炮@3 自动 pao，可读 bao/pao，基础词库无覆盖词
 小丑长靴	1	item	item-35867	xiaochouzhangxue	xiaochouchangxue	evidence	长@2 zhang→chang（词：长靴）	
 小亚波伦的甲壳	1	item	item-44069	xiaoyabolundejiaqiao		needs-review		壳@6 自动 qiao，可读 ke/qiao，词证据冲突：甲壳=ke/qiao
+小奥秘卡	2	action	action-10027,action-37022	xiaoaomika		needs-review		奥@1 自动 ao，可读 ao/you/yu，词证据冲突：奥秘=a/ao；秘@2 自动 mi，可读 bi/bie/mi，词证据冲突：奥秘=m/mi
 小小吉尔伽美什	1	item	item-8191	xiaoxiaojiergameishen		needs-review		伽@4 自动 ga，可读 ga/jia/qie，基础词库无覆盖词；什@6 自动 shen，可读 shen/shi，基础词库无覆盖词
 小柠檬	1	item	item-27835	xiaoningmeng		needs-review		柠@1 自动 ning，可读 chu/ning/zhu，词证据冲突：柠檬=n/ning
 小长颈驼	1	item	item-24001	xiaozhangjingtuo	xiaochangjingtuo	evidence	长@1 zhang→chang（词：长颈）	
@@ -901,13 +929,14 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 幻境长杖·本影（复制品）	1	item	item-50066	huanjingzhangzhangbenyingfuzhipin		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 幻境长玉杖·黯影	1	item	item-50038	huanjingzhangyuzhanganying		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 幻境长玉杖·黯影（复制品）	1	item	item-51050	huanjingzhangyuzhanganyingfuzhipin		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+幻影弹	1	action	action-17684	huanyingdan		needs-review		弹@2 自动 dan，可读 dan/tan，基础词库无覆盖词
 幻影群岛南岸	1	placename	placename-985	huanyingqundaonanan		needs-review		南@4 自动 nan，可读 na/nan，词证据冲突：南岸=n/nan
 幻象长靴	1	item	item-32650	huanxiangzhangxue	huanxiangchangxue	evidence	长@2 zhang→chang（词：长靴）	
 幻象闪电角笛	1	item	item-38460	huanxiangshandianjiaodi		needs-review		角@4 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 庄园长椅	1	item	item-6535	zhuangyuanzhangyi		needs-review		长@2 自动 zhang，可读 chang/zhang，词证据冲突：园长=zhang、长椅=chang
 库阿库阿角笛	1	item	item-41499	kuakuajiaodi		needs-review		角@4 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 废液池	1	placename	placename-1011	feiyechi		needs-review		液@1 自动 ye，可读 shi/ye，词证据冲突：废液=ye/yi
-废都拿巴示艾兰	1	placename	placename-3118	feidounabashiailan		needs-review		都@1 自动 dou，可读 dou/du，基础词库无覆盖词
+废都拿巴示艾兰	2	placename	placename-3118,contentfindercondition-680	feidounabashiailan		needs-review		都@1 自动 dou，可读 dou/du，基础词库无覆盖词
 延夏拳士斗衣	1	item	item-18608	yanxiaquanshidouyi		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
 延夏枪士斗衣	1	item	item-18602	yanxiaqiangshidouyi		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
 延夏间士斗衣	1	item	item-18620	yanxiajianshidouyi		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
@@ -950,6 +979,9 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 强火性岩	1	item	item-12966	qianghuoxingyan		needs-review		强@0 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
 强灵性岩	1	item	item-8030	qianglingxingyan		needs-review		强@0 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
 强灵性靛蓝石	1	item	item-52061	qianglingxingdianlanshi		needs-review		强@0 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
+强甲破点突	2	action	action-3563,action-17417	qiangjiapodiantu		needs-review		强@0 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
+强碎灵蛇	1	action	action-34620	qiangsuilingshe		needs-review		强@0 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
+强碎灵蝰	1	action	action-34623	qiangsuilingkui		needs-review		强@0 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
 强精炼药	1	item	item-19885	qiangjinglianyao		needs-review		强@0 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
 强雷性岩	1	item	item-12967	qiangleixingyan		needs-review		强@0 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
 彩虹姐妹	1	item	item-43815	caihongjiemei		needs-review		姐@2 自动 jie，可读 jie/ju/xu/zu，词证据冲突：姐妹=jie/zi
@@ -968,6 +1000,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 忘忧骑士亭前（圣瓦勒鲁瓦扬广场）	1	placename	placename-1651	wangyouqishitingqianshengwaleiluwayangguangchang	wangyouqishitingqianshengwaleluwayangguangchang	evidence	勒@9 lei→le（词：瓦勒）	
 忠卫长靴	1	item	item-34026	zhongweizhangxue	zhongweichangxue	evidence	长@2 zhang→chang（词：长靴）	
 怪铁长靴	1	item	item-25342	guaitiezhangxue	guaitiechangxue	evidence	长@2 zhang→chang（词：长靴）	
+怪音波	1	action	action-18302	guaiyinbo		needs-review		波@2 自动 bo，可读 bei/bi/bo，词证据冲突：音波=bo/po
 总冠军手臂装备箱（品级790）	1	item	item-49741	zongguanjunshoubizhuangbeixiangpinjiqijiuling		needs-review		臂@4 自动 bi，可读 bei/bi，词证据冲突：手臂=bei/bi
 总冠军精准长靴	1	item	item-49699	zongguanjunjingzhunzhangxue	zongguanjunjingzhunchangxue	evidence	长@5 zhang→chang（词：长靴）	
 总督强袭长靴	1	item	item-31847	zongduqiangxizhangxue	zongduqiangxichangxue	evidence	长@4 zhang→chang（词：长靴）	
@@ -988,8 +1021,9 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 恐狼长杖	1	item	item-6878	konglangzhangzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 恩塞拉都斯魔导工厂	1	placename	placename-3911	ensailadousimodaogongchang		needs-review		都@3 自动 dou，可读 dou/du，基础词库无覆盖词
 恩奇都	1	item	item-10076	enqidou		needs-review		都@2 自动 dou，可读 dou/du，基础词库无覆盖词
+恶党孤城黄金阁	1	contentfindercondition	contentfindercondition-262	edangguchenghuangjinge		needs-review		恶@0 自动 e，可读 e/wu，基础词库无覆盖词
 恶友的灯火	1	item	item-43812	eyoudedenghuo		needs-review		恶@0 自动 e，可读 e/wu，基础词库无覆盖词
-恶灵府邸静语庄园	1	placename	placename-1066	elingfudijingyuzhuangyuan		needs-review		恶@0 自动 e，可读 e/wu，基础词库无覆盖词
+恶灵府邸静语庄园	2	placename	placename-1066,contentfindercondition-19	elingfudijingyuzhuangyuan		needs-review		恶@0 自动 e，可读 e/wu，基础词库无覆盖词
 恶金单眼镜	1	item	item-25348	ejindanyanjing		needs-review		恶@0 自动 e，可读 e/wu，基础词库无覆盖词
 恶金坎肩	1	item	item-25349	ejinkanjian		needs-review		恶@0 自动 e，可读 e/wu，基础词库无覆盖词
 恶金工艺锤	1	item	item-25325	ejingongyichui		needs-review		恶@0 自动 e，可读 e/wu，基础词库无覆盖词
@@ -1042,7 +1076,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 户外红砖积雪长椅	1	item	item-37399	huwaihongzhuanjixuezhangyi	huwaihongzhuanjixuechangyi	evidence	长@6 zhang→chang（词：长椅）	
 所长室	1	placename	placename-4955	suozhangshi		needs-review		长@1 自动 zhang，可读 chang/zhang，词证据冲突：所长=chang/zhang
 扎杜诺尔基地	1	placename	placename-3671	zhadunuoerjidi		needs-review		扎@0 自动 zha，可读 za/zha，基础词库无覆盖词
-扎杜诺尔高原	1	placename	placename-3662	zhadunuoergaoyuan		needs-review		扎@0 自动 zha，可读 za/zha，基础词库无覆盖词
+扎杜诺尔高原	2	placename	placename-3662,contentfindercondition-778	zhadunuoergaoyuan		needs-review		扎@0 自动 zha，可读 za/zha，基础词库无覆盖词
 扎杜诺尔高原详细地图	1	item	item-33884	zhadunuoergaoyuanxiangxiditu		needs-review		扎@0 自动 zha，可读 za/zha，基础词库无覆盖词
 扎焦水道	1	placename	placename-4921	zhajiaoshuidao		needs-review		扎@0 自动 zha，可读 za/zha，基础词库无覆盖词
 扎越尔姆遗迹	2	placename	placename-4157,placename-4163	zhayueermuyiji		needs-review		扎@0 自动 zha，可读 za/zha，基础词库无覆盖词
@@ -1074,6 +1108,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 摩洛的角	1	item	item-24817	moluodejiao		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 撒伽塔纳斯	1	item	item-42588	sagatanasi		needs-review		伽@1 自动 ga，可读 ga/jia/qie，基础词库无覆盖词
 撞色木纹地板	1	item	item-35810	zhuangsemuwendiban		needs-review		色@1 自动 se，可读 se/shai，基础词库无覆盖词
+播魂种	1	action	action-24387	bohunzhong		needs-review		种@2 自动 zhong，可读 chong/zhong，基础词库无覆盖词
 收藏用五加木耳坠	1	item	item-44185	shoucangyongwujiamuerzhui		needs-review		耳@6 自动 er，可读 er/reng，词证据冲突：木耳=e/er、耳坠=er
 收藏用仙果木长杖	1	item	item-30982	shoucangyongxianguomuzhangzhang		needs-review		长@6 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 收藏用伽迦象革皮鞋	1	item	item-35646	shoucangyonggajiaxianggepixie		needs-review		伽@3 自动 ga，可读 ga/jia/qie，基础词库无覆盖词
@@ -1291,7 +1326,9 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 故事编撰者斗服	1	item	item-50297	gushibianzhuanzhedoufu		needs-review		斗@5 自动 dou，可读 dou/zhu，基础词库无覆盖词
 敖龙长外衣	1	item	item-9649	aolongzhangwaiyi		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 教育长筒靴	1	item	item-42635	jiaoyuzhangtongxue		needs-review		长@2 自动 zhang，可读 chang/zhang，词证据冲突：教育长=zhang、长筒靴=chang
-文理浴血	1	item	item-24032	wenliyuxue		needs-review		血@3 自动 xue，可读 xie/xue，词证据冲突：浴血=xie/xue
+文理强放逐	1	action	action-13004	wenliqiangfangzhu		needs-review		强@2 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
+文理强麻痹	1	action	action-12974	wenliqiangmabi		needs-review		强@2 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
+文理浴血	2	item	item-24032,action-12985	wenliyuxue		needs-review		血@3 自动 xue，可读 xie/xue，词证据冲突：浴血=xie/xue
 斗剑套装	1	item	item-50557	doujiantaozhuang		needs-review		斗@0 自动 dou，可读 dou/zhu，基础词库无覆盖词
 斗剑手套	1	item	item-22078	doujianshoutao		needs-review		斗@0 自动 dou，可读 dou/zhu，基础词库无覆盖词
 斗剑手套+1	1	item	item-22153	doujianshoutaoyi		needs-review		斗@0 自动 dou，可读 dou/zhu，基础词库无覆盖词
@@ -1317,6 +1354,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 斗壶	1	item	item-14884	douhu		needs-review		斗@0 自动 dou，可读 dou/zhu，基础词库无覆盖词
 斗壶·天极	1	item	item-14885	douhutianji		needs-review		斗@0 自动 dou，可读 dou/zhu，基础词库无覆盖词
 斗壶·镇魂	1	item	item-14886	douhuzhenhun		needs-review		斗@0 自动 dou，可读 dou/zhu，基础词库无覆盖词
+斗灵弹	1	action	action-23275	doulingdan		needs-review		斗@0 自动 dou，可读 dou/zhu，基础词库无覆盖词；弹@2 自动 dan，可读 dan/tan，基础词库无覆盖词
 斗熊角笛	1	item	item-20553	douxiongjiaodi		needs-review		斗@0 自动 dou，可读 dou/zhu，基础词库无覆盖词；角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 斗狮角笛	1	item	item-20552	doushijiaodi		needs-review		斗@0 自动 dou，可读 dou/zhu，基础词库无覆盖词；角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 斗神头盔	1	item	item-10037	doushentoukui		needs-review		斗@0 自动 dou，可读 dou/zhu，基础词库无覆盖词
@@ -1358,6 +1396,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 方舟御敌长裙	1	item	item-13122	fangzhouyudizhangqun	fangzhouyudichangqun	evidence	长@4 zhang→chang（词：长裙）	
 方舟治愈长靴	1	item	item-13153	fangzhouzhiyuzhangxue	fangzhouzhiyuchangxue	evidence	长@4 zhang→chang（词：愈长、长靴）	
 方舟精准长靴	1	item	item-13141	fangzhoujingzhunzhangxue	fangzhoujingzhunchangxue	evidence	长@4 zhang→chang（词：长靴）	
+旅行画家的森都旅程	1	contentfindercondition	contentfindercondition-1000	lvxinghuajiadesendoulvcheng		needs-review		都@6 自动 dou，可读 dou/du，基础词库无覆盖词
 旅行者长靴	1	item	item-37080	lvxingzhezhangxue	lvxingzhechangxue	evidence	长@3 zhang→chang（词：长靴）	
 无人岛树液	1	item	item-37563	wurendaoshuye		needs-review		液@4 自动 ye，可读 shi/ye，词证据冲突：树液=ye/yi
 无人岛藤蔓	1	item	item-37562	wurendaotengwan		needs-review		蔓@4 自动 wan，可读 man/wan，词证据冲突：藤蔓=man/wan
@@ -1367,6 +1406,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 无尽云神长弓	1	item	item-15574	wujinyunshenzhanggong		needs-review		长@4 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 无尽云神长玉杖	1	item	item-15579	wujinyunshenzhangyuzhang		needs-review		长@4 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 无尾鸡	1	item	item-44170	wuweiji		needs-review		尾@1 自动 wei，可读 wei/yi，基础词库无覆盖词
+无限城的死斗	1	contentfindercondition	contentfindercondition-85	wuxianchengdesidou		needs-review		斗@5 自动 dou，可读 dou/zhu，基础词库无覆盖词
 无齿翼龙角笛	1	item	item-30104	wuchiyilongjiaodi		needs-review		角@4 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 日影兰御敌长靴	1	item	item-35269	riyinglanyudizhangxue	riyinglanyudichangxue	evidence	长@5 zhang→chang（词：长靴）	
 日影兰手臂装备箱（品级600）	1	item	item-35737	riyinglanshoubizhuangbeixiangpinjiliulingling		needs-review		臂@4 自动 bi，可读 bei/bi，词证据冲突：手臂=bei/bi
@@ -1408,6 +1448,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 旭日治愈长靴	1	item	item-17279	xurizhiyuzhangxue	xurizhiyuchangxue	evidence	长@4 zhang→chang（词：愈长、长靴）	
 旸甲长靴	1	item	item-43373	yangjiazhangxue	yangjiachangxue	evidence	长@2 zhang→chang（词：长靴）	
 明目魔晶石壹型	1	item	item-6939	mingmumojingshiyixing		needs-review		明@0 自动 ming，可读 meng/ming，词证据冲突：明目=m/ming
+星极脉冲	1	action	action-25820	xingjimaichong		needs-review		脉@2 自动 mai，可读 mai/mo，词证据冲突：脉冲=mai/mo
 星绒咏咒长手套	1	item	item-16679	xingrongyongzhouzhangshoutao		needs-review		长@4 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 星绒治愈长手套	1	item	item-16673	xingrongzhiyuzhangshoutao	xingrongzhiyuchangshoutao	evidence	长@4 zhang→chang（词：愈长）	
 星芒熊角笛	1	item	item-21050	xingmangxiongjiaodi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
@@ -1415,6 +1456,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 春意长裙	1	item	item-7541	chunyizhangqun	chunyichangqun	evidence	长@2 zhang→chang（词：长裙）	
 显灵长袍	1	item	item-33973	xianlingchangpao		needs-review		长@2 自动 chang，可读 chang/zhang，词证据冲突：灵长=zhang、长袍=chang
 显灵长靴	1	item	item-33976	xianlingzhangxue		needs-review		长@2 自动 zhang，可读 chang/zhang，词证据冲突：灵长=zhang、长靴=chang
+暗影波动	2	action	action-16469,action-18908	anyingbodong		needs-review		波@2 自动 bo，可读 bei/bi/bo，词证据冲突：波动=bo/po
 暗栗木长弓	1	item	item-10612	anlimuzhanggong		needs-review		长@3 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 暗耀咏咒长靴	1	item	item-3941	anyaoyongzhouzhangxue	anyaoyongzhouchangxue	evidence	长@4 zhang→chang（词：长靴）	
 暗耀治愈长靴	1	item	item-3942	anyaozhiyuzhangxue	anyaozhiyuchangxue	evidence	长@4 zhang→chang（词：愈长、长靴）	
@@ -1427,10 +1469,13 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 暗魔咏咒长靴	1	item	item-17383	anmoyongzhouzhangxue	anmoyongzhouchangxue	evidence	长@4 zhang→chang（词：长靴）	
 暗魔强袭长靴	1	item	item-17359	anmoqiangxizhangxue	anmoqiangxichangxue	evidence	长@4 zhang→chang（词：长靴）	
 暗魔治愈长靴	1	item	item-17377	anmozhiyuzhangxue	anmozhiyuchangxue	evidence	长@4 zhang→chang（词：愈长、长靴）	
+暗黑波动	1	action	action-16466	anheibodong		needs-review		波@2 自动 bo，可读 bei/bi/bo，词证据冲突：波动=bo/po
+暗黑炮	1	action	action-41628	anheipao		needs-review		炮@2 自动 pao，可读 bao/pao，基础词库无覆盖词
 暴击B1长靴	1	item	item-47244	baojibyizhangxue	baojibyichangxue	evidence	长@4 zhang→chang（词：长靴）	
 暴击B2长靴	1	item	item-47249	baojiberzhangxue	baojiberchangxue	evidence	长@4 zhang→chang（词：长靴）	
 暴龙角笛	1	item	item-21907	baolongjiaodi		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 曦铁长裙	1	item	item-43367	xitiezhangqun	xitiechangqun	evidence	长@2 zhang→chang（词：长裙）	
+曼德维尔横跳	1	action	action-31929	mandeweierhengtiao		needs-review		横@4 自动 heng，可读 guang/heng/huang，基础词库无覆盖词
 曼德维尔盈满扎戈斧镰	1	item	item-40950	mandeweieryingmanzhagefulian		needs-review		扎@6 自动 zha，可读 za/zha，基础词库无覆盖词
 曼德维尔盈满扎戈斧镰（复制品）	1	item	item-41010	mandeweieryingmanzhagefulianfuzhipin		needs-review		扎@6 自动 zha，可读 za/zha，基础词库无覆盖词
 最优长外衣	1	item	item-9317	zuiyouzhangwaiyi		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
@@ -1444,6 +1489,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 月使精准长靴	1	item	item-37970	yueshijingzhunzhangxue	yueshijingzhunchangxue	evidence	长@4 zhang→chang（词：长靴）	
 月使长杖	1	item	item-37940	yueshizhangzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 月光仙人刺角笛	1	item	item-41494	yueguangxianrencijiaodi		needs-review		角@5 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
+月影雷兽爪	2	action	action-25777,action-25878	yueyingleishouzhao		needs-review		爪@4 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 月斜长岩	1	item	item-48646	yuexiezhangyan		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 月桂冠古菩猩猩角笛	1	item	item-6992	yueguiguangupuxingxingjiaodi		needs-review		角@7 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 月球车用的长杆	2	item	item-48334,item-48407	yueqiucheyongdezhanggan	yueqiucheyongdechanggan	evidence	长@5 zhang→chang（词：长杆）	
@@ -1512,10 +1558,13 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 格子窗长椅	1	item	item-51251	gezichuangzhangyi	gezichuangchangyi	evidence	长@3 zhang→chang（词：长椅）	
 格拉尼角笛	1	item	item-23982	gelanijiaodi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 格莱杨拉波尔引擎核心	1	item	item-49843	gelaiyanglaboeryinqinghexin		needs-review		波@4 自动 bo，可读 bei/bi/bo，词证据冲突：波尔=bo/po
+格莱杨拉波尔歼殛战	1	contentfindercondition	contentfindercondition-1077	gelaiyanglaboerjianjizhan		needs-review		波@4 自动 bo，可读 bei/bi/bo，词证据冲突：波尔=bo/po
+格莱杨拉波尔歼灭战	1	contentfindercondition	contentfindercondition-1076	gelaiyanglaboerjianmiezhan		needs-review		波@4 自动 bo，可读 bei/bi/bo，词证据冲突：波尔=bo/po
 格里奥勒的睡床	1	placename	placename-2966	geliaoleideshuichuang	geliaoledeshuichuang	evidence	勒@3 lei→le（词：奥勒）	
 桃花似锦	1	item	item-5888	taohuashijin	taohuasijin	evidence	似@2 shi→si（词：花似锦）	
 桦木长弓	1	item	item-10614	huamuzhanggong		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 梅加斯三姐妹之形	1	item	item-35972	meijiasisanjiemeizhixing		needs-review		姐@4 自动 jie，可读 jie/ju/xu/zu，词证据冲突：姐妹=jie/zi
+梦幻斗舞	1	action	action-25769	menghuandouwu		needs-review		斗@2 自动 dou，可读 dou/zhu，基础词库无覆盖词
 梦羽妖灵王利爪	1	item	item-38542	mengyuyaolingwanglizhua		needs-review		爪@6 自动 zhua，可读 zhao/zhua，证据拒收：利爪（爪在此读 zhao／zhua 均常见，需人工决定是否两读）
 梦羽妖灵王手炮	1	item	item-38548	mengyuyaolingwangshoupao		needs-review		炮@6 自动 pao，可读 bao/pao，基础词库无覆盖词
 梦羽妖灵王重斧	1	item	item-38543	mengyuyaolingwangzhongfu		needs-review		重@5 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
@@ -1568,6 +1617,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 欧米茄头部装备箱（品级400）	1	item	item-35953	oumijiatoubuzhuangbeixiangpinjisilingling		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄夺命镰	1	item	item-23571	oumijiaduominglian		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄小剑	1	item	item-23580	oumijiaxiaojian		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄干扰器	1	action	action-12911	oumijiaganraoqi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄强攻单耳耳夹	1	item	item-23625	oumijiaqianggongdanererjia		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄强攻手镯	1	item	item-23635	oumijiaqianggongshouzhuo		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄强攻指环	1	item	item-23640	oumijiaqianggongzhihuan		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
@@ -1594,6 +1644,18 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 欧米茄拳套	1	item	item-23567	oumijiaquantao		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄指环装备箱（品级400）	1	item	item-35961	oumijiazhihuanzhuangbeixiangpinjisilingling		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄控制室	1	placename	placename-1887	oumijiakongzhishi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 德尔塔幻境1	1	contentfindercondition	contentfindercondition-252	oumijiashikongxiafengdeertahuanjingyi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 德尔塔幻境2	1	contentfindercondition	contentfindercondition-253	oumijiashikongxiafengdeertahuanjinger		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 德尔塔幻境3	1	contentfindercondition	contentfindercondition-254	oumijiashikongxiafengdeertahuanjingsan		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 德尔塔幻境4	1	contentfindercondition	contentfindercondition-255	oumijiashikongxiafengdeertahuanjingsi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 西格玛幻境1	1	contentfindercondition	contentfindercondition-286	oumijiashikongxiafengxigemahuanjingyi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 西格玛幻境2	1	contentfindercondition	contentfindercondition-287	oumijiashikongxiafengxigemahuanjinger		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 西格玛幻境3	1	contentfindercondition	contentfindercondition-288	oumijiashikongxiafengxigemahuanjingsan		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 西格玛幻境4	1	contentfindercondition	contentfindercondition-289	oumijiashikongxiafengxigemahuanjingsi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 阿尔法幻境1	1	contentfindercondition	contentfindercondition-587	oumijiashikongxiafengaerfahuanjingyi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 阿尔法幻境2	1	contentfindercondition	contentfindercondition-588	oumijiashikongxiafengaerfahuanjinger		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 阿尔法幻境3	1	contentfindercondition	contentfindercondition-589	oumijiashikongxiafengaerfahuanjingsan		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄时空狭缝 阿尔法幻境4	1	contentfindercondition	contentfindercondition-590	oumijiashikongxiafengaerfahuanjingsi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄武士刀	1	item	item-23579	oumijiawushidao		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄治愈单耳耳夹	1	item	item-23627	oumijiazhiyudanererjia		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄治愈帽	1	item	item-23612	oumijiazhiyumao		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
@@ -1623,6 +1685,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 欧米茄精准腰甲	1	item	item-23605	oumijiajingzhunyaojia		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄精准软甲裤	1	item	item-23603	oumijiajingzhunruanjiaku		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄精准项钉	1	item	item-23631	oumijiajingzhunxiangding		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄绝境验证战	1	contentfindercondition	contentfindercondition-908	oumijiajuejingyanzhengzhan		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄耳部装备箱（品级400）	1	item	item-35958	oumijiaerbuzhuangbeixiangpinjisilingling		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄脚部装备箱（品级400）	1	item	item-35957	oumijiajiaobuzhuangbeixiangpinjisilingling		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄腕部装备箱（品级400）	1	item	item-35960	oumijiawanbuzhuangbeixiangpinjisilingling		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
@@ -1632,6 +1695,18 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 欧米茄身体装备箱（品级400）	1	item	item-35954	oumijiashentizhuangbeixiangpinjisilingling		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄长剑	1	item	item-23566	oumijiachangjian		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄长弓	1	item	item-23570	oumijiazhanggong		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie；长@3 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+欧米茄零式时空狭缝 德尔塔幻境1	1	contentfindercondition	contentfindercondition-256	oumijialingshishikongxiafengdeertahuanjingyi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 德尔塔幻境2	1	contentfindercondition	contentfindercondition-257	oumijialingshishikongxiafengdeertahuanjinger		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 德尔塔幻境3	1	contentfindercondition	contentfindercondition-258	oumijialingshishikongxiafengdeertahuanjingsan		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 德尔塔幻境4	1	contentfindercondition	contentfindercondition-259	oumijialingshishikongxiafengdeertahuanjingsi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 西格玛幻境1	1	contentfindercondition	contentfindercondition-292	oumijialingshishikongxiafengxigemahuanjingyi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 西格玛幻境2	1	contentfindercondition	contentfindercondition-293	oumijialingshishikongxiafengxigemahuanjinger		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 西格玛幻境3	1	contentfindercondition	contentfindercondition-294	oumijialingshishikongxiafengxigemahuanjingsan		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 西格玛幻境4	1	contentfindercondition	contentfindercondition-295	oumijialingshishikongxiafengxigemahuanjingsi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 阿尔法幻境1	1	contentfindercondition	contentfindercondition-591	oumijialingshishikongxiafengaerfahuanjingyi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 阿尔法幻境2	1	contentfindercondition	contentfindercondition-592	oumijialingshishikongxiafengaerfahuanjinger		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 阿尔法幻境3	1	contentfindercondition	contentfindercondition-593	oumijialingshishikongxiafengaerfahuanjingsan		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
+欧米茄零式时空狭缝 阿尔法幻境4	1	contentfindercondition	contentfindercondition-594	oumijialingshishikongxiafengaerfahuanjingsi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄颈部装备箱（品级400）	1	item	item-35959	oumijiajingbuzhuangbeixiangpinjisilingling		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄飞翼	1	item	item-39568	oumijiafeiyi		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 欧米茄骑士武具（品级405）	1	item	item-38510	oumijiaqishiwujupinjisilingwu		needs-review		茄@2 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
@@ -1666,9 +1741,12 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 武神长刀	1	item	item-11434	wushenzhangdao		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 武神长弓	1	item	item-11438	wushenzhanggong		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 武神长玉杖	1	item	item-11443	wushenzhangyuzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+死斗	2	action	action-43,action-8767	sidou		needs-review		斗@1 自动 dou，可读 dou/zhu，基础词库无覆盖词
+死斗至黎明	1	contentfindercondition	contentfindercondition-780	sidouzhiliming		needs-review		斗@1 自动 dou，可读 dou/zhu，基础词库无覆盖词
 死都	1	placename	placename-2867	sidou		needs-review		都@1 自动 dou，可读 dou/du，基础词库无覆盖词
 残光将熄之路	2	placename	placename-5030,placename-5036	canguangjiangxizhilu		needs-review		将@2 自动 jiang，可读 jiang/qiang，基础词库无覆盖词
 残心长杖	1	item	item-10030	canxinzhangzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+残暴弹	3	action	action-16139,action-16418,action-27428	canbaodan		needs-review		弹@2 自动 dan，可读 dan/tan，基础词库无覆盖词
 毒蛙的粘液	1	item	item-44068	duwadenianye		needs-review		液@4 自动 ye，可读 shi/ye，词证据冲突：粘液=ye/yi
 比胡长靴	1	item	item-42615	bihuzhangxue	bihuchangxue	evidence	长@2 zhang→chang（词：长靴）	
 比阿纳可蛤蜊	1	item	item-4875	bianakegeli		needs-review		蛤@4 自动 ge，可读 e/ge/ha，词证据冲突：蛤蜊=ge/ha
@@ -1676,6 +1754,8 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 民兵用长靴	1	item	item-5952	minbingyongzhangxue	minbingyongchangxue	evidence	长@3 zhang→chang（词：长靴）	
 民谣长靴	1	item	item-3954	minyaozhangxue	minyaochangxue	evidence	长@2 zhang→chang（词：长靴）	
 水华咒角	1	item	item-2094	shuihuazhoujiao		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
+水晶冲突（海岸斗场：自定赛）	1	contentfindercondition	contentfindercondition-1057	shuijingchongtuhaiandouchangzidingsai		needs-review		斗@7 自动 dou，可读 dou/zhu，基础词库无覆盖词
+水晶冲突（角力学校：自定赛）	1	contentfindercondition	contentfindercondition-862	shuijingchongtujuelixuexiaozidingsai		needs-review		角@5 自动 jue，可读 gu/jiao/jue/lu，词证据冲突：角力=jiao/jue
 水晶都	2	placename	placename-516,placename-2951	shuijingdou		needs-review		都@2 自动 dou，可读 dou/du，基础词库无覆盖词
 水晶都伞架	1	item	item-27312	shuijingdousanjia		needs-review		都@2 自动 dou，可读 dou/du，基础词库无覆盖词
 水晶都制敌头冠	1	item	item-29203	shuijingdouzhiditouguan		needs-review		都@2 自动 dou，可读 dou/du，基础词库无覆盖词
@@ -1812,6 +1892,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 永护塔强灵药	1	item	item-44821	yonghutaqianglingyao		needs-review		强@3 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
 沃·克劳德制敌长靴	1	item	item-46869	wokelaodezhidizhangxue	wokelaodezhidichangxue	evidence	长@7 zhang→chang（词：长靴）	
 沃·克劳德御敌长靴	1	item	item-46864	wokelaodeyudizhangxue	wokelaodeyudichangxue	evidence	长@7 zhang→chang（词：长靴）	
+沉没神殿斯卡拉遗迹	1	contentfindercondition	contentfindercondition-279	chenmoshendiansikalayiji		needs-review		没@1 自动 mo，可读 me/mei/mo，词证据冲突：沉没=mo、没神=mei
 沙之都风景画	1	item	item-6661	shazhidoufengjinghua		needs-review		都@2 自动 dou，可读 dou/du，基础词库无覆盖词
 沙柚木长弓	1	item	item-26112	shayoumuzhanggong		needs-review		长@3 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 沙玛什	1	item	item-24677	shamashen		needs-review		什@2 自动 shen，可读 shen/shi，基础词库无覆盖词
@@ -1821,6 +1902,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 沙玛什（复制品）	1	item	item-28309	shamashenfuzhipin		needs-review		什@2 自动 shen，可读 shen/shi，基础词库无覆盖词
 沙龙服务员长裙	1	item	item-39315	shalongfuwuyuanzhangqun	shalongfuwuyuanchangqun	evidence	长@5 zhang→chang（词：长裙）	
 沟鼠尾巴	1	item	item-2591	goushuweiba		needs-review		尾@2 自动 wei，可读 wei/yi，词证据冲突：尾巴=wei/yi
+沥血剑	1	action	action-3538	lixuejian		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：沥血=xie/xue
 河中长老	1	item	item-22398	hezhongchanglao		needs-review		长@2 自动 chang，可读 chang/zhang，词证据冲突：中长=chang、长老=zhang
 河流之息制敌长靴	1	item	item-41944	heliuzhixizhidizhangxue	heliuzhixizhidichangxue	evidence	长@6 zhang→chang（词：长靴）	
 河流之息御敌长靴	1	item	item-41939	heliuzhixiyudizhangxue	heliuzhixiyudichangxue	evidence	长@6 zhang→chang（词：长靴）	
@@ -1835,6 +1917,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 油彩画：转魂塔广场	1	item	item-21894	youcaihuazhuanhuntaguangchang		needs-review		转@4 自动 zhuan，可读 zhuai/zhuan，基础词库无覆盖词
 泉底波长监测装置	1	item	item-52211	quandibochangjiancezhuangzhi		needs-review		波@2 自动 bo，可读 bei/bi/bo，词证据冲突：波长=bo/po
 法厄同角笛	1	item	item-39490	faetongjiaodi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
+泛输血	1	action	action-24311	fanshuxue		needs-review		血@2 自动 xue，可读 xie/xue，词证据冲突：输血=xie/xue
 波洛伽制敌垮裤	1	item	item-34483	boluogazhidikuaku		needs-review		伽@2 自动 ga，可读 ga/jia/qie，基础词库无覆盖词
 波洛伽制敌头盔	1	item	item-34480	boluogazhiditoukui		needs-review		伽@2 自动 ga，可读 ga/jia/qie，基础词库无覆盖词
 波洛伽制敌套装	1	item	item-51576	boluogazhiditaozhuang		needs-review		伽@2 自动 ga，可读 ga/jia/qie，基础词库无覆盖词
@@ -1936,6 +2019,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 流星银尾	1	item	item-43683	liuxingyinwei		needs-review		尾@3 自动 wei，可读 wei/yi，基础词库无覆盖词
 浪祖角笛	1	item	item-41802	langzujiaodi		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 浮着的桥	1	placename	placename-4590	fuzhedeqiao		needs-review		着@1 自动 zhe，可读 zhao/zhe/zhuo，基础词库无覆盖词
+浴血	3	action	action-7542,action-17676,action-33013	yuxue		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：浴血=xie/xue
 浴血被提	1	item	item-40021	yuxuebeiti		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：浴血=xie/xue
 浴血被提·优雅	1	item	item-41685	yuxuebeitiyouya		needs-review		血@1 自动 xue，可读 xie/xue，词证据冲突：浴血=xie/xue
 海中爆弹	1	item	item-29724	haizhongbaodan		needs-review		弹@3 自动 dan，可读 dan/tan，基础词库无覆盖词
@@ -1946,12 +2030,13 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 海岛皮里福尔角笛	1	item	item-41649	haidaopilifuerjiaodi		needs-review		角@6 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 海岛短吻鳄角笛	1	item	item-39495	haidaoduanwenejiaodi		needs-review		角@5 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 海岛角笛	1	item	item-37648	haidaojiaodi		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
-海岸斗场	1	placename	placename-4095	haiandouchang		needs-review		斗@2 自动 dou，可读 dou/zhu，基础词库无覆盖词
+海岸斗场	12	placename	placename-4095,contentfindercondition-1046,contentfindercondition-1047	haiandouchang		needs-review		斗@2 自动 dou，可读 dou/zhu，基础词库无覆盖词
 海德拉角笛	1	item	item-52265	haidelajiaodi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 海滨长椅	1	item	item-6523	haibinzhangyi	haibinchangyi	evidence	长@2 zhang→chang（词：长椅）	
 海燕革长靴	1	item	item-27200	haiyangezhangxue	haiyangechangxue	evidence	长@3 zhang→chang（词：长靴）	
 海盗长靴	1	item	item-3910	haidaozhangxue	haidaochangxue	evidence	长@2 zhang→chang（词：长靴）	
 海荨麻	1	item	item-29757	haixunma		needs-review		荨@1 自动 xun，可读 qian/xun，词证据冲突：荨麻=qian/xun
+海都路人身首异	1	contentfindercondition	contentfindercondition-248	haidoulurenshenshouyi		needs-review		都@1 自动 dou，可读 dou/du，基础词库无覆盖词
 浸地的鲜血	1	item	item-18437	jindidexianxue		needs-review		血@4 自动 xue，可读 xie/xue，词证据冲突：鲜血=xie/xue
 涅木卡勒河	2	placename	placename-1046,placename-2819	niemukaleihe	niemukalehe	evidence	勒@3 lei→le（词：卡勒）	
 消逝王都	1	placename	placename-301	xiaoshiwangdou		needs-review		都@3 自动 dou，可读 dou/du，基础词库无覆盖词
@@ -2050,6 +2135,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 漆黑帝冠	1	item	item-36460	qiheidiguan		needs-review		漆@0 自动 qi，可读 qi/qie，词证据冲突：漆黑=qi/qu
 漆黑的命运巨镰	1	item	item-20629	qiheidemingyunjulian		needs-review		漆@0 自动 qi，可读 qi/qie，词证据冲突：漆黑=qi/qu
 漆黑的宽边帽	1	item	item-20633	qiheidekuanbianmao		needs-review		漆@0 自动 qi，可读 qi/qie，词证据冲突：漆黑=qi/qu
+漆黑的巨龙	1	contentfindercondition	contentfindercondition-267	qiheidejulong		needs-review		漆@0 自动 qi，可读 qi/qie，词证据冲突：漆黑=qi/qu
 漆黑的心灵巨镰	1	item	item-20631	qiheidexinlingjulian		needs-review		漆@0 自动 qi，可读 qi/qie，词证据冲突：漆黑=qi/qu
 漆黑的武器箱	1	item	item-36346	qiheidewuqixiang		needs-review		漆@0 自动 qi，可读 qi/qie，词证据冲突：漆黑=qi/qu
 漆黑的死亡巨镰	1	item	item-20628	qiheidesiwangjulian		needs-review		漆@0 自动 qi，可读 qi/qie，词证据冲突：漆黑=qi/qu
@@ -2075,6 +2161,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 漩涡精英重刀	1	item	item-10435	xuanwojingyingzhongdao		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 漩涡精英锚爪	1	item	item-8461	xuanwojingyingmaozhao		needs-review		爪@5 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 漩涡精英长靴	1	item	item-8501	xuanwojingyingzhangxue	xuanwojingyingchangxue	evidence	长@4 zhang→chang（词：长靴）	
+激战城塞石卫塔	1	contentfindercondition	contentfindercondition-25	jizhanchengsaishiweita		needs-review		塞@3 自动 sai，可读 sai/se，基础词库无覆盖词
 火华咒角	1	item	item-2078	huohuazhoujiao		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 火巨人角笛	1	item	item-24219	huojurenjiaodi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 火炬尾	1	item	item-43814	huojuwei		needs-review		尾@2 自动 wei，可读 wei/yi，基础词库无覆盖词
@@ -2083,6 +2170,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 灰尾瀑布	1	placename	placename-2217	huiweipubu		needs-review		尾@1 自动 wei，可读 wei/yi，基础词库无覆盖词
 灵兽的角粉	1	item	item-14937	lingshoudejiaofen		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 灵木树液块	1	item	item-12933	lingmushuyekuai		needs-review		液@3 自动 ye，可读 shi/ye，词证据冲突：树液=ye/yi
+灵极脉冲	1	action	action-36994	lingjimaichong		needs-review		脉@2 自动 mai，可读 mai/mo，词证据冲突：脉冲=mai/mo
 灵银御敌角盔	1	item	item-10670	lingyinyudijiaokui		needs-review		角@4 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 灵银斗剑	1	item	item-10586	lingyindoujian		needs-review		斗@2 自动 dou，可读 dou/zhu，基础词库无覆盖词
 灵银角力棒	1	item	item-10605	lingyinjuelibang		needs-review		角@2 自动 jue，可读 gu/jiao/jue/lu，词证据冲突：银角=jiao、角力=jiao/jue
@@ -2112,7 +2200,12 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 炼金长靴	1	item	item-3933	lianjinzhangxue	lianjinchangxue	evidence	长@2 zhang→chang（词：长靴）	
 炼铁厂长裤	1	item	item-14866	liantiechangchangku		needs-review		长@3 自动 chang，可读 chang/zhang，词证据冲突：厂长=zhang、长裤=chang
 炼铁厂长靴	1	item	item-14867	liantiechangzhangxue		needs-review		长@3 自动 zhang，可读 chang/zhang，词证据冲突：厂长=zhang、长靴=chang
+烈焰弹	1	action	action-36978	lieyandan		needs-review		弹@2 自动 dan，可读 dan/tan，基础词库无覆盖词
 烤干酪辣味玉米片	1	item	item-49239	kaoganlaolaweiyumipian		needs-review		酪@2 自动 lao，可读 lao/lu/luo，词证据冲突：干酪=lao/luo
+热分裂弹	1	action	action-7411	refenliedan		needs-review		弹@3 自动 dan，可读 dan/tan，基础词库无覆盖词
+热弹	1	action	action-2872	redan		needs-review		弹@1 自动 dan，可读 dan/tan，基础词库无覆盖词
+热狙击弹	1	action	action-7413	rejujidan		needs-review		弹@3 自动 dan，可读 dan/tan，基础词库无覆盖词
+热独头弹	1	action	action-7412	redutoudan		needs-review		弹@3 自动 dan，可读 dan/tan，基础词库无覆盖词
 烹调入门	1	item	item-9329	pengtiaorumen		needs-review		调@1 自动 tiao，可读 diao/tiao，词证据冲突：烹调=tiao、调入=diao
 烹调师行会前（俾斯麦餐厅）	1	placename	placename-765	pengtiaoshihanghuiqianbisimaicanting		needs-review		俾@7 自动 bi，可读 bei/bi/pi，词证据冲突：俾斯麦=bei/bi
 烹调熟练点	1	item	item-51322	pengtiaoshuliandian		needs-review		熟@2 自动 shu，可读 shou/shu，词证据冲突：熟练=shou/shu
@@ -2143,6 +2236,8 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 爆弹怪阳伞	1	item	item-44258	baodanguaiyangsan		needs-review		弹@1 自动 dan，可读 dan/tan，基础词库无覆盖词
 爆弹煎锅	1	item	item-2499	baodanjianguo		needs-review		弹@1 自动 dan，可读 dan/tan，基础词库无覆盖词
 爆弹角笛	1	item	item-7555	baodanjiaodi		needs-review		弹@1 自动 dan，可读 dan/tan，基础词库无覆盖词；角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
+爆炸湮灭——爆弹之祖	1	contentfindercondition	contentfindercondition-632	baozhayanmiebaodanzhizu		needs-review		弹@7 自动 dan，可读 dan/tan，基础词库无覆盖词
+爆破死斗	1	contentfindercondition	contentfindercondition-628	baoposidou		needs-review		斗@3 自动 dou，可读 dou/zhu，基础词库无覆盖词
 爪网虫	1	item	item-45899	zhaowangchong		needs-review		爪@0 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 牙兵咒角	1	item	item-2073	yabingzhoujiao		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 牙兵长杖	1	item	item-2113	yabingzhangzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
@@ -2177,6 +2272,10 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 狂奔手炮	1	item	item-49493	kuangbenshoupao		needs-review		炮@3 自动 pao，可读 bao/pao，基础词库无覆盖词
 狂奔长刀	1	item	item-49482	kuangbenzhangdao		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 狂奔长杖	1	item	item-49487	kuangbenzhangzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+狙击弹	1	action	action-2873	jujidan		needs-review		弹@2 自动 dan，可读 dan/tan，基础词库无覆盖词
+狞豹的尾鞭	1	action	action-37122	ningbaodeweibian		needs-review		尾@3 自动 wei，可读 wei/yi，基础词库无覆盖词
+狞豹的锐爪	1	action	action-37120	ningbaoderuizhao		needs-review		爪@4 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
+独头弹	1	action	action-2868	dutoudan		needs-review		弹@2 自动 dan，可读 dan/tan，基础词库无覆盖词
 独狼长靴	1	item	item-15277	dulangzhangxue	dulangchangxue	evidence	长@2 zhang→chang（词：长靴）	
 独裁帝王之长弓	1	item	item-15227	ducaidiwangzhizhanggong		needs-review		之@4 自动 zhi，可读 zhi/zhu，证据拒收：之长（“之长”可指首领（zhang），不能作为长弓等的证据）；长@5 自动 zhang，可读 chang/zhang，证据拒收：之长（“之长”可指首领（zhang），不能作为长弓等的证据）
 独裁帝王之长弓·灵慧	1	item	item-15241	ducaidiwangzhizhanggonglinghui		needs-review		之@4 自动 zhi，可读 zhi/zhu，证据拒收：之长（“之长”可指首领（zhang），不能作为长弓等的证据）；长@5 自动 zhang，可读 chang/zhang，证据拒收：之长（“之长”可指首领（zhang），不能作为长弓等的证据）
@@ -2203,6 +2302,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 狼式长靴	1	item	item-9133	langshizhangxue	langshichangxue	evidence	长@2 zhang→chang（词：长靴）	
 狼眼长手套	1	item	item-7398	langyanzhangshoutao		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 狼眼长靴	1	item	item-7400	langyanzhangxue	langyanchangxue	evidence	长@2 zhang→chang（词：长靴）	
+猛兽爪	1	action	action-16147	mengshouzhao		needs-review		爪@2 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 猛凰爪痕	1	placename	placename-4487	menghuangzhaohen		needs-review		爪@2 自动 zhao，可读 zhao/zhua，词证据冲突：爪痕=zhao/zhua
 猛虎革咏咒长筒靴	1	item	item-18401	menghugeyongzhouzhangtongxue	menghugeyongzhouchangtongxue	evidence	长@5 zhang→chang（词：长筒靴）	
 猛虎革治愈长筒靴	1	item	item-18395	menghugezhiyuzhangtongxue	menghugezhiyuchangtongxue	evidence	长@5 zhang→chang（词：长筒靴）	
@@ -2280,6 +2380,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 瓦雷利亚魔剑士长靴	1	item	item-18761	waleiliyamojianshizhangxue	waleiliyamojianshichangxue	evidence	长@7 zhang→chang（词：长靴）	
 甜墨角兰	1	item	item-27809	tianmojiaolan		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 生命奥秘研究层	1	placename	placename-4250	shengmingaomiyanjiuceng		needs-review		奥@2 自动 ao，可读 ao/you/yu，词证据冲突：奥秘=a/ao；秘@3 自动 mi，可读 bi/bie/mi，词证据冲突：奥秘=m/mi
+生命波动法	1	action	action-17797	shengmingbodongfa		needs-review		波@2 自动 bo，可读 bei/bi/bo，词证据冲突：波动=bo/po
 生息河岸（克扎玛乌卡湿地方面）	1	placename	placename-4743	shengxiheankezhamawukashidifangmian		needs-review		扎@6 自动 zha，可读 za/zha，基础词库无覆盖词
 用于头部防具的黏液鱼	1	item	item-38334	yongyutoubufangjudenianyeyu		needs-review		液@8 自动 ye，可读 shi/ye，词证据冲突：黏液=ye/yi
 用于调查水质的植物样本	1	item	item-38306	yongyudiaochashuizhidizhiwuyangben	yongyudiaochashuizhidezhiwuyangben	evidence	的@6 di→de（词：质的）	
@@ -2329,6 +2430,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 白麻治愈斗服	1	item	item-25677	baimazhiyudoufu		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
 白麻精准长手套	1	item	item-25666	baimajingzhunzhangshoutao		needs-review		长@4 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 皇帝飞虫的薄翼发饰	1	item	item-22360	huangdifeichongdebaoyifashi		needs-review		薄@5 自动 bao，可读 bao/bo/bu，基础词库无覆盖词
+皇都伊修加德保卫战	1	contentfindercondition	contentfindercondition-885	huangdouyixiujiadebaoweizhan		needs-review		都@1 自动 dou，可读 dou/du，基础词库无覆盖词
 皇金弹性交叉腰带	1	item	item-31560	huangjindanxingjiaochayaodai		needs-review		弹@2 自动 dan，可读 dan/tan，词证据冲突：金弹=dan、弹性=tan
 皇金长杖	1	item	item-10645	huangjinzhangzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 皇金长玉杖	1	item	item-10644	huangjinzhangyuzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
@@ -2399,6 +2501,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 祝圣栗木长弓	1	item	item-10613	zhushenglimuzhanggong		needs-review		长@4 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 神光火弹	1	item	item-11371	shenguanghuodan		needs-review		弹@3 自动 dan，可读 dan/tan，基础词库无覆盖词
 神光长弓	1	item	item-11368	shenguangzhanggong		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+神圣炮	1	action	action-41627	shenshengpao		needs-review		炮@2 自动 pao，可读 bao/pao，基础词库无覆盖词
 神握角	1	placename	placename-166	shenwojiao		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 神殿骑士团总骑士长室	1	placename	placename-2335	shendianqishituanzongqishizhangshi		needs-review		长@8 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 神话传令官长衣	1	item	item-50253	shenhuachuanlingguanzhangyi		needs-review		长@5 自动 zhang，可读 chang/zhang，词证据冲突：官长=zhang、长衣=chang
@@ -2411,6 +2514,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 科纳格青铜重盾	1	item	item-50778	kenageqingtongzhongdun		needs-review		重@5 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 秘密宝物库	1	placename	placename-1379	mimibaowuku		needs-review		秘@0 自动 mi，可读 bi/bie/mi，词证据冲突：秘密=m/mi
 秘密花园	1	placename	placename-2959	mimihuayuan		needs-review		秘@0 自动 mi，可读 bi/bie/mi，词证据冲突：秘密=m/mi
+秘本宝库迦巴勒幻想图书馆	1	contentfindercondition	contentfindercondition-196	mibenbaokujiabaleihuanxiangtushuguan	mibenbaokujiabalehuanxiangtushuguan	evidence	勒@6 lei→le（词：巴勒）	
 秘银爪	1	item	item-1711	miyinzhao		needs-review		爪@2 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 秘银重手铠	1	item	item-3649	miyinzhongshoukai		needs-review		重@2 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 秘银重甲	1	item	item-3180	miyinzhongjia		needs-review		重@2 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
@@ -2418,6 +2522,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 秘银重足铠	1	item	item-3431	miyinzhongzukai		needs-review		重@2 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 秘银长刃斧	1	item	item-1786	miyinzhangrenfu		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 秘银长筒靴	1	item	item-3858	miyinzhangtongxue	miyinchangtongxue	evidence	长@2 zhang→chang（词：长筒靴）	
+究极破坏炮	1	action	action-20493	jiujipohuaipao		needs-review		炮@4 自动 pao，可读 bao/pao，基础词库无覆盖词
 究极神兵角	1	item	item-10399	jiujishenbingjiao		needs-review		角@4 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 空贼制敌斗裤	1	item	item-13649	kongzeizhididouku		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
 空贼制敌斗裤（复制品）	1	item	item-28816	kongzeizhididoukufuzhipin		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
@@ -2436,6 +2541,9 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 空贼游击长靴	1	item	item-13668	kongzeiyoujizhangxue	kongzeiyoujichangxue	evidence	长@4 zhang→chang（词：长靴）	
 空贼游击长靴（复制品）	1	item	item-28832	kongzeiyoujizhangxuefuzhipin	kongzeiyoujichangxuefuzhipin	evidence	长@4 zhang→chang（词：长靴）	
 突转藏晶院	1	placename	placename-3937	tuzhuancangjingyuan		needs-review		转@1 自动 zhuan，可读 zhuai/zhuan，基础词库无覆盖词；藏@2 自动 cang，可读 cang/zang，基础词库无覆盖词
+第15关：小小斗神讨伐战	1	contentfindercondition	contentfindercondition-566	diyiwuguanxiaoxiaodoushentaofazhan		needs-review		斗@7 自动 dou，可读 dou/zhu，基础词库无覆盖词
+第20关：愿水晶给予你指引	1	contentfindercondition	contentfindercondition-571	dierlingguanyuanshuijingjiyunizhiyin		needs-review		给@8 自动 ji，可读 gei/ji，词证据冲突：给予=gei/ji
+第7关：劲敌共斗	1	contentfindercondition	contentfindercondition-558	diqiguanjingdigongdou		needs-review		劲@4 自动 jing，可读 jin/jing，词证据冲突：劲敌=jin/jing；斗@7 自动 dou，可读 dou/zhu，基础词库无覆盖词
 第一防波堤	2	placename	placename-1947,placename-2904	diyifangbodi		needs-review		波@3 自动 bo，可读 bei/bi/bo，词证据冲突：防波堤=bo/po；堤@4 自动 di，可读 di/shi/ti/wei，词证据冲突：防波堤=di/ti
 第三期重建用的幻风树液	1	item	item-31316	disanqichongjianyongdehuanfengshuye		needs-review		液@10 自动 ye，可读 shi/ye，词证据冲突：树液=ye/yi
 第三期重建用的幻风树液（检）	1	item	item-31272	disanqichongjianyongdehuanfengshuyejian		needs-review		液@10 自动 ye，可读 shi/ye，词证据冲突：树液=ye/yi
@@ -2494,6 +2602,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 管弦乐琴乐谱：鲜血沙漠	1	item	item-28882	guanxianyueqinyuepuxianxueshamo		needs-review		血@8 自动 xue，可读 xie/xue，词证据冲突：鲜血=xie/xue
 管弦乐琴乐谱：鸟鸣	1	item	item-17848	guanxianyueqinyuepuniaoming		needs-review		鸟@7 自动 niao，可读 diao/niao，词证据冲突：鸟鸣=n/niao
 米普露马黛茶园	1	placename	placename-4559	mipulumadaichayuan		needs-review		露@2 自动 lu，可读 lou/lu，基础词库无覆盖词
+粘液怪合唱团	1	contentfindercondition	contentfindercondition-617	nianyeguaihechangtuan		needs-review		液@1 自动 ye，可读 shi/ye，词证据冲突：粘液=ye/yi
 粘液胶	1	item	item-6208	nianyejiao		needs-review		液@1 自动 ye，可读 shi/ye，词证据冲突：粘液=ye/yi
 精灵长裤	1	item	item-3298	jinglingchangku		needs-review		长@2 自动 chang，可读 chang/zhang，词证据冲突：灵长=zhang、长裤=chang
 精金制敌重甲	1	item	item-10723	jingjinzhidizhongjia		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
@@ -2507,6 +2616,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 紫水御神乐	1	placename	placename-1944	zishuiyushenle		needs-review		乐@4 自动 le，可读 le/yue，基础词库无覆盖词
 紫角蜗牛	1	item	item-27427	zijiaowoniu		needs-review		角@1 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 红宝石兽长靴	1	item	item-30276	hongbaoshishouzhangxue	hongbaoshishouchangxue	evidence	长@4 zhang→chang（词：长靴）	
+红宝石电圈	1	action	action-34571	hongbaoshidianquan		needs-review		圈@4 自动 quan，可读 juan/quan，基础词库无覆盖词
 红宝石重刺剑	1	item	item-29016	hongbaoshizhongcijian		needs-review		重@3 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 红尾僵尸鱼	1	item	item-24206	hongweijiangshiyu		needs-review		尾@1 自动 wei，可读 wei/yi，基础词库无覆盖词
 红尾鲶	1	item	item-22392	hongweinian		needs-review		尾@1 自动 wei，可读 wei/yi，基础词库无覆盖词
@@ -2519,6 +2629,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 红莲长弓	1	item	item-18817	honglianzhanggong		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 红陆蟹甲壳	1	item	item-5457	hongluxiejiaqiao		needs-review		壳@4 自动 qiao，可读 ke/qiao，词证据冲突：甲壳=ke/qiao
 纤维长外衣	1	item	item-3205	xianweizhangwaiyi		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+纯白誓约、漆黑密约	1	contentfindercondition	contentfindercondition-702	chunbaishiyueqiheimiyue		needs-review		漆@5 自动 qi，可读 qi/qie，词证据冲突：漆黑=qi/qu
 纳夏薄绢	1	item	item-20270	naxiabaojuan		needs-review		薄@2 自动 bao，可读 bao/bo/bu，基础词库无覆盖词
 纻布咏咒长裙	1	item	item-19024	zhubuyongzhouzhangqun	zhubuyongzhouchangqun	evidence	长@4 zhang→chang（词：长裙）	
 纻布治愈长裙	1	item	item-19018	zhubuzhiyuzhangqun	zhubuzhiyuchangqun	evidence	长@4 zhang→chang（词：愈长、长裙）	
@@ -2551,8 +2662,10 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 绝境龙神手炮	1	item	item-20966	juejinglongshenshoupao		needs-review		炮@5 自动 pao，可读 bao/pao，基础词库无覆盖词
 绝境龙神爪	1	item	item-20960	juejinglongshenzhao		needs-review		爪@4 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 绝境龙神长杖	1	item	item-20968	juejinglongshenzhangzhang		needs-review		长@4 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+绝妙傀儡师——都灵	1	contentfindercondition	contentfindercondition-697	juemiaokuileishidouling	juemiaokuileishiduling	evidence	都@7 dou→du（词：都灵）	
 绝妙的调配用品	1	item	item-23173	juemiaodediaopeiyongpin	juemiaodetiaopeiyongpin	evidence	调@3 diao→tiao（词：调配）	
 绝妙的调配用品的材料	1	item	item-23172	juemiaodediaopeiyongpindecailiao	juemiaodetiaopeiyongpindecailiao	evidence	调@3 diao→tiao（词：调配）	
+绞决爪	1	action	action-24390	jiaojuezhao		needs-review		爪@2 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 统一规格的奥克塞西亚合金	1	item	item-52464	tongyiguigedeaokesaixiyahejin		needs-review		塞@7 自动 sai，可读 sai/se，基础词库无覆盖词
 统一规格的特殊长杆	1	item	item-48857	tongyiguigedeteshuzhanggan	tongyiguigedeteshuchanggan	evidence	长@7 zhang→chang（词：长杆）	
 继业者扎戈斧镰	1	item	item-39648	jiyezhezhagefulian		needs-review		扎@3 自动 zha，可读 za/zha，基础词库无覆盖词
@@ -2590,6 +2703,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 缠尾蛟革精准半指护手	1	item	item-26146	chanweijiaogejingzhunbanzhihushou		needs-review		尾@1 自动 wei，可读 wei/yi，基础词库无覆盖词
 缠尾蛟革魔导书	1	item	item-26118	chanweijiaogemodaoshu		needs-review		尾@1 自动 wei，可读 wei/yi，基础词库无覆盖词
 缠尾蛟革魔导典	1	item	item-26119	chanweijiaogemodaodian		needs-review		尾@1 自动 wei，可读 wei/yi，基础词库无覆盖词
+缢杀爪	1	action	action-24391	yishazhao		needs-review		爪@2 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 缪·缪咻角笛	1	item	item-38456	moumouxiujiaodi		needs-review		角@4 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 罗汉弓士斗衣	1	item	item-18848	luohangongshidouyi		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
 罗汉拳士斗衣	1	item	item-18842	luohanquanshidouyi		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
@@ -2628,6 +2742,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 耀辉精英断手炮	1	item	item-10498	yaohuijingyingduanshoupao		needs-review		炮@6 自动 pao，可读 bao/pao，基础词库无覆盖词
 耀辉精英长弓	1	item	item-8482	yaohuijingyingzhanggong		needs-review		长@4 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 耀辉精英长靴	1	item	item-8526	yaohuijingyingzhangxue	yaohuijingyingchangxue	evidence	长@4 zhang→chang（词：长靴）	
+老化炮	1	action	action-41630	laohuapao		needs-review		炮@2 自动 pao，可读 bao/pao，基础词库无覆盖词
 老匠长靴	1	item	item-11981	laojiangzhangxue	laojiangchangxue	evidence	长@2 zhang→chang（词：长靴）	
 耐磨剂	1	item	item-7060	naimoji		needs-review		耐@0 自动 nai，可读 nai/neng，词证据冲突：耐磨=n/nai
 联盟制敌长靴	1	item	item-24378	lianmengzhidizhangxue	lianmengzhidichangxue	evidence	长@4 zhang→chang（词：长靴）	
@@ -2662,7 +2777,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 艳粉绒的藤蔓	1	item	item-48703	yanfenrongdetengwan		needs-review		蔓@5 自动 wan，可读 man/wan，词证据冲突：藤蔓=man/wan
 艳翼长弓	1	item	item-42777	yanyizhanggong	yanyichanggong	evidence	长@2 zhang→chang（词：翼长）	
 艾尔·图角笛	1	item	item-30866	aiertujiaodi		needs-review		角@4 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
-艾玛吉娜杯斗技大会决赛	1	placename	placename-2933	aimajinabeidoujidahuijuesai		needs-review		艾@0 自动 ai，可读 ai/yi，词证据冲突：艾玛=a/ai
+艾玛吉娜杯斗技大会决赛	2	placename	placename-2933,contentfindercondition-81	aimajinabeidoujidahuijuesai		needs-review		艾@0 自动 ai，可读 ai/yi，词证据冲突：艾玛=a/ai
 艾玛吉娜矿山公司	1	placename	placename-635	aimajinakuangshangongsi		needs-review		艾@0 自动 ai，可读 ai/yi，词证据冲突：艾玛=a/ai
 艾玛吉娜矿山公司 [采矿工行会]	1	placename	placename-637	aimajinakuangshangongsicaikuanggonghanghui		needs-review		艾@0 自动 ai，可读 ai/yi，词证据冲突：艾玛=a/ai
 艾玛吉娜秘银废矿	1	placename	placename-328	aimajinamiyinfeikuang		needs-review		艾@0 自动 ai，可读 ai/yi，词证据冲突：艾玛=a/ai
@@ -2671,10 +2786,13 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 艾露猫修理工契约	1	item	item-46801	ailumaoxiuligongqiyue		needs-review		露@1 自动 lu，可读 lou/lu，基础词库无覆盖词
 艾露猫杂用商人契约	1	item	item-46800	ailumaozayongshangrenqiyue		needs-review		露@1 自动 lu，可读 lou/lu，基础词库无覆盖词
 艾露猫素材商人契约	1	item	item-46799	ailumaosucaishangrenqiyue		needs-review		露@1 自动 lu，可读 lou/lu，基础词库无覆盖词
+芥末爆弹	1	action	action-23279	jiemobaodan		needs-review		弹@3 自动 dan，可读 dan/tan，基础词库无覆盖词
 芬里尔角笛	1	item	item-10079	fenlierjiaodi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 花人角笛	1	item	item-47335	huarenjiaodi		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 花角鱼	1	item	item-36448	huajiaoyu		needs-review		角@1 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
+苍气炮	1	action	action-3545	cangqipao		needs-review		炮@2 自动 pao，可读 bao/pao，基础词库无覆盖词
 苍穹法师长袍	1	item	item-17600	cangqiongfashizhangpao		needs-review		长@4 自动 zhang，可读 chang/zhang，词证据冲突：师长=zhang、长袍=chang
+苏醒遗迹喀恩埋没圣堂	1	contentfindercondition	contentfindercondition-26	suxingyijikaenmaimoshengtang		needs-review		埋@6 自动 mai，可读 mai/man，词证据冲突：埋没=m/mai；没@7 自动 mo，可读 me/mei/mo，词证据冲突：埋没=m/mo
 苔角	1	item	item-5437	taijiao		needs-review		角@1 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 苔角耳坠	1	item	item-8449	taijiaoerzhui		needs-review		角@1 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 苔角鳞铠	1	item	item-3243	taijiaolinkai		needs-review		角@1 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
@@ -2706,12 +2824,16 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 莱韦耶勒尔套装	1	item	item-45443	laiweiyeleiertaozhuang	laiweiyeleertaozhuang	evidence	勒@3 lei→le（词：勒尔）	
 莱韦耶勒尔府	1	placename	placename-3820	laiweiyeleierfu	laiweiyeleerfu	evidence	勒@3 lei→le（词：勒尔）	
 莱韦耶勒尔府前	1	placename	placename-4001	laiweiyeleierfuqian	laiweiyeleerfuqian	evidence	勒@3 lei→le（词：勒尔）	
+莱韦耶勒尔注药III	1	action	action-28439	laiweiyeleierzhuyaoiii	laiweiyeleerzhuyaoiii	evidence	勒@3 lei→le（词：勒尔）	
+莱韦耶勒尔灵橡清汁	1	action	action-27044	laiweiyeleierlingxiangqingzhi	laiweiyeleerlingxiangqingzhi	evidence	勒@3 lei→le（词：勒尔）	
 莱韦耶勒尔特制外套	1	item	item-36845	laiweiyeleiertezhiwaitao	laiweiyeleertezhiwaitao	evidence	勒@3 lei→le（词：勒尔）	
 莱韦耶勒尔特制帽	1	item	item-36844	laiweiyeleiertezhimao	laiweiyeleertezhimao	evidence	勒@3 lei→le（词：勒尔）	
 莱韦耶勒尔特制手套	1	item	item-36846	laiweiyeleiertezhishoutao	laiweiyeleertezhishoutao	evidence	勒@3 lei→le（词：勒尔）	
 莱韦耶勒尔特制皮鞋	1	item	item-36848	laiweiyeleiertezhipixie	laiweiyeleertezhipixie	evidence	勒@3 lei→le（词：勒尔）	
 莱韦耶勒尔特制装备箱	1	item	item-37493	laiweiyeleiertezhizhuangbeixiang	laiweiyeleertezhizhuangbeixiang	evidence	勒@3 lei→le（词：勒尔）	
 莱韦耶勒尔特制长裤	1	item	item-36847	laiweiyeleiertezhichangku	laiweiyeleertezhichangku	evidence	勒@3 lei→le（词：勒尔）	
+莱韦耶勒尔箭毒	1	action	action-27047	laiweiyeleierjiandu	laiweiyeleerjiandu	evidence	勒@3 lei→le（词：勒尔）	
+莱韦耶勒尔诊断	1	action	action-27042	laiweiyeleierzhenduan	laiweiyeleerzhenduan	evidence	勒@3 lei→le（词：勒尔）	
 菲尔亚角笛	1	item	item-36905	feieryajiaodi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 萨伦伽光弓	1	item	item-1953	salungaguanggong		needs-review		伽@2 自动 ga，可读 ga/jia/qie，基础词库无覆盖词
 萨伦伽光弓弓背	1	item	item-5574	salungaguanggonggongbei		needs-review		伽@2 自动 ga，可读 ga/jia/qie，基础词库无覆盖词
@@ -2794,11 +2916,13 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 虚无利爪	1	item	item-39941	xuwulizhua		needs-review		爪@3 自动 zhua，可读 zhao/zhua，证据拒收：利爪（爪在此读 zhao／zhua 均常见，需人工决定是否两读）
 虚无界风茄	1	item	item-15858	xuwujiefengjia		needs-review		茄@4 自动 jia，可读 jia/qie，基础词库无覆盖词
 虚无界风茄种子	1	item	item-15856	xuwujiefengjiazhongzi		needs-review		茄@4 自动 jia，可读 jia/qie，基础词库无覆盖词
+虚景跳跳乐大挑战	27	contentfindercondition	contentfindercondition-600,contentfindercondition-601,contentfindercondition-602	xujingtiaotiaoledatiaozhan		needs-review		乐@4 自动 le，可读 le/yue，基础词库无覆盖词
 虚月强袭长靴	1	item	item-40779	xuyueqiangxizhangxue	xuyueqiangxichangxue	evidence	长@4 zhang→chang（词：长靴）	
 虚月游击长靴	1	item	item-40789	xuyueyoujizhangxue	xuyueyoujichangxue	evidence	长@4 zhang→chang（词：长靴）	
 虚月精准长靴	1	item	item-40784	xuyuejingzhunzhangxue	xuyuejingzhunchangxue	evidence	长@4 zhang→chang（词：长靴）	
 虚王利爪	1	item	item-50894	xuwanglizhua		needs-review		爪@3 自动 zhua，可读 zhao/zhua，证据拒收：利爪（爪在此读 zhao／zhua 均常见，需人工决定是否两读）
 虚王手炮	1	item	item-50904	xuwangshoupao		needs-review		炮@3 自动 pao，可读 bao/pao，基础词库无覆盖词
+虹吸弹	2	action	action-2874,action-18933	hongxidan		needs-review		弹@2 自动 dan，可读 dan/tan，基础词库无覆盖词
 虹色隆头鱼	1	item	item-43789	hongselongtouyu		needs-review		色@1 自动 se，可读 se/shai，基础词库无覆盖词
 蛇咬长靴	1	item	item-43193	sheyaozhangxue	sheyaochangxue	evidence	长@2 zhang→chang（词：长靴）	
 蛇杖长靴	1	item	item-42685	shezhangzhangxue	shezhangchangxue	evidence	长@2 zhang→chang（词：长靴）	
@@ -2815,7 +2939,9 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 蜥蜴的尾巴	1	item	item-23345	xiyideweiba		needs-review		尾@3 自动 wei，可读 wei/yi，词证据冲突：尾巴=wei/yi
 蝎尾针	1	item	item-9195	xieweizhen		needs-review		尾@1 自动 wei，可读 wei/yi，基础词库无覆盖词
 蝾螈尾肉	1	item	item-4762	rongyuanweirou		needs-review		尾@2 自动 wei，可读 wei/yi，基础词库无覆盖词
+螺旋尾	1	action	action-11413	luoxuanwei		needs-review		尾@2 自动 wei，可读 wei/yi，基础词库无覆盖词
 蟹甲兽骨长杖	1	item	item-2108	xiejiashouguzhangzhang		needs-review		长@4 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+血战苍穹魔科学研究所	1	contentfindercondition	contentfindercondition-38	xuezhancangqiongmokexueyanjiusuo		needs-review		血@0 自动 xue，可读 xie/xue，词证据冲突：血战=xie/xue
 血案	1	item	item-10501	xuean		needs-review		血@0 自动 xue，可读 xie/xue，词证据冲突：血案=xie/xue
 血液反应药	1	item	item-17930	xueyefanyingyao		needs-review		血@0 自动 xue，可读 xie/xue，词证据冲突：血液=xie/xue；液@1 自动 ye，可读 shi/ye，词证据冲突：血液=ye/yi
 血液反应药的材料	1	item	item-17929	xueyefanyingyaodecailiao		needs-review		血@0 自动 xue，可读 xie/xue，词证据冲突：血液=xie/xue；液@1 自动 ye，可读 shi/ye，词证据冲突：血液=ye/yi
@@ -2830,6 +2956,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 血盟魔女长袍	1	item	item-30063	xuemengmonvchangpao		needs-review		女@3 自动 nv，可读 nv/ru，词证据冲突：魔女=n/nv
 血盟魔女高筒靴	1	item	item-30065	xuemengmonvgaotongxue		needs-review		女@3 自动 nv，可读 nv/ru，词证据冲突：魔女=n/nv
 血祭台	1	placename	placename-103	xuejitai		needs-review		血@0 自动 xue，可读 xie/xue，词证据冲突：血祭=xie/xue
+血红乱	1	action	action-36928	xuehongluan		needs-review		血@0 自动 xue，可读 xie/xue，词证据冲突：血红=xie/xue
 血红奇异果	1	item	item-4814	xuehongqiyiguo		needs-review		血@0 自动 xue，可读 xie/xue，词证据冲突：血红=xie/xue
 血红奇异果挞	1	item	item-4712	xuehongqiyiguota		needs-review		血@0 自动 xue，可读 xie/xue，词证据冲突：血红=xie/xue
 血红奇异果种子	1	item	item-7730	xuehongqiyiguozhongzi		needs-review		血@0 自动 xue，可读 xie/xue，词证据冲突：血红=xie/xue
@@ -2848,10 +2975,11 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 褪色的古书	1	item	item-7586	tuishaidegushu	tuisedegushu	evidence+needs-review	色@1 shai→se（词：褪色）	褪@0 自动 tui，可读 tui/tun，词证据冲突：褪色=tui/tun
 褪色的古典	1	item	item-7587	tuishaidegudian	tuisedegudian	evidence+needs-review	色@1 shai→se（词：褪色）	褪@0 自动 tui，可读 tui/tun，词证据冲突：褪色=tui/tun
 褪色的纸片	1	item	item-5880	tuishaidezhipian	tuisedezhipian	evidence+needs-review	色@1 shai→se（词：褪色）	褪@0 自动 tui，可读 tui/tun，词证据冲突：褪色=tui/tun
+褪色的记忆	1	contentfindercondition	contentfindercondition-743	tuishaidejiyi	tuisedejiyi	evidence+needs-review	色@1 shai→se（词：褪色）	褪@0 自动 tui，可读 tui/tun，词证据冲突：褪色=tui/tun
 西巴尔夏恩大巴扎	1	placename	placename-3872	xibaerxiaendabazha		needs-review		大@5 自动 da，可读 da/dai/tai，证据拒收：大巴扎（巴扎读音 zha／za 未定，需人工确认）；扎@7 自动 zha，可读 za/zha，证据拒收：大巴扎（巴扎读音 zha／za 未定，需人工确认）
 西格玛长杆	1	item	item-21775	xigemazhanggan	xigemachanggan	evidence	长@3 zhang→chang（词：长杆）	
 西蒙的爱爪	1	item	item-1731	ximengdeaizhao		needs-review		爪@4 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
-角力学校	1	placename	placename-4090	juelixuexiao		needs-review		角@0 自动 jue，可读 gu/jiao/jue/lu，词证据冲突：角力=jiao/jue
+角力学校	9	placename	placename-4090,contentfindercondition-835,contentfindercondition-838	juelixuexiao		needs-review		角@0 自动 jue，可读 gu/jiao/jue/lu，词证据冲突：角力=jiao/jue
 角尊刺剑	1	item	item-20457	jiaozuncijian		needs-review		角@0 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 角尊剑	1	item	item-15181	jiaozunjian		needs-review		角@0 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 角尊双牙	1	item	item-43633	jiaozunshuangya		needs-review		角@0 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
@@ -2880,6 +3008,8 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 角菊石	1	item	item-12738	jiaojushi		needs-review		角@0 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 角蛙	1	item	item-43731	jiaowa		needs-review		角@0 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 角骨鱼	1	item	item-27460	jiaoguyu		needs-review		角@0 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
+讨伐彷徨死灵！	1	contentfindercondition	contentfindercondition-43	taofapanghuangsiling		needs-review		彷@2 自动 pang，可读 fang/pang，词证据冲突：彷徨=fang/pang
+讨伐爆弹怪的女王！	1	contentfindercondition	contentfindercondition-53	taofabaodanguaidenvwang		needs-review		弹@3 自动 dan，可读 dan/tan，基础词库无覆盖词
 说教长衣	1	item	item-34033	shuojiaochangyi		needs-review		长@2 自动 chang，可读 chang/zhang，词证据冲突：教长=zhang、长衣=chang
 调查记录：卡洛菲斯提莉二重身	1	item	item-51988	diaochajilukaluofeisitilierchongshen		needs-review		重@12 自动 chong，可读 chong/tong/zhong，词证据冲突：二重=chong/zhong
 调魂器临时保管处	1	placename	placename-5019	diaohunqilinshibaoguanchu		needs-review		调@0 自动 diao，可读 diao/tiao，基础词库无覆盖词
@@ -2905,6 +3035,9 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 赫拉克勒斯筒靴	1	item	item-8240	helakeleisitongxue	helakelesitongxue	evidence	勒@3 lei→le（词：克勒斯）	
 赫拉克勒斯腰带	1	item	item-8241	helakeleisiyaodai	helakelesiyaodai	evidence	勒@3 lei→le（词：克勒斯）	
 赫拉克勒斯衬衫	1	item	item-8237	helakeleisichenshan	helakelesichenshan	evidence	勒@3 lei→le（词：克勒斯）	
+超档车式炮塔	1	action	action-7415	chaodangcheshipaota		needs-review		车@2 自动 che，可读 che/ju，基础词库无覆盖词
+超负荷车式炮塔	1	action	action-7416	chaofuhecheshipaota		needs-review		车@3 自动 che，可读 che/ju，基础词库无覆盖词
+车式浮空炮塔	1	action	action-2864	cheshifukongpaota		needs-review		车@0 自动 che，可读 che/ju，基础词库无覆盖词
 转魂塔广场	1	placename	placename-2907	zhuanhuntaguangchang		needs-review		转@0 自动 zhuan，可读 zhuai/zhuan，基础词库无覆盖词
 轮入道角笛	1	item	item-50436	lunrudaojiaodi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 轰天角笛	1	item	item-16565	hongtianjiaodi		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
@@ -3023,6 +3156,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 过期黑铁重盾	1	item	item-247	guoqiheitiezhongdun		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 过期黑铁重骑枪	1	item	item-161	guoqiheitiezhongqiqiang		needs-review		重@4 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 过期黑铁长刃斧	1	item	item-147	guoqiheitiezhangrenfu		needs-review		长@4 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+近东秘宝阿尔扎达尔海底遗迹群	1	contentfindercondition	contentfindercondition-844	jindongmibaoaerzhadaerhaidiyijiqun		needs-review		扎@6 自动 zha，可读 za/zha，基础词库无覆盖词
 远征长靴	1	item	item-14836	yuanzhengzhangxue	yuanzhengchangxue	evidence	长@2 zhang→chang（词：长靴）	
 迦巴勒山	1	placename	placename-2074	jiabaleishan	jiabaleshan	evidence	勒@2 lei→le（词：巴勒）	
 迦巴勒幻想图书馆	1	placename	placename-2038	jiabaleihuanxiangtushuguan	jiabalehuanxiangtushuguan	evidence	勒@2 lei→le（词：巴勒）	
@@ -3049,17 +3183,20 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 迷你纱都	1	item	item-23030	minishadou		needs-review		都@3 自动 dou，可读 dou/du，基础词库无覆盖词
 迷你阿莉塞	1	item	item-10075	minialisai		needs-review		塞@4 自动 sai，可读 sai/se，基础词库无覆盖词
 迷茫路	1	placename	placename-2654	mimanglu		needs-review		茫@1 自动 mang，可读 huang/mang，词证据冲突：迷茫=m/mang
+通灵之术·大虾蟆	2	action	action-7401,action-17731	tonglingzhishudahama		needs-review		虾@6 自动 ha，可读 ha/xia，词证据冲突：大虾=xia、虾蟆=ha
 通灵长角	1	item	item-22041	tonglingzhangjiao		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 通灵长角+1	1	item	item-22116	tonglingzhangjiaoyi		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 通灵长角+2	1	item	item-22191	tonglingzhangjiaoer		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 通灵长角·常风	1	item	item-22266	tonglingzhangjiaochangfeng		needs-review		角@3 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 通缉令：贾维因	1	item	item-5882	tongjilingjiaweiyin		needs-review		缉@1 自动 ji，可读 ji/qi，词证据冲突：通缉令=ji/qi
+速行	2	action	action-7557,action-17682	suxing		needs-review		行@1 自动 xing，可读 hang/heng/xing，基础词库无覆盖词
 造物院御敌长裙	1	item	item-34628	zaowuyuanyudizhangqun	zaowuyuanyudichangqun	evidence	长@5 zhang→chang（词：长裙）	
 造物院扎戈斧镰	1	item	item-34623	zaowuyuanzhagefulian		needs-review		扎@3 自动 zha，可读 za/zha，基础词库无覆盖词
 造物院长枪	1	item	item-34608	zaowuyuanzhangqiang		needs-review		长@3 自动 zhang，可读 chang/zhang，词证据冲突：院长=zhang、长枪=chang
 遗留的尖爪	1	item	item-50376	yiliudejianzhao		needs-review		爪@4 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 避世斗服	1	item	item-33953	bishidoufu		needs-review		斗@2 自动 dou，可读 dou/zhu，基础词库无覆盖词
 避难地内门	1	placename	placename-760	binandineimen		needs-review		内@3 自动 nei，可读 na/nei/rui，词证据冲突：内门=n/nei
+那布里亚勒斯讨伐战	1	contentfindercondition	contentfindercondition-84	nabuliyaleisitaofazhan	nabuliyalesitaofazhan	evidence	勒@4 lei→le（词：勒斯）	
 邪鬼长靴	1	item	item-14894	xieguizhangxue	xieguichangxue	evidence	长@2 zhang→chang（词：长靴）	
 邪龙怨影手炮	1	item	item-24327	xielongyuanyingshoupao		needs-review		炮@5 自动 pao，可读 bao/pao，基础词库无覆盖词
 邪龙手炮	1	item	item-15310	xielongshoupao		needs-review		炮@3 自动 pao，可读 bao/pao，基础词库无覆盖词
@@ -3071,8 +3208,10 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 采矿熟练点	1	item	item-51323	caikuangshuliandian		needs-review		熟@2 自动 shu，可读 shou/shu，词证据冲突：熟练=shou/shu
 里克斯长靴	1	item	item-47895	likesizhangxue	likesichangxue	evidence	长@3 zhang→chang（词：长靴）	
 重击伽美什	1	item	item-22578	zhongjigameishen		needs-review		伽@2 自动 ga，可读 ga/jia/qie，基础词库无覆盖词；什@4 自动 shen，可读 shen/shi，基础词库无覆盖词
+重劈	1	action	action-31	zhongpi		needs-review		重@0 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 重合金爪	1	item	item-16628	chonghejinzhao		needs-review		爪@3 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 重建用的长靴	1	item	item-28753	chongjianyongdezhangxue	chongjianyongdechangxue	evidence	长@4 zhang→chang（词：长靴）	
+重斩	1	action	action-3617	zhongzhan		needs-review		重@0 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 重无结构陨铁	1	item	item-45917	zhongwujiegouyuntie		needs-review		重@0 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 重步兵头冠	1	item	item-6280	zhongbubingtouguan		needs-review		重@0 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 重步兵戒指	1	item	item-6288	zhongbubingjiezhi		needs-review		重@0 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
@@ -3103,10 +3242,11 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 重锡矿	1	item	item-50365	zhongxikuang		needs-review		重@0 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 重骑兵的灵药	1	item	item-30959	zhongqibingdelingyao		needs-review		重@0 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 重骑兵的秘药	1	item	item-30944	zhongqibingdemiyao		needs-review		重@0 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
-重骑兵的记忆	1	item	item-24017	zhongqibingdejiyi		needs-review		重@0 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
+重骑兵的记忆	2	item	item-24017,action-12960	zhongqibingdejiyi		needs-review		重@0 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 野猪革长靴	1	item	item-3860	yezhugezhangxue	yezhugechangxue	evidence	长@3 zhang→chang（词：长靴）	
 野营地内门	1	placename	placename-691	yeyingdineimen		needs-review		内@3 自动 nei，可读 na/nei/rui，词证据冲突：内门=n/nei
 野蛮盗龙革巧匠长靴	1	item	item-27175	yemandaolonggeqiaojiangzhangxue	yemandaolonggeqiaojiangchangxue	evidence	长@7 zhang→chang（词：长靴）	
+金冠趾尖转	1	action	action-16002	jinguanzhijianzhuan		needs-review		转@4 自动 zhuan，可读 zhuai/zhuan，基础词库无覆盖词
 金曦长椅	1	item	item-46094	jinxizhangyi	jinxichangyi	evidence	长@2 zhang→chang（词：长椅）	
 金碟跑圈	1	placename	placename-4472	jindiepaoquan		needs-review		圈@3 自动 quan，可读 juan/quan，基础词库无覆盖词
 金羊长杖	1	item	item-2117	jinyangzhangzhang		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
@@ -3129,6 +3269,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 钴铁角盔	1	item	item-2893	gutiejiaokui		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 钴铁赛施尔长刀	1	item	item-1659	gutiesaishierzhangdao		needs-review		长@5 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 钴铁长筒靴	1	item	item-3883	gutiezhangtongxue	gutiechangtongxue	evidence	长@2 zhang→chang（词：长筒靴）	
+钻头炮	1	action	action-11398	zuantoupao		needs-review		炮@2 自动 pao，可读 bao/pao，基础词库无覆盖词
 钻石咏咒长靴	1	item	item-21549	zuanshiyongzhouzhangxue	zuanshiyongzhouchangxue	evidence	长@4 zhang→chang（词：长靴）	
 钻石强袭长靴	1	item	item-21525	zuanshiqiangxizhangxue	zuanshiqiangxichangxue	evidence	长@4 zhang→chang（词：长靴）	
 钻石手臂装备箱（品级370）	1	item	item-35946	zuanshishoubizhuangbeixiangpinjisanqiling		needs-review		臂@3 自动 bi，可读 bei/bi，词证据冲突：手臂=bei/bi
@@ -3241,6 +3382,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 闪熠斜角笔	1	item	item-43655	shanyixiejiaobi		needs-review		斜@2 自动 xie，可读 cha/xia/xie/ye，词证据冲突：斜角=xia/xie
 闪熠爪	1	item	item-16153	shanyizhao		needs-review		爪@2 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 闪熠长弓	1	item	item-16156	shanyizhanggong		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
+闪雷弹	2	action	action-16143,action-17717	shanleidan		needs-review		弹@2 自动 dan，可读 dan/tan，基础词库无覆盖词
 防波堤	1	placename	placename-2501	fangbodi		needs-review		波@1 自动 bo，可读 bei/bi/bo，词证据冲突：防波堤=bo/po；堤@2 自动 di，可读 di/shi/ti/wei，词证据冲突：防波堤=di/ti
 阳纹制敌斗裤	1	item	item-16845	yangwenzhididouku		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
 阳纹制敌长靴	1	item	item-16846	yangwenzhidizhangxue	yangwenzhidichangxue	evidence	长@4 zhang→chang（词：长靴）	
@@ -3305,6 +3447,8 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 隆卡的黄金笛	1	item	item-33688	longkadehuangjindi		needs-review		卡@1 自动 ka，可读 ka/qia，证据拒收：卡的（跨词边界（米卡的…），的应读 de）；的@2 自动 de，可读 de/di，证据拒收：卡的（跨词边界（米卡的…），的应读 de）
 隆卡重刺剑	1	item	item-25402	longkazhongcijian		needs-review		重@2 自动 zhong，可读 chong/tong/zhong，基础词库无覆盖词
 隐塞	1	placename	placename-2589	yinsai		needs-review		塞@1 自动 sai，可读 sai/se，基础词库无覆盖词
+隐塞（机动战）	1	contentfindercondition	contentfindercondition-599	yinsaijidongzhan		needs-review		塞@1 自动 sai，可读 sai/se，基础词库无覆盖词
+隐行	3	action	action-303,action-304,action-305	yinxing		needs-review		行@1 自动 xing，可读 hang/heng/xing，基础词库无覆盖词
 雀翎巧匠长靴	1	item	item-47188	quelingqiaojiangzhangxue	quelingqiaojiangchangxue	evidence	长@4 zhang→chang（词：长靴）	
 雕喙长靴	1	item	item-16611	diaohuizhangxue	diaohuichangxue	evidence	长@2 zhang→chang（词：长靴）	
 雕爪套装	1	item	item-50823	diaozhaotaozhuang		needs-review		爪@1 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
@@ -3389,6 +3533,9 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 风茄种子	1	item	item-7743	fengjiazhongzi		needs-review		茄@1 自动 jia，可读 jia/qie，基础词库无覆盖词
 风雅长羽织	1	item	item-15480	fengyazhangyuzhi		needs-review		长@2 自动 zhang，可读 chang/zhang，基础词库无覆盖词
 飞燕胴着	1	item	item-23013	feiyandongzhe		needs-review		着@3 自动 zhe，可读 zhao/zhe/zhuo，基础词库无覆盖词
+飞蛇之尾	1	action	action-34633	feishezhiwei		needs-review		尾@3 自动 wei，可读 wei/yi，基础词库无覆盖词
+飞蛇乱尾击	1	action	action-34645	feisheluanweiji		needs-review		尾@3 自动 wei，可读 wei/yi，基础词库无覆盖词
+飞蛇连尾击	1	action	action-34644	feishelianweiji		needs-review		尾@3 自动 wei，可读 wei/yi，基础词库无覆盖词
 飞车乘降站	1	placename	placename-4710	feichechengjiangzhan		needs-review		降@3 自动 jiang，可读 jiang/xiang，基础词库无覆盖词
 飞龙角笛	1	item	item-13288	feilongjiaodi		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 飞龙革制敌长靴	1	item	item-10748	feilonggezhidizhangxue	feilonggezhidichangxue	evidence	长@5 zhang→chang（词：长靴）	
@@ -3433,6 +3580,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 高质的研钵	1	item	item-9512	gaozhidiyanbo	gaozhideyanbo	evidence	的@2 di→de（词：质的）	
 高质的羊皮纸	1	item	item-9514	gaozhidiyangpizhi	gaozhideyangpizhi	evidence	的@2 di→de（词：质的）	
 高质的钵杵	1	item	item-9513	gaozhidibochu	gaozhidebochu	evidence	的@2 di→de（词：质的）	
+鬼宿脚	2	action	action-23288,action-23289	guisujiao		needs-review		宿@1 自动 su，可读 qi/su/xiu，基础词库无覆盖词
 鬼师胴着	1	item	item-22906	guishidongzhe		needs-review		着@3 自动 zhe，可读 zhao/zhe/zhuo，基础词库无覆盖词
 鬼神甲壳碎片	1	item	item-17572	guishenjiaqiaosuipian		needs-review		壳@3 自动 qiao，可读 ke/qiao，词证据冲突：甲壳=ke/qiao
 鬼船游击长手套	1	item	item-18153	guichuanyoujizhangshoutao		needs-review		长@4 自动 zhang，可读 chang/zhang，基础词库无覆盖词
@@ -3440,6 +3588,11 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 魅惑猫咪必需品的材料	1	item	item-41074	meihuomaomibixupindecailiao		needs-review		猫@2 自动 mao，可读 mao/miao，词证据冲突：猫咪=m/mao；咪@3 自动 mi，可读 mai/mi/mie，词证据冲突：猫咪=m/mi
 魅惑猫咪必需品的素材	1	item	item-41069	meihuomaomibixupindesucai		needs-review		猫@2 自动 mao，可读 mao/miao，词证据冲突：猫咪=m/mao；咪@3 自动 mi，可读 mai/mi/mie，词证据冲突：猫咪=m/mi
 魅惑猫咪的必需品	1	item	item-41064	meihuomaomidebixupin		needs-review		猫@2 自动 mao，可读 mao/miao，词证据冲突：猫咪=m/mao；咪@3 自动 mi，可读 mai/mi/mie，词证据冲突：猫咪=m/mi
+魔兽吸血药	1	action	action-47013	moshouxixueyao		needs-review		血@3 自动 xue，可读 xie/xue，词证据冲突：吸血=xie/xue
+魔划圆斩	1	action	action-18944	mohuayuanzhan		needs-review		划@1 自动 hua，可读 guo/hua/huai，基础词库无覆盖词
+魔划圆斩·一段	1	action	action-7530	mohuayuanzhanyiduan		needs-review		划@1 自动 hua，可读 guo/hua/huai，基础词库无覆盖词
+魔划圆斩·三段	1	action	action-37003	mohuayuanzhansanduan		needs-review		划@1 自动 hua，可读 guo/hua/huai，基础词库无覆盖词
+魔划圆斩·二段	1	action	action-37002	mohuayuanzhanerduan		needs-review		划@1 自动 hua，可读 guo/hua/huai，基础词库无覆盖词
 魔匠药液	1	item	item-44169	mojiangyaoye		needs-review		液@3 自动 ye，可读 shi/ye，词证据冲突：药液=ye/yi
 魔女咖啡馆	1	placename	placename-545	monvkafeiguan		needs-review		女@1 自动 nv，可读 nv/ru，词证据冲突：魔女=n/nv
 魔女咖啡馆 [冒险者行会]	1	placename	placename-547	monvkafeiguanmaoxianzhehanghui		needs-review		女@1 自动 nv，可读 nv/ru，词证据冲突：魔女=n/nv
@@ -3449,6 +3602,9 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 魔女的肖像画	1	item	item-38676	monvdexiaoxianghua		needs-review		女@1 自动 nv，可读 nv/ru，词证据冲突：魔女=n/nv、女的=nv
 魔女短上衣	1	item	item-13100	monvduanshangyi		needs-review		女@1 自动 nv，可读 nv/ru，词证据冲突：魔女=n/nv
 魔女长靴	1	item	item-13102	monvzhangxue	monvchangxue	evidence+needs-review	长@2 zhang→chang（词：长靴）	女@1 自动 nv，可读 nv/ru，词证据冲突：魔女=n/nv
+魔导光子炮	2	action	action-1129,action-7620	modaoguangzipao		needs-review		炮@4 自动 pao，可读 bao/pao，基础词库无覆盖词
+魔导脉冲	1	action	action-8624	modaomaichong		needs-review		脉@2 自动 mai，可读 mai/mo，词证据冲突：脉冲=mai/mo
+魔强减速	1	action	action-41621	moqiangjiansu		needs-review		强@1 自动 qiang，可读 jiang/qiang，基础词库无覆盖词
 魔戒斗师·刃之手·阳	1	item	item-37454	mojiedoushirenzhishouyang		needs-review		斗@2 自动 dou，可读 dou/zhu，基础词库无覆盖词
 魔戒斗师·刃之手·阳【众】	1	item	item-37474	mojiedoushirenzhishouyangzhong		needs-review		斗@2 自动 dou，可读 dou/zhu，基础词库无覆盖词
 魔戒斗师·刃之手·阴	1	item	item-37459	mojiedoushirenzhishouyin		needs-review		斗@2 自动 dou，可读 dou/zhu，基础词库无覆盖词
@@ -3503,6 +3659,7 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 魔法景观：异界的欧米茄	1	item	item-46127	mofajingguanyijiedeoumijia		needs-review		茄@10 自动 jia，可读 jia/qie，词证据冲突：欧米茄=jia/qie
 魔法棱晶（降神糕）	1	item	item-24238	mofalengjingjiangshengao		needs-review		降@5 自动 jiang，可读 jiang/xiang，基础词库无覆盖词
 魔界花的唾液	1	item	item-7045	mojiehuadetuoye		needs-review		液@5 自动 ye，可读 shi/ye，词证据冲突：唾液=ye/yi
+魔纹重置	1	action	action-36988	mowenzhongzhi	mowenchongzhi	evidence	重@2 zhong→chong（词：重置）	
 魔角蜗牛	1	item	item-12725	mojiaowoniu		needs-review		角@1 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 魔象角笛	1	item	item-21904	moxiangjiaodi		needs-review		角@2 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 鱼大夫	1	item	item-20099	yudafu		needs-review		大@1 自动 da，可读 da/dai/tai，词证据冲突：大夫=da/dai
@@ -3585,12 +3742,14 @@ F型波动炮	1	item	item-15215	fxingbodongpao		needs-review		波@2 自动 bo，
 黯云治愈长角	1	item	item-44630	anyunzhiyuzhangjiao	anyunzhiyuchangjiao	evidence+needs-review	长@4 zhang→chang（词：愈长）	角@5 自动 jiao，可读 gu/jiao/jue/lu，基础词库无覆盖词
 黯云游击尖爪	1	item	item-44627	anyunyoujijianzhao		needs-review		爪@5 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 黯云精准尖爪	1	item	item-44622	anyunjingzhunjianzhao		needs-review		爪@5 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
+鼻息爆破死斗	1	contentfindercondition	contentfindercondition-696	bixibaoposidou		needs-review		斗@5 自动 dou，可读 dou/zhu，基础词库无覆盖词
 龙堡制敌长裙	1	item	item-14659	longbaozhidizhangqun	longbaozhidichangqun	evidence	长@4 zhang→chang（词：长裙）	
 龙堡咏咒长筒靴	1	item	item-14690	longbaoyongzhouzhangtongxue	longbaoyongzhouchangtongxue	evidence	长@4 zhang→chang（词：长筒靴）	
 龙堡咏咒长裙	1	item	item-14689	longbaoyongzhouzhangqun	longbaoyongzhouchangqun	evidence	长@4 zhang→chang（词：长裙）	
 龙堡御敌长裙	1	item	item-14653	longbaoyudizhangqun	longbaoyudichangqun	evidence	长@4 zhang→chang（词：长裙）	
 龙堡治愈长筒靴	1	item	item-14684	longbaozhiyuzhangtongxue	longbaozhiyuchangtongxue	evidence	长@4 zhang→chang（词：长筒靴）	
 龙堡治愈长裙	1	item	item-14683	longbaozhiyuzhangqun	longbaozhiyuchangqun	evidence	长@4 zhang→chang（词：愈长、长裙）	
+龙牙龙爪	1	action	action-3554	longyalongzhao		needs-review		爪@3 自动 zhao，可读 zhao/zhua，基础词库无覆盖词
 龙神强袭斗服	1	item	item-8960	longshenqiangxidoufu		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
 龙神强袭斗服（复制品）	1	item	item-13903	longshenqiangxidoufufuzhipin		needs-review		斗@4 自动 dou，可读 dou/zhu，基础词库无覆盖词
 龙神手炮	1	item	item-10518	longshenshoupao		needs-review		炮@3 自动 pao，可读 bao/pao，基础词库无覆盖词

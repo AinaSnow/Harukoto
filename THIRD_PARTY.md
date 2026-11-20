@@ -45,4 +45,4 @@
 
 ## FF14 名称与简短定型表达
 
-全量主题包从固定版本 thewakingsands/ffxiv-datamining-cn 和 xivapi/ffxiv-datamining 对齐 Item、PlaceName、Completion 的名称／简短表达，不含物品说明、任务对白、图标或游戏程序。来源链接、SHA-256 和覆盖账本随包；游戏数据权利归 SQUARE ENIX，无官方背书，不将项目 MIT 许可套用于游戏数据。构建时使用 pypinyin 0.55.0（MIT）生成拼音，运行时不打包该库；拼音自动生成状态见全量说明。
+全量主题包从固定版本 thewakingsands/ffxiv-datamining-cn 和 xivapi/ffxiv-datamining 对齐 Item、PlaceName、Completion、Action（玩家技能）、ContentFinderCondition（副本）的名称／简短表达，不含物品说明、技能说明、任务对白、图标或游戏程序。来源链接、SHA-256 和覆盖账本随包；游戏数据权利归 SQUARE ENIX，无官方背书，不将项目 MIT 许可套用于游戏数据。构建时使用 pypinyin 0.55.0（MIT）生成拼音，运行时不打包该库；拼音自动生成状态见全量说明。

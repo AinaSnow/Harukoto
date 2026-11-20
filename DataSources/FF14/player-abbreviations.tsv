@@ -1,0 +1,79 @@
+# FF14 玩家简称（人工维护，curated，非游戏数据）。FF14-04 起由 build-ff14-full.py 读入，记录 ID 为 abbr-<pinyin>。
+# 列：abbr 国服玩家简称（作为主题中文词）；pinyin 触发（无声调全拼，至少 4 个字母）；ja 日服玩家对应说法（日文候选）；kana 平假名读音，- 表示仅输出表记；target 指代的正式名称或含义；note 说明；status curated=收录、excluded=只记录不收录的决定。
+# 只收常用、无冒犯的说法；纯字母简称和与日常高频词同读音／同字的简称不收（见 excluded 行与 docs/FF14_FULL_DICTIONARY.md）。
+abbr	pinyin	ja	kana	target	note	status
+绝巴哈	juebaha	絶バハ	ぜつばは	巴哈姆特绝境战	绝境战简称	curated
+绝神兵	jueshenbing	絶テマ	ぜつてま	究极神兵绝境战	绝境战简称	curated
+绝亚	jueya	絶アレキ	ぜつあれき	亚历山大绝境战	绝境战简称	curated
+绝龙诗	juelongshi	絶竜詩	ぜつりゅうし	幻想龙诗绝境战	绝境战简称	curated
+绝欧	jueou	絶オメガ	ぜつおめが	欧米茄绝境验证战	绝境战简称	curated
+绝伊甸	jueyidian	絶エデン	ぜつえでん	光暗未来绝境战	绝境战简称	curated
+绝本	jueben	絶	ぜつ	绝境战（总称）	高难度副本类别	curated
+零式	lingshi	零式	れいしき	零式难度（高难度大型任务）	副本难度	curated
+极神	jishen	極	-	歼殛战（极难度讨伐战）	日服说法为“極”，读音不标	curated
+日随	risui	ルーレット	るーれっと	每日随机任务	日服常简称ルレ	curated
+24人本	ershisirenben	アライアンスレイド	あらいあんすれいど	24 人大型任务	副本类别	curated
+8人本	barenben	8人レイド	-	8 人大型任务	副本类别	curated
+死宫	sigong	死者の宮殿	ししゃのきゅうでん	深层迷宫·死者宫殿	深层迷宫简称	curated
+金碟	jindie	ゴールドソーサー	ごーるどそーさー	金碟游乐场	地点简称	curated
+主坦	zhutan	メインタンク	めいんたんく	主坦克（MT）	职能	curated
+副坦	futan	サブタンク	さぶたんく	副坦克（ST）	职能	curated
+盾奶	dunnai	バリアヒーラー	ばりあひーらー	护盾治疗（学者、贤者）	职能	curated
+纯奶	chunnai	ピュアヒーラー	ぴゅあひーらー	纯治疗（白魔法师、占星术士）	职能	curated
+远敏	yuanmin	物理レンジ	ぶつりれんじ	远程物理输出	职能	curated
+法系	faxi	キャスター	きゃすたー	远程魔法输出	职能	curated
+白魔	baimo	白魔道士	しろまどうし	白魔法师	职业简称	curated
+黑魔	heimo	黒魔道士	くろまどうし	黑魔法师	职业简称	curated
+赤魔	chimo	赤魔道士	あかまどうし	赤魔法师	职业简称	curated
+青魔	qingmo	青魔道士	あおまどうし	青魔法师	职业简称	curated
+暗骑	anqi	暗黒騎士	あんこくきし	暗黑骑士	职业简称	curated
+绝枪	jueqiang	ガンブレイカー	がんぶれいかー	绝枪战士	职业简称	curated
+龙骑	longqi	竜騎士	りゅうきし	龙骑士	职业简称	curated
+机工	jigong	機工士	きこうし	机工士	职业简称	curated
+蝰蛇	kuishe	ヴァイパー	ゔぁいぱー	蝰蛇剑士	职业简称	curated
+生产职	shengchanzhi	クラフター	くらふたー	能工巧匠（生产职业）	职业类别	curated
+采集职	caijizhi	ギャザラー	ぎゃざらー	大地使者（采集职业）	职业类别	curated
+团灭	tuanmie	全滅	ぜんめつ	全队阵亡	战斗用语	curated
+读条	dutiao	詠唱	えいしょう	咏唱（读条）	战斗用语	curated
+野队	-	-	-	随机招募的队伍（日：野良）	yedui 与“也对”同读音（聊天常用）	excluded
+固定队	gudingdui	固定	こてい	固定队伍	组队用语	curated
+幻化	huanhua	ミラプリ	みらぷり	投影（外观幻化）	系统简称	curated
+装等	zhuangdeng	アイテムレベル	あいてむれべる	装备品级	系统用语	curated
+禁断	jinduan	禁断	きんだん	禁断镶嵌	系统用语	curated
+军票	junpiao	軍票	ぐんぴょう	大国防联军军票	货币简称	curated
+神典石	shendianshi	トームストーン	とーむすとーん	神典石	货币	curated
+极限技	jixianji	リミットブレイク	りみっとぶれいく	极限技（LB）	战斗用语	curated
+宝图	baotu	宝の地図	たからのちず	藏宝图	物品类别	curated
+挖宝	wabao	トレジャーハント	とれじゃーはんと	挖掘藏宝图	玩法	curated
+S怪	sguai	Sモブ	-	S 级危命怪物	狩猎用语	curated
+市场板	shichangban	マーケットボード	まーけっとぼーど	市场布告板	系统简称	curated
+时尚品鉴	shishangpinjian	ファッションチェック	ふぁっしょんちぇっく	时尚品鉴（每周外观评分）	玩法	curated
+仙人微彩	xianrenweicai	ミニくじテンダー	みにくじてんだー	仙人微彩	金碟玩法	curated
+仙人仙彩	xianrenxiancai	ジャンボくじテンダー	じゃんぼくじてんだー	仙人仙彩	金碟玩法	curated
+光战	guangzhan	光の戦士	ひかりのせんし	光之战士	剧情称呼	curated
+拉拉肥	lalafei	ララフェル	ららふぇる	拉拉菲尔族	种族昵称（友好）	curated
+敖龙	aolong	アウラ	あうら	敖龙族	种族简称	curated
+鲁加	lujia	ルガディン	るがでぃん	鲁加族	种族简称	curated
+大区	-	-	-	数据中心（DC；日：データセンター）	与日常词同字，探查中主题名使“大区”从第 1 降到第 3	excluded
+MT	-	-	-	主坦克	纯字母：mt 为“明天”等简拼，直接英文输入	excluded
+ST	-	-	-	副坦克	纯字母，直接英文输入	excluded
+DC	-	-	-	数据中心	纯字母，直接英文输入	excluded
+DPS	-	-	-	输出职业	纯字母，直接英文输入	excluded
+LB	-	-	-	极限技	纯字母，直接英文输入；中文用“极限技”	excluded
+T	-	-	-	坦克	单字母，触发至少 2 个字母且会抢占常用输入	excluded
+奶	-	-	-	治疗	单音节 nai 是高频常用读音	excluded
+奶妈	-	-	-	治疗	与日常词同字，主题名会改变其位次	excluded
+坦克	-	-	-	坦克职能	与日常词同字	excluded
+近战	-	-	-	近战输出	jinzhan 与“进展”同读音	excluded
+分摊	-	-	-	分摊伤害（日：頭割り）	与日常词同字	excluded
+分散	-	-	-	散开（日：散開）	与日常词同字	excluded
+死刑	-	-	-	坦克死刑技（日：タンク強攻撃）	与日常词同字	excluded
+减伤	-	-	-	减伤技能（日：軽減）	jianshang 与“鉴赏”同读音	excluded
+主线	-	-	-	主线任务	与日常词同字	excluded
+副本	-	-	-	副本	与日常词同字	excluded
+练级	-	-	-	升级	lianji 与“联机”同读音	excluded
+理符	-	-	-	理符任务	lifu 与“礼服”同读音	excluded
+诗人	-	-	-	吟游诗人	shiren 与“诗人／私人”同读音	excluded
+仇恨	-	-	-	仇恨（日：敵視）	与日常词同字	excluded
+亲信	-	-	-	亲信战友（日：フェイス）	与日常词同字	excluded
+开荒	-	-	-	首次攻略	日服没有确定的对应说法	excluded

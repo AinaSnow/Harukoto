@@ -1,5 +1,17 @@
 # 开发状态与接手入口
 
+## 2026-11-21 · FF14-04：常用简称与新增类别
+
+- 前置：FF14-03 已提交为 3c47baf。本批未提交、未打包。详见 [FF14 全量词库](FF14_FULL_DICTIONARY.md)“0.4.0 技能、副本与玩家简称”一节。
+- 来源：同一固定提交（国服 3ba064a6、日英 a67c23b0＝7.56）新增 cn／ja／en 的 Action.csv、ContentFinderCondition.csv，SHA-256 写入 build-ff14-full.py ADDED_PINS 与 full/source-checks.json；coverage.json 按表记录 revision，类别为记录 ID 前缀。
+- Action：国服列名错位，按同 ID 日服行筛选（非 PvP、ActionCategory 2／3／4、IsPlayerAction 或 ClassJobCategory≠0）。范围内 1,923，收录 1,905，排除 18（缺日文 8、占位 1、触发全冲突 9）；范围外 43,567 只计数。ContentFinderCondition 863 全收。
+- 常用词冲突：audit-ff14-readings.py --write-overrides 生成 DataSources/FF14/common-reading-collisions.tsv（新表触发与基础词库权重≥3000 的词同读音，230 个），构建时丢弃，313 条记录写 dropped_triggers。重跑审计稳定。读音审计扩展到新表，新增 10 行 evidence 修订（勒尔 le、都灵 du、重置 chong 等），旧 57,672 条逐条不变。
+- 简称：DataSources/FF14/player-abbreviations.tsv，51 条 curated、24 条 excluded（纯字母、单音节、与日常词同字／同读音、日服无对应、探查中降位的大区）。
+- 0.4.0：60,491 条记录、117,507 组触发；重建逐字节一致；0.3.1→0.4.0 更新保持启用、回退回到 0.3.1。words 8.48 MB（+4.0%），评测加载约 0.80 s 不变，私有内存 +1.3 MB。
+- 测试：test_japanese_ff14_full.py 新增三项（新表对齐与冲突过滤、简称表校验、0.3.1→0.4.0 更新回退），计数更新（含 test_japanese_manager_gui.py）。完整 CTest 60 项通过（345.59 秒）。
+- 打字验证：Explain（--bundled、关模糊音／纠错／记忆，0.3.1 与 0.4.0 主题快照）：bushi、zhuyao、baohu 前 5 不变；lingshi 前 3 不变；jueou、juelongshi 首选绝欧、绝龙诗。三套中文评测 12 组名次变化 0。
+- 未做：实机抽查与打包；简称日文说法的人工复核；旧三表的常用词冲突过滤；NPC／敌人技能与技能说明。
+
 ## 2026-11-20 · FF14-03：缺口与读音质量（部分完成）
 
 - 前置：DICT-02a 已提交为 0d64cd8。本批未提交、未打包。详见 [FF14 全量词库](FF14_FULL_DICTIONARY.md)“0.3.1 读音质量与缺口”一节。
