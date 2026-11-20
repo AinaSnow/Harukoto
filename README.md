@@ -24,7 +24,7 @@
 
 ## 安装与构建
 
-晴词开发版安装器为 Harukoto-0.4.4-alpha.26-Setup.exe，构建产物位于 .build/windows/dist。当前尚未发布 Gitea Release；请参阅 [Windows 说明](Windows/README.md)自行构建。安装后按 Win + 空格切换到“晴词 Harukoto”。
+晴词开发版安装器为 Harukoto-0.4.4-alpha.27-Setup.exe，构建产物位于 .build/windows/dist。当前尚未发布 Gitea Release；请参阅 [Windows 说明](Windows/README.md)自行构建。安装后按 Win + 空格切换到“晴词 Harukoto”。
 
 日常使用见[操作指南](docs/USER_GUIDE.md)：选词、日语表记／假名选择、F6 活用、繁简开关及常见问题。
 

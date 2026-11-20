@@ -1,4 +1,4 @@
-# 晴词 · Harukoto 0.4.4-alpha.26 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.27 · Windows x64
 
 开发产物清理：使用 PowerShell 7 运行 `Windows/clean-build.ps1` 预览，添加 `-Apply` 执行。只清理脚本固定匹配的旧产物，保留最新两个 0.4.4-alpha 版本、最新 FF14 包、当前 MSVC／ime／tools 与源数据；未知文件保留。请在构建／打包结束后运行。
 
@@ -40,7 +40,7 @@ alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.26-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.27-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -99,7 +99,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.26
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.27
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。
@@ -187,3 +187,5 @@ ctest --test-dir build/windows -C Release --output-on-failure
 新版注册到简体中文（zh-Hans-CN，0804）分类。升级只移除晴词旧繁体分类配置（0404），不删除用户其他输入法或语言；卸载清理两种晴词标识。语言分类和输出繁简开关相互独立。真实系统迁移尚待实机验收。
 
 alpha.26 增加个人词频：开启选词记忆后，确认过的词会在之后的组句里优先（例如选过“公司”，下次输入“gongsihenda”首选“公司很大”）。加分有上限，约 14 天减半，误选后改选即可纠正；记录在 `%LOCALAPPDATA%\Meowpuut\selection-memory-words.tsv`，与原选词记忆共用开关、导出和清除，见[选词记忆](../docs/SELECTION_MEMORY.md)。从旧版升级前用旧管理脚本清除时，不会清掉这个新文件。
+
+alpha.27 汇集中文输入的多项改进：可选模糊音（设置中按对开启）、简拼与混拼（nh→你好、zgren→中国人）、常见手误纠正（候选下方标“纠错”，可在设置中关闭）、个人中文词的添加与回退（管理脚本），以及便利功能：/ 原样输出与 Shift 层中文标点、Ctrl+. 切换中英文标点、单按 Shift 切换中英文、- = 翻页、[ ] 以词定字、Ctrl+Delete 忘记学到的词、v+数字与 vrq／vsj／vxq、可选的 Shift+空格全角。游戏内输入（如 FF14）改为通过系统候选接口提供候选，游戏关闭输入法不再把晴词永久切到英文；须重新安装才注册新接口。自查方法见[用户指南](../docs/USER_GUIDE.md)的“游戏中输入”。真实应用与游戏内效果尚待实机确认。
