@@ -118,7 +118,22 @@ internal static class LayoutOptionsTests
                 input.SetValue(ShiftToggleOptions.ValueName, "0");
                 Check(ShiftToggleOptions.Read(input) == ShiftToggleOptions.Either, "Wrong Shift toggle registry type means the default");
             }
-            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds, presets, fuzzy pinyin pairs, typo correction, punctuation and Shift toggling.");
+            // CN-07 batch 7: the Shift+Space full-width hotkey, off unless saved as DWORD 1.
+            Check(!FullWidthOptions.Read(null), "Full-width hotkey default without key");
+            using (var input = Registry.CurrentUser.CreateSubKey(path + @"\FullWidthInput")) {
+                Check(!FullWidthOptions.Read(input), "Full-width hotkey default off");
+                FullWidthOptions.Write(input, false);
+                Check(input.GetValue(FullWidthOptions.ValueName) == null, "Saving the default must not create the value");
+                FullWidthOptions.Write(input, true);
+                Check(input.GetValueKind(FullWidthOptions.ValueName) == RegistryValueKind.DWord && (int)input.GetValue(FullWidthOptions.ValueName) == 1 && FullWidthOptions.Read(input), "Full-width hotkey on persisted as DWORD 1");
+                FullWidthOptions.Write(input, false);
+                Check((int)input.GetValue(FullWidthOptions.ValueName) == 0 && !FullWidthOptions.Read(input), "Full-width hotkey off again");
+                input.SetValue(FullWidthOptions.ValueName, 2, RegistryValueKind.DWord);
+                Check(!FullWidthOptions.Read(input), "Only DWORD 1 enables the hotkey");
+                input.SetValue(FullWidthOptions.ValueName, "1");
+                Check(!FullWidthOptions.Read(input), "Wrong full-width registry type means off");
+            }
+            Console.WriteLine("PASS: legacy migration, every field persistence, reopen, denied-write preservation, corrupt/future/type fallback, bounds, presets, fuzzy pinyin pairs, typo correction, punctuation, Shift toggling and full-width hotkey.");
         } finally { Registry.CurrentUser.DeleteSubKeyTree(path, false); }
     }
 }

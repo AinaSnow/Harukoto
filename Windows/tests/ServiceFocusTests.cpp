@@ -1147,6 +1147,113 @@ struct ServiceFocusTest {
         RegCloseKey(root);
         assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
     }
+
+    // CN-07 batch 7 through the real key callbacks: Shift+Space toggles
+    // full-width output only when the option is on; literal output becomes
+    // full-width in both modes, candidates and Chinese punctuation do not.
+    static void fullWidth() {
+        const std::wstring path = L"Software\\HarukotoFullWidthService-" + std::to_wstring(GetCurrentProcessId());
+        HKEY root = nullptr;
+        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        const auto option = [&](DWORD value) {
+            HKEY input = nullptr;
+            assert(RegCreateKeyExW(root, L"Software\\Meowpuut\\Input", 0, nullptr, 0, KEY_SET_VALUE, nullptr, &input, nullptr) == ERROR_SUCCESS);
+            assert(RegSetValueExW(input, L"FullWidthHotkey", 0, REG_DWORD, reinterpret_cast<const BYTE *>(&value), sizeof(value)) == ERROR_SUCCESS);
+            RegCloseKey(input);
+        };
+        RecordingContext context;
+        {
+            Service service;
+            service.preferenceRoot = root;
+            const std::string data = "MEOWPUUT-PINYIN-1\nni\tni3\t你\t你\t9000\n";
+            service.lexicon = mpn_lexicon_create(data.data(), data.size());
+            service.session = mpn_session_create(service.lexicon);
+            assert(service.lexicon && service.session);
+            const auto press = [&](WPARAM key) {
+                BOOL tested = FALSE, eaten = FALSE;
+                assert(service.OnTestKeyDown(&context, key, 0, &tested) == S_OK);
+                context.text.clear();
+                assert(service.OnKeyDown(&context, key, 0, &eaten) == S_OK);
+                assert(tested == eaten);
+                return std::make_pair(eaten != FALSE, context.text);
+            };
+            const auto compose = [&](const char *keys) {
+                for (const char *c = keys; *c; ++c) assert(mpn_key(service.session, *c));
+                service.refreshCandidates();
+            };
+            using Result = std::pair<bool, std::wstring>;
+            const Result passed{false, L""}, taken{true, L""};
+            hold({});
+            assert(press(VK_OEM_COMMA) == Result(true, L"，"));
+            // Option off (the default): Shift+Space is the host's (a game's jump), nothing changes.
+            hold({VK_SHIFT});
+            assert(press(VK_SPACE) == passed && !service.fullWidth);
+            hold({});
+            assert(press('1') == passed && press(VK_SPACE) == passed);
+            assert(service.modeTooltip().find(L"半角") != std::wstring::npos);
+            // Option on: Shift+Space toggles, once per press.
+            option(1);
+            hold({VK_SHIFT});
+            assert(press(VK_SPACE) == taken && service.fullWidth && service.fullWidthOn());
+            assert(service.modeTooltip().find(L"全角") != std::wstring::npos);
+            // Chinese mode, idle: digits, space and the symbols the host would have typed.
+            hold({});
+            assert(press('1') == Result(true, L"１") && press(VK_SPACE) == Result(true, L"　"));
+            assert(press(VK_OEM_2) == Result(true, L"／") && press(VK_OEM_MINUS) == Result(true, L"－"));
+            assert(press(VK_OEM_PLUS) == Result(true, L"＝") && press(VK_OEM_3) == Result(true, L"｀"));
+            assert(press(VK_OEM_COMMA) == Result(true, L"，") && press(VK_OEM_7) == Result(true, L"‘")); // Chinese marks unchanged
+            hold({VK_SHIFT});
+            assert(press('2') == Result(true, L"＠") && press('A') == Result(true, L"Ａ") && press('1') == Result(true, L"！"));
+            hold({});
+            // Letters still compose; what the IME types literally is full-width, candidates are not.
+            assert(press('N') == taken && press('I') == taken && press(VK_SPACE) == Result(true, L"ｎｉ　"));
+            compose("ni");
+            assert(press(VK_OEM_2) == Result(true, L"你／"));
+            compose("ni");
+            assert(service.choices.size() < 9 && press('9') == Result(true, L"你９"));
+            compose("ni");
+            assert(press('1') == Result(true, L"你")); // a digit that selects still selects
+            compose("ni");
+            hold({VK_SHIFT});
+            assert(press('W') == Result(true, L"ｎｉＷ"));
+            hold({});
+            // English punctuation mode: punctuation is full-width ASCII.
+            hold({VK_CONTROL});
+            assert(press(VK_OEM_PERIOD) == taken);
+            hold({});
+            assert(press(VK_OEM_PERIOD) == Result(true, L"．") && press(VK_OEM_4) == Result(true, L"［"));
+            hold({VK_CONTROL});
+            assert(press(VK_OEM_PERIOD) == taken);
+            hold({});
+            // Switching to English mid-composition commits the letters full-width.
+            compose("ni");
+            context.text.clear();
+            service.setMode(false);
+            assert(context.text == L"ｎｉ");
+            // English mode: every printable key full-width; others still the host's.
+            assert(press('A') == Result(true, L"ａ") && press('1') == Result(true, L"１") && press(VK_SPACE) == Result(true, L"　"));
+            hold({VK_SHIFT});
+            assert(press('A') == Result(true, L"Ａ") && press('1') == Result(true, L"！"));
+            assert(press(VK_SPACE) == taken && !service.fullWidth); // toggles in English mode too
+            hold({});
+            assert(press('A') == passed && press(VK_RETURN) == passed);
+            hold({VK_SHIFT});
+            assert(press(VK_SPACE) == taken && service.fullWidth);
+            hold({});
+            assert(press(VK_RETURN) == passed && press(VK_LEFT) == passed);
+            service.setMode(true);
+            // Option switched off while full-width: half-width again, Shift+Space the host's.
+            option(0);
+            assert(!service.fullWidthOn() && press('1') == passed && press(VK_SPACE) == passed);
+            hold({VK_SHIFT});
+            assert(press(VK_SPACE) == passed);
+            hold({});
+            service.Deactivate();
+        }
+        assert(context.refs == 1);
+        RegCloseKey(root);
+        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+    }
 };
 }
 int wmain(int argc, wchar_t **argv) {
@@ -1161,5 +1268,6 @@ int wmain(int argc, wchar_t **argv) {
     ServiceFocusTest::wordCharacters(argv[1]);
     ServiceFocusTest::forgetting(argv[1]);
     ServiceFocusTest::quickInput(argv[1]);
-    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode, -/= paging, [ ] character picking, forgetting, numbers and dates\n";
+    ServiceFocusTest::fullWidth();
+    std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode, -/= paging, [ ] character picking, forgetting, numbers, dates and full width\n";
 }

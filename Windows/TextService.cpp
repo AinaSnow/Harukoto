@@ -557,6 +557,12 @@ public:
             }
             const bool toggle = chineseMode && punctuationToggle(key);
             const bool shift = GetKeyState(VK_SHIFT) < 0;
+            // CN-07 batch 7: full-width output. What the IME types literally
+            // (raw letters, digits, spaces, ASCII punctuation) takes its
+            // full-width form; candidates and Chinese punctuation do not change.
+            const bool widthToggle = fullWidthToggle(key);
+            const bool full = fullWidthOn();
+            const auto literal = [&](std::wstring value) { return full ? pinyinFullWidth(std::move(value)) : value; };
             // CN-07 batch 4: [ ] pick a character (以词定字) while composing.
             const bool wordKey = chineseMode && !toggle
                 && pinyinWordCharacterKey(static_cast<unsigned int>(key), shift, *mpn_input(session) != '\0');
@@ -616,10 +622,17 @@ public:
                 if (!(static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30)))
                     notice = count ? forgetCandidate(start + (std::min)(highlighted, count - 1)) : L"没有学到的记录";
                 *eaten = TRUE;
+            } else if (widthToggle) {
+                if (!(static_cast<ULONG_PTR>(flags) & (ULONG_PTR(1) << 30))) {
+                    fullWidth = !fullWidth;
+                    if (button) button->changed();
+                    if (!*mpn_input(session)) showModeHint();
+                }
+                *eaten = TRUE;
             } else if (!chineseMode) {
                 // English mode takes a key only to keep it behind a pending
-                // insertion (accepts()); it is typed as the host would.
-                if (const wchar_t literal = pinyinLiteral(static_cast<unsigned int>(key), shift)) text = literal;
+                // insertion, or to type it full-width (accepts()).
+                if (const wchar_t typed = pinyinLiteral(static_cast<unsigned int>(key), shift)) text = literal(std::wstring(1, typed));
                 *eaten = TRUE;
             } else if (wordKey) {
                 // Only for a core (Chinese) candidate in the normal list; with
@@ -630,15 +643,22 @@ public:
                 *eaten = TRUE;
             } else if (mark != PinyinMark::none) {
                 finishCandidateText(text, start + highlighted);
-                text += pinyinMarkText(static_cast<unsigned int>(key), shift, mark, quotes);
+                const std::wstring typed = pinyinMarkText(static_cast<unsigned int>(key), shift, mark, quotes);
+                text += mark == PinyinMark::literal ? literal(typed) : typed;
                 highlighted = 0;
+                *eaten = TRUE;
+            } else if (full && !*mpn_input(session) && (shift || key < 'A' || key > 'Z')
+                       && pinyinLiteral(static_cast<unsigned int>(key), shift)) {
+                // Idle in full-width output: digits, space, Shift+letters and
+                // the other symbols the host would have typed.
+                text = literal(std::wstring(1, pinyinLiteral(static_cast<unsigned int>(key), shift)));
                 *eaten = TRUE;
             } else if (shift && key >= 'A' && key <= 'Z') {
                 // A capital ends the reading as typed, like Space: the raw
                 // letters and the capital, so "i" Shift+P "hone" Space gives
                 // "iPhone ". Before batch 2 the capital reached the host
                 // ahead of the composition.
-                text = wide(mpn_committed(session)) + wide(mpn_input(session)) + static_cast<wchar_t>(key);
+                text = wide(mpn_committed(session)) + literal(wide(mpn_input(session)) + static_cast<wchar_t>(key));
                 mpn_clear(session);
                 mpn_clear_commit(session);
                 resetCandidates();
@@ -647,7 +667,7 @@ public:
                 expanded = !expanded;
                 *eaten = TRUE;
             } else if (key == VK_SPACE) {
-                text = wide(mpn_input(session)) + L" ";
+                text = literal(wide(mpn_input(session)) + L" ");
                 mpn_clear(session);
                 resetCandidates();
                 *eaten = TRUE;
@@ -663,7 +683,7 @@ public:
                 *eaten = TRUE;
             } else if (key >= '0' && key <= '9' && !pinyinDigitSelects(static_cast<unsigned int>(key), start, total)) {
                 finishCandidateText(text, start + highlighted);
-                text += static_cast<wchar_t>(key);
+                text += literal(std::wstring(1, static_cast<wchar_t>(key)));
                 *eaten = TRUE;
             } else if (navigation(key) && count) {
                 const bool backward = key == VK_LEFT || key == VK_UP || (key == VK_TAB && GetKeyState(VK_SHIFT) < 0);
@@ -831,7 +851,7 @@ private:
         chineseMode = chinese;
         shiftTap.other();
         if (!chinese && session && *mpn_input(session) && delivery && activeContext) {
-            std::wstring text = wide(mpn_committed(session)) + wide(mpn_input(session));
+            std::wstring text = wide(mpn_committed(session)) + (fullWidthOn() ? pinyinFullWidth(wide(mpn_input(session))) : wide(mpn_input(session)));
             mpn_clear(session);
             mpn_clear_commit(session);
             resetCandidates();
@@ -894,8 +914,8 @@ private:
     }
 
     std::wstring modeTooltip() const {
-        return chineseMode ? (englishPunctuation ? L"晴词：中文 · 英文标点（Shift 切换）" : L"晴词：中文 · 中文标点（Shift 切换）")
-                           : L"晴词：英文（Shift 切换）";
+        return std::wstring(chineseMode ? (englishPunctuation ? L"晴词：中文 · 英文标点" : L"晴词：中文 · 中文标点") : L"晴词：英文")
+            + (fullWidthOn() ? L" · 全角" : L" · 半角") + L"（Shift 切换中英）";
     }
 
     // A brief mode hint near the caret after a switch, also when idle, in the
@@ -912,7 +932,8 @@ private:
         if (!keys || !session || *mpn_input(session)) return;
         POINT anchor = candidateAnchor();
         const std::wstring mode = chineseMode ? L"中" : L"英";
-        const std::wstring detail = chineseMode ? (englishPunctuation ? L"中文 · 英文标点" : L"中文 · 中文标点") : L"英文";
+        const std::wstring detail = std::wstring(chineseMode ? (englishPunctuation ? L"中文 · 英文标点" : L"中文 · 中文标点") : L"英文")
+            + (fullWidthOn() ? L" · 全角" : L"");
         const auto payload = std::to_wstring(anchor.x) + L"\n" + std::to_wstring(anchor.y + 7) + L"\n"
             + mode + L"\t0\t" + detail + L"\t0";
         if (sendGlass(payload)) {
@@ -938,10 +959,18 @@ private:
         hintTimer = SetTimer(nullptr, 0, 1000, &Service::hideHint);
     }
 
+    // CN-07 batch 7: Shift+Space, only when the option is on; full-width
+    // output is on only while the option is.
+    bool fullWidthToggle(WPARAM key) const {
+        return pinyinFullWidthShortcut(static_cast<unsigned int>(key), GetKeyState(VK_CONTROL) < 0, GetKeyState(VK_SHIFT) < 0,
+            GetKeyState(VK_MENU) < 0, GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0) && readFullWidthHotkey(preferenceRoot);
+    }
+    bool fullWidthOn() const { return fullWidth && readFullWidthHotkey(preferenceRoot); }
+
     bool accepts(ITfContext *context, WPARAM key) const {
         const auto code = static_cast<unsigned int>(key);
         // In English mode Ctrl+. is the host's (CN-07 batch 2).
-        const bool shortcut = scriptShortcut(key) || (chineseMode && punctuationToggle(key));
+        const bool shortcut = scriptShortcut(key) || (chineseMode && punctuationToggle(key)) || fullWidthToggle(key);
         const bool shift = GetKeyState(VK_SHIFT) < 0;
         // Ctrl/Shift+Delete passes the modifier check here and is taken only
         // while composing (below).
@@ -968,13 +997,15 @@ private:
         // English mode: every key is the host's, except that typed text must
         // not overtake an insertion still owed to the host (such as the
         // letters committed by switching mid-composition).
-        if (!chineseMode) return pending && pinyinLiteral(code, shift);
+        // CN-07 batch 7: with full-width output on, every printable key is
+        // taken and typed in its full-width form.
+        if (!chineseMode) return (pending || fullWidthOn()) && pinyinLiteral(code, shift);
         if (shift && key != VK_TAB) {
             // While composing no Shift key may reach the host ahead of the
             // composition (batch 2); idle, only Chinese punctuation is taken
             // and Shift+letters and other Shift keys pass as before.
             if (composing) return (code >= 'A' && code <= 'Z') || pinyinShiftedAscii(code);
-            return pinyinShiftMark(code) && !readEnglishPunctuation(preferenceRoot);
+            return (pinyinShiftMark(code) && !readEnglishPunctuation(preferenceRoot)) || (fullWidthOn() && pinyinLiteral(code, true));
         }
         if (key >= 'A' && key <= 'Z') return true;
         if (pinyinAsciiPunctuation(code)
@@ -984,7 +1015,8 @@ private:
             // Selection may already have cleared the engine while TSF still
             // owes its text to the host. Keep literal digits/spaces and
             // punctuation behind it.
-            return !shift && pending && (pinyinQueuedLiteral(code) || pinyinAsciiPunctuation(code));
+            return !shift && ((pending && (pinyinQueuedLiteral(code) || pinyinAsciiPunctuation(code)))
+                || (fullWidthOn() && pinyinLiteral(code, false)));
         }
         const size_t currentPage = context == activeContext ? page : saved->second.page;
         const size_t currentCount = context == activeContext ? candidateCount() : saved->second.choices.size();
@@ -1523,7 +1555,7 @@ private:
             if (popup) ShowWindow(popup, SW_HIDE);
             return;
         }
-        auto display = preeditText() + (simplified ? L"  简" : L"  繁") + (englishPunctuation ? L" · 英文标点" : L"") + (notice.empty() ? L"" : L" · " + notice);
+        auto display = preeditText() + (simplified ? L"  简" : L"  繁") + (englishPunctuation ? L" · 英文标点" : L"") + (fullWidthOn() ? L" · 全角" : L"") + (notice.empty() ? L"" : L" · " + notice);
         const bool canConjugate = !conjugationPanel.active() && page * pageSize + highlighted < choices.size() &&
             conjugationFor(currentConjugations(), choices[page * pageSize + highlighted], mpn_input(session));
         const std::wstring conjugationHint = conjugationPanel.active() ? L"  活用 · F6/Esc 返回" : canConjugate ? L"  F6 活用" : L"";
@@ -1567,6 +1599,7 @@ private:
         const size_t pageCount = (candidateCount() + pageSize - 1) / pageSize;
         payload += simplified ? L"\t简" : L"\t繁";
         if (englishPunctuation) payload += L" · 英文标点";
+        if (fullWidthOn()) payload += L" · 全角";
         if (themeReload && themeReload->failed()) payload += L" · 词库更新失败，沿用旧版";
         if (!notice.empty()) payload += L" · " + notice;
         payload += conjugationHint;
@@ -1636,6 +1669,9 @@ private:
     // CN-07 batch 6: digits typed after a lone "v" (number mode), and the
     // clock for dates (tests set a fixed one).
     std::string numberInput;
+    // CN-07 batch 7: full-width output, per service instance like the input
+    // mode; starts half-width and is not saved.
+    bool fullWidth = false;
     quick_input::Moment (*clock)() = &Service::localMoment;
     // CN-07 batch 2: input mode, Shift tap, open/close compartment, taskbar item, hint timer.
     bool chineseMode = true;

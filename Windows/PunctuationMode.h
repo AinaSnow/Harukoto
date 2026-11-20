@@ -24,6 +24,16 @@ inline bool writeEnglishPunctuation(bool english, HKEY root = HKEY_CURRENT_USER)
     return result == ERROR_SUCCESS;
 }
 
+// CN-07 batch 7: Shift+Space toggles full-width output only when the DWORD
+// FullWidthHotkey is 1. Off by default: games use Shift+Space to jump or
+// sprint. Switching it off also turns full-width output off.
+inline bool readFullWidthHotkey(HKEY root = HKEY_CURRENT_USER) {
+    DWORD value = 0, bytes = sizeof(value);
+    const auto result = RegGetValueW(root, L"Software\\Meowpuut\\Input", L"FullWidthHotkey",
+        RRF_RT_REG_DWORD, nullptr, &value, &bytes);
+    return result == ERROR_SUCCESS && value == 1;
+}
+
 inline bool readPunctuationHotkey(HKEY root = HKEY_CURRENT_USER) {
     DWORD value = 1, bytes = sizeof(value);
     const auto result = RegGetValueW(root, L"Software\\Meowpuut\\Input", L"PunctuationHotkey",

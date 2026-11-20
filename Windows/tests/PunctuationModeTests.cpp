@@ -23,6 +23,14 @@ int main() {
     assert(RegSetValueExW(input, L"EnglishPunctuation", 0, REG_SZ, reinterpret_cast<const BYTE *>(L"1"), 4) == ERROR_SUCCESS);
     assert(RegSetValueExW(input, L"PunctuationHotkey", 0, REG_SZ, reinterpret_cast<const BYTE *>(L"0"), 4) == ERROR_SUCCESS);
     assert(!readEnglishPunctuation(root) && readPunctuationHotkey(root));
+    // CN-07 batch 7: the full-width hotkey is off unless DWORD 1.
+    assert(!readFullWidthHotkey(root));
+    for (DWORD setting : {1u, 0u, 2u}) {
+        assert(RegSetValueExW(input, L"FullWidthHotkey", 0, REG_DWORD, reinterpret_cast<const BYTE *>(&setting), sizeof(setting)) == ERROR_SUCCESS);
+        assert(readFullWidthHotkey(root) == (setting == 1));
+    }
+    assert(RegSetValueExW(input, L"FullWidthHotkey", 0, REG_SZ, reinterpret_cast<const BYTE *>(L"1"), 4) == ERROR_SUCCESS);
+    assert(!readFullWidthHotkey(root));
     RegCloseKey(input);
     RegCloseKey(root);
     assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);

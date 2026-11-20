@@ -41,6 +41,7 @@ internal static class CandidateSettings
         int font = savedLayout.Font, width = savedLayout.Width, fuzzyMask = 0;
         bool typoCorrection = true, englishPunctuation = false, punctuationHotkey = true;
         int shiftToggle = ShiftToggleOptions.Either;
+        bool fullWidthHotkey = false;
         try {
             using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Meowpuut\Input")) {
                 traditional.IsChecked = key != null && Convert.ToString(key.GetValue("TraditionalOutput", 0)) == "1";
@@ -49,6 +50,7 @@ internal static class CandidateSettings
                 englishPunctuation = PunctuationOptions.ReadEnglish(key);
                 punctuationHotkey = PunctuationOptions.ReadHotkey(key);
                 shiftToggle = ShiftToggleOptions.Read(key);
+                fullWidthHotkey = FullWidthOptions.Read(key);
             }
         } catch { /* Keep usable defaults if preferences are unavailable. */ }
         body.Children.Add(traditional);
@@ -73,6 +75,9 @@ internal static class CandidateSettings
         AutomationProperties.SetName(shiftMode, "单按 Shift 切换中英文");
         body.Children.Add(new Label { Content = "单按 Shift 切换中英文", Target = shiftMode, Padding = new Thickness(0,0,0,5) }); body.Children.Add(shiftMode);
         body.Children.Add(new TextBlock { Text = "单独按一下 Shift（不按其他键、0.5 秒内松开）切换中文／英文；按住 Shift 打字、Shift 加鼠标点击不会切换。英文时所有按键交给应用。打拼音时切到英文，已打的字母原样上屏。每个应用各自记住中英文，重新打开应用后为中文。默认左右 Shift 都可以。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,24) });
+        var fullWidth = new CheckBox { Name = "FullWidthHotkey", Content = "Shift+空格 切换全角／半角", IsChecked = fullWidthHotkey, Margin = new Thickness(0,0,0,8) };
+        body.Children.Add(fullWidth);
+        body.Children.Add(new TextBlock { Text = "默认关闭：很多游戏用 Shift+空格跳跃或冲刺。开启后按 Shift+空格切换全角，全角时数字、空格、英文字母和符号输出全角（如 １２３、ＡＢＣ、全角空格），拼音候选和中文标点不变；每个应用各自记住，重新打开为半角。关闭此项也会回到半角。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,24) });
         body.Children.Add(new TextBlock { Text = "标点", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,0,0,8) });
         var english = new CheckBox { Name = "EnglishPunctuation", Content = "使用英文标点", IsChecked = englishPunctuation, Margin = new Thickness(0,0,0,8) };
         var hotkey = new CheckBox { Name = "PunctuationHotkey", Content = "Ctrl+. 切换中英文标点", IsChecked = punctuationHotkey, Margin = new Thickness(0,0,0,8) };
@@ -167,7 +172,7 @@ internal static class CandidateSettings
         direction.SelectionChanged += (s,e) => refresh();
         autoReading.Checked += (s,e) => refresh(); autoReading.Unchecked += (s,e) => refresh();
         applyPreset.Click += (s,e) => { setDraft(LayoutOptions.Preset(presets.SelectedIndex)); status.Text = "预设已应用到草稿，保存后生效。"; };
-        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。简繁、模糊音、纠错、中英文切换、标点与词库设置保持。"; };
+        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。简繁、模糊音、纠错、中英文切换、全角、标点与词库设置保持。"; };
         cancel.Click += (s,e) => window.Close();
         save.Click += (s,e) => {
             try {
@@ -185,6 +190,7 @@ internal static class CandidateSettings
                     }
                     PunctuationOptions.WriteHotkey(input, hotkey.IsChecked == true);
                     ShiftToggleOptions.Write(input, shiftMode.SelectedIndex);
+                    FullWidthOptions.Write(input, fullWidth.IsChecked == true);
                 }
                 status.Text = "已保存，下次输入按键时生效。取消只丢弃此后未保存的调整。";
             } catch (Exception error) { status.Text = "保存失败：" + error.Message; }

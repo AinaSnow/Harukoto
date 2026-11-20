@@ -113,6 +113,16 @@ int main() {
     for (unsigned int key : {0x0du, 0x08u, 0x25u, 0x09u, 0x70u}) assert(!pinyinLiteral(key, false) && !pinyinLiteral(key, true));
     assert(!pinyinAsciiPunctuation('A') && !pinyinAsciiPunctuation(0x20));
 
+    // Batch 7: full-width forms and Shift+Space.
+    assert(pinyinFullWidth(L"Az09 !~") == L"Ａｚ０９　！～");
+    assert(pinyinFullWidth(L",./;'[]\\-=`") == L"，．／；＇［］＼－＝｀");
+    assert(pinyinFullWidth(L"中，\n\t") == L"中，\n\t" && pinyinFullWidth(L"").empty()); // non-ASCII and controls unchanged
+    for (wchar_t c = L'!'; c <= L'~'; ++c) assert(pinyinFullWidth(std::wstring(1, c))[0] == c + 0xFEE0);
+    assert(pinyinFullWidthShortcut(0x20, false, true, false, false));
+    assert(!pinyinFullWidthShortcut(0x20, false, false, false, false) && !pinyinFullWidthShortcut(0x20, true, true, false, false));
+    assert(!pinyinFullWidthShortcut(0x20, false, true, true, false) && !pinyinFullWidthShortcut(0x20, false, true, false, true));
+    assert(!pinyinFullWidthShortcut('A', false, true, false, false));
+
     // Batch 4: [ ] pick a character only while composing and without Shift.
     assert(pinyinWordCharacterKey(0xdb, false, true) && pinyinWordCharacterKey(0xdd, false, true));
     assert(!pinyinWordCharacterKey(0xdb, false, false) && !pinyinWordCharacterKey(0xdd, true, true));

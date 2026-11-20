@@ -136,6 +136,21 @@ constexpr bool pinyinPagingKey(unsigned int key, bool shift, bool composing) {
     return composing && !shift && (key == 0xbd || key == 0xbb); // VK_OEM_MINUS, VK_OEM_PLUS
 }
 
+// CN-07 batch 7: Shift+Space toggles full-width output when the option is on.
+constexpr bool pinyinFullWidthShortcut(unsigned int key, bool control, bool shift, bool alt, bool windows) {
+    return key == 0x20 && shift && !control && !alt && !windows;
+}
+
+// Full-width forms of printable ASCII: ! to ~ become U+FF01 to U+FF5E and the
+// space U+3000. Everything else is unchanged.
+inline std::wstring pinyinFullWidth(std::wstring text) {
+    for (auto &c : text) {
+        if (c == L' ') c = L'　';
+        else if (c >= L'!' && c <= L'~') c = static_cast<wchar_t>(c + 0xfee0);
+    }
+    return text;
+}
+
 // CN-07 batch 5: Ctrl+Delete or Shift+Delete (as in Rime and other IMEs)
 // forgets what was learned for the highlighted candidate. Only one of Ctrl
 // and Shift, no Alt or Windows key; taken only while composing.

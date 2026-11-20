@@ -103,6 +103,26 @@ internal static class ShiftToggleOptions
     }
 }
 
+// CN-07 batch 7: Shift+Space toggles full-width output only when the DWORD
+// FullWidthHotkey under Software\Meowpuut\Input is 1. Off by default (games
+// use Shift+Space); switching it off also ends full-width output.
+internal static class FullWidthOptions
+{
+    internal const string ValueName = "FullWidthHotkey";
+    internal static bool Read(RegistryKey input)
+    {
+        if (input == null) return false;
+        var value = input.GetValue(ValueName);
+        return value is int && (int)value == 1;
+    }
+    // Leaves an unchanged value alone, so saving other settings never creates it.
+    internal static void Write(RegistryKey input, bool enabled)
+    {
+        if (Read(input) == enabled && (input.GetValue(ValueName) is int || !enabled)) return;
+        input.SetValue(ValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
+    }
+}
+
 // Layout is published as one registry value. Readers never observe half a layout.
 internal sealed class LayoutOptions
 {
