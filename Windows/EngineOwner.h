@@ -1,6 +1,7 @@
 #pragma once
 #include "EngineProcess.h"
 #include "EngineDiscovery.h"
+#include <functional>
 #include <iostream>
 
 namespace harukoto::engine {
@@ -15,14 +16,25 @@ public:
     struct Registration { std::unique_ptr<control::Server> port; pipe::Handle revoked; uint64_t id = 0; pipe::Handle process = pipe::Handle(); };
     // Handoff ids live in their own space so they never equal a launcher id.
     static constexpr uint64_t HandoffIds = uint64_t(1) << 63;
+    // Resident mode (step 4, ENGINE_LIFECYCLE.md). idleMs 0 never exits when
+    // idle; resume is a manual-reset event (reset here) that restarts the idle clock after
+    // sleep; observe reports the client slot count and host PID on change.
+    struct Lifecycle {
+        uint64_t idleMs = 0;
+        HANDLE resume = nullptr;
+        std::function<void(size_t clients, DWORD host)> observe;
+    };
+    enum class Exit { None, Stopped, Idle, HostExited, ControlFailed };
 private:
     EngineProcess engine_;
-    control::Server &upstream_;
+    control::Server *upstream_; // Null: resident, no launcher port.
     EngineOwnerAnchor &anchor_;
     std::vector<Registration> clients_;
     admission::Server *admission_;
     std::wstring discoveryScope_; // Empty: not discoverable (all existing launches).
     uint64_t handoffNext_ = 0;
+    Lifecycle lifecycle_;
+    Exit exit_ = Exit::None;
     // Fresh unnamed slot objects; the client gets restricted duplicates. The
     // release event is the slot's revoke event: the owner sets it to revoke,
     // the client may set it to give the slot back.
@@ -53,11 +65,14 @@ private:
         return config;
     }
 public:
-    EngineOwner(EngineProcess::Config config, control::Server &upstream, EngineOwnerAnchor &anchor,
-            std::vector<Registration> clients = {}, admission::Server *admission = nullptr, std::wstring discoveryScope = {})
+    EngineOwner(EngineProcess::Config config, control::Server *upstream, EngineOwnerAnchor &anchor,
+            std::vector<Registration> clients = {}, admission::Server *admission = nullptr, std::wstring discoveryScope = {},
+            Lifecycle lifecycle = {})
         : engine_(validate(std::move(config))), upstream_(upstream), anchor_(anchor), clients_(std::move(clients)), admission_(admission),
-          discoveryScope_(std::move(discoveryScope)) {
+          discoveryScope_(std::move(discoveryScope)), lifecycle_(std::move(lifecycle)) {
         if (!discoveryScope_.empty() && !EngineInstance::validScope(discoveryScope_)) throw std::invalid_argument("invalid discovery scope");
+        // Without a launcher port only discovery can bring clients.
+        if (!upstream_ && (discoveryScope_.empty() || admission_ || !clients_.empty())) throw std::invalid_argument("invalid resident owner");
         if (clients_.size() > 8 || std::any_of(clients_.begin(),clients_.end(),[](const auto &client) { return !client.port || !client.revoked; }))
             throw std::invalid_argument("invalid owner registrations");
         for (size_t i=0;i<clients_.size();++i) clients_[i].id = i+1;
@@ -65,14 +80,16 @@ public:
     }
     EngineOwner(const EngineOwner &) = delete;
     EngineOwner &operator=(const EngineOwner &) = delete;
+    Exit exitReason() const { return exit_; }
     // No query clients, text, candidate caches or TSF objects are owned here.
     // Explicit stop must observe host exit before this loop can report success.
     bool run(HANDLE stop, HANDLE ready) {
         if (!stop || !ready || stop == ready) throw std::invalid_argument("invalid engine owner events");
-        bool stopping = false, failed = false, announced = false;
+        bool stopping = false, failed = false, announced = false, idle = false;
+        uint64_t lastBusy = 0; size_t observedClients = SIZE_MAX;
         struct Pending { size_t port; uint64_t registration; control::Request request; };
         std::optional<Pending> pending;
-        std::vector<control::Server *> ports{&upstream_};
+        std::vector<control::Server *> ports{upstream_};
         for (const auto &client : clients_) ports.push_back(client.port.get());
         std::vector<bool> active; for (auto *port : ports) active.push_back(port != nullptr);
         // Handoff slots between Grant and Commit: hold a position, never scheduled.
@@ -156,6 +173,8 @@ public:
             const auto state = engine_.poll(pipe::now());
             if (state == EngineProcess::State::Exited) {
                 const auto status = engine_.status();
+                exit_ = !stopping ? Exit::HostExited : failed ? Exit::ControlFailed : idle ? Exit::Idle : Exit::Stopped;
+                if (lifecycle_.observe && observedClients) lifecycle_.observe(0,0);
                 return stopping && !failed && status.failure == EngineProcess::Failure::None && status.exitCode == DWORD(0);
             }
             if (!stopping && state == EngineProcess::State::Ready) {
@@ -172,7 +191,24 @@ public:
                         catch (const discovery::Server::Squatted &error) { dropDiscovery("name already exists",error.code); }
                         catch (const pipe::Error &error) { dropDiscovery("unavailable",error.code); }
                     }
-                    pipe::check(SetEvent(ready)); announced = true;
+                    pipe::check(SetEvent(ready)); announced = true; lastBusy = pipe::now();
+                }
+                if (lifecycle_.resume) {
+                    const auto resumed = WaitForSingleObject(lifecycle_.resume,0); pipe::check(resumed != WAIT_FAILED);
+                    // Count idle time from resume, not from before sleep. Manual
+                    // reset: the multi-object wait below must not consume it.
+                    if (resumed == WAIT_OBJECT_0) { lastBusy = pipe::now(); pipe::check(ResetEvent(lifecycle_.resume)); }
+                }
+                size_t clients = 0;
+                for (size_t i=1;i<ports.size();++i) clients += active[i] || reserved[i];
+                // The last client leaving starts the idle clock afresh.
+                if (clients || pending || clients != observedClients) lastBusy = pipe::now();
+                if (clients != observedClients) {
+                    observedClients = clients;
+                    if (lifecycle_.observe) lifecycle_.observe(clients,GetProcessId(engine_.engineHandle()));
+                }
+                if (lifecycle_.idleMs && !clients && !pending && pipe::now()-lastBusy >= lifecycle_.idleMs) {
+                    idle = true; stopHost(); continue; // Re-poll: stopping now waits for the host to exit.
                 }
                 if (discoverable) {
                     try { discoverable->poll(pipe::now()); }
@@ -238,9 +274,14 @@ public:
                     if (clients_[i-1].process) events.push_back(clients_[i-1].process.get());
                 }
             if (announced && !stopping && admission_) events.push_back(admission_->event());
+            if (announced && !stopping && lifecycle_.resume) events.push_back(lifecycle_.resume);
             if (announced && !stopping && !pending)
                 for (size_t i=0;i<ports.size();++i) if (active[i]) events.push_back(ports[i]->event());
             auto deadline = engine_.deadline();
+            if (announced && !stopping && lifecycle_.idleMs) {
+                const auto own = lastBusy+lifecycle_.idleMs;
+                if (!deadline || own < deadline) deadline = own;
+            }
             if (discoverable && !stopping) {
                 if (auto event = discoverable->event()) events.push_back(event);
                 const auto own = discoverable->deadline();

@@ -1,8 +1,10 @@
 #include "EngineDiagnostics.h"
+#include "EngineResident.h"
 #include <iostream>
 
 using namespace harukoto::engine;
 namespace dg = harukoto::engine::diagnostics;
+namespace rs = harukoto::engine::resident;
 static const char *availability(dg::Availability value) {
     switch (value) {
     case dg::Availability::Observed: return "observed";
@@ -55,7 +57,58 @@ static void json(DWORD pid, const dg::Observation &o) {
         << ",\"retiring\":" << c.retiring << ",\"jobs\":" << c.jobs << '}';
     std::cout << "}}\n";
 }
+// --resident: the self-reported resident state of this logon session's owner
+// (volatile HKCU ledger, ENGINE_LIFECYCLE.md). Read only; no input content.
+static int residentStatus(const rs::Store &store, const std::wstring &scope, bool asJson) {
+    rs::Status s;
+    try { s=rs::inspect(store,scope); } catch (...) { std::cerr << "invalid scope\n"; return 1; }
+    const auto now=GetTickCount64();
+    constexpr const char *reasons[]{"unknown","logon","demand"};
+    constexpr const char *states[]{"none","starting","ready","restarting","stopping","exited"};
+    constexpr const char *exits[]{"none","stopped","idle","logoff","shutdown","crash_loop","failed"};
+    const bool running=s.alive && s.startTick && now>=s.startTick;
+    if (asJson) {
+        std::cout << "{\"format\":1,\"scope\":\"resident_engine\",\"trusted_discovery\":false,\"present\":" << (s.present ? "true" : "false");
+        if (s.present) {
+            std::cout << ",\"owner_pid\":" << s.ownerPid << ",\"alive\":" << (s.alive ? "true" : "false")
+                << ",\"start_reason\":\"" << reasons[static_cast<size_t>(s.reason)] << "\",\"state\":\"" << states[static_cast<size_t>(s.state)]
+                << "\",\"uptime_ms\":";
+            if (running) std::cout << now-s.startTick; else std::cout << "null";
+            std::cout << ",\"clients\":" << s.clients << ",\"host_pid\":" << s.hostPid << ",\"host_restarts\":" << s.hostRestarts
+                << ",\"last_exit\":\"" << exits[static_cast<size_t>(s.lastExit)] << "\",\"last_exit_pid\":" << s.lastExitPid
+                << ",\"last_exit_age_ms\":";
+            if (s.lastExitTick && now>=s.lastExitTick) std::cout << now-s.lastExitTick; else std::cout << "null";
+            std::cout << ",\"recent_on_demand_starts\":" << s.starts.size() << ",\"breaker_tripped\":" << (s.tripped ? "true" : "false");
+        }
+        std::cout << "}\n";
+    } else {
+        SetConsoleOutputCP(CP_UTF8);
+        std::cout << "晴词常驻引擎状态（本登录会话，自报，仅供查看）\n";
+        if (!s.present) std::cout << "没有记录：本次登录后尚未启动过常驻引擎。\n";
+        else {
+            constexpr const char *reasonText[]{"未知","登录启动","按需启动"};
+            constexpr const char *exitText[]{"无","被要求停止","空闲退出","注销","关机","宿主反复崩溃","失败"};
+            std::cout << "所有者 " << s.ownerPid << (s.alive ? "（运行中）" : "（已不在运行）") << "，" << reasonText[static_cast<size_t>(s.reason)];
+            if (running) std::cout << "，已运行 " << (now-s.startTick)/1000 << " 秒";
+            std::cout << "\n接入方 " << s.clients << "，宿主 " << s.hostPid << "，宿主重启 " << s.hostRestarts
+                << " 次\n上次退出：" << exitText[static_cast<size_t>(s.lastExit)] << "\n近期按需启动 " << s.starts.size()
+                << " 次，断路器" << (s.tripped ? "已打开（注销后或手动重置后恢复）" : "未打开") << '\n';
+        }
+    }
+    return s.present ? 0 : 2;
+}
 int wmain(int argc, wchar_t **argv) {
+    if (argc>=2 && std::wstring(argv[1])==L"--resident") {
+        rs::Store store; std::wstring scope=rs::DefaultScope; bool asJson=false;
+        for (int i=2;i<argc;++i) {
+            const std::wstring key=argv[i];
+            if (key==L"--json" && !asJson) asJson=true;
+            else if (key==L"--scope" && i+1<argc) scope=argv[++i];
+            else if (key==L"--store-subkey" && i+1<argc) store=rs::Store::under(argv[++i]); // Tests; read only.
+            else { std::cerr << "usage: harukoto_engine_diagnose --resident [--json]\n"; return 1; }
+        }
+        return residentStatus(store,scope,asJson);
+    }
     DWORD pid=0; bool asJson=false;
     for (int i=1;i<argc;++i) {
         const std::wstring key=argv[i];

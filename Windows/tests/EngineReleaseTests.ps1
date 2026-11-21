@@ -134,6 +134,32 @@ try {
     Assert-True ((Read-Releases).Status -eq 'missing') 'Removed key must read as missing'
     Unpublish-HarukotoEngineRelease -KeyPath $key
     Pass 'uninstall removes all approvals and is idempotent'
+
+    # WIN-03 step 4: uninstall stops resident owners under the install root.
+    # The graceful WM_CLOSE path runs against a real owner in engine_resident;
+    # here a windowless stand-in under the root must be terminated, one with
+    # the same name outside the root must be left alone.
+    $unregister = $uninstall.IndexOf('Unpublish-HarukotoEngineRelease')
+    $stop = $uninstall.IndexOf('Stop-HarukotoEngineOwners -Root $root')
+    Assert-True ($stop -gt $unregister) 'Uninstall must stop owners after removing approvals'
+    Assert-True ($install.IndexOf('Stop-HarukotoEngineOwners') -lt 0) 'Upgrade must not stop running owners (step 7 switches generations)'
+    $none = Stop-HarukotoEngineOwners -Root (Join-Path $temporary 'nothing-here')
+    Assert-True ($none.Graceful -eq 0 -and $none.Forced -eq 0) 'Nothing to stop'
+    $inside = Join-Path $temporary 'root\v1'; $outside = Join-Path $temporary 'elsewhere'
+    New-Item -ItemType Directory $inside, $outside | Out-Null
+    $ping = Join-Path $env:WINDIR 'System32\PING.EXE'
+    $standIns = foreach ($folder in $inside, $outside) {
+        $copy = Join-Path $folder $script:HarukotoEngineOwnerName
+        Copy-Item -LiteralPath $ping -Destination $copy
+        Start-Process -FilePath $copy -ArgumentList '-n','60','127.0.0.1' -WindowStyle Hidden -PassThru
+    }
+    try {
+        $stopped = Stop-HarukotoEngineOwners -Root (Join-Path $temporary 'root') -TimeoutSeconds 1
+        Assert-True ($stopped.Graceful -eq 0 -and $stopped.Forced -eq 1) "Stop counts: $($stopped.Graceful)/$($stopped.Forced)"
+        Assert-True ($standIns[0].WaitForExit(5000)) 'Owner under the root must be stopped'
+        Assert-True (!$standIns[1].HasExited) 'Same name outside the root must keep running'
+    } finally { foreach ($p in $standIns) { if (!$p.HasExited) { $p.Kill(); [void]$p.WaitForExit(5000) } } }
+    Pass 'uninstall stops owners under its root only, forcing those that do not close'
 } finally {
     if (Test-Path -LiteralPath $parent) { Remove-Item -LiteralPath $parent -Recurse }
     $resolved = (Resolve-Path -LiteralPath $temporary).Path

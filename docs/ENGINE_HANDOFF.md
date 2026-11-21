@@ -105,7 +105,7 @@ outcome.session.reset();                              // 或 release()：立即�
 
 实测：8 个独立启动进程同时开始（共享事件放行），结果 8 个都 Admitted、都接到同一个所有者 PID，只有 1 个调用了 `start`、只启动了 1 个所有者进程，总尝试 17 次（每个 2～3 次），每个都能通过自己的槽 Inspect。第 9 个启动方在 8 槽全占时得到 Full 且不启动任何东西。`start` 失败时 2 次尝试后返回 NotRunning；不给 `start` 时 1 次即返回。
 
-本步启动的所有者仍在启动它的进程的 kill-on-close Job 里：该启动方退出，引擎随之退出（测试中复核其后为 NotRunning），其余客户端的注册通道进入 Closed，回退进程内路径。这正是第 4 步要解决的。
+本步启动的所有者仍在启动它的进程的 kill-on-close Job 里：该启动方退出，引擎随之退出（测试中复核其后为 NotRunning），其余客户端的注册通道进入 Closed，回退进程内路径。第 4 步的正式路径 `resident::ensure()` 以同样的锁与重试调用 `attach`，启动改为请 Explorer 启动常驻所有者，见[常驻生命周期](ENGINE_LIFECYCLE.md)。
 
 ## 测试
 
@@ -118,6 +118,6 @@ ctest --test-dir .build/windows/msvc -C Release -R '^(engine_discovery|engine_ha
 
 ## 留给后续
 
-- 第 4 步：所有者常驻（不随启动方退出）、由谁以发现模式启动、scope 的正式取值、空闲／崩溃／注销规则；`attach` 的 `start` 届时换成正式启动路径。
+- 第 4 步（已完成）：所有者常驻、由 Explorer 按需启动、scope 正式取值 `harukoto`、空闲／崩溃／注销规则，见[常驻生命周期](ENGINE_LIFECYCLE.md)。
 - 第 6 步：TSF 接入时，交接放在服务线程，失败或超时回退进程内路径。
 - 提权、另一账户／会话下的交接未实测（与第 2 步相同的限制）；交接延迟未测量（第 5 步）。

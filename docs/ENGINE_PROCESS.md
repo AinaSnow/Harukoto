@@ -1,5 +1,7 @@
 # 独立引擎的受控启动与端点领取
 
+2026-11-21：正式常驻所有者不经 EngineProcess 由启动方监督，而是由 Explorer 按需启动、自己用 EngineProcess 管理宿主，见[常驻生命周期](ENGINE_LIFECYCLE.md)。本文的 Job 监督仍适用于开发启动方及所有者对宿主的管理。
+
 最新进度：[受控独立所有者](ENGINE_OWNER.md)已支持独立进程监督、可信宿主对象交接和三个真实客户端的退出／重新接入，并加入[可选单实例竞争](ENGINE_INSTANCE.md)及[受控客户端接入](ENGINE_REGISTRATION.md)。可选 ownerExecutable 要求开启[动态端点](ENGINE_CONTROL.md)，ownerInstance 指定稳定部署范围，ownerLease 仅供所有者向直接动态宿主借用传递占位；ownerRegistrations 预分配 0～8 个独立客户端通道，Ready 后用 takeRegistration 一次交接。默认直接模式及[多进程竞争测量](ENGINE_IPC_PERFORMANCE.md)保持原契约。正式常驻生命周期、可信发现／动态应用注册和 TSF 仍待接入；以下启动批次的验证记录按历史范围阅读。
 
 2026-11-11：[动态创建与补充注册槽](ENGINE_ADMISSION.md)已实现。dynamicRegistrations 默认关闭，开启后由可信启动方 requestRegistration／takeRegistrationResult 异步交接全新能力；预分配与动态槽共享同时 8 个上限，退出后可补充新对象与新编号。新增 engine_admission 后共 49 项 CTest；普通应用自助发现／注册和正式常驻仍待实现。

@@ -1,10 +1,114 @@
 #include "EngineOwner.h"
+#include "EngineResident.h"
 #include <iostream>
 
 using namespace harukoto::engine;
-// Developer-only independent owner; not installed, registered or auto-started.
+namespace rs = harukoto::engine::resident;
+#ifdef HARUKOTO_RESIDENT_TESTING
+constexpr bool Testing = true;  // harukoto_engine_owner_test only: injectable roots, never packaged.
+#else
+constexpr bool Testing = false;
+#endif
+
+// --resident <logon|demand> [--base D] [--themes D] [--personal F]
+// Resident owner (step 4, docs/ENGINE_LIFECYCLE.md). Started by the HKLM Run
+// value at logon or by resident::ensure(); takes no inherited handles. It
+// re-checks that it is the approved release, holds the instance lease, keeps
+// one host running (restarting it within the breaker), publishes discovery
+// and exits on logoff/shutdown, WM_CLOSE, idle (if configured) or a crash loop.
+static int residentMain(int argc, wchar_t **argv) {
+    if (argc < 3) throw std::invalid_argument("missing resident reason");
+    const std::wstring why = argv[2];
+    const auto reason = why == L"logon" ? rs::Reason::Logon : why == L"demand" ? rs::Reason::Demand : throw std::invalid_argument("invalid resident reason");
+    std::wstring scope = rs::DefaultScope;
+    release::Source source;
+    rs::Store store;
+    rs::Policy policy;
+    std::filesystem::path base, themes, personal;
+    std::optional<uint64_t> idleMs;
+    for (int i=3;i<argc;i+=2) {
+        if (i+1 >= argc) throw std::invalid_argument("missing resident option");
+        const std::wstring key = argv[i], value = argv[i+1];
+        auto path = [&](std::filesystem::path &target) {
+            if (!target.empty() || !std::filesystem::path(value).is_absolute()) throw std::invalid_argument("invalid resident path");
+            target = value;
+        };
+        if (key == L"--base") path(base);
+        else if (key == L"--themes") path(themes);
+        else if (key == L"--personal") path(personal);
+        else if (Testing && key == L"--scope" && EngineInstance::validScope(value)) scope = value;
+        else if (Testing && key == L"--release-subkey") { source.root = HKEY_CURRENT_USER; source.subkey = value; source.requireProtected = false; }
+        else if (Testing && key == L"--store-subkey") store = rs::Store::under(value);
+        else if (Testing && key == L"--idle-ms" && !value.empty() && value.size() < 10 && value.find_first_not_of(L"0123456789") == std::wstring::npos) idleMs = std::stoull(value);
+        else throw std::invalid_argument("invalid resident option");
+    }
+    pipe::processIdentityOnly();
+    // Only the approved release may serve, whoever started this process.
+    const auto approved = release::select(release::read(source),ProtocolVersion);
+    if (!approved) return static_cast<int>(rs::ExitNotApproved);
+    std::unique_ptr<EngineDeployment> self;
+    try { self = std::make_unique<EngineDeployment>(approved->owner,approved->ownerSha256); self->verify(GetCurrentProcess()); }
+    catch (const pipe::Error &) { return static_cast<int>(rs::ExitNotApproved); }
+    if (base.empty()) base = approved->owner.parent_path(); // Step 6 decides the packaged data layout.
+    // A previous owner may still be finishing its stop (its host keeps the
+    // lease until it exits): wait a little, then give up with Busy.
+    std::unique_ptr<EngineInstance> instance;
+    for (const auto until = pipe::now()+5000;;) {
+        try { instance = std::make_unique<EngineInstance>(scope); break; }
+        catch (const EngineInstance::Busy &) { if (pipe::now() >= until) throw; Sleep(100); }
+    }
+    std::unique_ptr<rs::Ledger> ledger;
+    try { ledger = std::make_unique<rs::Ledger>(store,scope); } catch (...) {} // Diagnostics and breaker are best effort.
+    rs::SessionWatch watch;
+    const auto pid = GetCurrentProcessId();
+    if (ledger) ledger->started(pid,rs::created(GetCurrentProcess()),reason,GetTickCount64());
+    const uint64_t idle = idleMs ? *idleMs : uint64_t(rs::idleMinutes(store))*60000;
+    std::deque<uint64_t> restarts;
+    DWORD restartCount = 0;
+    rs::Exit result = rs::Exit::Failed;
+    for (bool first=true;;first=false) {
+        if (ledger) ledger->state(first ? rs::State::Starting : rs::State::Restarting);
+        EngineOwner::Exit how = EngineOwner::Exit::HostExited;
+        try {
+            EngineProcess::Config config{approved->host,base,themes,personal};
+            config.dynamicEndpoints = true; config.connections = 8; config.hostSha256 = approved->hostSha256;
+            config.ownerLease = instance->handle(); config.stopMs = 3000;
+            EngineOwnerAnchor anchor;
+            pipe::Handle ready(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(ready));
+            EngineOwner::Lifecycle lifecycle{idle,watch.resume(),[&](size_t clients, DWORD host) { if (ledger) ledger->clients(clients,host); }};
+            EngineOwner owner(std::move(config),nullptr,anchor,{},nullptr,scope,std::move(lifecycle));
+            owner.run(watch.stop(),ready.get());
+            how = owner.exitReason();
+        } catch (const pipe::Error &error) {
+            std::cerr << "engine_owner: host generation failed win32=" << error.code << '\n';
+        }
+        if (how == EngineOwner::Exit::Stopped) { result = watch.reason(); break; }
+        if (how == EngineOwner::Exit::Idle) { result = rs::Exit::Idle; break; }
+        if (WaitForSingleObject(watch.stop(),0) == WAIT_OBJECT_0) { result = watch.reason(); break; }
+        // Host crashed, failed to start or its control failed. Clients see
+        // Closed and fall back; they re-admit to the next host. Nothing is replayed.
+        const auto backoff = rs::hostRestart(policy,restarts,pipe::now());
+        if (!backoff) { result = rs::Exit::CrashLoop; break; }
+        if (ledger) ledger->hostRestarts(++restartCount);
+        if (WaitForSingleObject(watch.stop(),static_cast<DWORD>(*backoff)) == WAIT_OBJECT_0) { result = watch.reason(); break; }
+    }
+    if (ledger) {
+        ledger->state(rs::State::Stopping);
+        if (result == rs::Exit::CrashLoop) ledger->trip(GetTickCount64());
+        else {
+            // A clean exit (idle, logoff, asked to stop) forgives earlier on-demand starts.
+            try { handoff::StarterLock lock(scope); if (lock.acquire(2000)) ledger->starts({}); } catch (...) {}
+        }
+        ledger->exited(result,pid,GetTickCount64());
+    }
+    watch.finished();
+    return static_cast<int>(result == rs::Exit::CrashLoop ? rs::ExitCrashLoop : rs::ExitClean);
+}
+
+// Developer-only independent owner (launcher mode) unless --resident.
 int wmain(int argc, wchar_t **argv) {
     try {
+        if (argc >= 2 && std::wstring(argv[1]) == L"--resident") return residentMain(argc,argv);
         EngineProcess::Config config; config.dynamicEndpoints = true;
         std::array<pipe::Handle,9> inherited; // ready, stop, control3, anchor, optional admission3
         std::vector<std::array<pipe::Handle,4>> registrations;
@@ -105,7 +209,7 @@ int wmain(int argc, wchar_t **argv) {
         }
         control::Server upstream({std::move(inherited[2]),std::move(inherited[3]),std::move(inherited[4])});
         EngineOwnerAnchor anchor(std::move(inherited[5]));
-        EngineOwner owner(std::move(config),upstream,anchor,std::move(clientPorts),admissionPort.get(),
+        EngineOwner owner(std::move(config),&upstream,anchor,std::move(clientPorts),admissionPort.get(),
             discoverable ? instanceScope : std::wstring{});
         return owner.run(inherited[1].get(),inherited[0].get()) ? 0 : 1;
     } catch (const EngineInstance::Busy &) {

@@ -39,6 +39,12 @@ try {
                 Unpublish-HarukotoEngineRelease
                 Write-Host 'Engine release metadata removed.'
             } catch { Write-Warning "Engine release metadata could not be removed: $_" }
+            # WIN-03 step 4: nothing can start a new owner now (no approved
+            # release); stop the running ones, in every session.
+            try {
+                $stopped = Stop-HarukotoEngineOwners -Root $root
+                Write-Host "Engine owners stopped: $($stopped.Graceful) closed, $($stopped.Forced) terminated."
+            } catch { Write-Warning "Engine owners could not be stopped: $_" }
         } finally { if ($lock) { $lock.Dispose() } }
         return
     }

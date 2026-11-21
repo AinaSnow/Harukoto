@@ -202,3 +202,67 @@ function Unpublish-HarukotoEngineRelease {
         if ($item.SubKeyCount -eq 0 -and $item.ValueCount -eq 0) { Remove-Item -LiteralPath $parent }
     }
 }
+
+# WIN-03 step 4 (docs/ENGINE_LIFECYCLE.md): stop resident engine owners whose
+# program lives under $Root before files go away. Owners in this session get
+# WM_CLOSE on their hidden window (graceful: the host is stopped first);
+# whatever is still running after the timeout, in any session, is terminated
+# (the elevated uninstaller may do so). Hosts die with their owner's Job; any
+# left under $Root are terminated too. Returns the counts.
+$script:HarukotoEngineWindowClass = 'Harukoto.ResidentOwner.v1'
+function Stop-HarukotoEngineOwners {
+    param([Parameter(Mandatory)][string]$Root, [ValidateRange(1, 60)][int]$TimeoutSeconds = 5)
+    $prefix = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
+    $under = {
+        param([string]$Name)
+        @(Get-Process -Name $Name -ErrorAction SilentlyContinue | Where-Object {
+            $path = $null; try { $path = $_.Path } catch { }
+            $path -and $path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)
+        })
+    }
+    $owners = & $under ([IO.Path]::GetFileNameWithoutExtension($script:HarukotoEngineOwnerName))
+    $result = [pscustomobject]@{ Graceful = 0; Forced = 0 }
+    if ($owners.Count) {
+        if (-not ('HarukotoEngineWindows' -as [type])) {
+            Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class HarukotoEngineWindows {
+    delegate bool EnumProc(IntPtr window, IntPtr parameter);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc callback, IntPtr parameter);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int size);
+    [DllImport("user32.dll")] static extern bool PostMessage(IntPtr window, uint message, IntPtr w, IntPtr l);
+    // Posts WM_CLOSE to the process's windows of the given class; returns how many.
+    public static int Close(uint pid, string cls) {
+        int count = 0;
+        EnumWindows((window, parameter) => {
+            uint owner; GetWindowThreadProcessId(window, out owner);
+            if (owner != pid) return true;
+            var name = new StringBuilder(64); GetClassName(window, name, name.Capacity);
+            if (name.ToString() == cls && PostMessage(window, 0x0010, IntPtr.Zero, IntPtr.Zero)) count++;
+            return true;
+        }, IntPtr.Zero);
+        return count;
+    }
+}
+'@
+        }
+        foreach ($owner in $owners) { [void][HarukotoEngineWindows]::Close([uint32]$owner.Id, $script:HarukotoEngineWindowClass) }
+        $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+        foreach ($owner in $owners) {
+            $left = [int][Math]::Max(0, ($deadline - [DateTime]::UtcNow).TotalMilliseconds)
+            if ($owner.WaitForExit($left)) { $result.Graceful++ }
+            else {
+                try { $owner.Kill(); [void]$owner.WaitForExit(5000); $result.Forced++ } catch { Write-Warning "Engine owner $($owner.Id) could not be stopped: $_" }
+            }
+        }
+    }
+    foreach ($engineHost in (& $under ([IO.Path]::GetFileNameWithoutExtension($script:HarukotoEngineHostName)))) {
+        if (!$engineHost.WaitForExit(2000)) {
+            try { $engineHost.Kill(); [void]$engineHost.WaitForExit(5000); $result.Forced++ } catch { Write-Warning "Engine host $($engineHost.Id) could not be stopped: $_" }
+        }
+    }
+    return $result
+}

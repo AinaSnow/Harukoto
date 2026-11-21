@@ -1,5 +1,18 @@
 # 开发状态与接手入口
 
+## 2026-11-21 · WIN-03 第 4 步：正式常驻生命周期
+
+- 前置：第 3 步已提交（0c20ba0）。本批未提交、未打包。TSF 与实际输入路径未改动，TIP 未改、未复制 DLL。
+- 决定：不在登录时启动。接入方 `resident::ensure()`（`Windows/EngineResident.h`）在启动锁内再发现、查断路器，然后经 Explorer 桌面自动化（ShellWindows → `IShellDispatch2::ShellExecute`）启动批准的所有者 `--resident demand`：所有者是 Explorer 的子进程，不在应用的 Job 里，宿主应用不创建进程，无需注册。比较过应用内 breakaway（不允许 breakaway 的 Job 中失败，本机受限 shell 实测被拒）、HKLM Run（每用户常驻）、计划任务、COM LocalServer32（需 HKLM CLSID；HKCU 每用户注册在受限环境不生效）。
+- 所有者常驻模式（`EngineOwner.cpp`）：读 HKLM 发行元数据并核对自身映像（不符码 3）→ 实例占位（scope `harukoto`，最多等 5 秒，否则 183）→ 易失状态键 → 隐藏窗口（WM_QUERYENDSESSION 同意、WM_ENDSESSION／WM_CLOSE 停止、唤醒重置空闲）→ 宿主循环。宿主崩溃重启 10 分钟 3 次（1／2／4 秒），第 4 次码 4 并打开断路器。空闲默认不退出，`HKCU\Software\Meowpuut\Engine\IdleMinutes` 0 或 5–1440。所有者改为 Windows 子系统（`/ENTRY:wmainCRTStartup`），新增不打包的测试构建 `harukoto_engine_owner_test`。`EngineOwner.h` 增加可选启动方口（常驻模式为空）、空闲计时、退出原因与观察回调。
+- 断路器与诊断：易失键 `HKCU\Software\Meowpuut\EngineState.v1\<会话+LUID>.<scope>`。按需启动自上次干净退出起计，10 分钟内间隔 0／2／10 秒，第 4 次断路至注销或 `resident::reset()`；干净退出清零。所有者自报 PID、原因、状态、接入方、宿主、重启次数、上次退出。`harukoto_engine_diagnose --resident [--json]`。
+- 安装器：`Stop-HarukotoEngineOwners -Root`（本会话 WM_CLOSE，超时后强制，遗留宿主同样处理），`uninstall-ime.ps1 -Unregister` 在删除元数据后调用；升级不停止旧所有者（第 7 步）。没有 Run 键、COM 或计划任务注册。
+- 测试：新增 CTest `engine_resident`（约 50 秒，真实 Explorer 启动，HKCU 测试键批准）：不允许 breakaway 的 kill-on-close Job 中的启动方启动所有者，Job 关闭后所有者仍在并继续服务；所有者崩溃后 4 个并发启动方只启动 1 次；断路器、宿主崩溃循环、空闲与唤醒、会话结束消息、诊断、安装器优雅停止、单实例。`engine_release_install` 增加卸载停止所有者（根目录内强制、根目录外不动）。
+- CTest 共 65 项，最后一次代码修改后完整构建、在 PowerShell 中一次运行全部通过（399.17 秒）；之后无残留进程、HKCU 测试键或临时目录。
+- 环境注意：本机代理工具的 Bash 受限 shell 虚拟化 HKCU，Explorer 启动的所有者看不到测试键，`engine_resident` 会失败；在普通终端（或 PowerShell）运行 CTest。
+- 未验证：真实注销／关机／睡眠、安装路径与真实卸载、多会话、没有 Explorer、提权。安装包版本目录没有 base-dictionary.json，第 6 步前所有者的数据路径未定。
+- 下一步：第 5 步成本量化（含按需启动延迟、常驻内存与空闲工作集，复核空闲默认值与断路器间隔）。
+
 ## 2026-11-21 · WIN-03 第 3 步：竞争失败后的交接
 
 - 前置：第 2 步已提交（6a94f4f）。本批未提交、未打包。TSF 与实际输入路径未改动。
