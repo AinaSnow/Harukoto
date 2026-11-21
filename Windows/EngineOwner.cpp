@@ -10,6 +10,7 @@ int wmain(int argc, wchar_t **argv) {
         std::vector<std::array<pipe::Handle,4>> registrations;
         bool threadsSet = false, connectionsSet = false;
         std::wstring instanceScope;
+        bool discoverable = false;
         auto number = [](const std::wstring &value) {
             if (value.empty() || value.find_first_not_of(L"0123456789") != std::wstring::npos) throw std::invalid_argument("invalid owner number");
             return std::stoull(value);
@@ -42,6 +43,7 @@ int wmain(int argc, wchar_t **argv) {
             else if (key == L"--personal" && config.personal.empty()) config.personal = value;
             else if (key == L"--trace" && config.trace.empty()) config.trace = value;
             else if (key == L"--instance" && instanceScope.empty() && EngineInstance::validScope(value)) instanceScope = value;
+            else if (key == L"--discovery" && !discoverable && value == L"1") discoverable = true;
             else if (key == L"--registration" && registrations.size() < 8) {
                 std::array<pipe::Handle,4> port; size_t position = 0;
                 for (size_t j=0;j<port.size();++j) {
@@ -83,6 +85,8 @@ int wmain(int argc, wchar_t **argv) {
         if (!connectionsSet || std::any_of(inherited.begin(),inherited.begin()+6,[](const auto &entry) { return !entry; }) ||
                 (admissionSet && std::any_of(inherited.begin()+6,inherited.end(),[](const auto &entry) { return !entry; })))
             throw std::invalid_argument("incomplete owner startup");
+        // Discovery is scoped by the same deployment identifier as the lease.
+        if (discoverable && instanceScope.empty()) throw std::invalid_argument("discovery requires an instance scope");
         pipe::processIdentityOnly();
         for (auto &handle : inherited) if (handle) pipe::check(SetHandleInformation(handle.get(),HANDLE_FLAG_INHERIT,0));
         std::unique_ptr<admission::Server> admissionPort;
@@ -101,7 +105,8 @@ int wmain(int argc, wchar_t **argv) {
         }
         control::Server upstream({std::move(inherited[2]),std::move(inherited[3]),std::move(inherited[4])});
         EngineOwnerAnchor anchor(std::move(inherited[5]));
-        EngineOwner owner(std::move(config),upstream,anchor,std::move(clientPorts),admissionPort.get());
+        EngineOwner owner(std::move(config),upstream,anchor,std::move(clientPorts),admissionPort.get(),
+            discoverable ? instanceScope : std::wstring{});
         return owner.run(inherited[1].get(),inherited[0].get()) ? 0 : 1;
     } catch (const EngineInstance::Busy &) {
         std::cerr << "engine_owner: instance already exists\n"; return ERROR_ALREADY_EXISTS;

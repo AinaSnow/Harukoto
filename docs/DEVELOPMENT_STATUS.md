@@ -1,5 +1,15 @@
 # 开发状态与接手入口
 
+## 2026-11-21 · WIN-03 第 2 步：发现握手
+
+- 前置：第 1 步已提交（9320496）。本批未提交、未打包。TSF 与实际输入路径未改动。
+- 新增 `Windows/EngineDiscovery.h`：所有者（`--discovery 1`，需 `--instance`；`EngineProcess::Config.discovery`）在宿主 Ready 后发布 `\\.\pipe\Harukoto.Discovery.v1.<会话+登录LUID>.<登录SID>.<scope>`，单实例、首实例标志、拒绝远程、DACL 只给登录 SID 读写（无 create-instance、无 SYSTEM、无 AppContainer），默认中完整性标签；创建失败（被抢注、令牌不是中完整性）只打印原因，引擎照常运行但不可发现。
+- 接入方 `discovery::discover()`：自身令牌检查 → `release::select` → EngineDeployment 固定 → 打开管道 → 本机／会话检查 → 持有服务端进程对象 → 令牌（同用户／登录 SID／LUID／会话、中完整性、非 AppContainer、无限制 SID）→ 映像（旧批准条目判 Stale）→ 128 字节 HKDV 随机数握手 → 宿主按 PID＋创建时间绑定后同样核对。17 种结果，非 Verified 一律留在进程内路径；只证明身份，不交出注册槽或端点（第 3 步）。
+- 决定：提权、低完整性、AppContainer 宿主不接入（完整性方向与沙箱攻击面），留在进程内路径；所有者不是中完整性时不发布。
+- 测试：新增 CTest `engine_discovery`（夹具副本＋内存发行快照＋真实所有者／宿主）：普通权限 Verified（含并发）；低完整性与 AppContainer 客户端实测管道 ACCESS_DENIED，AppContainer 打不开引擎进程；低完整性运行批准映像的抢注者判 Integrity；未批准抢注判 Image；远程 `\\localhost` 打开失败；Stale／Image／Protocol／Timeout／Rejected／Unavailable／Identity 各错误回复；无元数据不碰管道。提权、另一账户／会话、跨机器未实测。CTest 共 63 项，完整构建后在一次运行中全部通过（347.48 秒）。
+- 已知：`tsf_focus_cancel`（ServiceFocusTests.cpp 的 `quickInput()`）在断言失败时会留下 `HKCU\Software\HarukotoQuickInputService-<pid>`（无 RAII 删除）；现存的 -18496 即此来源，未处理。
+- 下一步：第 3 步竞争失败后的交接（在 Verified 的连接上交出绑定客户端进程的注册槽）。
+
 ## 2026-11-21 · WIN-03 第 1 步：可信发行元数据来源
 
 - 前置：alpha.29 已打包（f5df2c6，文档 77ce616）。本批未提交、未打包。TSF 与实际输入路径未改动。

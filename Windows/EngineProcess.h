@@ -30,6 +30,7 @@ public:
         bool dynamicRegistrations = false; // Optional private launcher admission, owner mode only.
         bool diagnostics = false; // Optional observational mapping; never trusted discovery.
         std::string hostSha256, ownerSha256; // Optional trusted deployment policy; owner mode requires both.
+        bool discovery = false; // Owner publishes the step-2 discovery pipe under ownerInstance.
     };
     struct Status {
         State state;
@@ -162,6 +163,7 @@ private:
                 (config.ownerLease && (!config.ownerExecutable.empty() || !config.dynamicEndpoints || !config.ownerInstance.empty())) ||
                 (config.ownerRegistrations && (config.ownerExecutable.empty() || config.ownerRegistrations > 8)) ||
                 (config.dynamicRegistrations && config.ownerExecutable.empty()) ||
+                (config.discovery && config.ownerInstance.empty()) ||
                 (!config.trace.empty() && !absolute(config.trace)) || !config.threads || config.threads > 16 ||
                 !config.connections || config.connections > 8 || !config.startupMs || config.startupMs > 300000 ||
                 !config.stopMs || config.stopMs > 300000)
@@ -252,6 +254,7 @@ private:
             std::to_wstring(reinterpret_cast<uintptr_t>(childAnchor.get()))});
         if (ownerDeployment_) arguments.insert(arguments.end(),{L"--host-sha256",std::wstring(hostDeployment_->digest().begin(),hostDeployment_->digest().end())});
         if (!config.ownerInstance.empty()) arguments.insert(arguments.end(),{L"--instance",config.ownerInstance});
+        if (config.discovery) arguments.insert(arguments.end(),{L"--discovery",L"1"});
         if (admission_) {
             const wchar_t *keys[]{L"--admission-section",L"--admission-request",L"--admission-response"};
             for (size_t i=0;i<childAdmission.size();++i)

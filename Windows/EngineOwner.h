@@ -1,5 +1,7 @@
 #pragma once
 #include "EngineProcess.h"
+#include "EngineDiscovery.h"
+#include <iostream>
 
 namespace harukoto::engine {
 // Independent owner's I/O loop. One launcher port and up to eight separately
@@ -13,14 +15,17 @@ private:
     EngineOwnerAnchor &anchor_;
     std::vector<Registration> clients_;
     admission::Server *admission_;
+    std::wstring discoveryScope_; // Empty: not discoverable (all existing launches).
     static EngineProcess::Config validate(EngineProcess::Config config) {
         if (!config.dynamicEndpoints || !config.ownerExecutable.empty()) throw std::invalid_argument("invalid engine owner configuration");
         return config;
     }
 public:
     EngineOwner(EngineProcess::Config config, control::Server &upstream, EngineOwnerAnchor &anchor,
-            std::vector<Registration> clients = {}, admission::Server *admission = nullptr)
-        : engine_(validate(std::move(config))), upstream_(upstream), anchor_(anchor), clients_(std::move(clients)), admission_(admission) {
+            std::vector<Registration> clients = {}, admission::Server *admission = nullptr, std::wstring discoveryScope = {})
+        : engine_(validate(std::move(config))), upstream_(upstream), anchor_(anchor), clients_(std::move(clients)), admission_(admission),
+          discoveryScope_(std::move(discoveryScope)) {
+        if (!discoveryScope_.empty() && !EngineInstance::validScope(discoveryScope_)) throw std::invalid_argument("invalid discovery scope");
         if (clients_.size() > 8 || std::any_of(clients_.begin(),clients_.end(),[](const auto &client) { return !client.port || !client.revoked; }))
             throw std::invalid_argument("invalid owner registrations");
         for (size_t i=0;i<clients_.size();++i) clients_[i].id = i+1;
@@ -35,6 +40,14 @@ public:
         bool stopping = false, failed = false, announced = false;
         struct Pending { size_t port; uint64_t registration; control::Request request; };
         std::optional<Pending> pending;
+        // Public discovery pipe (step 2). Published only once the host is
+        // Ready, closed first when stopping. Failure to publish (squatted
+        // name, unsupported token) never stops the engine: clients then stay
+        // on their in-process path. It hands out locators, no capability.
+        std::unique_ptr<discovery::Server> discoverable;
+        auto dropDiscovery = [&](const char *reason, DWORD code) {
+            std::cerr << "engine_owner: discovery " << reason << " win32=" << code << '\n'; discoverable.reset();
+        };
         std::vector<control::Server *> ports{&upstream_};
         for (const auto &client : clients_) ports.push_back(client.port.get());
         std::vector<bool> active; for (auto *port : ports) active.push_back(port != nullptr);
@@ -56,7 +69,7 @@ public:
         };
         auto stopHost = [&] {
             if (!stopping) {
-                stopping = true; pending.reset();
+                stopping = true; pending.reset(); discoverable.reset();
                 for (size_t i=1;i<ports.size();++i) retire(i);
                 engine_.requestStop(pipe::now());
             }
@@ -74,7 +87,17 @@ public:
                 // reply, including while another host operation is in flight.
                 observeRevocations();
                 if (!announced) {
-                    anchor_.publish(engine_.processHandle()); pipe::check(SetEvent(ready)); announced = true;
+                    anchor_.publish(engine_.processHandle());
+                    if (!discoveryScope_.empty()) {
+                        try { discoverable = std::make_unique<discovery::Server>(discoveryScope_,engine_.processHandle()); }
+                        catch (const discovery::Server::Squatted &error) { dropDiscovery("name already exists",error.code); }
+                        catch (const pipe::Error &error) { dropDiscovery("unavailable",error.code); }
+                    }
+                    pipe::check(SetEvent(ready)); announced = true;
+                }
+                if (discoverable) {
+                    try { discoverable->poll(pipe::now()); }
+                    catch (const pipe::Error &error) { dropDiscovery("failed",error.code); }
                 }
                 if (admission_) if (auto offer = admission_->take()) {
                     // The trusted launcher already duplicated these fresh
@@ -135,7 +158,13 @@ public:
             if (announced && !stopping && admission_) events.push_back(admission_->event());
             if (announced && !stopping && !pending)
                 for (size_t i=0;i<ports.size();++i) if (active[i]) events.push_back(ports[i]->event());
-            const auto time = pipe::now(), deadline = engine_.deadline();
+            auto deadline = engine_.deadline();
+            if (discoverable && !stopping) {
+                if (auto event = discoverable->event()) events.push_back(event);
+                const auto own = discoverable->deadline();
+                if (own && (!deadline || own < deadline)) deadline = own;
+            }
+            const auto time = pipe::now();
             const auto timeout = deadline ? static_cast<DWORD>(deadline > time ? deadline-time : 0) : INFINITE;
             const auto status = WaitForMultipleObjects(static_cast<DWORD>(events.size()),events.data(),FALSE,timeout);
             pipe::check(status != WAIT_FAILED);
