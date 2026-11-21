@@ -7,9 +7,25 @@
 namespace harukoto::engine {
 constexpr size_t MaxInput = 256, MaxText = 1024, MaxCandidates = 128;
 constexpr uint32_t MaxCoreIndex = 1u << 24;
-enum class Payload : uint16_t { Key = 1, Candidates = 2, Select = 3, Commit = 4, Error = ErrorPayloadTag, Opened = 6 };
+enum class Payload : uint16_t { Key = 1, Candidates = 2, Select = 3, Commit = 4, Error = ErrorPayloadTag, Opened = 6, Query = 7 };
 enum class KeyAction : uint8_t { Text = 1, Backspace, PageNext, PagePrevious, Refresh };
-struct KeyMessage { KeyAction action = KeyAction::Text; uint8_t text = 0; bool simplified = true; };
+// WIN-03 step 6b: the per-user ranking state of a TSF client, sent with each
+// key (Payload::Query). fuzzy/typo set the core session; memory says whether
+// selection memory and word frequency apply (at hour, the hour of the
+// client's personal table); the digests (EngineMemory.h) name the exact
+// phrase, word and user-word models the client ranks with. Phrase and word
+// digests are empty when memory is off; the user digest is always given.
+struct QuerySettings {
+    uint32_t fuzzy = 0;
+    bool typo = true, memory = false;
+    int64_t hour = 0;
+    std::string phrases, words, user;
+};
+struct KeyMessage {
+    KeyAction action = KeyAction::Text; uint8_t text = 0; bool simplified = true;
+    bool extended = false; // false: the step 6a key, ranked with engine defaults.
+    QuerySettings settings;
+};
 // WIN-03 step 6a: core is the native candidate index + 1 (0: not a core
 // candidate); flags describe how the Windows merge placed it, so a TSF client
 // can rebuild exactly the in-process list. The round is the expansion pass
@@ -23,7 +39,9 @@ inline unsigned candidateRound(const Candidate &c) { return (c.flags & candidate
 constexpr size_t IdentitySize = 64;
 struct Opened { std::string identity; };
 static_assert(2 + 2 + IdentitySize == OpenedPayloadSize, "Opened payload layout");
-struct CandidatePage { std::string input; bool more = false; std::vector<Candidate> words; };
+// behind (step 6b): the engine could not reach the client's memory state; no
+// candidates, the client lists in-process.
+struct CandidatePage { std::string input; bool more = false; std::vector<Candidate> words; bool behind = false; };
 struct Selection { uint64_t sourceRequest = 0, candidate = 0; };
 struct Commit { Selection selection; uint32_t consumed = 0; std::string text, remaining; };
 
@@ -55,13 +73,22 @@ inline bool textValid(const std::string &s) {
     }
     return true;
 }
+inline bool digestValid(const std::string &s) {
+    return s.empty() || (s.size() == 64 && std::all_of(s.begin(), s.end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }));
+}
+inline bool valid(const QuerySettings &q) {
+    return q.fuzzy <= 0xffff && q.hour >= 0 && q.hour <= 100000000 && digestValid(q.phrases) && digestValid(q.words) &&
+        q.user.size() == 64 && digestValid(q.user) && (q.memory || (q.phrases.empty() && q.words.empty()));
+}
 inline bool valid(const KeyMessage &m) {
+    if (m.extended && !valid(m.settings)) return false;
     if (m.action == KeyAction::Text) return inputByte(m.text);
     return m.text == 0 && (m.action == KeyAction::Backspace || m.action == KeyAction::PageNext ||
                           m.action == KeyAction::PagePrevious || m.action == KeyAction::Refresh);
 }
 inline bool valid(const CandidatePage &p) {
-    if (!inputValid(p.input) || p.words.size() > MaxCandidates || (p.more && p.words.empty())) return false;
+    if (!inputValid(p.input) || p.words.size() > MaxCandidates || (p.more && p.words.empty()) ||
+        (p.behind && (p.more || !p.words.empty()))) return false;
     std::unordered_set<uint64_t> ids;
     for (const auto &word : p.words)
         if (!word.id || !ids.insert(word.id).second || !word.consumed || word.consumed > p.input.size() ||
@@ -96,13 +123,19 @@ inline std::vector<uint8_t> encodePayload(const ErrorMessage &error) { return en
 inline bool decodePayload(const std::vector<uint8_t> &bytes, ErrorMessage &out) { return decodeError(bytes, out); }
 inline std::vector<uint8_t> encodePayload(const KeyMessage &m) {
     if (!valid(m)) throw std::invalid_argument("invalid engine key");
-    std::vector<uint8_t> b; put(b, static_cast<uint16_t>(Payload::Key), 2);
-    put(b, static_cast<uint8_t>(m.action), 1); put(b, m.text, 1); put(b, m.simplified, 1); return b;
+    std::vector<uint8_t> b; put(b, static_cast<uint16_t>(m.extended ? Payload::Query : Payload::Key), 2);
+    put(b, static_cast<uint8_t>(m.action), 1); put(b, m.text, 1); put(b, m.simplified, 1);
+    if (m.extended) {
+        const auto &q = m.settings;
+        put(b, q.fuzzy, 4); put(b, q.typo, 1); put(b, q.memory, 1); put(b, static_cast<uint64_t>(q.hour), 8);
+        putString(b, q.phrases); putString(b, q.words); putString(b, q.user);
+    }
+    return b;
 }
 inline std::vector<uint8_t> encodePayload(const CandidatePage &p) {
     if (!valid(p)) throw std::invalid_argument("invalid candidate page");
     std::vector<uint8_t> b; put(b, static_cast<uint16_t>(Payload::Candidates), 2);
-    putString(b, p.input); put(b, p.more, 1); put(b, p.words.size(), 2);
+    putString(b, p.input); put(b, (p.more ? 1 : 0) | (p.behind ? 2 : 0), 1); put(b, p.words.size(), 2);
     for (const auto &w : p.words) {
         put(b, w.id, 8); put(b, w.consumed, 4); putString(b, w.text); putString(b, w.reading);
         put(b, w.core, 4); put(b, w.flags, 1);
@@ -122,15 +155,23 @@ inline std::vector<uint8_t> encodePayload(const Commit &c) {
     putString(b, c.text); putString(b, c.remaining); return b;
 }
 inline bool decodePayload(const std::vector<uint8_t> &b, KeyMessage &out) {
-    PayloadReader r(b); if (r.number(2) != static_cast<uint16_t>(Payload::Key)) return false;
+    PayloadReader r(b); const auto tag = r.number(2);
+    if (tag != static_cast<uint16_t>(Payload::Key) && tag != static_cast<uint16_t>(Payload::Query)) return false;
     KeyMessage m; m.action = static_cast<KeyAction>(r.number(1)); m.text = static_cast<uint8_t>(r.number(1));
     const auto simplified = r.number(1); m.simplified = simplified != 0;
-    if (simplified > 1 || !r.done() || !valid(m)) return false; out = m; return true;
+    uint64_t typo = 0, memory = 0;
+    if (tag == static_cast<uint16_t>(Payload::Query)) {
+        auto &q = m.settings; m.extended = true;
+        q.fuzzy = static_cast<uint32_t>(r.number(4)); typo = r.number(1); memory = r.number(1);
+        q.typo = typo != 0; q.memory = memory != 0; q.hour = static_cast<int64_t>(r.number(8));
+        q.phrases = r.string(64); q.words = r.string(64); q.user = r.string(64);
+    }
+    if (simplified > 1 || typo > 1 || memory > 1 || !r.done() || !valid(m)) return false; out = std::move(m); return true;
 }
 inline bool decodePayload(const std::vector<uint8_t> &b, CandidatePage &out) {
     PayloadReader r(b); if (r.number(2) != static_cast<uint16_t>(Payload::Candidates)) return false;
-    CandidatePage p; p.input = r.string(MaxInput); const auto more = r.number(1); p.more = more != 0;
-    const auto count = r.number(2); if (count > MaxCandidates || more > 1) return false;
+    CandidatePage p; p.input = r.string(MaxInput); const auto more = r.number(1); p.more = (more & 1) != 0; p.behind = (more & 2) != 0;
+    const auto count = r.number(2); if (count > MaxCandidates || more > 3) return false;
     for (size_t i = 0; i < count; ++i) {
         Candidate w; w.id = r.number(8); w.consumed = static_cast<uint32_t>(r.number(4));
         w.text = r.string(MaxText); w.reading = r.string(MaxText);

@@ -1429,8 +1429,6 @@ private:
         if (!harukoto::engine::inputValid(input)) return "input";
         if (chineseLocked || *mpn_segment_context(session) || *mpn_committed(session) || composedSegments) return "partial";
         if (conjugationPanel.active()) return "conjugation";
-        if (memoryEnabled || (memory && !memory->userWords().empty())) return "personal";
-        if (mpn_fuzzy_pinyin(session) || !mpn_typo_correction(session)) return "settings";
         if (!tsf_engine::representable(session)) return "unrepresentable";
         return nullptr;
     }
@@ -1456,12 +1454,45 @@ private:
             ? CallWindowProcW(service->originalEngineProc, window, message, wParam, lParam)
             : DefWindowProcW(window, message, wParam, lParam);
     }
+    // WIN-03 step 6b: what this service ranks with besides the data: fuzzy
+    // pinyin and typo switch as its session has them, and the exact state of
+    // the learning it applies (EngineMemory.h). Digests are recomputed only
+    // when a model's revision moved.
+    harukoto::engine::QuerySettings engineSettings() {
+        namespace engine = harukoto::engine;
+        engine::QuerySettings q;
+        q.fuzzy = mpn_fuzzy_pinyin(session);
+        q.typo = mpn_typo_correction(session) != 0;
+        q.memory = memoryEnabled;
+        q.hour = memoryEnabled ? personalHour : 0;
+        auto &cache = engineMemoryCache;
+        const uint64_t user = memory ? memory->userWordsRevision() : 0;
+        if (cache.user.empty() || cache.userRevision != user || cache.userStore != memory.get()) {
+            cache.user = memory ? engine::memoryDigest(memory->userWords()) : engine::memoryDigest(selection_memory::UserWordModel{});
+            cache.userRevision = user; cache.userStore = memory.get();
+        }
+        q.user = cache.user;
+        if (memoryEnabled) {
+            if (cache.phrases.empty() || cache.phrasesRevision != memory->phrasesRevision() || cache.store != memory.get()) {
+                cache.phrases = engine::memoryDigest(memory->model()); cache.phrasesRevision = memory->phrasesRevision();
+            }
+            if (cache.words.empty() || cache.wordsRevision != memory->wordsRevision() || cache.store != memory.get()) {
+                cache.words = engine::memoryDigest(memory->words()); cache.wordsRevision = memory->wordsRevision();
+            }
+            cache.store = memory.get();
+            q.phrases = cache.phrases; q.words = cache.words;
+        }
+        return q;
+    }
     bool engineRequest() {
         if (const char *reason = engineUnsupported()) { engineClient.inProcess(reason); return false; }
         if (!engineClient.factory) engineClient.factory = [this] { return engineLink(); };
         const auto now = GetTickCount64();
         if (!engineClient.ready(now, engineIdentity())) return false;
-        engineClient.send(mpn_input(session), simplified, now);
+        auto settings = engineSettings();
+        if (engineClient.knownBehind(settings, now)) { engineClient.inProcess("memory_behind"); return false; }
+        engineSent = settings;
+        engineClient.send(mpn_input(session), simplified, now, std::move(settings));
         return true;
     }
     // Takes the engine's reply when it has arrived. True when the list
@@ -1482,6 +1513,7 @@ private:
             return true;
         case tsf_engine::Client::Collect::Ready: break;
         }
+        if (fetched.behind) { engineClient.behind(engineSent, now); refreshCandidates(); return true; }
         if (!fetched.complete) { engineClient.decline("long_list"); refreshCandidates(); return true; }
         auto rebuilt = tsf_engine::rebuild(session, fetched.words);
         if (!rebuilt) { engineClient.fail(now, "mismatch"); refreshCandidates(); return true; }
@@ -2175,6 +2207,14 @@ private:
     HWND engineWindow = nullptr;
     WNDPROC originalEngineProc = nullptr;
     struct { std::string base, theme, value; const void *personal = nullptr; } engineIdentityCache;
+    // Step 6b: digests of the learning last sent, by model revision, and the
+    // settings of the request in flight.
+    struct {
+        std::string phrases, words, user;
+        uint64_t phrasesRevision = 0, wordsRevision = 0, userRevision = 0;
+        const void *store = nullptr, *userStore = nullptr;
+    } engineMemoryCache;
+    harukoto::engine::QuerySettings engineSent;
     // CN-07: punctuation mode as read at the last key, the quote pairing,
     // and where the per-user preferences live (tests use a scratch key).
     bool englishPunctuation = false;

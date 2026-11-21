@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <map>
 #include <string>
@@ -133,6 +134,15 @@ public:
             record(line.substr(second + 1, third - second - 1), line.substr(third + 1), script == "s", count);
         }
         return consumed;
+    }
+    // WIN-03 step 6b: the exact internal state (counts, order, clock), so two
+    // models with equal state rank and evict identically. Not a file format.
+    std::string state() const {
+        std::string out = "phrases " + std::to_string(clock_) + ' ' + std::to_string(entries_) + '\n';
+        for (const auto &reading : readings_)
+            for (const auto &text : reading.second)
+                out += reading.first + '\t' + text.first + '\t' + std::to_string(text.second.count) + '\t' + std::to_string(text.second.order) + '\n';
+        return out;
     }
     // Aggregated rows in order of use, for compaction and export.
     std::string snapshot() const {
@@ -364,6 +374,19 @@ public:
         }
         return consumed;
     }
+    // WIN-03 step 6b: the exact internal state, weights as bit patterns.
+    std::string state() const {
+        std::string out = "words " + std::to_string(clock_) + ' ' + std::to_string(latest_) + ' ' + std::to_string(entries_) + '\n';
+        for (const auto &group : readings_)
+            for (const auto &text : group.second) {
+                uint64_t bits = 0;
+                static_assert(sizeof(bits) == sizeof(text.second.weight), "double layout");
+                std::memcpy(&bits, &text.second.weight, sizeof(bits));
+                out += group.first + '\t' + text.first + '\t' + std::to_string(bits) + '\t' + std::to_string(text.second.hour) +
+                    '\t' + std::to_string(text.second.order) + '\n';
+            }
+        return out;
+    }
     // Current weights in order of last use, forgetting faded words.
     std::string snapshot() const {
         struct Item { uint64_t order; std::string line; };
@@ -409,29 +432,34 @@ class Journal {
     M model_;
     std::string pending_;          // Rows not yet appended.
     uint64_t offset_ = 0;          // File bytes already reflected in the model.
+    uint64_t revision_ = 1;        // Changes whenever the model may have changed (step 6b).
 public:
     explicit Journal(std::filesystem::path path) : path_(std::move(path)) {}
     const std::filesystem::path &path() const { return path_; }
     M &model() { return model_; }
     const M &model() const { return model_; }
     bool pending() const { return !pending_.empty(); }
-    void append(const std::string &row) { pending_ += row; }
+    uint64_t revision() const { return revision_; }
+    void append(const std::string &row) { pending_ += row; ++revision_; }
     // Reads whatever other writers appended since the last look. A shorter
     // file means it was cleared or compacted: start again from its beginning.
     void refresh() {
         const HANDLE file = detail::open(path_, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, OPEN_EXISTING);
         if (file == INVALID_HANDLE_VALUE) {
             if (GetLastError() == ERROR_FILE_NOT_FOUND || GetLastError() == ERROR_PATH_NOT_FOUND) {
-                if (offset_) { model_.clear(); offset_ = 0; }
+                if (offset_) { model_.clear(); offset_ = 0; ++revision_; }
             }
             return;
         }
         LARGE_INTEGER size{};
         if (GetFileSizeEx(file, &size) && static_cast<uint64_t>(size.QuadPart) <= MaxFile) {
             const auto length = static_cast<uint64_t>(size.QuadPart);
-            if (length < offset_) { model_.clear(); offset_ = 0; }
+            if (length < offset_) { model_.clear(); offset_ = 0; ++revision_; }
             std::string data;
-            if (length > offset_ && detail::readAt(file, offset_, length - offset_, data)) offset_ += model_.replay(data);
+            if (length > offset_ && detail::readAt(file, offset_, length - offset_, data)) {
+                const auto consumed = model_.replay(data);
+                if (consumed) { offset_ += consumed; ++revision_; }
+            }
         }
         CloseHandle(file);
     }
@@ -458,7 +486,7 @@ public:
             // picked up by the next refresh only if the file did not grow
             // in between; otherwise re-read everything once.
             if (static_cast<uint64_t>(size.QuadPart) == offset_) offset_ += pending_.size();
-            else { model_.clear(); offset_ = 0; pending_.clear(); refresh(); return true; }
+            else { model_.clear(); offset_ = 0; pending_.clear(); ++revision_; refresh(); return true; }
             pending_.clear();
         } else if (sized && static_cast<uint64_t>(size.QuadPart) + pending_.size() > MaxFile) pending_.clear();
         return ok;
@@ -478,7 +506,7 @@ public:
             LARGE_INTEGER zero{}; DWORD done = 0;
             ok = SetFilePointerEx(file, zero, nullptr, FILE_BEGIN) &&
                 WriteFile(file, rows.data(), static_cast<DWORD>(rows.size()), &done, nullptr) && done == rows.size() && SetEndOfFile(file);
-            if (ok) { model_ = std::move(rebuilt); offset_ = rows.size(); }
+            if (ok) { model_ = std::move(rebuilt); offset_ = rows.size(); ++revision_; }
         }
         CloseHandle(file);
         return ok;
@@ -524,6 +552,12 @@ public:
         return std::none_of(value.begin(), value.end(), [](unsigned char c) { return c < 0x20 || c == 0x7f; });
     }
     const std::vector<Entry> &entries() const { return entries_; }
+    // WIN-03 step 6b: the entries in table order (the order the core receives them).
+    std::string state() const {
+        std::string out = "user " + std::to_string(entries_.size()) + '\n';
+        for (const auto &entry : entries_) out += entry.reading + '\t' + entry.text + '\t' + entry.traditional + '\n';
+        return out;
+    }
     size_t size() const { return entries_.size(); }
     bool empty() const { return entries_.empty(); }
     void clear() { entries_.clear(); index_.clear(); }
@@ -644,6 +678,9 @@ public:
     const UserWordModel &userWords() const { return user_.model(); }
     uint64_t userWordsRevision() const { return user_.revision(); }
     const std::filesystem::path &userWordsFile() const { return user_.path(); }
+    // WIN-03 step 6b: change whenever the phrase or word model may have changed.
+    uint64_t phrasesRevision() const { return phrases_.revision(); }
+    uint64_t wordsRevision() const { return words_.revision(); }
     // Cheap after the first call; looks at the table at most once per interval.
     // Returns true when the user words changed.
     bool pollUserWords(ULONGLONG now = GetTickCount64(), ULONGLONG interval = 2000) {

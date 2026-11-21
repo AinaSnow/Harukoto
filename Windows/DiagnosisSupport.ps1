@@ -66,6 +66,11 @@ function Convert-HarukotoRuntimeRecord {
             if (($value[$key] -isnot [long] -and $value[$key] -isnot [int]) -or $value[$key] -lt 0) { throw '无效引擎计数' }
         }
         $engine = "$($paths[$value.engine_path])；引擎提供 $($value.engine_served) 次，回退 $($value.engine_fallbacks) 次，原因 $($value.engine_reason)"
+        # Step 6b, optional: replies where the engine had not caught up with the learning.
+        if ($value.ContainsKey('engine_memory_behind')) {
+            if (($value.engine_memory_behind -isnot [long] -and $value.engine_memory_behind -isnot [int]) -or $value.engine_memory_behind -lt 0) { throw '无效引擎计数' }
+            $engine += "，学习记录未追上 $($value.engine_memory_behind) 次"
+        }
     }
     $relation = if (!$PublishedGeneration) { '无可比较的发布指针' }
         elseif ($value.base_generation -ceq $PublishedGeneration) { '已采用发布版本' }

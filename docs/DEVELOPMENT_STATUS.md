@@ -1,5 +1,16 @@
 # 开发状态与接手入口
 
+## 2026-11-22 · WIN-03 第 6b 步：模糊音、纠错与学习记录进入引擎
+
+- 前置：6a 已提交（6ccb156）。本批未提交、未打包。设计见[接入 TSF](ENGINE_TSF.md)第 3、10 节。
+- 协议：`Payload::Query`（按键＋`QuerySettings`：模糊音、纠错、学习开关、小时、三份模型摘要）；候选页标记字节第 1 位为 `behind`。旧的 3 字节按键仍可用。
+- 引擎：新增 `Windows/EngineMemory.h`（摘要、`buildPersonal`、`MemoryView`、只读 `MemoryMirror`：不同则增量读→每秒至多一次全读→`behind`）；`WindowsDictionary::load` 增加学习文件路径，查询时设模糊音、纠错、个人表并在扩展前应用选词记忆；宿主、`EngineProcess::Config::memory`、所有者均接受 `--memory`。
+- 选词记忆：`Model`／`WordModel`／`UserWordModel` 增加 `state()`（精确内部状态，仅用于摘要）；`Journal` 增加修订号，`Store` 暴露 `phrasesRevision()`／`wordsRevision()`。文件格式、写入与压缩行为不变。
+- 接入层：删除 `settings`／`personal` 门槛；`engineSettings()` 按修订号缓存摘要；`behind` 时该段进程内、同一状态 2 秒内不再询问；诊断加 `engine_memory_behind`，`DiagnosisSupport.ps1` 可选解析。
+- 测试：`engine_tsf_full` 扩展为 8 个对照场景（结果见 ENGINE_TSF 第 10 节，不一致全为 0，进程内只因长列表）与脚本驱动的逐项检查（学习、忘记、开关、`-Clear`／`-AddWord`／`-RemoveWord`／`-ClearWords`，用真实管理脚本，只写临时目录）；`engine_messages` 补 Query 与 behind 编解码。评测 tuned／holdout（只看总数）／words-dev／abbrev-dev 与 cn07sym、typo-dev（开与关）／fuzzy-dev（--fuzzy 2047）与 cn05 除时间与内存外相同（`chinese-*-win036b*.json`）。CTest 共 67 项，最后一次代码修改后完整构建、复制 TIP 到 `.build/windows/ime`，在 PowerShell 中一次运行全部通过（643.03 秒，-j 4）；之后无残留进程、HKCU 测试键或本批临时目录。
+- 未验证：多个真实应用同时学习时的追上延迟；大学习文件（接近 4 MiB）下每次学习后的摘要耗时（接入层与引擎各算一次，未测）；安装布局中所有者传 `--memory`（6c）。
+- 下一步：6c（部分选词与分段上下文、深页、F6、以词定字、正式连接与安装布局数据路径）。
+
 ## 2026-11-21 · WIN-03 第 6a 步：接入 TSF（开关、异步与回退，基础拼音候选）
 
 - 前置：第 5 步已提交（49b7e06）。本批未提交、未打包。设计与子批次见[接入 TSF](ENGINE_TSF.md)。

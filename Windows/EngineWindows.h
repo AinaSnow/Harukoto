@@ -6,6 +6,7 @@
 #include "BaseDictionary.h"
 #include "PersonalDictionary.h"
 #include "EngineIdentity.h"
+#include "EngineMemory.h"
 #include <chrono>
 
 namespace harukoto::engine {
@@ -16,6 +17,7 @@ class WindowsDictionary {
     std::vector<JapaneseWord> words_;
     std::unordered_map<std::string, std::vector<size_t>> readings_;
     std::string generation_, identity_;
+    std::shared_ptr<MemoryMirror> memory_; // Step 6b: read-only mirror of the user's learning.
     WindowsDictionary() = default;
 public:
     struct QueryTimings {
@@ -29,9 +31,14 @@ public:
     const std::string &identity() const { return identity_; }
     const base_dictionary::Snapshot &base() const { return *base_; }
     const std::vector<JapaneseWord> &words() const { return words_; }
+    // memory: the user's selection-memory.tsv (its -words and -user siblings
+    // beside it), read but never written; empty: requests that need learned
+    // state are answered "behind".
     static std::shared_ptr<const WindowsDictionary> load(const std::filesystem::path &folder,
-            const std::filesystem::path &themes = {}, const std::filesystem::path &personal = {}) {
+            const std::filesystem::path &themes = {}, const std::filesystem::path &personal = {},
+            const std::filesystem::path &memory = {}) {
         auto result = std::shared_ptr<WindowsDictionary>(new WindowsDictionary);
+        if (!memory.empty()) result->memory_ = std::make_shared<MemoryMirror>(memory);
         result->base_ = base_dictionary::Snapshot::load(folder);
         result->words_ = result->base_->words();
         std::string themeGeneration, personalHash;
@@ -120,6 +127,24 @@ private:
             throw std::invalid_argument("unsupported Windows query");
         auto session = base_->session(work.key.simplified);
         mpn_set_segment_context(session.get(), work.context.c_str());
+        // Step 6b: the client's fuzzy pinyin, typo switch and learned state,
+        // set before any key exactly as its own session has them.
+        std::shared_ptr<const MemoryView> view;
+        PersonalTable personal;
+        const auto &settings = work.key.settings;
+        if (work.key.extended) {
+            mpn_set_fuzzy_pinyin(session.get(), settings.fuzzy);
+            mpn_set_typo_correction(session.get(), settings.typo ? 1 : 0);
+            static const std::string noUserWords = memoryDigest(selection_memory::UserWordModel{});
+            if (memory_) view = memory_->match(settings, GetTickCount64());
+            if (!view && (settings.memory || settings.user != noUserWords || memory_)) {
+                CandidatePage behind{work.input, false, {}, true};
+                encodePayload(behind);
+                return behind;
+            }
+            if (view) personal = view->personal(settings.memory, settings.hour);
+            if (personal) mpn_set_personal(session.get(), personal.get());
+        }
         mark(&QueryTimings::setup_ms);
         for (unsigned char c : work.input)
             if (!mpn_key(session.get(), c) || *mpn_committed(session.get()))
@@ -133,6 +158,13 @@ private:
         auto lookup = [&](const std::string &reading) { return evidence.dictionary(reading, work.key.simplified); };
         const auto relevant = queryWords(work);
         auto choices = windowsCandidates(session.get(), relevant, lookup, work.chineseLocked);
+        if (view && settings.memory) {
+            // What the user chose for this exact reading comes first (CN-06a/b),
+            // as the TSF service does before any expansion.
+            selection_memory::apply(choices, work.input, view->phrases.recall(work.input, work.key.simplified), [&](const WindowsCandidate &c) {
+                return c.coreIndex ? mpn_candidate_consumed(session.get(), *c.coreIndex) : work.input.size();
+            });
+        }
         std::vector<uint8_t> rounds(choices.size(), 0); // Expansion pass of each choice (step 6a).
         mark(&QueryTimings::merge_ms);
         std::vector<Candidate> converted;

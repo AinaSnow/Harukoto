@@ -7,7 +7,7 @@ using namespace harukoto::engine;
 // This is an experimental developer executable, not installed or auto-started.
 int wmain(int argc, wchar_t **argv) {
     try {
-        std::filesystem::path base, themes, personal, tracePath;
+        std::filesystem::path base, themes, personal, memory, tracePath;
         Host::Options options; bool threadsSet = false, connectionsSet = false;
         std::vector<std::wstring> names;
         pipe::Handle ready, stop, ownerLease;
@@ -36,6 +36,7 @@ int wmain(int argc, wchar_t **argv) {
             if (option == L"--base" && base.empty()) base = value;
             else if (option == L"--themes" && themes.empty()) themes = value;
             else if (option == L"--personal" && personal.empty()) personal = value;
+            else if (option == L"--memory" && memory.empty()) memory = value;
             else if (option == L"--trace" && tracePath.empty()) tracePath = value;
             else if (option == L"--threads" && !threadsSet) {
                 if (value.empty() || value.find_first_not_of(L"0123456789") != std::wstring::npos)
@@ -60,7 +61,8 @@ int wmain(int argc, wchar_t **argv) {
             else throw std::invalid_argument("invalid host option");
         }
         if (base.empty() || !base.is_absolute() || (!themes.empty() && !themes.is_absolute()) ||
-                (!personal.empty() && !personal.is_absolute()) || !ready || !stop || ready.get() == stop.get())
+                (!personal.empty() && !personal.is_absolute()) ||
+                (!memory.empty() && !memory.is_absolute()) || !ready || !stop || ready.get() == stop.get())
             throw std::invalid_argument("invalid host startup");
         const auto controlCount = std::count_if(privateControl.begin(),privateControl.end(),[](const auto &handle) { return bool(handle); });
         if ((controlCount != 0 && controlCount != 3) || connectionsSet != (controlCount == 3) || (controlCount && !names.empty()) ||
@@ -92,7 +94,7 @@ int wmain(int argc, wchar_t **argv) {
             if (BCryptGenRandom(nullptr,reinterpret_cast<PUCHAR>(&generation),sizeof(generation),BCRYPT_USE_SYSTEM_PREFERRED_RNG) < 0)
                 throw std::runtime_error("engine generation failure");
         } while (!generation);
-        auto dictionary = WindowsDictionary::load(base,themes,personal);
+        auto dictionary = WindowsDictionary::load(base,themes,personal,memory);
         options.identity = dictionary->identity();
         Host::Observer observer;
         if (traces) observer = [&](const EngineTrace &row) { traces->append(row); };

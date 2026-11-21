@@ -1,4 +1,4 @@
-// WIN-03 step 6a: the production text service with the standalone engine
+// WIN-03 steps 6a/6b: the production text service with the standalone engine
 // switch off and on (docs/ENGINE_TSF.md). Two Service objects load the same
 // base snapshot, theme packages and personal table; one lists in-process,
 // the other through the engine protocol (loopback ServerConnection +
@@ -9,6 +9,8 @@
 #include <cassert>
 #include <csignal>
 #include <iostream>
+#include <map>
+#include <sstream>
 
 using namespace harukoto;
 using engine::ServerConnection;
@@ -54,8 +56,9 @@ public:
 };
 
 struct EngineTsfTest {
-    static std::unique_ptr<Service> service(const Data &data, bool simplified) {
+    static std::unique_ptr<Service> service(const Data &data, bool simplified, const std::filesystem::path &memory = {}) {
         auto s = std::make_unique<Service>();
+        if (!memory.empty()) s->memory = std::make_unique<selection_memory::Store>(memory);
         s->simplified = simplified;
         s->clock = &fixedMoment;
         s->baseSnapshot = base_dictionary::Snapshot::load(data.base);
@@ -132,7 +135,7 @@ struct EngineTsfTest {
         }
         assert(!called && std::string(b->engineClient.stats.path) == "off" && !b->engineClient.stats.served);
         assert(b->engineClient.diagnosticFields() ==
-            ",\"engine_path\":\"off\",\"engine_served\":0,\"engine_fallbacks\":0,\"engine_reason\":\"none\"");
+            ",\"engine_path\":\"off\",\"engine_served\":0,\"engine_fallbacks\":0,\"engine_reason\":\"none\",\"engine_memory_behind\":0");
         (void)dictionary;
         std::cout << "off path: identical, no link" << std::endl;
     }
@@ -196,16 +199,27 @@ struct EngineTsfTest {
         c->engineClient.enabled = true; c->engineClient.factory = loopback(other);
         type(*c, "riben", true);
         assert(!c->engineClient.pending() && c->engineClient.stats.reason == "identity" && !c->choices.empty());
-        // Capability gates: fuzzy pinyin, typo switch, partial selection, learning.
+        // Step 6b: fuzzy pinyin and the typo switch travel with the request.
         c->engineClient.close();
         c->engineClient.factory = loopback(dictionary);
+        auto d = service(data, false);
         type(*c, "nihao", true); serve(*c); assert(std::string(c->engineClient.stats.path) == "engine");
-        mpn_set_fuzzy_pinyin(c->session, 1); type(*c, "nihao", true);
-        assert(!c->engineClient.pending() && c->engineClient.stats.reason == "settings"); mpn_set_fuzzy_pinyin(c->session, 0);
-        mpn_set_typo_correction(c->session, 0); type(*c, "nihao", true);
-        assert(c->engineClient.stats.reason == "settings"); mpn_set_typo_correction(c->session, 1);
-        c->memoryEnabled = true; // (No store here: check the gate itself.)
-        assert(std::string(c->engineUnsupported()) == "personal"); c->memoryEnabled = false;
+        mpn_set_fuzzy_pinyin(c->session, 1); mpn_set_fuzzy_pinyin(d->session, 1);
+        type(*c, "nihao", true); serve(*c); type(*d, "nihao", false);
+        assert(std::string(c->engineClient.stats.path) == "engine" && same(c->choices, d->choices));
+        mpn_set_fuzzy_pinyin(c->session, 0); mpn_set_fuzzy_pinyin(d->session, 0);
+        mpn_set_typo_correction(c->session, 0); mpn_set_typo_correction(d->session, 0);
+        type(*c, "nihoa", true); serve(*c); type(*d, "nihoa", false);
+        assert(std::string(c->engineClient.stats.path) == "engine" && same(c->choices, d->choices));
+        mpn_set_typo_correction(c->session, 1); mpn_set_typo_correction(d->session, 1);
+        // Learned state the engine cannot read (no memory file given): "behind".
+        c->memoryEnabled = true; c->personalHour = 1;
+        c->memory = std::make_unique<selection_memory::Store>(std::filesystem::temp_directory_path() / L"harukoto-engine-tsf-absent" / L"m.tsv");
+        type(*c, "nihao", true); serve(*c);
+        assert(c->engineClient.stats.reason == "memory_behind" && c->engineClient.stats.memoryBehind == 1 && !c->choices.empty());
+        type(*c, "nihao", true); // Known behind for this state: not asked again.
+        assert(!c->engineClient.pending() && c->engineClient.stats.reason == "memory_behind" && c->engineClient.stats.memoryBehind == 1);
+        c->memoryEnabled = false; c->memory.reset();
         type(*c, "nihao", true); serve(*c);
         std::wstring text; const auto split = std::find_if(c->choices.begin(), c->choices.end(), [&](const auto &x) {
             return x.coreIndex && mpn_candidate_consumed(c->session, *x.coreIndex) < 5; });
@@ -223,44 +237,159 @@ struct EngineTsfTest {
         std::cout << "behaviour: async, stale, pending key, timeout, sticky, identity, gates" << std::endl;
     }
 
-    struct Totals { size_t prefixes = 0, served = 0, longList = 0, unrepresentable = 0, inputs = 0, chosen = 0, expanded = 0; };
-    static void parity(const Data &data, std::shared_ptr<const WindowsDictionary> dictionary,
-                       const std::vector<std::string> &inputs, bool simplified, Totals &totals) {
-        auto a = service(data, simplified), b = service(data, simplified);
+    // Step 6b: the per-key preparation OnKeyDown does before a key: the
+    // memory switch, polling, the personal table, fuzzy pinyin and typo switch.
+    struct Scenario { std::string name; uint32_t fuzzy = 0; bool typo = true, memory = false, learn = false; };
+    static void prepare(Service &s, const Scenario &scenario) {
+        s.memoryEnabled = s.memory && scenario.memory;
+        if (s.memoryEnabled) s.memory->poll(GetTickCount64(), 0);
+        if (s.memory) s.memory->pollUserWords(GetTickCount64(), 0);
+        s.attachPersonal();
+        applyFuzzyPinyin(s.session, scenario.fuzzy);
+        applyTypoCorrection(s.session, scenario.typo);
+    }
+    struct Result {
+        size_t prefixes = 0, served = 0, chosen = 0, learned = 0;
+        std::map<std::string, size_t> fallbacks;
+    };
+    // Types one reading on both services key by key and compares every list.
+    static void compare(Service &a, Service &b, const Scenario &scenario, const std::string &input, Result &result) {
+        prepare(a, scenario); prepare(b, scenario);
+        mpn_clear(a.session); mpn_clear(b.session); a.refreshCandidates(); b.refreshCandidates(true);
+        for (size_t i = 0; i < input.size(); ++i) {
+            prepare(a, scenario); prepare(b, scenario);
+            assert(mpn_key(a.session, input[i]) && mpn_key(b.session, input[i]));
+            a.refreshCandidates(); b.refreshCandidates(true);
+            const auto before = b.engineClient.stats.served;
+            if (b.engineClient.pending()) serve(b);
+            ++result.prefixes;
+            if (b.engineClient.stats.served > before) ++result.served;
+            else ++result.fallbacks[b.engineClient.stats.reason];
+            if (!same(a.choices, b.choices)) { report("MISMATCH " + scenario.name, input.substr(0, i + 1), a, b); assert(false); }
+        }
+        assert(!b.engineClient.stats.failures);
+    }
+    // Chooses index, then the first candidate of every remaining segment, as
+    // a user completing the reading: learning is flushed at its end.
+    static void finish(Service &a, Service &b, const Scenario &scenario, size_t index) {
+        std::wstring ta, tb;
+        for (bool first = true; *mpn_input(a.session); first = false) {
+            const size_t pick = first && index < a.choices.size() ? index : 0;
+            if (pick >= a.choices.size()) break;
+            assert(a.chooseCandidate(pick, ta) == b.chooseCandidate(pick, tb));
+            ta += wide(mpn_committed(a.session)); tb += wide(mpn_committed(b.session));
+            mpn_clear_commit(a.session); mpn_clear_commit(b.session);
+            assert(ta == tb && std::string(mpn_input(a.session)) == mpn_input(b.session));
+            prepare(a, scenario); prepare(b, scenario);
+            a.refreshCandidates(); b.refreshCandidates(true);
+            if (b.engineClient.pending()) serve(b);
+            if (!same(a.choices, b.choices)) { report("SEGMENT " + scenario.name, mpn_input(a.session), a, b); assert(false); }
+        }
+    }
+    static void parity(const Data &data, const Scenario &scenario, const std::vector<std::string> &inputs,
+                       const std::filesystem::path &seed, const std::filesystem::path &root, Result &result) {
+        for (bool simplified : {true, false}) {
+            // Each side owns a copy of the same learned state; the engine reads B's.
+            const auto folderA = root / (scenario.name + (simplified ? "-s-a" : "-t-a")), folderB = root / (scenario.name + (simplified ? "-s-b" : "-t-b"));
+            for (const auto &folder : {folderA, folderB}) {
+                std::filesystem::create_directories(folder);
+                if (!seed.empty()) for (const auto &file : std::filesystem::directory_iterator(seed))
+                    std::filesystem::copy_file(file.path(), folder / file.path().filename(), std::filesystem::copy_options::overwrite_existing);
+            }
+            auto dictionary = WindowsDictionary::load(data.base, data.themes, data.personal, folderB / L"selection-memory.tsv");
+            auto a = service(data, simplified, folderA / L"selection-memory.tsv"), b = service(data, simplified, folderB / L"selection-memory.tsv");
+            b->engineClient.enabled = true;
+            b->engineClient.factory = loopback(dictionary);
+            for (const auto &input : inputs) {
+                compare(*a, *b, scenario, input, result);
+                // Deeper pages continue from either list in the same way.
+                for (int k = 0; k < 2; ++k) {
+                    a->expandCandidates(); b->expandCandidates();
+                    if (!same(a->choices, b->choices)) { report("EXPANSION " + scenario.name, input, *a, *b); assert(false); }
+                }
+                if (!a->choices.empty()) {
+                    const size_t index = a->choices.size() > 1 ? 1 : 0;
+                    if (scenario.learn) { finish(*a, *b, scenario, index); ++result.learned; }
+                    else {
+                        // Without learning: the same commit, nothing recorded.
+                        a->memoryEnabled = b->memoryEnabled = false;
+                        std::wstring ta, tb;
+                        assert(a->chooseCandidate(index, ta) == b->chooseCandidate(index, tb));
+                        assert(ta == tb && std::string(mpn_committed(a->session)) == mpn_committed(b->session) &&
+                               std::string(mpn_input(a->session)) == mpn_input(b->session));
+                    }
+                    ++result.chosen;
+                }
+                mpn_clear(a->session); mpn_clear(b->session); a->resetCandidates(); b->resetCandidates();
+            }
+            if (scenario.learn) {
+                // Both sides learned the same: the same models, byte for byte.
+                assert(a->memory->model().state() == b->memory->model().state());
+                assert(a->memory->words().state() == b->memory->words().state());
+            }
+        }
+    }
+    // A learned state built from real candidates: for every third reading the
+    // third candidate was chosen twice (phrase and words, both scripts), and
+    // every seventh reading has a user word.
+    static void seed(const Data &data, const std::vector<std::string> &inputs, const std::filesystem::path &folder) {
+        std::filesystem::create_directories(folder);
+        selection_memory::Store store(folder / L"selection-memory.tsv");
+        std::string user = "# synthetic user words\n";
+        const auto hour = selection_memory::currentHour();
+        for (bool simplified : {true, false}) {
+            auto s = service(data, simplified);
+            for (size_t i = 0; i < inputs.size(); i += 3) {
+                type(*s, inputs[i], false);
+                if (s->choices.size() < 3 || !s->choices[2].coreIndex) continue;
+                const auto &choice = s->choices[2];
+                for (int k = 0; k < 2; ++k) store.record(inputs[i], choice.text, simplified);
+                const std::string words = mpn_candidate_words(s->session, *choice.coreIndex);
+                for (size_t start = 0; start < words.size();) {
+                    const auto end = words.find('\n', start), tab = words.find('\t', start);
+                    if (end == words.npos || tab == words.npos || tab > end) break;
+                    store.recordWord(words.substr(start, tab - start), words.substr(tab + 1, end - tab - 1), simplified, hour - int64_t(i % 50));
+                    start = end + 1;
+                }
+                if (simplified && i % 7 == 0 && s->choices.size() > 4) user += inputs[i] + "\t" + s->choices[4].text + "\n";
+            }
+        }
+        assert(store.flush());
+        std::ofstream(folder / L"selection-memory-user.tsv", std::ios::binary) << user;
+    }
+
+    // Script-driven checks (test_engine_tsf.py): the switch, learning, forget,
+    // and the management script's Clear / AddWord / RemoveWord / ClearWords.
+    static void steps(const Data &data, const std::filesystem::path &folderA, const std::filesystem::path &folderB) {
+        auto dictionary = WindowsDictionary::load(data.base, data.themes, data.personal, folderB / L"selection-memory.tsv");
+        auto a = service(data, true, folderA / L"selection-memory.tsv"), b = service(data, true, folderB / L"selection-memory.tsv");
         b->engineClient.enabled = true;
         b->engineClient.factory = loopback(dictionary);
-        for (const auto &input : inputs) {
-            ++totals.inputs;
-            mpn_clear(a->session); a->refreshCandidates(); mpn_clear(b->session); b->refreshCandidates(true);
-            for (size_t i = 0; i < input.size(); ++i) {
-                assert(mpn_key(a->session, input[i]) && mpn_key(b->session, input[i]));
-                a->refreshCandidates(); b->refreshCandidates(true);
-                const auto before = b->engineClient.stats;
-                if (b->engineClient.pending()) serve(*b);
-                ++totals.prefixes;
-                const auto &after = b->engineClient.stats;
-                if (after.served > before.served) ++totals.served;
-                else if (after.reason == "long_list") ++totals.longList;
-                else if (after.reason == "unrepresentable") ++totals.unrepresentable;
-                else { std::cerr << "unexpected path " << after.path << " reason " << after.reason << '\n'; assert(false); }
-                if (!same(a->choices, b->choices)) { report("MISMATCH", input.substr(0, i + 1), *a, *b); assert(false); }
-            }
-            assert(b->engineClient.stats.failures == 0);
-            // Deeper pages continue from either list in the same way.
-            for (int k = 0; k < 2; ++k) {
-                a->expandCandidates(); b->expandCandidates();
-                if (!same(a->choices, b->choices)) { report("EXPANSION", input, *a, *b); assert(false); }
-            }
-            ++totals.expanded;
-            // Choosing the second candidate (or the first) commits the same text.
-            if (!a->choices.empty()) {
-                const size_t index = a->choices.size() > 1 ? 1 : 0;
-                std::wstring ta, tb;
-                assert(a->chooseCandidate(index, ta) == b->chooseCandidate(index, tb));
-                assert(ta == tb && std::string(mpn_committed(a->session)) == mpn_committed(b->session) &&
-                       std::string(mpn_input(a->session)) == mpn_input(b->session));
-                ++totals.chosen;
-            }
+        Scenario scenario{"steps"}; scenario.memory = true;
+        std::cout << "ready" << std::endl;
+        for (std::string line; std::getline(std::cin, line);) {
+            std::istringstream words(line);
+            std::string command, input; size_t index = 0;
+            words >> command >> input >> index;
+            if (command == "exit") break;
+            Result result;
+            std::string extra;
+            if (command == "memory") { scenario.memory = input == "on"; std::cout << "{}" << std::endl; continue; }
+            if (command == "check" || command == "learn" || command == "forget") {
+                compare(*a, *b, scenario, input, result);
+                if (command == "learn") finish(*a, *b, scenario, index);
+                if (command == "forget") {
+                    const auto na = a->forgetCandidate(index), nb = b->forgetCandidate(index);
+                    assert(na == nb); extra = na == L"已忘记" ? "forgot" : "nothing";
+                }
+            } else assert(false && "unknown command");
+            std::string first = a->choices.empty() ? std::string() : a->choices[0].text;
+            if (command != "check") first.clear();
+            std::string texts;
+            for (size_t i = 0; i < a->choices.size() && i < 9; ++i) texts += (i ? "|" : "") + a->choices[i].text;
+            std::cout << "{\"served\":" << result.served << ",\"prefixes\":" << result.prefixes << ",\"path\":\"" << b->engineClient.stats.path
+                      << "\",\"reason\":\"" << b->engineClient.stats.reason << "\",\"behind\":" << b->engineClient.stats.memoryBehind
+                      << ",\"extra\":\"" << extra << "\",\"texts\":\"" << (command == "check" ? texts : std::string()) << "\"}" << std::endl;
             mpn_clear(a->session); mpn_clear(b->session); a->resetCandidates(); b->resetCandidates();
         }
     }
@@ -334,7 +463,8 @@ static std::vector<std::string> corpus(const std::filesystem::path &path) {
 }
 
 // unit <base> <themes> <personal> <other-personal> <host.exe>
-// parity <base> <themes> <personal> <corpus>...
+// parity <base> <themes> <personal> <scratch> <tuned> <words> <fuzzy> <typo> <abbrev>
+// steps <base> <themes> <personal> <memory-a-folder> <memory-b-folder>
 static int run(int argc, wchar_t **argv);
 int wmain(int argc, wchar_t **argv) {
     try { return run(argc, argv); }
@@ -346,24 +476,49 @@ static int run(int argc, wchar_t **argv) {
     assert(argc >= 5);
     const std::wstring mode = argv[1];
     Data data{argv[2], argv[3], argv[4]};
-    auto dictionary = WindowsDictionary::load(data.base, data.themes, data.personal);
     if (mode == L"unit") {
         assert(argc == 7);
+        auto dictionary = WindowsDictionary::load(data.base, data.themes, data.personal);
         auto other = WindowsDictionary::load(data.base, data.themes, argv[5]);
         assert(other->identity() != dictionary->identity());
         EngineTsfTest::offPath(data, dictionary);
         EngineTsfTest::behaviour(data, dictionary, other);
         EngineTsfTest::pipeHost(data, argv[6]);
+    } else if (mode == L"steps") {
+        assert(argc == 7);
+        EngineTsfTest::steps(data, argv[5], argv[6]);
     } else {
-        assert(mode == L"parity");
-        EngineTsfTest::Totals totals;
-        for (int i = 5; i < argc; ++i) {
-            const auto inputs = corpus(argv[i]);
-            for (bool simplified : {true, false}) EngineTsfTest::parity(data, dictionary, inputs, simplified, totals);
+        assert(mode == L"parity" && argc == 11);
+        const std::filesystem::path root = argv[5];
+        const auto tuned = corpus(argv[6]), words = corpus(argv[7]), fuzzy = corpus(argv[8]), typo = corpus(argv[9]), abbrev = corpus(argv[10]);
+        auto both = tuned; both.insert(both.end(), words.begin(), words.end());
+        auto typing = typo; typing.insert(typing.end(), abbrev.begin(), abbrev.end());
+        auto fuzzyInputs = tuned; fuzzyInputs.insert(fuzzyInputs.end(), fuzzy.begin(), fuzzy.end());
+        EngineTsfTest::seed(data, both, root / L"seed");
+        using Scenario = EngineTsfTest::Scenario;
+        std::vector<std::tuple<Scenario, const std::vector<std::string> *, bool>> runs;
+        Scenario plain{"plain"}; runs.emplace_back(plain, &both, false);
+        Scenario allFuzzy{"fuzzy_all"}; allFuzzy.fuzzy = MPN_FUZZY_ALL; runs.emplace_back(allFuzzy, &fuzzyInputs, false);
+        Scenario typoOn{"typo_on"}; runs.emplace_back(typoOn, &typing, false);
+        Scenario typoOff{"typo_off"}; typoOff.typo = false; runs.emplace_back(typoOff, &typing, false);
+        Scenario memoryOn{"memory"}; memoryOn.memory = true; runs.emplace_back(memoryOn, &both, true);
+        Scenario userOnly{"user_words_only"}; runs.emplace_back(userOnly, &both, true);
+        Scenario learn{"learn_then_type"}; learn.memory = true; learn.learn = true; runs.emplace_back(learn, &both, true);
+        Scenario everything{"memory_fuzzy_typo_off"}; everything.memory = true; everything.fuzzy = MPN_FUZZY_ALL; everything.typo = false;
+        runs.emplace_back(everything, &both, true);
+        std::cout << "{";
+        bool firstRun = true;
+        for (const auto &[scenario, inputs, seeded] : runs) {
+            EngineTsfTest::Result result;
+            EngineTsfTest::parity(data, scenario, *inputs, seeded ? root / L"seed" : std::filesystem::path(), root, result);
+            std::cout << (firstRun ? "" : ",") << "\"" << scenario.name << "\":{\"prefixes\":" << result.prefixes << ",\"served\":" << result.served
+                      << ",\"chosen\":" << result.chosen << ",\"learned\":" << result.learned << ",\"mismatches\":0,\"fallbacks\":{";
+            bool firstReason = true;
+            for (const auto &[reason, count] : result.fallbacks) { std::cout << (firstReason ? "" : ",") << "\"" << reason << "\":" << count; firstReason = false; }
+            std::cout << "}}";
+            firstRun = false;
         }
-        std::cout << "{\"inputs\":" << totals.inputs << ",\"prefixes\":" << totals.prefixes << ",\"served\":" << totals.served
-                  << ",\"long_list\":" << totals.longList << ",\"unrepresentable\":" << totals.unrepresentable
-                  << ",\"expanded\":" << totals.expanded << ",\"chosen\":" << totals.chosen << ",\"mismatches\":0}" << std::endl;
+        std::cout << "}" << std::endl;
     }
     return 0;
 }

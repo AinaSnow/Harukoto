@@ -68,6 +68,25 @@ static void limits() {
     b = encodePayload(p); assert(decodePayload(b, output) && output.words[0].core == 7 && output.words[0].flags == p.words[0].flags);
     p.words[0].flags = 8; assert(!valid(p));
     p = page(); p.words[0].core = MaxCoreIndex + 1; assert(!valid(p));
+    // WIN-03 step 6b: a key with the client's ranking state, and "behind".
+    KeyMessage query{KeyAction::Text, 'n', false, true, {0x7ff, false, true, 493000, std::string(64, 'b'), std::string(64, 'c'), std::string(64, 'd')}};
+    codec(query);
+    KeyMessage queryOut;
+    assert(decodePayload(encodePayload(query), queryOut) && queryOut.extended && queryOut.settings.fuzzy == 0x7ff &&
+           !queryOut.settings.typo && queryOut.settings.memory && queryOut.settings.hour == 493000 && queryOut.settings.words == std::string(64, 'c'));
+    for (auto bad : {query, query, query, query}) {
+        static int which = 0;
+        switch (which++) {
+        case 0: bad.settings.user.clear(); break;                      // the user digest is always given
+        case 1: bad.settings.memory = false; break;                    // phrase/word digests only with memory
+        case 2: bad.settings.phrases = std::string(64, 'G'); break;
+        default: bad.settings.hour = -1; break;
+        }
+        assert(!valid(bad));
+    }
+    p = {"ni", false, {}, true}; codec(p);
+    p.words.push_back({1, 2, "你", ""}); assert(!valid(p));
+    p = {"ni", true, {{1, 2, "你", ""}}, true}; assert(!valid(p));
     const Opened opened{std::string(IdentitySize, 'a')}; codec(opened);
     Opened openedOut;
     assert(!decodePayload(encodePayload(KeyMessage{KeyAction::Text, 'a', true}), openedOut));

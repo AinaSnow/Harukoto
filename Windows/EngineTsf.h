@@ -5,6 +5,7 @@
 #include "EnginePipe.h"
 #include "EngineMessages.h"
 #include "EngineIdentity.h"
+#include "EngineMemory.h"
 #include "MixedComposition.h"
 #include <condition_variable>
 #include <deque>
@@ -88,7 +89,8 @@ public:
 };
 
 // The round-0 list of one reading: complete unless it ran past MaxPages.
-struct Fetched { std::vector<Candidate> words; bool complete = false; };
+// behind (step 6b): the engine could not reach the client's learned state.
+struct Fetched { std::vector<Candidate> words; bool complete = false, behind = false; };
 
 // One engine session. Mirrors the reading the engine holds and sends the
 // smallest key sequence that brings it to the requested one: one letter,
@@ -134,17 +136,26 @@ public:
     }
     const std::string &identity() const { return identity_; }
     Fetched fetch(const std::string &input, bool simplified, uint64_t deadline) {
+        return fetch(input, simplified, std::nullopt, deadline);
+    }
+    // settings (step 6b): the client's ranking state, sent with every key.
+    Fetched fetch(const std::string &input, bool simplified, const std::optional<engine::QuerySettings> &settings, uint64_t deadline) {
         if (input.empty() || !engine::inputValid(input)) throw std::invalid_argument("invalid engine reading");
         CandidatePage page;
+        const auto message = [&](KeyAction action, uint8_t c) {
+            KeyMessage m{action, c, simplified};
+            if (settings) { m.extended = true; m.settings = *settings; }
+            return m;
+        };
         const auto text = [&](char c, const std::string &expect) {
-            return key({KeyAction::Text, static_cast<uint8_t>(c), simplified}, expect, deadline);
+            return key(message(KeyAction::Text, static_cast<uint8_t>(c)), expect, deadline);
         };
         if (input.size() == mirror_.size() + 1 && input.compare(0, mirror_.size(), mirror_) == 0) {
             page = text(input.back(), input);
         } else if (!mirror_.empty() && input.size() + 1 == mirror_.size() && mirror_.compare(0, input.size(), input) == 0) {
-            page = key({KeyAction::Backspace, 0, simplified}, input, deadline);
+            page = key(message(KeyAction::Backspace, 0), input, deadline);
         } else if (input == mirror_ && !paged_) {
-            page = key({KeyAction::Refresh, 0, simplified}, input, deadline);
+            page = key(message(KeyAction::Refresh, 0), input, deadline);
         } else {
             mirror_.clear();
             const auto cancel = gate_.cancel(session_, now(), deadline);
@@ -154,6 +165,7 @@ public:
         }
         mirror_ = input; paged_ = false;
         Fetched out;
+        if (page.behind) { out.behind = true; return out; }
         for (size_t pages = 1;; ++pages) {
             bool later = false;
             for (auto &word : page.words) {
@@ -163,7 +175,8 @@ public:
             if (later || !page.more) { out.complete = true; break; }
             if (pages >= MaxPages) break;
             paged_ = true;
-            page = key({KeyAction::PageNext, 0, simplified}, input, deadline);
+            page = key(message(KeyAction::PageNext, 0), input, deadline);
+            if (page.behind) { out = {}; out.behind = true; return out; }
         }
         return out;
     }
@@ -176,7 +189,7 @@ public:
 class Link {
 public:
     enum class State { Connecting, Ready, Failed };
-    struct Request { uint64_t ticket = 0; std::string input; bool simplified = true; };
+    struct Request { uint64_t ticket = 0; std::string input; bool simplified = true; std::optional<engine::QuerySettings> settings; };
     struct Reply {
         uint64_t ticket = 0;
         bool ok = false, timeout = false;
@@ -218,7 +231,7 @@ private:
     static bool serve(Shared &s, Request request) {
         Reply reply{request.ticket, false, false, request.input, request.simplified, {}};
         try {
-            reply.fetched = s.driver->fetch(request.input, request.simplified, engine::pipe::now() + DeadlineMs);
+            reply.fetched = s.driver->fetch(request.input, request.simplified, request.settings, engine::pipe::now() + DeadlineMs);
             reply.ok = true;
         } catch (const Timeout &) { reply.timeout = true; } catch (...) {}
         std::lock_guard<std::mutex> lock(s.mutex);
@@ -373,6 +386,7 @@ public:
     Factory factory;
     struct Stats {
         uint64_t served = 0, fallbacks = 0, stale = 0, failures = 0;
+        uint64_t memoryBehind = 0; // Step 6b: replies "behind" the client's learned state.
         const char *path = "off";
         std::string reason = "none";
     } stats;
@@ -384,6 +398,8 @@ private:
     unsigned consecutive_ = 0;
     uint64_t retryAt_ = 0;
     bool blocked_ = false; // Failed in this composition: in-process until the next boundary.
+    std::string behind_;   // memoryKey() of the last "behind" reply,
+    uint64_t behindAt_ = 0; // and when it came.
 public:
     bool pending() const { return pending_.has_value(); }
     Link *link() const { return link_.get(); }
@@ -403,20 +419,33 @@ public:
         if (identity.empty() || link_->identity() != identity) { inProcess("identity"); return false; }
         return true;
     }
-    void send(const std::string &input, bool simplified, uint64_t now) {
+    void send(const std::string &input, bool simplified, uint64_t now, std::optional<engine::QuerySettings> settings = {}) {
         pending_ = Pending{++ticket_, input, simplified, now};
-        link_->submit({ticket_, input, simplified});
+        link_->submit({ticket_, input, simplified, std::move(settings)});
+    }
+    // Step 6b: the engine answered "behind" for exactly this learned state;
+    // do not ask again for BehindMs unless the client's state changes (its
+    // next poll or learning) or the link is replaced.
+    static std::string memoryKey(const engine::QuerySettings &q) {
+        return std::string(q.memory ? "1" : "0") + q.phrases + q.words + q.user;
+    }
+    static constexpr uint64_t BehindMs = 2000;
+    bool knownBehind(const engine::QuerySettings &q, uint64_t now) const {
+        return !behind_.empty() && now < behindAt_ + BehindMs && behind_ == memoryKey(q);
+    }
+    void behind(const engine::QuerySettings &q, uint64_t now) {
+        behind_ = memoryKey(q); behindAt_ = now; ++stats.memoryBehind; decline("memory_behind");
     }
     // A newer local list replaces whatever the engine is computing.
     void cancel() { pending_.reset(); }
     // Deactivation: drop the link (its worker ends on its own) and any request.
-    void close() { pending_.reset(); link_.reset(); }
+    void close() { pending_.reset(); link_.reset(); behind_.clear(); }
     // The reading became empty: a failed engine may be tried again.
     void boundary() { if (!pending_) blocked_ = false; }
     void fail(uint64_t now, const std::string &reason) {
         ++stats.failures; ++stats.fallbacks;
         stats.path = "fallback"; stats.reason = reason;
-        pending_.reset(); link_.reset(); blocked_ = true;
+        pending_.reset(); link_.reset(); blocked_ = true; behind_.clear();
         if (++consecutive_ >= StickyFailures) { retryAt_ = now + StickyMs; consecutive_ = 0; }
     }
     // Pending without failure (a list the engine cannot represent yet).
@@ -447,7 +476,8 @@ public:
         std::string reason;
         for (char c : stats.reason) if ((c >= 'a' && c <= 'z') || c == '_') reason += c;
         return ",\"engine_path\":\"" + std::string(stats.path) + "\",\"engine_served\":" + std::to_string(stats.served) +
-            ",\"engine_fallbacks\":" + std::to_string(stats.fallbacks) + ",\"engine_reason\":\"" + reason + "\"";
+            ",\"engine_fallbacks\":" + std::to_string(stats.fallbacks) + ",\"engine_reason\":\"" + reason + "\"" +
+            ",\"engine_memory_behind\":" + std::to_string(stats.memoryBehind);
     }
 };
 } // namespace harukoto::tsf_engine
