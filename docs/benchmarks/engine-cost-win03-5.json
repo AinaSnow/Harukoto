@@ -1,0 +1,2794 @@
+{
+  "format": 1,
+  "provenance": {
+    "revision": "99c37e20dc6c2474819519998586d0de742ec662",
+    "source_dirty": true,
+    "platform": "Windows-11-10.0.26300-SP0",
+    "logical_cpus": 16,
+    "cold": 10,
+    "handshake": 50,
+    "runs": 1,
+    "counts": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "threads": [
+      2,
+      4,
+      8
+    ],
+    "themes": true,
+    "sections": [
+      "cold",
+      "warm",
+      "keys"
+    ],
+    "corpus": {
+      "tuned": {
+        "inputs": 48,
+        "keys": 576,
+        "max_length": 19
+      },
+      "holdout": {
+        "inputs": 76,
+        "keys": 1273,
+        "max_length": 49
+      },
+      "words": {
+        "inputs": 250,
+        "keys": 1576,
+        "max_length": 10
+      },
+      "ff14": {
+        "inputs": 3,
+        "keys": 39,
+        "max_length": 15
+      }
+    },
+    "sources": {
+      "Windows/EngineResident.h": "a5f93a902c6b115b5b66fadb789b7e9b17d0f85d4124e82a39edc41ef027b1ed",
+      "Windows/EngineHandoff.h": "630b30c6ae069e36992fbc3f2154003e35b05ad7976d1ac78f48afb6ac46d1e7",
+      "Windows/EngineDiscovery.h": "87227d8a590bfebf9aff9508b18f6663c2fce92ab147e4850395bc4b811ea4ab",
+      "Windows/EngineDeployment.h": "194b215244e9cce8cafc2f07d16b026bd1f4d59938276ba6ec25aa709074177f",
+      "Windows/EngineRegistration.h": "ee09532bc3f469949791ecb47cbb7ccffc7a3dc78a05f7889aeee51ae2538364",
+      "Windows/EngineOwner.h": "43a6c96a6a7900cdeb78fe50ccdb634ed5674c2680b5dd74794fe182bcb473af",
+      "Windows/EngineOwner.cpp": "cc508158d80bec01290eec1a28a5174595a61bb3d73d22a7c069a52b20d1d7ac",
+      "Windows/EngineProcess.h": "f4f97cc4d0986dfdf47406e26de8684c45aa5d23fcdbeeb354e3bb3bddbffd6a",
+      "Windows/EngineHost.h": "d7200d5343f42eb45501ea88328b8be68f309b7ef36f6cd921177604fac85a75",
+      "Windows/EngineHost.cpp": "d0a5ef7ea6246b3dc57c0b4e2a8ce20c2433c07e06208aab064f379cbb7ac9a4",
+      "Windows/EngineExecutor.h": "e538abc2be24ee7264eed235a5634eba8ba10293a0090d77a495ec3cbd5e53b8",
+      "Windows/EngineWindows.h": "2e0529ed1e52aaabc774f80efdc88392d3d98eb5249cdf9fa9d5a9718856478a",
+      "Windows/tests/EngineCostBenchmark.cpp": "0e8f1fa7760f182da71db8fed7b2e036310ba093f677abcd88bf6dc4a2043877",
+      "scripts/benchmark-engine-cost.py": "909d739379036ffe16382377b5bb07d64f1d05abd894fd004ee43e8b6913f992"
+    },
+    "programs": {
+      "benchmark": "8669a0df0f6efd65dace97d76ef9d7a233302b02a33a4fbd67d3ace33c5a20f9",
+      "owner": "213dbb863b6363f0e137dde11e4be7a5be7b2853b1e4f61a70d95d92e954dfb4",
+      "host": "8376e2bc74e8dbecf19883608bc45f04b217cc416596be5385cee470f29e83a5"
+    },
+    "base_files": {
+      "native-pinyin.tsv": {
+        "size": 59311756,
+        "sha256": "2ddbee63379ecb88c511693a17af46eee848f627901458990551f960eb5d9d09"
+      },
+      "language-evidence.sqlite": {
+        "size": 90390528,
+        "sha256": "d825eb1c4ac55133e5ece68b00da2320275443e060755afb6351d39889fa4b7f"
+      },
+      "japanese.tsv": {
+        "size": 8933,
+        "sha256": "34c9274ad3d46364efd1ee804b1ff9c3648091c023c36c6e05e484eab41b653c"
+      },
+      "japanese-conjugations.bin": {
+        "size": 4376,
+        "sha256": "29cc5c3eac69a14e43f16e3a5a094fe69057d648c6c4ca688ec88d1cb844dbba"
+      }
+    },
+    "ff14_files": {
+      "manifest.json": "e4079519a4d0d77a7779d4c0e4a2f944f0e2d945d657f8fe31fc182e4ce6c5cf",
+      "ff14-words.txt": "b71e02c903a7d56a6ba70a8c542257105283cc4fd26325dff0ec34ac28ff4fe6"
+    }
+  },
+  "events": [
+    {
+      "type": "setup",
+      "logical_cpus": 16,
+      "physical_memory": 68626546688,
+      "corpus_inputs": 377,
+      "themes": true
+    },
+    {
+      "type": "pin",
+      "owner_bytes": 455680,
+      "host_bytes": 879616,
+      "stats": {
+        "pin_host_ms": {
+          "n": 50,
+          "median": 1.07485,
+          "p95": 1.2165,
+          "p99": 1.2666,
+          "max": 1.2666,
+          "mean": 1.103282
+        },
+        "pin_owner_ms": {
+          "n": 50,
+          "median": 0.8347,
+          "p95": 1.0377,
+          "p99": 1.2272,
+          "max": 1.2272,
+          "mean": 0.860152
+        }
+      }
+    },
+    {
+      "type": "cold",
+      "run": 0,
+      "threads": 0,
+      "launch": "Started",
+      "attempts": 3,
+      "ensure_ms": 1774.7483,
+      "owner_created_ms": 32.5846,
+      "host_created_ms": 64.5658,
+      "pipe_visible_ms": 1757.3806,
+      "allocate_ms": 0.1391,
+      "connect_ms": 0.5677,
+      "first_key_ms": 0.8724,
+      "next_keys_ms": {
+        "n": 4,
+        "median": 1.1638,
+        "p95": 1.564,
+        "p99": 1.564,
+        "max": 1.564,
+        "mean": 1.213525
+      },
+      "long_word_ms": 55.3239,
+      "owner": {
+        "private": 1957888,
+        "working_set": 9609216,
+        "peak_working_set": 9703424,
+        "handles": 151
+      },
+      "host": {
+        "private": 191787008,
+        "working_set": 190853120,
+        "peak_working_set": 217174016,
+        "handles": 91
+      }
+    },
+    {
+      "type": "cold",
+      "run": 1,
+      "threads": 0,
+      "launch": "Started",
+      "attempts": 3,
+      "ensure_ms": 1760.2371,
+      "owner_created_ms": 23.1942,
+      "host_created_ms": 45.5435,
+      "pipe_visible_ms": 1742.0163,
+      "allocate_ms": 0.1435,
+      "connect_ms": 0.5333,
+      "first_key_ms": 0.8627,
+      "next_keys_ms": {
+        "n": 4,
+        "median": 1.17465,
+        "p95": 1.5857,
+        "p99": 1.5857,
+        "max": 1.5857,
+        "mean": 1.2267
+      },
+      "long_word_ms": 55.4682,
+      "owner": {
+        "private": 1818624,
+        "working_set": 8945664,
+        "peak_working_set": 9015296,
+        "handles": 144
+      },
+      "host": {
+        "private": 191606784,
+        "working_set": 190201856,
+        "peak_working_set": 216391680,
+        "handles": 84
+      }
+    },
+    {
+      "type": "cold",
+      "run": 2,
+      "threads": 0,
+      "launch": "Started",
+      "attempts": 3,
+      "ensure_ms": 1728.5032,
+      "owner_created_ms": 22.7079,
+      "host_created_ms": 45.0917,
+      "pipe_visible_ms": 1726.2873,
+      "allocate_ms": 0.1479,
+      "connect_ms": 0.6169,
+      "first_key_ms": 0.823,
+      "next_keys_ms": {
+        "n": 4,
+        "median": 1.138,
+        "p95": 1.5565,
+        "p99": 1.5565,
+        "max": 1.5565,
+        "mean": 1.1871
+      },
+      "long_word_ms": 55.264,
+      "owner": {
+        "private": 1884160,
+        "working_set": 8978432,
+        "peak_working_set": 9039872,
+        "handles": 144
+      },
+      "host": {
+        "private": 191815680,
+        "working_set": 190263296,
+        "peak_working_set": 216469504,
+        "handles": 84
+      }
+    },
+    {
+      "type": "cold",
+      "run": 3,
+      "threads": 0,
+      "launch": "Started",
+      "attempts": 3,
+      "ensure_ms": 1761.2438,
+      "owner_created_ms": 22.6589,
+      "host_created_ms": 45.2274,
+      "pipe_visible_ms": 1743.2338,
+      "allocate_ms": 0.1941,
+      "connect_ms": 0.5744,
+      "first_key_ms": 0.948,
+      "next_keys_ms": {
+        "n": 4,
+        "median": 1.149,
+        "p95": 1.571,
+        "p99": 1.571,
+        "max": 1.571,
+        "mean": 1.19145
+      },
+      "long_word_ms": 55.3335,
+      "owner": {
+        "private": 1843200,
+        "working_set": 8962048,
+        "peak_working_set": 9031680,
+        "handles": 144
+      },
+      "host": {
+        "private": 191807488,
+        "working_set": 190332928,
+        "peak_working_set": 216539136,
+        "handles": 84
+      }
+    },
+    {
+      "type": "cold",
+      "run": 4,
+      "threads": 0,
+      "launch": "Started",
+      "attempts": 3,
+      "ensure_ms": 1736.7654,
+      "owner_created_ms": 23.4048,
+      "host_created_ms": 45.6615,
+      "pipe_visible_ms": 1734.7121,
+      "allocate_ms": 0.1376,
+      "connect_ms": 0.58,
+      "first_key_ms": 0.8516,
+      "next_keys_ms": {
+        "n": 4,
+        "median": 1.2339,
+        "p95": 1.5845,
+        "p99": 1.5845,
+        "max": 1.5845,
+        "mean": 1.285625
+      },
+      "long_word_ms": 56.1909,
+      "owner": {
+        "private": 1835008,
+        "working_set": 8962048,
+        "peak_working_set": 9031680,
+        "handles": 144
+      },
+      "host": {
+        "private": 191819776,
+        "working_set": 190394368,
+        "peak_working_set": 216420352,
+        "handles": 84
+      }
+    },
+    {
+      "type": "cold",
+      "run": 5,
+      "threads": 0,
+      "launch": "Started",
+      "attempts": 3,
+      "ensure_ms": 1735.7772,
+      "owner_created_ms": 22.7969,
+      "host_created_ms": 45.0489,
+      "pipe_visible_ms": 1733.745,
+      "allocate_ms": 0.1436,
+      "connect_ms": 0.557,
+      "first_key_ms": 0.863,
+      "next_keys_ms": {
+        "n": 4,
+        "median": 1.15935,
+        "p95": 1.7176,
+        "p99": 1.7176,
+        "max": 1.7176,
+        "mean": 1.243475
+      },
+      "long_word_ms": 55.9345,
+      "owner": {
+        "private": 1835008,
+        "working_set": 8970240,
+        "peak_working_set": 9035776,
+        "handles": 144
+      },
+      "host": {
+        "private": 191717376,
+        "working_set": 190369792,
+        "peak_working_set": 216526848,
+        "handles": 84
+      }
+    },
+    {
+      "type": "cold",
+      "run": 6,
+      "threads": 0,
+      "launch": "Started",
+      "attempts": 3,
+      "ensure_ms": 1724.7032,
+      "owner_created_ms": 23.1775,
+      "host_created_ms": 44.2662,
+      "pipe_visible_ms": 1722.5486,
+      "allocate_ms": 0.1416,
+      "connect_ms": 0.5852,
+      "first_key_ms": 0.8499,
+      "next_keys_ms": {
+        "n": 4,
+        "median": 1.24055,
+        "p95": 1.5927,
+        "p99": 1.5927,
+        "max": 1.5927,
+        "mean": 1.24355
+      },
+      "long_word_ms": 55.4257,
+      "owner": {
+        "private": 1826816,
+        "working_set": 8953856,
+        "peak_working_set": 9023488,
+        "handles": 144
+      },
+      "host": {
+        "private": 191815680,
+        "working_set": 190291968,
+        "peak_working_set": 216481792,
+        "handles": 84
+      }
+    },
+    {
+      "type": "cold",
+      "run": 7,
+      "threads": 0,
+      "launch": "Started",
+      "attempts": 3,
+      "ensure_ms": 1747.6698,
+      "owner_created_ms": 22.5486,
+      "host_created_ms": 44.0087,
+      "pipe_visible_ms": 1729.8486,
+      "allocate_ms": 0.1556,
+      "connect_ms": 0.5498,
+      "first_key_ms": 0.9214,
+      "next_keys_ms": {
+        "n": 4,
+        "median": 1.23085,
+        "p95": 1.6867,
+        "p99": 1.6867,
+        "max": 1.6867,
+        "mean": 1.28015
+      },
+      "long_word_ms": 58.6172,
+      "owner": {
+        "private": 1830912,
+        "working_set": 8953856,
+        "peak_working_set": 9023488,
+        "handles": 144
+      },
+      "host": {
+        "private": 191807488,
+        "working_set": 190304256,
+        "peak_working_set": 216530944,
+        "handles": 84
+      }
+    },
+    {
+      "type": "cold",
+      "run": 8,
+      "threads": 0,
+      "launch": "Started",
+      "attempts": 3,
+      "ensure_ms": 1756.1285,
+      "owner_created_ms": 22.0659,
+      "host_created_ms": 43.6662,
+      "pipe_visible_ms": 1737.9968,
+      "allocate_ms": 0.1388,
+      "connect_ms": 0.5062,
+      "first_key_ms": 0.8326,
+      "next_keys_ms": {
+        "n": 4,
+        "median": 1.3512,
+        "p95": 1.6002,
+        "p99": 1.6002,
+        "max": 1.6002,
+        "mean": 1.304825
+      },
+      "long_word_ms": 54.6971,
+      "owner": {
+        "private": 1667072,
+        "working_set": 8966144,
+        "peak_working_set": 9031680,
+        "handles": 144
+      },
+      "host": {
+        "private": 191905792,
+        "working_set": 190349312,
+        "peak_working_set": 216444928,
+        "handles": 84
+      }
+    },
+    {
+      "type": "cold",
+      "run": 9,
+      "threads": 0,
+      "launch": "Started",
+      "attempts": 3,
+      "ensure_ms": 1745.9899,
+      "owner_created_ms": 22.8385,
+      "host_created_ms": 44.169,
+      "pipe_visible_ms": 1727.9553,
+      "allocate_ms": 0.1392,
+      "connect_ms": 0.6374,
+      "first_key_ms": 0.8503,
+      "next_keys_ms": {
+        "n": 4,
+        "median": 1.1562,
+        "p95": 1.5823,
+        "p99": 1.5823,
+        "max": 1.5823,
+        "mean": 1.207075
+      },
+      "long_word_ms": 55.7846,
+      "owner": {
+        "private": 1843200,
+        "working_set": 8962048,
+        "peak_working_set": 9027584,
+        "handles": 144
+      },
+      "host": {
+        "private": 191787008,
+        "working_set": 190382080,
+        "peak_working_set": 216539136,
+        "handles": 84
+      }
+    },
+    {
+      "type": "handshake",
+      "held": false,
+      "reps": 50,
+      "stats": {
+        "admit_handoff_ms": {
+          "n": 50,
+          "median": 0.4886,
+          "p95": 0.608,
+          "p99": 0.7346,
+          "max": 0.7346,
+          "mean": 0.49971
+        },
+        "admit_ms": {
+          "n": 50,
+          "median": 1.11745,
+          "p95": 1.306,
+          "p99": 1.5012,
+          "max": 1.5012,
+          "mean": 1.134116
+        },
+        "admit_verified_ms": {
+          "n": 50,
+          "median": 0.63295,
+          "p95": 0.7519,
+          "p99": 0.7717,
+          "max": 0.7717,
+          "mean": 0.634406
+        },
+        "allocate_ms": {
+          "n": 50,
+          "median": 0.1119,
+          "p95": 0.1364,
+          "p99": 0.1659,
+          "max": 0.1659,
+          "mean": 0.11444
+        },
+        "connect_ms": {
+          "n": 50,
+          "median": 0.5106,
+          "p95": 0.5537,
+          "p99": 0.5931,
+          "max": 0.5931,
+          "mean": 0.506868
+        },
+        "discover_ms": {
+          "n": 50,
+          "median": 0.77685,
+          "p95": 0.9014,
+          "p99": 0.9267,
+          "max": 0.9267,
+          "mean": 0.785464
+        },
+        "first_key_ms": {
+          "n": 50,
+          "median": 0.63465,
+          "p95": 0.7977,
+          "p99": 0.8288,
+          "max": 0.8288,
+          "mean": 0.646894
+        }
+      }
+    },
+    {
+      "type": "handshake",
+      "held": true,
+      "reps": 50,
+      "stats": {
+        "admit_handoff_ms": {
+          "n": 50,
+          "median": 0.48285,
+          "p95": 0.5831,
+          "p99": 0.7116,
+          "max": 0.7116,
+          "mean": 0.493844
+        },
+        "admit_ms": {
+          "n": 50,
+          "median": 1.0985,
+          "p95": 1.2404,
+          "p99": 1.3788,
+          "max": 1.3788,
+          "mean": 1.10386
+        },
+        "admit_verified_ms": {
+          "n": 50,
+          "median": 0.6015,
+          "p95": 0.7043,
+          "p99": 0.8595,
+          "max": 0.8595,
+          "mean": 0.610016
+        },
+        "allocate_ms": {
+          "n": 50,
+          "median": 0.10905,
+          "p95": 0.1474,
+          "p99": 0.3464,
+          "max": 0.3464,
+          "mean": 0.118918
+        },
+        "connect_ms": {
+          "n": 50,
+          "median": 0.48235,
+          "p95": 0.5984,
+          "p99": 1.3547,
+          "max": 1.3547,
+          "mean": 0.506582
+        },
+        "discover_ms": {
+          "n": 50,
+          "median": 0.7713,
+          "p95": 0.8474,
+          "p99": 1.2848,
+          "max": 1.2848,
+          "mean": 0.76531
+        },
+        "first_key_ms": {
+          "n": 50,
+          "median": 0.6353,
+          "p95": 0.7863,
+          "p99": 8.1804,
+          "max": 8.1804,
+          "mean": 0.802996
+        }
+      }
+    },
+    {
+      "type": "ledger",
+      "reps": 50,
+      "stats": {
+        "clients_write_ms": {
+          "n": 50,
+          "median": 0.05815,
+          "p95": 0.1087,
+          "p99": 0.1469,
+          "max": 0.1469,
+          "mean": 0.064522
+        },
+        "inspect_ms": {
+          "n": 50,
+          "median": 0.0822,
+          "p95": 0.1077,
+          "p99": 0.1264,
+          "max": 0.1264,
+          "mean": 0.08609
+        },
+        "open_ms": {
+          "n": 50,
+          "median": 0.03725,
+          "p95": 0.0615,
+          "p99": 0.1468,
+          "max": 0.1468,
+          "mean": 0.041488
+        },
+        "release_read_ms": {
+          "n": 50,
+          "median": 0.0278,
+          "p95": 0.0417,
+          "p99": 0.0753,
+          "max": 0.0753,
+          "mean": 0.030504
+        },
+        "state_write_ms": {
+          "n": 50,
+          "median": 0.015,
+          "p95": 0.0188,
+          "p99": 0.0478,
+          "max": 0.0478,
+          "mean": 0.015998
+        }
+      }
+    },
+    {
+      "type": "sessions",
+      "count": 0,
+      "owner": {
+        "private": 1863680,
+        "working_set": 8957952,
+        "peak_working_set": 9023488,
+        "handles": 142
+      },
+      "host": {
+        "private": 191705088,
+        "working_set": 190210048,
+        "peak_working_set": 216539136,
+        "handles": 81
+      },
+      "client": {
+        "private": 2584576,
+        "working_set": 14700544,
+        "peak_working_set": 20140032,
+        "handles": 180
+      }
+    },
+    {
+      "type": "sessions",
+      "count": 1,
+      "owner": {
+        "private": 1863680,
+        "working_set": 8962048,
+        "peak_working_set": 9023488,
+        "handles": 146
+      },
+      "host": {
+        "private": 191705088,
+        "working_set": 190308352,
+        "peak_working_set": 216539136,
+        "handles": 84
+      },
+      "client": {
+        "private": 3121152,
+        "working_set": 15101952,
+        "peak_working_set": 20140032,
+        "handles": 212
+      }
+    },
+    {
+      "type": "sessions",
+      "count": 2,
+      "owner": {
+        "private": 1863680,
+        "working_set": 8966144,
+        "peak_working_set": 9023488,
+        "handles": 150
+      },
+      "host": {
+        "private": 191795200,
+        "working_set": 190386176,
+        "peak_working_set": 216539136,
+        "handles": 87
+      },
+      "client": {
+        "private": 3207168,
+        "working_set": 15187968,
+        "peak_working_set": 20140032,
+        "handles": 225
+      }
+    },
+    {
+      "type": "sessions",
+      "count": 4,
+      "owner": {
+        "private": 1863680,
+        "working_set": 8974336,
+        "peak_working_set": 9023488,
+        "handles": 159
+      },
+      "host": {
+        "private": 191885312,
+        "working_set": 190550016,
+        "peak_working_set": 216539136,
+        "handles": 93
+      },
+      "client": {
+        "private": 3293184,
+        "working_set": 15261696,
+        "peak_working_set": 20140032,
+        "handles": 251
+      }
+    },
+    {
+      "type": "sessions",
+      "count": 8,
+      "owner": {
+        "private": 1863680,
+        "working_set": 8990720,
+        "peak_working_set": 9023488,
+        "handles": 179
+      },
+      "host": {
+        "private": 192155648,
+        "working_set": 190820352,
+        "peak_working_set": 216539136,
+        "handles": 105
+      },
+      "client": {
+        "private": 3387392,
+        "working_set": 15413248,
+        "peak_working_set": 20140032,
+        "handles": 303
+      }
+    },
+    {
+      "type": "sessions",
+      "count": 0,
+      "owner": {
+        "private": 1863680,
+        "working_set": 8957952,
+        "peak_working_set": 9023488,
+        "handles": 147
+      },
+      "host": {
+        "private": 192155648,
+        "working_set": 190820352,
+        "peak_working_set": 216539136,
+        "handles": 81
+      },
+      "client": {
+        "private": 2715648,
+        "working_set": 14737408,
+        "peak_working_set": 20140032,
+        "handles": 180
+      }
+    },
+    {
+      "type": "idle",
+      "wall_ms": 10003.4041,
+      "owner_cpu_ms": 0.0,
+      "host_cpu_ms": 0.0,
+      "owner": {
+        "private": 1863680,
+        "working_set": 8962048,
+        "peak_working_set": 9023488,
+        "handles": 151
+      },
+      "host": {
+        "private": 192155648,
+        "working_set": 190820352,
+        "peak_working_set": 216539136,
+        "handles": 84
+      }
+    },
+    {
+      "type": "trim",
+      "rep": 0,
+      "first_key_ms": 1.4712,
+      "rest_ms": 6.2867,
+      "long_word_ms": 58.0894,
+      "host_trimmed": {
+        "private": 192155648,
+        "working_set": 0,
+        "peak_working_set": 216539136,
+        "handles": 84
+      },
+      "owner_trimmed": {
+        "private": 1863680,
+        "working_set": 0,
+        "peak_working_set": 9023488,
+        "handles": 151
+      },
+      "host_after": {
+        "private": 192155648,
+        "working_set": 23195648,
+        "peak_working_set": 216539136,
+        "handles": 84
+      }
+    },
+    {
+      "type": "trim",
+      "rep": 1,
+      "first_key_ms": 1.4357,
+      "rest_ms": 6.0153,
+      "long_word_ms": 57.701,
+      "host_trimmed": {
+        "private": 192155648,
+        "working_set": 0,
+        "peak_working_set": 216539136,
+        "handles": 84
+      },
+      "owner_trimmed": {
+        "private": 1863680,
+        "working_set": 0,
+        "peak_working_set": 9023488,
+        "handles": 151
+      },
+      "host_after": {
+        "private": 192155648,
+        "working_set": 23236608,
+        "peak_working_set": 216539136,
+        "handles": 84
+      }
+    },
+    {
+      "type": "trim",
+      "rep": 2,
+      "first_key_ms": 1.5216,
+      "rest_ms": 6.2615,
+      "long_word_ms": 56.6717,
+      "host_trimmed": {
+        "private": 192155648,
+        "working_set": 0,
+        "peak_working_set": 216539136,
+        "handles": 84
+      },
+      "owner_trimmed": {
+        "private": 1863680,
+        "working_set": 0,
+        "peak_working_set": 9023488,
+        "handles": 151
+      },
+      "host_after": {
+        "private": 192159744,
+        "working_set": 23269376,
+        "peak_working_set": 216539136,
+        "handles": 84
+      }
+    },
+    {
+      "type": "trim",
+      "rep": 3,
+      "first_key_ms": 1.4604,
+      "rest_ms": 6.2342,
+      "long_word_ms": 57.0917,
+      "host_trimmed": {
+        "private": 192159744,
+        "working_set": 0,
+        "peak_working_set": 216539136,
+        "handles": 84
+      },
+      "owner_trimmed": {
+        "private": 1863680,
+        "working_set": 0,
+        "peak_working_set": 9023488,
+        "handles": 151
+      },
+      "host_after": {
+        "private": 192159744,
+        "working_set": 23289856,
+        "peak_working_set": 216539136,
+        "handles": 84
+      }
+    },
+    {
+      "type": "trim",
+      "rep": 4,
+      "first_key_ms": 1.5952,
+      "rest_ms": 6.1969,
+      "long_word_ms": 57.5893,
+      "host_trimmed": {
+        "private": 192159744,
+        "working_set": 0,
+        "peak_working_set": 216539136,
+        "handles": 84
+      },
+      "owner_trimmed": {
+        "private": 1863680,
+        "working_set": 0,
+        "peak_working_set": 9023488,
+        "handles": 151
+      },
+      "host_after": {
+        "private": 192159744,
+        "working_set": 23326720,
+        "peak_working_set": 216539136,
+        "handles": 84
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "inproc",
+      "threads": 0,
+      "clients": 1,
+      "runs": 1,
+      "prepare_ms": 1677.3382,
+      "wall_ms": 23685.6175,
+      "host_cpu_ms": 0.0,
+      "memory": {
+        "ready": {
+          "clients": 191541248,
+          "owner": 0,
+          "host": 0,
+          "total": 191541248
+        },
+        "held": {
+          "clients": 195055616,
+          "owner": 0,
+          "host": 0,
+          "total": 195055616
+        }
+      },
+      "overall": {
+        "n": 3464,
+        "median": 2.21325,
+        "p95": 25.219101,
+        "p99": 64.558296,
+        "max": 197.5616,
+        "mean": 6.836972
+      },
+      "classes": {
+        "tuned": {
+          "n": 576,
+          "median": 3.847,
+          "p95": 17.7101,
+          "p99": 25.219101,
+          "max": 36.328602,
+          "mean": 6.02891
+        },
+        "holdout": {
+          "n": 1273,
+          "median": 7.3178,
+          "p95": 44.042999,
+          "p99": 130.793701,
+          "max": 197.5616,
+          "mean": 13.376234
+        },
+        "words": {
+          "n": 1576,
+          "median": 1.2982,
+          "p95": 5.1103,
+          "p99": 8.7678,
+          "max": 15.0759,
+          "mean": 1.871785
+        },
+        "ff14": {
+          "n": 39,
+          "median": 5.1372,
+          "p95": 16.0889,
+          "p99": 17.663099,
+          "max": 17.663099,
+          "mean": 5.967651
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 1507,
+          "median": 0.9154,
+          "p95": 1.7411,
+          "p99": 2.248,
+          "max": 2.8226,
+          "mean": 0.996768
+        },
+        "05-08": {
+          "n": 1049,
+          "median": 3.1617,
+          "p95": 7.6844,
+          "p99": 10.3692,
+          "max": 13.2912,
+          "mean": 3.734015
+        },
+        "09-16": {
+          "n": 682,
+          "median": 11.06795,
+          "p95": 20.5201,
+          "p99": 25.735901,
+          "max": 29.055201,
+          "mean": 11.886796
+        },
+        "17+": {
+          "n": 226,
+          "median": 32.5424,
+          "p95": 137.975494,
+          "p99": 185.408707,
+          "max": 197.5616,
+          "mean": 44.944089
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "inproc",
+      "threads": 0,
+      "clients": 2,
+      "runs": 1,
+      "prepare_ms": 1776.6695,
+      "wall_ms": 24240.8769,
+      "host_cpu_ms": 0.0,
+      "memory": {
+        "ready": {
+          "clients": 383307776,
+          "owner": 0,
+          "host": 0,
+          "total": 383307776
+        },
+        "held": {
+          "clients": 388993024,
+          "owner": 0,
+          "host": 0,
+          "total": 388993024
+        }
+      },
+      "overall": {
+        "n": 6928,
+        "median": 2.26675,
+        "p95": 25.7589,
+        "p99": 65.168701,
+        "max": 200.305801,
+        "mean": 6.994266
+      },
+      "classes": {
+        "tuned": {
+          "n": 1152,
+          "median": 3.806,
+          "p95": 17.966101,
+          "p99": 27.524401,
+          "max": 38.3689,
+          "mean": 6.150245
+        },
+        "holdout": {
+          "n": 2546,
+          "median": 7.3827,
+          "p95": 45.090801,
+          "p99": 130.076294,
+          "max": 200.305801,
+          "mean": 13.663017
+        },
+        "words": {
+          "n": 3152,
+          "median": 1.35195,
+          "p95": 5.2831,
+          "p99": 8.894,
+          "max": 15.5441,
+          "mean": 1.936715
+        },
+        "ff14": {
+          "n": 78,
+          "median": 5.6559,
+          "p95": 16.901899,
+          "p99": 18.794001,
+          "max": 18.794001,
+          "mean": 6.161842
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 3014,
+          "median": 0.94845,
+          "p95": 1.8169,
+          "p99": 2.3844,
+          "max": 3.0557,
+          "mean": 1.032267
+        },
+        "05-08": {
+          "n": 2098,
+          "median": 3.2693,
+          "p95": 8.0242,
+          "p99": 11.0019,
+          "max": 13.4075,
+          "mean": 3.82835
+        },
+        "09-16": {
+          "n": 1364,
+          "median": 11.1845,
+          "p95": 20.990299,
+          "p99": 26.671,
+          "max": 40.023899,
+          "mean": 12.129112
+        },
+        "17+": {
+          "n": 452,
+          "median": 33.631201,
+          "p95": 142.938293,
+          "p99": 194.371002,
+          "max": 200.305801,
+          "mean": 45.949189
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "inproc",
+      "threads": 0,
+      "clients": 4,
+      "runs": 1,
+      "prepare_ms": 1909.3739,
+      "wall_ms": 24757.2143,
+      "host_cpu_ms": 0.0,
+      "memory": {
+        "ready": {
+          "clients": 766296064,
+          "owner": 0,
+          "host": 0,
+          "total": 766296064
+        },
+        "held": {
+          "clients": 779022336,
+          "owner": 0,
+          "host": 0,
+          "total": 779022336
+        }
+      },
+      "overall": {
+        "n": 13856,
+        "median": 2.34195,
+        "p95": 26.146099,
+        "p99": 67.057404,
+        "max": 205.693207,
+        "mean": 7.137266
+      },
+      "classes": {
+        "tuned": {
+          "n": 2304,
+          "median": 3.9,
+          "p95": 18.3617,
+          "p99": 25.504299,
+          "max": 40.330601,
+          "mean": 6.257517
+        },
+        "holdout": {
+          "n": 5092,
+          "median": 7.5994,
+          "p95": 47.137199,
+          "p99": 137.083496,
+          "max": 205.693207,
+          "mean": 13.940275
+        },
+        "words": {
+          "n": 6304,
+          "median": 1.39735,
+          "p95": 5.398,
+          "p99": 9.0247,
+          "max": 16.549801,
+          "mean": 1.985138
+        },
+        "ff14": {
+          "n": 156,
+          "median": 5.36515,
+          "p95": 16.3283,
+          "p99": 18.566601,
+          "max": 18.569201,
+          "mean": 6.272058
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 6028,
+          "median": 0.9938,
+          "p95": 1.8777,
+          "p99": 2.4453,
+          "max": 3.7192,
+          "mean": 1.075411
+        },
+        "05-08": {
+          "n": 4196,
+          "median": 3.3225,
+          "p95": 8.0694,
+          "p99": 11.0225,
+          "max": 14.4425,
+          "mean": 3.900903
+        },
+        "09-16": {
+          "n": 2728,
+          "median": 11.4879,
+          "p95": 21.6229,
+          "p99": 26.6474,
+          "max": 31.997,
+          "mean": 12.337088
+        },
+        "17+": {
+          "n": 904,
+          "median": 34.08415,
+          "p95": 141.9879,
+          "p99": 196.012207,
+          "max": 205.693207,
+          "mean": 46.888946
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "inproc",
+      "threads": 0,
+      "clients": 8,
+      "runs": 1,
+      "prepare_ms": 2283.3298,
+      "wall_ms": 27878.888,
+      "host_cpu_ms": 0.0,
+      "memory": {
+        "ready": {
+          "clients": 1532567552,
+          "owner": 0,
+          "host": 0,
+          "total": 1532567552
+        },
+        "held": {
+          "clients": 1556746240,
+          "owner": 0,
+          "host": 0,
+          "total": 1556746240
+        }
+      },
+      "overall": {
+        "n": 27712,
+        "median": 2.57055,
+        "p95": 29.931999,
+        "p99": 77.236504,
+        "max": 247.724304,
+        "mean": 8.026875
+      },
+      "classes": {
+        "tuned": {
+          "n": 4608,
+          "median": 4.23335,
+          "p95": 20.9137,
+          "p99": 31.299101,
+          "max": 47.4716,
+          "mean": 7.027677
+        },
+        "holdout": {
+          "n": 10184,
+          "median": 8.2529,
+          "p95": 53.207802,
+          "p99": 154.975204,
+          "max": 247.724304,
+          "mean": 15.701782
+        },
+        "words": {
+          "n": 12608,
+          "median": 1.551,
+          "p95": 6.0899,
+          "p99": 10.0586,
+          "max": 21.2623,
+          "mean": 2.218637
+        },
+        "ff14": {
+          "n": 312,
+          "median": 6.1715,
+          "p95": 17.9748,
+          "p99": 23.3452,
+          "max": 28.799801,
+          "mean": 6.979742
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 12056,
+          "median": 1.1028,
+          "p95": 2.1563,
+          "p99": 2.8224,
+          "max": 4.3784,
+          "mean": 1.20144
+        },
+        "05-08": {
+          "n": 8392,
+          "median": 3.6548,
+          "p95": 9.1999,
+          "p99": 12.8879,
+          "max": 18.305201,
+          "mean": 4.32972
+        },
+        "09-16": {
+          "n": 5456,
+          "median": 12.6624,
+          "p95": 24.7812,
+          "p99": 31.178101,
+          "max": 47.185501,
+          "mean": 13.797273
+        },
+        "17+": {
+          "n": 1808,
+          "median": 38.100649,
+          "p95": 165.8918,
+          "p99": 220.386398,
+          "max": 247.724304,
+          "mean": 53.287196
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 2,
+      "clients": 1,
+      "runs": 1,
+      "prepare_ms": 37.3569,
+      "wall_ms": 23644.1388,
+      "host_cpu_ms": 23421.875,
+      "memory": {
+        "ready": {
+          "clients": 1773568,
+          "owner": 1814528,
+          "host": 191586304,
+          "total": 195174400
+        },
+        "held": {
+          "clients": 1941504,
+          "owner": 1814528,
+          "host": 193896448,
+          "total": 197652480
+        }
+      },
+      "overall": {
+        "n": 3464,
+        "median": 2.31585,
+        "p95": 24.594801,
+        "p99": 62.454399,
+        "max": 192.881393,
+        "mean": 6.821634
+      },
+      "classes": {
+        "tuned": {
+          "n": 576,
+          "median": 3.83775,
+          "p95": 17.350401,
+          "p99": 25.0263,
+          "max": 36.154202,
+          "mean": 6.064002
+        },
+        "holdout": {
+          "n": 1273,
+          "median": 7.393,
+          "p95": 43.459499,
+          "p99": 125.8367,
+          "max": 192.881393,
+          "mean": 13.198467
+        },
+        "words": {
+          "n": 1576,
+          "median": 1.40695,
+          "p95": 5.1803,
+          "p99": 8.7924,
+          "max": 15.0044,
+          "mean": 1.967707
+        },
+        "ff14": {
+          "n": 39,
+          "median": 5.1569,
+          "p95": 15.8944,
+          "p99": 17.763,
+          "max": 17.763,
+          "mean": 6.013336
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 1507,
+          "median": 1.017,
+          "p95": 1.8646,
+          "p99": 2.3764,
+          "max": 3.3354,
+          "mean": 1.103627
+        },
+        "05-08": {
+          "n": 1049,
+          "median": 3.2578,
+          "p95": 7.8652,
+          "p99": 10.4684,
+          "max": 13.5984,
+          "mean": 3.803394
+        },
+        "09-16": {
+          "n": 682,
+          "median": 10.93575,
+          "p95": 20.332399,
+          "p99": 24.970699,
+          "max": 28.4175,
+          "mean": 11.780241
+        },
+        "17+": {
+          "n": 226,
+          "median": 31.70265,
+          "p95": 135.035202,
+          "p99": 180.636703,
+          "max": 192.881393,
+          "mean": 43.995973
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 2,
+      "clients": 2,
+      "runs": 1,
+      "prepare_ms": 44.338,
+      "wall_ms": 24143.5575,
+      "host_cpu_ms": 47812.5,
+      "memory": {
+        "ready": {
+          "clients": 3543040,
+          "owner": 1814528,
+          "host": 193896448,
+          "total": 199254016
+        },
+        "held": {
+          "clients": 3842048,
+          "owner": 1724416,
+          "host": 196362240,
+          "total": 201928704
+        }
+      },
+      "overall": {
+        "n": 6928,
+        "median": 2.3556,
+        "p95": 25.181499,
+        "p99": 63.912601,
+        "max": 209.715607,
+        "mean": 6.954705
+      },
+      "classes": {
+        "tuned": {
+          "n": 1152,
+          "median": 3.9875,
+          "p95": 17.9445,
+          "p99": 24.957001,
+          "max": 36.935902,
+          "mean": 6.178927
+        },
+        "holdout": {
+          "n": 2546,
+          "median": 7.47085,
+          "p95": 45.047901,
+          "p99": 134.290695,
+          "max": 209.715607,
+          "mean": 13.477187
+        },
+        "words": {
+          "n": 3152,
+          "median": 1.3969,
+          "p95": 5.3449,
+          "p99": 8.8336,
+          "max": 15.4817,
+          "mean": 1.987967
+        },
+        "ff14": {
+          "n": 78,
+          "median": 5.73285,
+          "p95": 16.3456,
+          "p99": 18.160101,
+          "max": 18.160101,
+          "mean": 6.219009
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 3014,
+          "median": 1.0048,
+          "p95": 1.8509,
+          "p99": 2.4239,
+          "max": 2.9525,
+          "mean": 1.097335
+        },
+        "05-08": {
+          "n": 2098,
+          "median": 3.33735,
+          "p95": 7.8067,
+          "p99": 10.5916,
+          "max": 13.8642,
+          "mean": 3.869513
+        },
+        "09-16": {
+          "n": 1364,
+          "median": 11.1729,
+          "p95": 20.979601,
+          "p99": 25.9133,
+          "max": 29.7349,
+          "mean": 12.020935
+        },
+        "17+": {
+          "n": 452,
+          "median": 32.949051,
+          "p95": 139.125107,
+          "p99": 185.883698,
+          "max": 209.715607,
+          "mean": 45.044327
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 2,
+      "clients": 4,
+      "runs": 1,
+      "prepare_ms": 62.394,
+      "wall_ms": 48019.7542,
+      "host_cpu_ms": 95296.875,
+      "memory": {
+        "ready": {
+          "clients": 7069696,
+          "owner": 1724416,
+          "host": 196362240,
+          "total": 205156352
+        },
+        "held": {
+          "clients": 7364608,
+          "owner": 1724416,
+          "host": 196923392,
+          "total": 206012416
+        }
+      },
+      "overall": {
+        "n": 13856,
+        "median": 6.5263,
+        "p95": 44.4491,
+        "p99": 97.777802,
+        "max": 358.076111,
+        "mean": 13.691353
+      },
+      "classes": {
+        "tuned": {
+          "n": 2304,
+          "median": 10.4765,
+          "p95": 27.0564,
+          "p99": 37.791901,
+          "max": 52.136902,
+          "mean": 12.042609
+        },
+        "holdout": {
+          "n": 5092,
+          "median": 18.3486,
+          "p95": 71.484398,
+          "p99": 186.843597,
+          "max": 358.076111,
+          "mean": 26.69661
+        },
+        "words": {
+          "n": 6304,
+          "median": 3.41855,
+          "p95": 8.2537,
+          "p99": 12.1422,
+          "max": 20.5487,
+          "mean": 3.932079
+        },
+        "ff14": {
+          "n": 156,
+          "median": 7.3809,
+          "p95": 18.2059,
+          "p99": 22.6376,
+          "max": 22.7195,
+          "mean": 7.911869
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 6028,
+          "median": 3.34425,
+          "p95": 17.274401,
+          "p99": 34.8918,
+          "max": 246.251495,
+          "mean": 5.609923
+        },
+        "05-08": {
+          "n": 4196,
+          "median": 6.3209,
+          "p95": 25.8029,
+          "p99": 48.1502,
+          "max": 305.849213,
+          "mean": 9.596203
+        },
+        "09-16": {
+          "n": 2728,
+          "median": 18.497499,
+          "p95": 45.8381,
+          "p99": 78.173203,
+          "max": 325.729889,
+          "mean": 22.182975
+        },
+        "17+": {
+          "n": 904,
+          "median": 45.134451,
+          "p95": 179.684692,
+          "p99": 270.407593,
+          "max": 358.076111,
+          "mean": 60.962331
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 2,
+      "clients": 8,
+      "runs": 1,
+      "prepare_ms": 95.3438,
+      "wall_ms": 95475.4017,
+      "host_cpu_ms": 191093.75,
+      "memory": {
+        "ready": {
+          "clients": 14196736,
+          "owner": 1769472,
+          "host": 196923392,
+          "total": 212889600
+        },
+        "held": {
+          "clients": 14639104,
+          "owner": 1769472,
+          "host": 198074368,
+          "total": 214482944
+        }
+      },
+      "overall": {
+        "n": 27712,
+        "median": 12.4566,
+        "p95": 81.600098,
+        "p99": 200.582306,
+        "max": 523.309875,
+        "mean": 27.435441
+      },
+      "classes": {
+        "tuned": {
+          "n": 4608,
+          "median": 19.78995,
+          "p95": 56.248299,
+          "p99": 81.252998,
+          "max": 129.466293,
+          "mean": 24.175407
+        },
+        "holdout": {
+          "n": 10184,
+          "median": 40.232948,
+          "p95": 137.731796,
+          "p99": 323.363098,
+          "max": 523.309875,
+          "mean": 53.614768
+        },
+        "words": {
+          "n": 12608,
+          "median": 7.35615,
+          "p95": 13.3907,
+          "p99": 17.8533,
+          "max": 31.597401,
+          "mean": 7.823209
+        },
+        "ff14": {
+          "n": 312,
+          "median": 12.8277,
+          "p95": 27.459299,
+          "p99": 33.282398,
+          "max": 36.419498,
+          "mean": 13.598828
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 12056,
+          "median": 7.64445,
+          "p95": 44.417198,
+          "p99": 83.735603,
+          "max": 503.612213,
+          "mean": 13.587415
+        },
+        "05-08": {
+          "n": 8392,
+          "median": 11.2373,
+          "p95": 59.606098,
+          "p99": 102.947998,
+          "max": 337.490204,
+          "mean": 20.030527
+        },
+        "09-16": {
+          "n": 5456,
+          "median": 38.3237,
+          "p95": 90.512001,
+          "p99": 188.2836,
+          "max": 476.2453,
+          "mean": 44.66532
+        },
+        "17+": {
+          "n": 1808,
+          "median": 73.145451,
+          "p95": 300.302704,
+          "p99": 474.681793,
+          "max": 523.309875,
+          "mean": 102.152038
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 4,
+      "clients": 1,
+      "runs": 1,
+      "prepare_ms": 38.8031,
+      "wall_ms": 23727.971,
+      "host_cpu_ms": 23359.375,
+      "memory": {
+        "ready": {
+          "clients": 1773568,
+          "owner": 1830912,
+          "host": 191287296,
+          "total": 194891776
+        },
+        "held": {
+          "clients": 1941504,
+          "owner": 1830912,
+          "host": 194727936,
+          "total": 198500352
+        }
+      },
+      "overall": {
+        "n": 3464,
+        "median": 2.30885,
+        "p95": 24.8311,
+        "p99": 63.450199,
+        "max": 196.384598,
+        "mean": 6.846147
+      },
+      "classes": {
+        "tuned": {
+          "n": 576,
+          "median": 3.78555,
+          "p95": 17.417999,
+          "p99": 25.1605,
+          "max": 36.452801,
+          "mean": 6.090053
+        },
+        "holdout": {
+          "n": 1273,
+          "median": 7.4206,
+          "p95": 44.123699,
+          "p99": 129.267105,
+          "max": 196.384598,
+          "mean": 13.252089
+        },
+        "words": {
+          "n": 1576,
+          "median": 1.39945,
+          "p95": 5.191,
+          "p99": 8.9728,
+          "max": 15.4538,
+          "mean": 1.965912
+        },
+        "ff14": {
+          "n": 39,
+          "median": 5.184,
+          "p95": 16.287201,
+          "p99": 18.005301,
+          "max": 18.005301,
+          "mean": 6.12811
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 1507,
+          "median": 1.0042,
+          "p95": 1.8454,
+          "p99": 2.3409,
+          "max": 2.8542,
+          "mean": 1.093631
+        },
+        "05-08": {
+          "n": 1049,
+          "median": 3.2744,
+          "p95": 7.7192,
+          "p99": 10.6594,
+          "max": 13.7106,
+          "mean": 3.821754
+        },
+        "09-16": {
+          "n": 682,
+          "median": 11.0252,
+          "p95": 20.4618,
+          "p99": 25.2194,
+          "max": 28.708099,
+          "mean": 11.872159
+        },
+        "17+": {
+          "n": 226,
+          "median": 31.6579,
+          "p95": 134.351196,
+          "p99": 181.981903,
+          "max": 196.384598,
+          "mean": 44.075747
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 4,
+      "clients": 2,
+      "runs": 1,
+      "prepare_ms": 44.0485,
+      "wall_ms": 24224.62,
+      "host_cpu_ms": 48078.125,
+      "memory": {
+        "ready": {
+          "clients": 3559424,
+          "owner": 1830912,
+          "host": 194727936,
+          "total": 200118272
+        },
+        "held": {
+          "clients": 3854336,
+          "owner": 1740800,
+          "host": 198238208,
+          "total": 203833344
+        }
+      },
+      "overall": {
+        "n": 6928,
+        "median": 2.34675,
+        "p95": 25.295601,
+        "p99": 64.004601,
+        "max": 201.848297,
+        "mean": 6.979884
+      },
+      "classes": {
+        "tuned": {
+          "n": 1152,
+          "median": 3.9722,
+          "p95": 17.6161,
+          "p99": 24.639799,
+          "max": 36.8321,
+          "mean": 6.143991
+        },
+        "holdout": {
+          "n": 2546,
+          "median": 7.47935,
+          "p95": 44.515301,
+          "p99": 130.711807,
+          "max": 201.848297,
+          "mean": 13.549453
+        },
+        "words": {
+          "n": 3152,
+          "median": 1.42755,
+          "p95": 5.3488,
+          "p99": 8.8971,
+          "max": 15.5659,
+          "mean": 1.998789
+        },
+        "ff14": {
+          "n": 78,
+          "median": 5.32775,
+          "p95": 16.2313,
+          "p99": 18.099001,
+          "max": 18.099001,
+          "mean": 6.175227
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 3014,
+          "median": 1.01485,
+          "p95": 1.8742,
+          "p99": 2.4034,
+          "max": 2.8909,
+          "mean": 1.105853
+        },
+        "05-08": {
+          "n": 2098,
+          "median": 3.3068,
+          "p95": 7.8752,
+          "p99": 10.7372,
+          "max": 13.8881,
+          "mean": 3.867314
+        },
+        "09-16": {
+          "n": 1364,
+          "median": 11.10725,
+          "p95": 20.7777,
+          "p99": 25.965,
+          "max": 30.0755,
+          "mean": 12.03964
+        },
+        "17+": {
+          "n": 452,
+          "median": 32.376001,
+          "p95": 137.197403,
+          "p99": 188.574005,
+          "max": 201.848297,
+          "mean": 45.327213
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 4,
+      "clients": 4,
+      "runs": 1,
+      "prepare_ms": 61.0456,
+      "wall_ms": 24795.2504,
+      "host_cpu_ms": 98359.375,
+      "memory": {
+        "ready": {
+          "clients": 7094272,
+          "owner": 1740800,
+          "host": 198238208,
+          "total": 207073280
+        },
+        "held": {
+          "clients": 7688192,
+          "owner": 1740800,
+          "host": 200560640,
+          "total": 209989632
+        }
+      },
+      "overall": {
+        "n": 13856,
+        "median": 2.40125,
+        "p95": 25.955999,
+        "p99": 65.588501,
+        "max": 209.762405,
+        "mean": 7.153848
+      },
+      "classes": {
+        "tuned": {
+          "n": 2304,
+          "median": 4.0283,
+          "p95": 18.0348,
+          "p99": 25.731199,
+          "max": 39.7603,
+          "mean": 6.277436
+        },
+        "holdout": {
+          "n": 5092,
+          "median": 7.6151,
+          "p95": 46.9202,
+          "p99": 137.998093,
+          "max": 209.762405,
+          "mean": 13.892362
+        },
+        "words": {
+          "n": 6304,
+          "median": 1.46485,
+          "p95": 5.4244,
+          "p99": 9.1261,
+          "max": 16.0784,
+          "mean": 2.051688
+        },
+        "ff14": {
+          "n": 156,
+          "median": 5.4667,
+          "p95": 16.7255,
+          "p99": 20.0221,
+          "max": 20.4545,
+          "mean": 6.325381
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 6028,
+          "median": 1.0454,
+          "p95": 1.904,
+          "p99": 2.4549,
+          "max": 3.0539,
+          "mean": 1.135215
+        },
+        "05-08": {
+          "n": 4196,
+          "median": 3.3829,
+          "p95": 8.1053,
+          "p99": 10.9276,
+          "max": 15.0901,
+          "mean": 3.957875
+        },
+        "09-16": {
+          "n": 2728,
+          "median": 11.4134,
+          "p95": 21.496201,
+          "p99": 26.112301,
+          "max": 34.705898,
+          "mean": 12.315005
+        },
+        "17+": {
+          "n": 904,
+          "median": 33.636749,
+          "p95": 143.645798,
+          "p99": 193.764694,
+          "max": 209.762405,
+          "mean": 46.546536
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 4,
+      "clients": 8,
+      "runs": 1,
+      "prepare_ms": 94.6864,
+      "wall_ms": 49675.9874,
+      "host_cpu_ms": 197234.375,
+      "memory": {
+        "ready": {
+          "clients": 14180352,
+          "owner": 1740800,
+          "host": 200560640,
+          "total": 216481792
+        },
+        "held": {
+          "clients": 14630912,
+          "owner": 1740800,
+          "host": 201695232,
+          "total": 218066944
+        }
+      },
+      "overall": {
+        "n": 27712,
+        "median": 6.7671,
+        "p95": 44.023701,
+        "p99": 109.241402,
+        "max": 315.196686,
+        "mean": 14.127992
+      },
+      "classes": {
+        "tuned": {
+          "n": 4608,
+          "median": 10.9751,
+          "p95": 28.146799,
+          "p99": 41.905899,
+          "max": 57.476299,
+          "mean": 12.413068
+        },
+        "holdout": {
+          "n": 10184,
+          "median": 19.17835,
+          "p95": 75.4673,
+          "p99": 182.577393,
+          "max": 315.196686,
+          "mean": 27.545404
+        },
+        "words": {
+          "n": 12608,
+          "median": 3.64805,
+          "p95": 8.0892,
+          "p99": 11.8651,
+          "max": 24.652201,
+          "mean": 4.078469
+        },
+        "ff14": {
+          "n": 312,
+          "median": 6.768,
+          "p95": 17.2973,
+          "p99": 20.103701,
+          "max": 25.695999,
+          "mean": 7.601809
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 12056,
+          "median": 3.60305,
+          "p95": 18.360901,
+          "p99": 35.899601,
+          "max": 269.011902,
+          "mean": 5.997239
+        },
+        "05-08": {
+          "n": 8392,
+          "median": 6.59385,
+          "p95": 25.275801,
+          "p99": 42.3284,
+          "max": 145.259293,
+          "mean": 9.617259
+        },
+        "09-16": {
+          "n": 5456,
+          "median": 19.18265,
+          "p95": 42.856602,
+          "p99": 74.470596,
+          "max": 253.693497,
+          "mean": 22.293375
+        },
+        "17+": {
+          "n": 1808,
+          "median": 46.6863,
+          "p95": 189.829605,
+          "p99": 259.360992,
+          "max": 315.196686,
+          "mean": 64.641318
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 8,
+      "clients": 1,
+      "runs": 1,
+      "prepare_ms": 37.4755,
+      "wall_ms": 23669.4649,
+      "host_cpu_ms": 23453.125,
+      "memory": {
+        "ready": {
+          "clients": 1773568,
+          "owner": 1830912,
+          "host": 191680512,
+          "total": 195284992
+        },
+        "held": {
+          "clients": 1904640,
+          "owner": 1830912,
+          "host": 194736128,
+          "total": 198471680
+        }
+      },
+      "overall": {
+        "n": 3464,
+        "median": 2.3105,
+        "p95": 24.584801,
+        "p99": 62.726501,
+        "max": 192.699295,
+        "mean": 6.829263
+      },
+      "classes": {
+        "tuned": {
+          "n": 576,
+          "median": 3.903,
+          "p95": 17.4949,
+          "p99": 24.2815,
+          "max": 36.264702,
+          "mean": 6.067856
+        },
+        "holdout": {
+          "n": 1273,
+          "median": 7.2991,
+          "p95": 43.445499,
+          "p99": 126.628899,
+          "max": 192.699295,
+          "mean": 13.218617
+        },
+        "words": {
+          "n": 1576,
+          "median": 1.40575,
+          "p95": 5.1971,
+          "p99": 8.7522,
+          "max": 14.9818,
+          "mean": 1.965685
+        },
+        "ff14": {
+          "n": 39,
+          "median": 5.1031,
+          "p95": 15.9534,
+          "p99": 18.160101,
+          "max": 18.160101,
+          "mean": 6.058087
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 1507,
+          "median": 1.0183,
+          "p95": 1.8548,
+          "p99": 2.3904,
+          "max": 2.856,
+          "mean": 1.103565
+        },
+        "05-08": {
+          "n": 1049,
+          "median": 3.2758,
+          "p95": 7.7514,
+          "p99": 10.5003,
+          "max": 13.6583,
+          "mean": 3.8127
+        },
+        "09-16": {
+          "n": 682,
+          "median": 11.0462,
+          "p95": 20.4021,
+          "p99": 25.446501,
+          "max": 28.378401,
+          "mean": 11.800633
+        },
+        "17+": {
+          "n": 226,
+          "median": 31.535549,
+          "p95": 134.817093,
+          "p99": 180.911606,
+          "max": 192.699295,
+          "mean": 44.008592
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 8,
+      "clients": 2,
+      "runs": 1,
+      "prepare_ms": 44.0722,
+      "wall_ms": 24233.0077,
+      "host_cpu_ms": 48093.75,
+      "memory": {
+        "ready": {
+          "clients": 3563520,
+          "owner": 1871872,
+          "host": 194736128,
+          "total": 200171520
+        },
+        "held": {
+          "clients": 3825664,
+          "owner": 1781760,
+          "host": 200327168,
+          "total": 205934592
+        }
+      },
+      "overall": {
+        "n": 6928,
+        "median": 2.364,
+        "p95": 25.3235,
+        "p99": 64.098701,
+        "max": 207.377502,
+        "mean": 6.991611
+      },
+      "classes": {
+        "tuned": {
+          "n": 1152,
+          "median": 3.9014,
+          "p95": 17.834,
+          "p99": 26.8659,
+          "max": 36.806198,
+          "mean": 6.174199
+        },
+        "holdout": {
+          "n": 2546,
+          "median": 7.48515,
+          "p95": 45.482498,
+          "p99": 128.808304,
+          "max": 207.377502,
+          "mean": 13.55844
+        },
+        "words": {
+          "n": 3152,
+          "median": 1.41905,
+          "p95": 5.3203,
+          "p99": 8.8692,
+          "max": 15.8689,
+          "mean": 2.006531
+        },
+        "ff14": {
+          "n": 78,
+          "median": 5.42655,
+          "p95": 16.180201,
+          "p99": 18.203199,
+          "max": 18.203199,
+          "mean": 6.164478
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 3014,
+          "median": 1.0205,
+          "p95": 1.8806,
+          "p99": 2.4267,
+          "max": 3.2189,
+          "mean": 1.112869
+        },
+        "05-08": {
+          "n": 2098,
+          "median": 3.34705,
+          "p95": 7.9051,
+          "p99": 10.7153,
+          "max": 13.389,
+          "mean": 3.882764
+        },
+        "09-16": {
+          "n": 1364,
+          "median": 11.28035,
+          "p95": 20.877701,
+          "p99": 26.204399,
+          "max": 29.8563,
+          "mean": 12.075355
+        },
+        "17+": {
+          "n": 452,
+          "median": 33.5366,
+          "p95": 139.562103,
+          "p99": 188.394501,
+          "max": 207.377502,
+          "mean": 45.280686
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 8,
+      "clients": 4,
+      "runs": 1,
+      "prepare_ms": 61.9496,
+      "wall_ms": 24727.4416,
+      "host_cpu_ms": 98046.875,
+      "memory": {
+        "ready": {
+          "clients": 7090176,
+          "owner": 1843200,
+          "host": 200327168,
+          "total": 209260544
+        },
+        "held": {
+          "clients": 7659520,
+          "owner": 1843200,
+          "host": 202338304,
+          "total": 211841024
+        }
+      },
+      "overall": {
+        "n": 13856,
+        "median": 2.41695,
+        "p95": 25.7285,
+        "p99": 65.997101,
+        "max": 208.117798,
+        "mean": 7.13401
+      },
+      "classes": {
+        "tuned": {
+          "n": 2304,
+          "median": 3.96645,
+          "p95": 18.2911,
+          "p99": 25.325399,
+          "max": 38.1549,
+          "mean": 6.294056
+        },
+        "holdout": {
+          "n": 5092,
+          "median": 7.6253,
+          "p95": 46.401699,
+          "p99": 133.956207,
+          "max": 208.117798,
+          "mean": 13.815312
+        },
+        "words": {
+          "n": 6304,
+          "median": 1.47785,
+          "p95": 5.4155,
+          "p99": 9.0047,
+          "max": 20.114799,
+          "mean": 2.063766
+        },
+        "ff14": {
+          "n": 156,
+          "median": 5.8509,
+          "p95": 16.3727,
+          "p99": 18.355801,
+          "max": 18.497299,
+          "mean": 6.34477
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 6028,
+          "median": 1.06995,
+          "p95": 1.9198,
+          "p99": 2.4831,
+          "max": 4.3756,
+          "mean": 1.153852
+        },
+        "05-08": {
+          "n": 4196,
+          "median": 3.38655,
+          "p95": 8.0469,
+          "p99": 10.9046,
+          "max": 13.8685,
+          "mean": 3.958597
+        },
+        "09-16": {
+          "n": 2728,
+          "median": 11.46005,
+          "p95": 21.4095,
+          "p99": 26.0714,
+          "max": 39.7784,
+          "mean": 12.291883
+        },
+        "17+": {
+          "n": 904,
+          "median": 33.614201,
+          "p95": 142.714005,
+          "p99": 193.877197,
+          "max": 208.117798,
+          "mean": 46.18461
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "threads": 8,
+      "clients": 8,
+      "runs": 1,
+      "prepare_ms": 95.7546,
+      "wall_ms": 27610.851,
+      "host_cpu_ms": 217656.25,
+      "memory": {
+        "ready": {
+          "clients": 14180352,
+          "owner": 1843200,
+          "host": 202338304,
+          "total": 218361856
+        },
+        "held": {
+          "clients": 15462400,
+          "owner": 1843200,
+          "host": 204201984,
+          "total": 221507584
+        }
+      },
+      "overall": {
+        "n": 27712,
+        "median": 2.6406,
+        "p95": 29.172701,
+        "p99": 72.432503,
+        "max": 237.225098,
+        "mean": 7.923208
+      },
+      "classes": {
+        "tuned": {
+          "n": 4608,
+          "median": 4.3661,
+          "p95": 20.5856,
+          "p99": 30.499201,
+          "max": 48.622002,
+          "mean": 6.985401
+        },
+        "holdout": {
+          "n": 10184,
+          "median": 8.2716,
+          "p95": 50.955898,
+          "p99": 145.945404,
+          "max": 237.225098,
+          "mean": 15.289639
+        },
+        "words": {
+          "n": 12608,
+          "median": 1.65245,
+          "p95": 6.2836,
+          "p99": 10.1745,
+          "max": 21.844999,
+          "mean": 2.341944
+        },
+        "ff14": {
+          "n": 312,
+          "median": 6.06665,
+          "p95": 18.3414,
+          "p99": 19.6721,
+          "max": 24.167,
+          "mean": 6.866386
+        }
+      },
+      "positions": {
+        "01-04": {
+          "n": 12056,
+          "median": 1.1894,
+          "p95": 2.2235,
+          "p99": 2.8243,
+          "max": 4.4911,
+          "mean": 1.289396
+        },
+        "05-08": {
+          "n": 8392,
+          "median": 3.7526,
+          "p95": 9.1242,
+          "p99": 12.4391,
+          "max": 19.4011,
+          "mean": 4.411283
+        },
+        "09-16": {
+          "n": 5456,
+          "median": 12.6159,
+          "p95": 24.648701,
+          "p99": 30.513599,
+          "max": 39.862499,
+          "mean": 13.675751
+        },
+        "17+": {
+          "n": 1808,
+          "median": 37.23835,
+          "p95": 156.033203,
+          "p99": 214.152206,
+          "max": 237.225098,
+          "mean": 51.099895
+        }
+      }
+    },
+    {
+      "type": "done"
+    }
+  ],
+  "summary": {
+    "cold": {
+      "ensure_ms": {
+        "median": 1746.82985,
+        "maximum": 1774.7483,
+        "minimum": 1724.7032,
+        "n": 10
+      },
+      "owner_created_ms": {
+        "median": 22.817700000000002,
+        "maximum": 32.5846,
+        "minimum": 22.0659,
+        "n": 10
+      },
+      "host_created_ms": {
+        "median": 45.0703,
+        "maximum": 64.5658,
+        "minimum": 43.6662,
+        "n": 10
+      },
+      "pipe_visible_ms": {
+        "median": 1734.2285499999998,
+        "maximum": 1757.3806,
+        "minimum": 1722.5486,
+        "n": 10
+      },
+      "allocate_ms": {
+        "median": 0.14255,
+        "maximum": 0.1941,
+        "minimum": 0.1376,
+        "n": 10
+      },
+      "connect_ms": {
+        "median": 0.5710500000000001,
+        "maximum": 0.6374,
+        "minimum": 0.5062,
+        "n": 10
+      },
+      "first_key_ms": {
+        "median": 0.8571500000000001,
+        "maximum": 0.948,
+        "minimum": 0.823,
+        "n": 10
+      },
+      "long_word_ms": {
+        "median": 55.44695,
+        "maximum": 58.6172,
+        "minimum": 54.6971,
+        "n": 10
+      },
+      "host_load_ms": {
+        "median": 1688.8733499999998,
+        "maximum": 1698.0064,
+        "minimum": 1678.2824,
+        "n": 10
+      },
+      "owner_to_host_ms": {
+        "median": 22.25435,
+        "maximum": 31.981199999999994,
+        "minimum": 21.0887,
+        "n": 10
+      },
+      "memory_mib": {
+        "owner": {
+          "private": 1.75,
+          "working_set": 8.546875
+        },
+        "host": {
+          "private": 182.921875,
+          "working_set": 181.5234375
+        }
+      }
+    },
+    "keys": [
+      {
+        "mode": "inproc",
+        "threads": 0,
+        "clients": 1,
+        "median": 2.21325,
+        "p95": 25.219101,
+        "p99": 64.558296,
+        "max": 197.5616,
+        "delta_median": 0.0,
+        "total_private_mib": 186.01953125,
+        "wall_ms": 23685.6175
+      },
+      {
+        "mode": "inproc",
+        "threads": 0,
+        "clients": 2,
+        "median": 2.26675,
+        "p95": 25.7589,
+        "p99": 65.168701,
+        "max": 200.305801,
+        "delta_median": 0.0,
+        "total_private_mib": 370.97265625,
+        "wall_ms": 24240.8769
+      },
+      {
+        "mode": "inproc",
+        "threads": 0,
+        "clients": 4,
+        "median": 2.34195,
+        "p95": 26.146099,
+        "p99": 67.057404,
+        "max": 205.693207,
+        "delta_median": 0.0,
+        "total_private_mib": 742.93359375,
+        "wall_ms": 24757.2143
+      },
+      {
+        "mode": "inproc",
+        "threads": 0,
+        "clients": 8,
+        "median": 2.57055,
+        "p95": 29.931999,
+        "p99": 77.236504,
+        "max": 247.724304,
+        "delta_median": 0.0,
+        "total_private_mib": 1484.62890625,
+        "wall_ms": 27878.888
+      },
+      {
+        "mode": "engine",
+        "threads": 2,
+        "clients": 1,
+        "median": 2.31585,
+        "p95": 24.594801,
+        "p99": 62.454399,
+        "max": 192.881393,
+        "delta_median": 0.10260000000000025,
+        "total_private_mib": 188.49609375,
+        "wall_ms": 23644.1388
+      },
+      {
+        "mode": "engine",
+        "threads": 2,
+        "clients": 2,
+        "median": 2.3556,
+        "p95": 25.181499,
+        "p99": 63.912601,
+        "max": 209.715607,
+        "delta_median": 0.08884999999999987,
+        "total_private_mib": 192.57421875,
+        "wall_ms": 24143.5575
+      },
+      {
+        "mode": "engine",
+        "threads": 2,
+        "clients": 4,
+        "median": 6.5263,
+        "p95": 44.4491,
+        "p99": 97.777802,
+        "max": 358.076111,
+        "delta_median": 4.18435,
+        "total_private_mib": 196.46875,
+        "wall_ms": 48019.7542
+      },
+      {
+        "mode": "engine",
+        "threads": 2,
+        "clients": 8,
+        "median": 12.4566,
+        "p95": 81.600098,
+        "p99": 200.582306,
+        "max": 523.309875,
+        "delta_median": 9.886050000000001,
+        "total_private_mib": 204.546875,
+        "wall_ms": 95475.4017
+      },
+      {
+        "mode": "engine",
+        "threads": 4,
+        "clients": 1,
+        "median": 2.30885,
+        "p95": 24.8311,
+        "p99": 63.450199,
+        "max": 196.384598,
+        "delta_median": 0.09560000000000013,
+        "total_private_mib": 189.3046875,
+        "wall_ms": 23727.971
+      },
+      {
+        "mode": "engine",
+        "threads": 4,
+        "clients": 2,
+        "median": 2.34675,
+        "p95": 25.295601,
+        "p99": 64.004601,
+        "max": 201.848297,
+        "delta_median": 0.08000000000000007,
+        "total_private_mib": 194.390625,
+        "wall_ms": 24224.62
+      },
+      {
+        "mode": "engine",
+        "threads": 4,
+        "clients": 4,
+        "median": 2.40125,
+        "p95": 25.955999,
+        "p99": 65.588501,
+        "max": 209.762405,
+        "delta_median": 0.05929999999999991,
+        "total_private_mib": 200.26171875,
+        "wall_ms": 24795.2504
+      },
+      {
+        "mode": "engine",
+        "threads": 4,
+        "clients": 8,
+        "median": 6.7671,
+        "p95": 44.023701,
+        "p99": 109.241402,
+        "max": 315.196686,
+        "delta_median": 4.19655,
+        "total_private_mib": 207.96484375,
+        "wall_ms": 49675.9874
+      },
+      {
+        "mode": "engine",
+        "threads": 8,
+        "clients": 1,
+        "median": 2.3105,
+        "p95": 24.584801,
+        "p99": 62.726501,
+        "max": 192.699295,
+        "delta_median": 0.09725000000000028,
+        "total_private_mib": 189.27734375,
+        "wall_ms": 23669.4649
+      },
+      {
+        "mode": "engine",
+        "threads": 8,
+        "clients": 2,
+        "median": 2.364,
+        "p95": 25.3235,
+        "p99": 64.098701,
+        "max": 207.377502,
+        "delta_median": 0.09724999999999984,
+        "total_private_mib": 196.39453125,
+        "wall_ms": 24233.0077
+      },
+      {
+        "mode": "engine",
+        "threads": 8,
+        "clients": 4,
+        "median": 2.41695,
+        "p95": 25.7285,
+        "p99": 65.997101,
+        "max": 208.117798,
+        "delta_median": 0.07499999999999973,
+        "total_private_mib": 202.02734375,
+        "wall_ms": 24727.4416
+      },
+      {
+        "mode": "engine",
+        "threads": 8,
+        "clients": 8,
+        "median": 2.6406,
+        "p95": 29.172701,
+        "p99": 72.432503,
+        "max": 237.225098,
+        "delta_median": 0.07005000000000017,
+        "total_private_mib": 211.24609375,
+        "wall_ms": 27610.851
+      }
+    ]
+  }
+}

@@ -377,7 +377,10 @@ static void real(const Fixture &fixture, const std::filesystem::path &folder) {
         std::set<uint64_t> ids;
         for (auto &o : outcomes) { assert(o.result==Result::Admitted); ids.insert(o.session->id()); }
         assert(ids.size()==admission::Limit);
-        std::cout << "8 concurrent clients: 8 Admitted, distinct ids\n";
+        // One pin per approved file in this process while sessions hold it: later discoveries do not hash again.
+        for (auto &o : outcomes) assert(o.session->engine().ownerDeployment==outcomes[0].session->engine().ownerDeployment &&
+            o.session->engine().hostDeployment==outcomes[0].session->engine().hostDeployment);
+        std::cout << "8 concurrent clients: 8 Admitted, distinct ids, shared pins\n";
         usable(*outcomes[3].session);
     }
     baseline(approved,scope,"8 concurrent clients");

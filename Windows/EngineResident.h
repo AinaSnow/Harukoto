@@ -22,6 +22,15 @@ namespace harukoto::engine::resident {
 constexpr wchar_t DefaultScope[]=L"harukoto";       // Same as discovery::DefaultScope.
 constexpr wchar_t WindowClass[]=L"Harukoto.ResidentOwner.v1";
 constexpr uint32_t IdleNever=0, IdleMinMinutes=5, IdleMaxMinutes=1440;
+// Formal budgets from the step-5 measurements (docs/ENGINE_COST.md).
+// Host query workers: one per client slot (admission::Limit), so a request
+// never waits in the executor behind another client's long query; idle
+// workers cost no CPU and about 0.3 MiB each.
+constexpr size_t HostThreads=8;
+// Deadline a step-6 client puts on each keystroke request (the host drops the
+// work after it). The slowest measured query, a 49-letter sentence with 8
+// clients typing at once, took about 0.24 s in-process and through the engine.
+constexpr uint64_t KeyDeadlineMs=1000;
 // Owner process exit codes in resident mode.
 constexpr DWORD ExitClean=0, ExitFailure=1, ExitNotApproved=3, ExitCrashLoop=4, ExitExists=ERROR_ALREADY_EXISTS;
 
@@ -290,14 +299,14 @@ inline Started start(const release::Entry &approved, uint64_t deadline, const st
     try {
         pipe::processIdentityOnly();
         // Pinned (no replacement or rename while we ask) and hash checked.
-        EngineDeployment owner(approved.owner,approved.ownerSha256);
+        const auto owner=EngineDeployment::shared(approved.owner,approved.ownerSha256);
         std::wstring line=L"--resident demand";
         for (const auto &argument : arguments) line+=L" "+detail::quote(argument);
         std::wstring system(MAX_PATH,L'\0');
         const auto length=GetSystemDirectoryW(system.data(),static_cast<UINT>(system.size()));
         pipe::check(length && length<system.size()); system.resize(length);
         // The pinned final path is \\?\X:\...; the shell wants a plain drive path.
-        auto program=owner.path().wstring();
+        auto program=owner->path().wstring();
         if (program.rfind(L"\\\\?\\",0)==0) program.erase(0,4);
         if (program.size()<3 || program[1]!=L':' || program[2]!=L'\\') throw std::invalid_argument("approved owner is not on a local drive");
         out.hr=detail::shellExecute(program,line,system);
@@ -319,7 +328,7 @@ struct EnsureOptions {
     handoff::Options handoff;                 // discovery.scope selects the engine.
     uint64_t budgetMs=10000;
     uint32_t maxAttempts=32;
-    uint64_t startWaitMs=15000;
+    uint64_t startWaitMs=10000;               // Never longer than budgetMs; a cold start took about 1.75 s.
     Policy policy;
     Store store;
     std::vector<std::wstring> ownerArguments; // See start().
@@ -337,6 +346,12 @@ inline EnsureOutcome ensure(const release::Snapshot &snapshot, const EnsureOptio
     EnsureOutcome out;
     const auto approved=release::select(snapshot,options.handoff.discovery.protocol);
     const auto &scope=options.handoff.discovery.scope;
+    // Pin the approved files once for the whole call: every discovery attempt
+    // and the start below reuse these pins instead of hashing again. A file
+    // that cannot be pinned is reported by discovery itself (DeploymentInvalid).
+    std::shared_ptr<const EngineDeployment> ownerPin, hostPin;
+    if (approved) try { ownerPin=EngineDeployment::shared(approved->owner,approved->ownerSha256); hostPin=EngineDeployment::shared(approved->host,approved->hostSha256); }
+    catch (const pipe::Error &) {} catch (const std::exception &) {}
     handoff::AttachOptions attach; attach.handoff=options.handoff; attach.budgetMs=options.budgetMs; attach.maxAttempts=options.maxAttempts;
     if (approved) attach.start=[&](uint64_t deadline) {
         // Starter lock held; a fresh discovery just said NotRunning.

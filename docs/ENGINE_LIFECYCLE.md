@@ -68,7 +68,7 @@ if (out.attach.outcome.result != handoff::Result::Admitted) { /* 留在进程内
 auto &session = *out.attach.outcome.session;     // 与第 3 步相同的 Session
 ```
 
-`EnsureOptions`：`budgetMs`（默认 10 秒，整个过程）、`startWaitMs`（启动后等管道，默认 15 秒，不超过预算）、`policy`、`store`、`ownerArguments`（数据路径；测试构建的开关）。`launch` 给出启动环节的结果：NotNeeded（已有引擎）、Started、Pending（Explorer 已受理但到时没有管道）、Failed、Backoff、Tripped、NoRelease。
+`EnsureOptions`：`budgetMs`（默认 10 秒，整个过程）、`startWaitMs`（启动后等管道，默认 10 秒，不超过预算）、`policy`、`store`、`ownerArguments`（数据路径；测试构建的开关）。`launch` 给出启动环节的结果：NotNeeded（已有引擎）、Started、Pending（Explorer 已受理但到时没有管道）、Failed、Backoff、Tripped、NoRelease。
 
 ## 升级与卸载
 
@@ -118,7 +118,7 @@ CTest `engine_resident`（`tests/test_engine_resident.py` 生成临时词库后�
 
 ## 留给后续
 
-- 第 5 步：测量按需启动延迟（Explorer 受理＋所有者核对＋宿主加载词库）、占位等待、常驻内存与空闲工作集，据此复核空闲默认值、`startWaitMs` 与断路器间隔。
+- 第 5 步（完成）：见[常驻引擎成本](ENGINE_COST.md)。按需启动中位 1.75 秒；空闲默认与断路器间隔不变，`startWaitMs` 改为 10 秒，常驻宿主改为 8 个工作线程。
 - 第 6 步：确定所有者的数据路径；TSF 在服务线程调用 `ensure()`，失败、Pending、超时都回退进程内路径。
 - 第 7 步：新版本出现时的换代与旧所有者退出。
 - 备选加固：HKLM 注册的 COM LocalServer32 作为不依赖 Explorer 的启动方式。

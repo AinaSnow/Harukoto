@@ -604,8 +604,9 @@ inline Outcome detail::open(const release::Snapshot &snapshot, const Options &op
         if (!selected) detail::stop(Result::NoRelease,snapshot.status==release::Status::Ready ? ERROR_NOT_FOUND : snapshot.error);
         Engine engine; engine.release=*selected;
         try {
-            engine.ownerDeployment=std::make_shared<EngineDeployment>(selected->owner,selected->ownerSha256);
-            engine.hostDeployment=std::make_shared<EngineDeployment>(selected->host,selected->hostSha256);
+            // Reused while still pinned in this process (EngineDeployment::shared).
+            engine.ownerDeployment=EngineDeployment::shared(selected->owner,selected->ownerSha256);
+            engine.hostDeployment=EngineDeployment::shared(selected->host,selected->hostSha256);
         } catch (const pipe::Error &error) { detail::stop(Result::DeploymentInvalid,error.code); }
         catch (const std::invalid_argument &) { detail::stop(Result::DeploymentInvalid,ERROR_INVALID_DATA); }
         const auto objectName=name(options.scope);

@@ -186,7 +186,7 @@ def summarize(group, samples, clients, traces):
 
 def run(reader, host, lexicon, runs, counts=(1, 2, 4), modes=MODES, threads=(2,), profile=False, workloads=('uniform',)):
     if (type(runs) is not int or not 1 <= runs <= 20 or not counts or len(counts) != len(set(counts)) or
-            any(type(n) is not int or n not in (1, 2, 4) for n in counts) or not modes or
+            any(type(n) is not int or n not in (1, 2, 4, 8) for n in counts) or not modes or
             len(modes) != len(set(modes)) or any(m not in MODES for m in modes) or
             not threads or len(threads) != len(set(threads)) or any(type(n) is not int or not 1 <= n <= 16 for n in threads) or
             type(profile) is not bool or not workloads or len(workloads) != len(set(workloads)) or any(w not in WORKLOADS for w in workloads)):
@@ -241,7 +241,7 @@ def main():
     parser.add_argument('--host', type=Path, required=True)
     parser.add_argument('--lexicon', type=Path, required=True)
     parser.add_argument('--runs', type=int, default=3, choices=range(1, 21))
-    parser.add_argument('--counts', type=int, nargs='+', default=[1, 2, 4], choices=(1, 2, 4))
+    parser.add_argument('--counts', type=int, nargs='+', default=[1, 2, 4], choices=(1, 2, 4, 8))
     parser.add_argument('--modes', nargs='+', default=list(MODES), choices=MODES)
     parser.add_argument('--threads', type=int, nargs='+', default=[2], choices=range(1, 17))
     parser.add_argument('--profile', action='store_true', help='远程宿主启用逐键分段计时')

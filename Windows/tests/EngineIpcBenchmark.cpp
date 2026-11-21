@@ -41,7 +41,7 @@ static int worker(int argc, wchar_t **argv) {
     auto start = inherited(argv[6]), ready = inherited(argv[7]), done = inherited(argv[8]), release = inherited(argv[9]);
     const auto runs = std::stoi(argv[10]), index = std::stoi(argv[11]);
     const std::wstring workload = argv[13]; require(workload == L"uniform" || workload == L"mixed");
-    require(runs >= 1 && runs <= 20 && index >= 0 && index < 4);
+    require(runs >= 1 && runs <= 20 && index >= 0 && index < 8);
     std::shared_ptr<const WindowsDictionary> dictionary;
     std::unique_ptr<ServerConnection> server;
     std::unique_ptr<Client> client;
@@ -177,7 +177,7 @@ static int coordinator(int argc, wchar_t **argv) {
     const auto threads = std::stoi(argv[8]); const bool profile = std::wstring(argv[9]) == L"1";
     const std::wstring workload = argv[10]; require(workload == L"uniform" || workload == L"mixed");
     require(host.is_absolute() && base.is_absolute() && folder.is_absolute() && (themes.empty() || themes.is_absolute()));
-    require((count == 1 || count == 2 || count == 4) && runs >= 1 && runs <= 20);
+    require((count == 1 || count == 2 || count == 4 || count == 8) && runs >= 1 && runs <= 20);
     require(mode == L"local" || mode == L"isolated" || mode == L"shared");
     require(mode == L"local" ? threads == 0 && !profile : threads >= 1 && threads <= 16);
     require(std::wstring(argv[9]) == L"0" || std::wstring(argv[9]) == L"1");

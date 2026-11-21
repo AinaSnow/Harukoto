@@ -1,0 +1,1222 @@
+{
+ "format": 2,
+ "note": "仅 provenance 与 summary；原始逐键样本与服务计时 5.3 MB 未归档",
+ "provenance": {
+  "revision": "99c37e20dc6c2474819519998586d0de742ec662",
+  "source_dirty": true,
+  "platform": "Windows-11-10.0.26300-SP0",
+  "logical_cpus": 16,
+  "runs": 3,
+  "counts": [
+   8
+  ],
+  "modes": [
+   "local",
+   "shared"
+  ],
+  "threads": [
+   2,
+   4,
+   8
+  ],
+  "profile": true,
+  "workloads": [
+   "uniform"
+  ],
+  "sources": {
+   "Windows/EngineProcess.h": "f4f97cc4d0986dfdf47406e26de8684c45aa5d23fcdbeeb354e3bb3bddbffd6a",
+   "Windows/EngineHost.h": "d7200d5343f42eb45501ea88328b8be68f309b7ef36f6cd921177604fac85a75",
+   "Windows/EngineHost.cpp": "d0a5ef7ea6246b3dc57c0b4e2a8ce20c2433c07e06208aab064f379cbb7ac9a4",
+   "Windows/EngineControl.h": "556795a102c8110dcab0df63acfe74bdc9ac90633b4f4294a3dc1d54c2a6c9e6",
+   "Windows/EngineOwnerAnchor.h": "66d64554d5bfe44edd0990a3750f5e4014ed32f475eebaa07648e4a67010b6a2",
+   "Windows/EngineInstance.h": "2a30361a0638b84f7732688551f2f6e0b712baf79744b72abcad9f8c24474fcc",
+   "Windows/EngineRegistration.h": "ee09532bc3f469949791ecb47cbb7ccffc7a3dc78a05f7889aeee51ae2538364",
+   "Windows/EngineAdmission.h": "13d3dd50c693e7468ffac0a63389dfc3afbbdfa1cc2c0f140adecb13afe346e1",
+   "Windows/EngineDiagnostics.h": "8b189a3310f4312a0aed45e8d33f06bcd2956f96d67a1ea415eca0f78cee2fae",
+   "Windows/EngineDeployment.h": "194b215244e9cce8cafc2f07d16b026bd1f4d59938276ba6ec25aa709074177f",
+   "Windows/EngineVerifiedPeer.h": "051f843dd6c29b24a55016abd171e6bfff4ffdde66984e5f540d5a05b9f4417d",
+   "Windows/BaseDictionaryFiles.h": "df5cddeb20a8990a3f365231bb778069e76493e60e568dc43813f96a4b871967",
+   "Windows/EnginePipe.h": "3feea391e24022c6cd34666153a008d746c92dac91a2f37dc3c23cb1bb2cf843",
+   "Windows/EngineProtocol.h": "dec27ae23f0d1fd18c4cf4ab3c327c7dd196f78aba9692fc0b0e3ae05d67101d",
+   "Windows/EngineMessages.h": "c03650b8f03d19bd0cd4e568c54549269c941b5dfd4e0c4546218ec97700a617",
+   "Windows/EngineExecutor.h": "e538abc2be24ee7264eed235a5634eba8ba10293a0090d77a495ec3cbd5e53b8",
+   "Windows/EngineTrace.h": "f60949a0a859d534ab698c059c04ef46b37682617f47cc9155adff612750a0a8",
+   "Windows/EngineServer.h": "ef07706ec07a4640ac74d53d1263c44f98ee984d679d1a75023645c49453e228",
+   "Windows/EngineWindows.h": "2e0529ed1e52aaabc774f80efdc88392d3d98eb5249cdf9fa9d5a9718856478a",
+   "Windows/tests/EngineHostTestClient.h": "6bd190343c5a8791303db66929ffcd8415ea4b7724ff6ef37e0b5063d3681517",
+   "Windows/tests/EngineIpcBenchmark.cpp": "90163e89de8998afa8249d043131a0351a4be60081872f00b463cf12351b9ae5",
+   "Windows/MixedComposition.h": "402d99aa6f7ea9e7b9fd1b5ab659a9445a1939cb6cce209588bb62b3f48680b0",
+   "Windows/WordEvidence.h": "d171833dd89ae06ba54f87563d69ec9b8ff7af91e1ce3feaad689deb57376989",
+   "Core/MeowpuutCore.cpp": "461ff2ae47cf7581c61f3f6028f09dfbfc2be1c1f4493f8c64e620c9051ab7a0",
+   "scripts/benchmark-engine-ipc.py": "a094cd82c0d4525ec91be7272285cdbc4344d66ca297ba56f7e417e5d2bcb345",
+   "scripts/base_dictionary.py": "dc8e9bb6e50f8bf1ceec5f48b32fd39e20f78b91ae6edb4b213185391086c596",
+   "scripts/japanese_packages.py": "d998d769c62719e9ef7eb35ae56cbf99e5e75b611da85745aafe697b20191451"
+  },
+  "programs": {
+   "reader": "9728981f697f1210d703321512b5618f974640686d32392ec0ca608f563ea031",
+   "host": "8376e2bc74e8dbecf19883608bc45f04b217cc416596be5385cee470f29e83a5"
+  },
+  "base_files": {
+   "native-pinyin.tsv": {
+    "size": 59311756,
+    "sha256": "2ddbee63379ecb88c511693a17af46eee848f627901458990551f960eb5d9d09"
+   },
+   "language-evidence.sqlite": {
+    "size": 90390528,
+    "sha256": "d825eb1c4ac55133e5ece68b00da2320275443e060755afb6351d39889fa4b7f"
+   },
+   "japanese.tsv": {
+    "size": 8933,
+    "sha256": "34c9274ad3d46364efd1ee804b1ff9c3648091c023c36c6e05e484eab41b653c"
+   },
+   "japanese-conjugations.bin": {
+    "size": 4376,
+    "sha256": "29cc5c3eac69a14e43f16e3a5a094fe69057d648c6c4ca688ec88d1cb844dbba"
+   }
+  },
+  "ff14_files": {
+   "manifest.json": "e4079519a4d0d77a7779d4c0e4a2f944f0e2d945d657f8fe31fc182e4ce6c5cf",
+   "ff14-words.txt": "b71e02c903a7d56a6ba70a8c542257105283cc4fd26325dff0ec34ac28ff4fe6"
+  }
+ },
+ "summary": [
+  {
+   "scenario": "base",
+   "mode": "local",
+   "clients": 8,
+   "samples": 624,
+   "threads": 0,
+   "profile": false,
+   "workload": "uniform",
+   "request_ms": {
+    "median": 1.2884,
+    "maximum": 5.6685,
+    "sum": 966.1266
+   },
+   "cohorts": {
+    "long": {
+     "samples": 168,
+     "request_ms": {
+      "median": 1.7535,
+      "maximum": 5.6685,
+      "sum": 348.3985
+     }
+    },
+    "short": {
+     "samples": 456,
+     "request_ms": {
+      "median": 1.20975,
+      "maximum": 4.3343,
+      "sum": 617.7281
+     }
+    }
+   },
+   "prepare_ms": 1638.7289,
+   "wall_ms": 125.8007,
+   "memory": {
+    "ready": {
+     "controller": 995328,
+     "clients": 1085882368,
+     "engines": 0,
+     "total": 1086877696
+    },
+    "sampled_peak": {
+     "controller": 995328,
+     "clients": 1091026944,
+     "engines": 0,
+     "total": 1092022272
+    },
+    "held": {
+     "controller": 995328,
+     "clients": 1091026944,
+     "engines": 0,
+     "total": 1092022272
+    },
+    "samples": 18,
+    "interval_ms": 10,
+    "max_sweep_ms": 0.0134
+   },
+   "start_spread_ms": 0.0111,
+   "common_work_ms": 119.2345
+  },
+  {
+   "scenario": "base",
+   "mode": "shared",
+   "clients": 8,
+   "samples": 624,
+   "threads": 2,
+   "profile": true,
+   "workload": "uniform",
+   "request_ms": {
+    "median": 4.025399999999999,
+    "maximum": 14.1686,
+    "sum": 3037.1009
+   },
+   "service_ms": {
+    "queue": {
+     "median": 2.95375,
+     "maximum": 10.7029,
+     "sum": 2228.3141
+    },
+    "execution": {
+     "median": 0.99335,
+     "maximum": 3.7471,
+     "sum": 766.2238
+    },
+    "publication": {
+     "median": 0.0001,
+     "maximum": 0.0006,
+     "sum": 0.0906
+    },
+    "mailbox": {
+     "median": 0.0118,
+     "maximum": 0.0434,
+     "sum": 7.2455
+    },
+    "owner": {
+     "median": 0.00955,
+     "maximum": 0.0222,
+     "sum": 6.0146
+    },
+    "total": {
+     "median": 3.9852499999999997,
+     "maximum": 14.113,
+     "sum": 3007.8885999999998
+    },
+    "remainder": {
+     "median": 0.04595000000000016,
+     "maximum": 0.13009999999999966,
+     "sum": 29.212300000000006
+    }
+   },
+   "cohorts": {
+    "long": {
+     "samples": 168,
+     "request_ms": {
+      "median": 5.30175,
+      "maximum": 14.1686,
+      "sum": 1093.2974
+     },
+     "service_ms": {
+      "queue": {
+       "median": 4.08705,
+       "maximum": 10.7029,
+       "sum": 791.5281
+      },
+      "execution": {
+       "median": 1.4672,
+       "maximum": 3.7471,
+       "sum": 289.969
+      },
+      "publication": {
+       "median": 0.0001,
+       "maximum": 0.0002,
+       "sum": 0.0236
+      },
+      "mailbox": {
+       "median": 0.0121,
+       "maximum": 0.0182,
+       "sum": 1.9846
+      },
+      "owner": {
+       "median": 0.01015,
+       "maximum": 0.0204,
+       "sum": 1.6987
+      },
+      "total": {
+       "median": 5.2639,
+       "maximum": 14.113,
+       "sum": 1085.204
+      },
+      "remainder": {
+       "median": 0.04774999999999974,
+       "maximum": 0.13009999999999966,
+       "sum": 8.093399999999999
+      }
+     }
+    },
+    "short": {
+     "samples": 456,
+     "request_ms": {
+      "median": 3.66765,
+      "maximum": 11.4983,
+      "sum": 1943.8035
+     },
+     "service_ms": {
+      "queue": {
+       "median": 2.63395,
+       "maximum": 10.1815,
+       "sum": 1436.786
+      },
+      "execution": {
+       "median": 0.88185,
+       "maximum": 3.0037,
+       "sum": 476.2548
+      },
+      "publication": {
+       "median": 0.0001,
+       "maximum": 0.0006,
+       "sum": 0.067
+      },
+      "mailbox": {
+       "median": 0.0117,
+       "maximum": 0.0434,
+       "sum": 5.2609
+      },
+      "owner": {
+       "median": 0.0094,
+       "maximum": 0.0222,
+       "sum": 4.3159
+      },
+      "total": {
+       "median": 3.6244,
+       "maximum": 11.4511,
+       "sum": 1922.6846
+      },
+      "remainder": {
+       "median": 0.04494999999999982,
+       "maximum": 0.10199999999999998,
+       "sum": 21.118900000000007
+      }
+     }
+    }
+   },
+   "prepare_ms": 1361.25,
+   "wall_ms": 385.8941,
+   "memory": {
+    "ready": {
+     "controller": 937984,
+     "clients": 7729152,
+     "engines": 137187328,
+     "total": 145854464
+    },
+    "sampled_peak": {
+     "controller": 937984,
+     "clients": 8007680,
+     "engines": 140013568,
+     "total": 148959232
+    },
+    "held": {
+     "controller": 937984,
+     "clients": 8007680,
+     "engines": 140013568,
+     "total": 148959232
+    },
+    "samples": 34,
+    "interval_ms": 10,
+    "max_sweep_ms": 0.0195
+   },
+   "start_spread_ms": 0.0374,
+   "common_work_ms": 376.3617
+  },
+  {
+   "scenario": "base",
+   "mode": "shared",
+   "clients": 8,
+   "samples": 624,
+   "threads": 4,
+   "profile": true,
+   "workload": "uniform",
+   "request_ms": {
+    "median": 2.27685,
+    "maximum": 7.6103,
+    "sum": 1630.4929
+   },
+   "service_ms": {
+    "queue": {
+     "median": 1.032,
+     "maximum": 3.8079,
+     "sum": 760.2857
+    },
+    "execution": {
+     "median": 1.0899999999999999,
+     "maximum": 3.7306,
+     "sum": 829.0278
+    },
+    "publication": {
+     "median": 0.0001,
+     "maximum": 0.0042,
+     "sum": 0.099
+    },
+    "mailbox": {
+     "median": 0.0111,
+     "maximum": 0.0641,
+     "sum": 6.8814
+    },
+    "owner": {
+     "median": 0.0091,
+     "maximum": 0.2097,
+     "sum": 5.8502
+    },
+    "total": {
+     "median": 2.22635,
+     "maximum": 7.562,
+     "sum": 1602.1441
+    },
+    "remainder": {
+     "median": 0.04360000000000008,
+     "maximum": 0.2824,
+     "sum": 28.3488
+    }
+   },
+   "cohorts": {
+    "long": {
+     "samples": 168,
+     "request_ms": {
+      "median": 3.0872,
+      "maximum": 7.6103,
+      "sum": 583.8641
+     },
+     "service_ms": {
+      "queue": {
+       "median": 1.4275,
+       "maximum": 3.8079,
+       "sum": 265.3644
+      },
+      "execution": {
+       "median": 1.5558999999999998,
+       "maximum": 3.7306,
+       "sum": 307.6114
+      },
+      "publication": {
+       "median": 0.0002,
+       "maximum": 0.0002,
+       "sum": 0.025500000000000002
+      },
+      "mailbox": {
+       "median": 0.01145,
+       "maximum": 0.0317,
+       "sum": 1.8664
+      },
+      "owner": {
+       "median": 0.009049999999999999,
+       "maximum": 0.0169,
+       "sum": 1.5344
+      },
+      "total": {
+       "median": 3.0495,
+       "maximum": 7.562,
+       "sum": 576.4021
+      },
+      "remainder": {
+       "median": 0.04310000000000014,
+       "maximum": 0.0732999999999997,
+       "sum": 7.461999999999999
+      }
+     }
+    },
+    "short": {
+     "samples": 456,
+     "request_ms": {
+      "median": 2.12035,
+      "maximum": 6.0265,
+      "sum": 1046.6288
+     },
+     "service_ms": {
+      "queue": {
+       "median": 0.9691000000000001,
+       "maximum": 3.7688,
+       "sum": 494.9213
+      },
+      "execution": {
+       "median": 1.0244,
+       "maximum": 3.1507,
+       "sum": 521.4164
+      },
+      "publication": {
+       "median": 0.0001,
+       "maximum": 0.0042,
+       "sum": 0.0735
+      },
+      "mailbox": {
+       "median": 0.011,
+       "maximum": 0.0641,
+       "sum": 5.015
+      },
+      "owner": {
+       "median": 0.0091,
+       "maximum": 0.2097,
+       "sum": 4.3158
+      },
+      "total": {
+       "median": 2.0763,
+       "maximum": 5.9748,
+       "sum": 1025.742
+      },
+      "remainder": {
+       "median": 0.04369999999999985,
+       "maximum": 0.2824,
+       "sum": 20.8868
+      }
+     }
+    }
+   },
+   "prepare_ms": 1301.4893,
+   "wall_ms": 209.9365,
+   "memory": {
+    "ready": {
+     "controller": 954368,
+     "clients": 7671808,
+     "engines": 137261056,
+     "total": 145887232
+    },
+    "sampled_peak": {
+     "controller": 954368,
+     "clients": 7950336,
+     "engines": 141533184,
+     "total": 150437888
+    },
+    "held": {
+     "controller": 954368,
+     "clients": 7950336,
+     "engines": 141533184,
+     "total": 150437888
+    },
+    "samples": 23,
+    "interval_ms": 10,
+    "max_sweep_ms": 0.0281
+   },
+   "start_spread_ms": 0.0042,
+   "common_work_ms": 200.9127
+  },
+  {
+   "scenario": "base",
+   "mode": "shared",
+   "clients": 8,
+   "samples": 624,
+   "threads": 8,
+   "profile": true,
+   "workload": "uniform",
+   "request_ms": {
+    "median": 1.46725,
+    "maximum": 5.8952,
+    "sum": 1064.6705
+   },
+   "service_ms": {
+    "queue": {
+     "median": 0.0087,
+     "maximum": 0.0381,
+     "sum": 5.5419
+    },
+    "execution": {
+     "median": 1.3752499999999999,
+     "maximum": 5.8242,
+     "sum": 1010.7211
+    },
+    "publication": {
+     "median": 0.0002,
+     "maximum": 0.0013,
+     "sum": 0.097
+    },
+    "mailbox": {
+     "median": 0.012,
+     "maximum": 0.0755,
+     "sum": 7.7001
+    },
+    "owner": {
+     "median": 0.0107,
+     "maximum": 0.0384,
+     "sum": 6.8809
+    },
+    "total": {
+     "median": 1.4147,
+     "maximum": 5.8459,
+     "sum": 1030.941
+    },
+    "remainder": {
+     "median": 0.05190000000000006,
+     "maximum": 0.11899999999999977,
+     "sum": 33.7295
+    }
+   },
+   "cohorts": {
+    "long": {
+     "samples": 168,
+     "request_ms": {
+      "median": 1.90165,
+      "maximum": 5.8952,
+      "sum": 371.0058
+     },
+     "service_ms": {
+      "queue": {
+       "median": 0.0086,
+       "maximum": 0.0381,
+       "sum": 1.512
+      },
+      "execution": {
+       "median": 1.8266,
+       "maximum": 5.8242,
+       "sum": 356.2683
+      },
+      "publication": {
+       "median": 0.0001,
+       "maximum": 0.0008,
+       "sum": 0.0264
+      },
+      "mailbox": {
+       "median": 0.0122,
+       "maximum": 0.0696,
+       "sum": 2.1666
+      },
+      "owner": {
+       "median": 0.0109,
+       "maximum": 0.0267,
+       "sum": 1.9096
+      },
+      "total": {
+       "median": 1.8494,
+       "maximum": 5.8459,
+       "sum": 361.8829
+      },
+      "remainder": {
+       "median": 0.05209999999999998,
+       "maximum": 0.11899999999999977,
+       "sum": 9.1229
+      }
+     }
+    },
+    "short": {
+     "samples": 456,
+     "request_ms": {
+      "median": 1.38895,
+      "maximum": 4.6233,
+      "sum": 693.6647
+     },
+     "service_ms": {
+      "queue": {
+       "median": 0.0087,
+       "maximum": 0.0211,
+       "sum": 4.0299
+      },
+      "execution": {
+       "median": 1.3054999999999999,
+       "maximum": 4.5375,
+       "sum": 654.4528
+      },
+      "publication": {
+       "median": 0.0002,
+       "maximum": 0.0013,
+       "sum": 0.07060000000000001
+      },
+      "mailbox": {
+       "median": 0.012,
+       "maximum": 0.0755,
+       "sum": 5.5335
+      },
+      "owner": {
+       "median": 0.0106,
+       "maximum": 0.0384,
+       "sum": 4.9713
+      },
+      "total": {
+       "median": 1.3323,
+       "maximum": 4.571,
+       "sum": 669.0581
+      },
+      "remainder": {
+       "median": 0.05184999999999995,
+       "maximum": 0.1169,
+       "sum": 24.606599999999997
+      }
+     }
+    }
+   },
+   "prepare_ms": 1313.264,
+   "wall_ms": 144.7605,
+   "memory": {
+    "ready": {
+     "controller": 942080,
+     "clients": 7733248,
+     "engines": 137400320,
+     "total": 146075648
+    },
+    "sampled_peak": {
+     "controller": 942080,
+     "clients": 8011776,
+     "engines": 144044032,
+     "total": 152997888
+    },
+    "held": {
+     "controller": 942080,
+     "clients": 8011776,
+     "engines": 144044032,
+     "total": 152997888
+    },
+    "samples": 20,
+    "interval_ms": 10,
+    "max_sweep_ms": 0.0215
+   },
+   "start_spread_ms": 0.004,
+   "common_work_ms": 132.1236
+  },
+  {
+   "scenario": "ff14",
+   "mode": "local",
+   "clients": 8,
+   "samples": 912,
+   "threads": 0,
+   "profile": false,
+   "workload": "uniform",
+   "request_ms": {
+    "median": 1.4736500000000001,
+    "maximum": 14.6681,
+    "sum": 2449.9534
+   },
+   "cohorts": {
+    "long": {
+     "samples": 288,
+     "request_ms": {
+      "median": 4.418100000000001,
+      "maximum": 14.6681,
+      "sum": 1486.3001
+     }
+    },
+    "short": {
+     "samples": 624,
+     "request_ms": {
+      "median": 1.2994500000000002,
+      "maximum": 5.5732,
+      "sum": 963.6533
+     }
+    }
+   },
+   "prepare_ms": 2232.4919,
+   "wall_ms": 315.6342,
+   "memory": {
+    "ready": {
+     "controller": 987136,
+     "clients": 1529815040,
+     "engines": 0,
+     "total": 1530802176
+    },
+    "sampled_peak": {
+     "controller": 987136,
+     "clients": 1533476864,
+     "engines": 0,
+     "total": 1534464000
+    },
+    "held": {
+     "controller": 987136,
+     "clients": 1533476864,
+     "engines": 0,
+     "total": 1534464000
+    },
+    "samples": 29,
+    "interval_ms": 10,
+    "max_sweep_ms": 0.0231
+   },
+   "start_spread_ms": 0.0041,
+   "common_work_ms": 295.4793
+  },
+  {
+   "scenario": "ff14",
+   "mode": "shared",
+   "clients": 8,
+   "samples": 912,
+   "threads": 2,
+   "profile": true,
+   "workload": "uniform",
+   "request_ms": {
+    "median": 4.915900000000001,
+    "maximum": 41.3672,
+    "sum": 8202.1502
+   },
+   "service_ms": {
+    "queue": {
+     "median": 3.60095,
+     "maximum": 30.8943,
+     "sum": 6034.0684
+    },
+    "execution": {
+     "median": 1.1987,
+     "maximum": 11.1829,
+     "sum": 2102.904
+    },
+    "publication": {
+     "median": 0.0001,
+     "maximum": 0.0042,
+     "sum": 0.13770000000000002
+    },
+    "mailbox": {
+     "median": 0.0125,
+     "maximum": 0.0318,
+     "sum": 11.1045
+    },
+    "owner": {
+     "median": 0.01,
+     "maximum": 0.0251,
+     "sum": 9.1945
+    },
+    "total": {
+     "median": 4.8713,
+     "maximum": 41.3103,
+     "sum": 8157.4091
+    },
+    "remainder": {
+     "median": 0.04800000000000004,
+     "maximum": 0.10410000000000075,
+     "sum": 44.74110000000002
+    }
+   },
+   "cohorts": {
+    "long": {
+     "samples": 288,
+     "request_ms": {
+      "median": 14.632349999999999,
+      "maximum": 41.3672,
+      "sum": 4961.6557
+     },
+     "service_ms": {
+      "queue": {
+       "median": 10.22465,
+       "maximum": 30.8943,
+       "sum": 3604.4447
+      },
+      "execution": {
+       "median": 4.1829,
+       "maximum": 11.1829,
+       "sum": 1334.3953
+      },
+      "publication": {
+       "median": 0.0001,
+       "maximum": 0.0042,
+       "sum": 0.045200000000000004
+      },
+      "mailbox": {
+       "median": 0.0133,
+       "maximum": 0.0318,
+       "sum": 3.8151
+      },
+      "owner": {
+       "median": 0.0111,
+       "maximum": 0.0236,
+       "sum": 3.1706
+      },
+      "total": {
+       "median": 14.580400000000001,
+       "maximum": 41.3103,
+       "sum": 4945.8709
+      },
+      "remainder": {
+       "median": 0.05499999999999994,
+       "maximum": 0.10410000000000075,
+       "sum": 15.78480000000001
+      }
+     }
+    },
+    "short": {
+     "samples": 624,
+     "request_ms": {
+      "median": 4.28595,
+      "maximum": 30.3256,
+      "sum": 3240.4945
+     },
+     "service_ms": {
+      "queue": {
+       "median": 3.1906499999999998,
+       "maximum": 29.7287,
+       "sum": 2429.6237
+      },
+      "execution": {
+       "median": 0.98085,
+       "maximum": 3.7792,
+       "sum": 768.5087
+      },
+      "publication": {
+       "median": 0.0001,
+       "maximum": 0.0027,
+       "sum": 0.0925
+      },
+      "mailbox": {
+       "median": 0.012,
+       "maximum": 0.0246,
+       "sum": 7.2894
+      },
+      "owner": {
+       "median": 0.0096,
+       "maximum": 0.0251,
+       "sum": 6.0239
+      },
+      "total": {
+       "median": 4.2408,
+       "maximum": 30.2713,
+       "sum": 3211.5382
+      },
+      "remainder": {
+       "median": 0.045849999999999946,
+       "maximum": 0.09929999999999994,
+       "sum": 28.95630000000001
+      }
+     }
+    }
+   },
+   "prepare_ms": 1764.9417,
+   "wall_ms": 1060.1176,
+   "memory": {
+    "ready": {
+     "controller": 1024000,
+     "clients": 7700480,
+     "engines": 192704512,
+     "total": 201428992
+    },
+    "sampled_peak": {
+     "controller": 1024000,
+     "clients": 8052736,
+     "engines": 195444736,
+     "total": 204521472
+    },
+    "held": {
+     "controller": 1024000,
+     "clients": 8052736,
+     "engines": 195444736,
+     "total": 204521472
+    },
+    "samples": 76,
+    "interval_ms": 10,
+    "max_sweep_ms": 0.024
+   },
+   "start_spread_ms": 0.0035,
+   "common_work_ms": 1003.1123
+  },
+  {
+   "scenario": "ff14",
+   "mode": "shared",
+   "clients": 8,
+   "samples": 912,
+   "threads": 4,
+   "profile": true,
+   "workload": "uniform",
+   "request_ms": {
+    "median": 3.16535,
+    "maximum": 22.6732,
+    "sum": 4317.9115
+   },
+   "service_ms": {
+    "queue": {
+     "median": 1.44465,
+     "maximum": 13.4371,
+     "sum": 2002.2745
+    },
+    "execution": {
+     "median": 1.3687,
+     "maximum": 12.0977,
+     "sum": 2247.487
+    },
+    "publication": {
+     "median": 0.0001,
+     "maximum": 0.0013,
+     "sum": 0.1395
+    },
+    "mailbox": {
+     "median": 0.0127,
+     "maximum": 0.0483,
+     "sum": 11.4936
+    },
+    "owner": {
+     "median": 0.0103,
+     "maximum": 0.0628,
+     "sum": 9.6778
+    },
+    "total": {
+     "median": 3.11255,
+     "maximum": 22.6206,
+     "sum": 4271.0724
+    },
+    "remainder": {
+     "median": 0.05054999999999965,
+     "maximum": 0.1321999999999992,
+     "sum": 46.83909999999999
+    }
+   },
+   "cohorts": {
+    "long": {
+     "samples": 288,
+     "request_ms": {
+      "median": 7.602600000000001,
+      "maximum": 22.6732,
+      "sum": 2400.4965
+     },
+     "service_ms": {
+      "queue": {
+       "median": 2.43225,
+       "maximum": 13.4371,
+       "sum": 1004.4012
+      },
+      "execution": {
+       "median": 4.3145500000000006,
+       "maximum": 12.0977,
+       "sum": 1373.7801
+      },
+      "publication": {
+       "median": 0.0001,
+       "maximum": 0.0007,
+       "sum": 0.0427
+      },
+      "mailbox": {
+       "median": 0.0133,
+       "maximum": 0.0483,
+       "sum": 3.7661000000000002
+      },
+      "owner": {
+       "median": 0.0106,
+       "maximum": 0.0174,
+       "sum": 3.1538
+      },
+      "total": {
+       "median": 7.5449,
+       "maximum": 22.6206,
+       "sum": 2385.1439
+      },
+      "remainder": {
+       "median": 0.0527500000000003,
+       "maximum": 0.1321999999999992,
+       "sum": 15.352599999999995
+      }
+     }
+    },
+    "short": {
+     "samples": 624,
+     "request_ms": {
+      "median": 2.6986499999999998,
+      "maximum": 11.9497,
+      "sum": 1917.415
+     },
+     "service_ms": {
+      "queue": {
+       "median": 1.2947000000000002,
+       "maximum": 9.9952,
+       "sum": 997.8733
+      },
+      "execution": {
+       "median": 1.20405,
+       "maximum": 5.5173,
+       "sum": 873.7069
+      },
+      "publication": {
+       "median": 0.0002,
+       "maximum": 0.0013,
+       "sum": 0.09680000000000001
+      },
+      "mailbox": {
+       "median": 0.0125,
+       "maximum": 0.0333,
+       "sum": 7.7275
+      },
+      "owner": {
+       "median": 0.0102,
+       "maximum": 0.0628,
+       "sum": 6.524
+      },
+      "total": {
+       "median": 2.6509,
+       "maximum": 11.8845,
+       "sum": 1885.9285
+      },
+      "remainder": {
+       "median": 0.048799999999999955,
+       "maximum": 0.10410000000000008,
+       "sum": 31.486499999999992
+      }
+     }
+    }
+   },
+   "prepare_ms": 1789.3058,
+   "wall_ms": 582.2166,
+   "memory": {
+    "ready": {
+     "controller": 1032192,
+     "clients": 7684096,
+     "engines": 192815104,
+     "total": 201531392
+    },
+    "sampled_peak": {
+     "controller": 1032192,
+     "clients": 8028160,
+     "engines": 196657152,
+     "total": 205717504
+    },
+    "held": {
+     "controller": 1032192,
+     "clients": 8028160,
+     "engines": 196657152,
+     "total": 205717504
+    },
+    "samples": 45,
+    "interval_ms": 10,
+    "max_sweep_ms": 0.0199
+   },
+   "start_spread_ms": 0.0042,
+   "common_work_ms": 508.6277
+  },
+  {
+   "scenario": "ff14",
+   "mode": "shared",
+   "clients": 8,
+   "samples": 912,
+   "threads": 8,
+   "profile": true,
+   "workload": "uniform",
+   "request_ms": {
+    "median": 1.6454499999999999,
+    "maximum": 17.787,
+    "sum": 2609.1376
+   },
+   "service_ms": {
+    "queue": {
+     "median": 0.0087,
+     "maximum": 0.0262,
+     "sum": 8.1713
+    },
+    "execution": {
+     "median": 1.5502500000000001,
+     "maximum": 17.711,
+     "sum": 2529.9062
+    },
+    "publication": {
+     "median": 0.0001,
+     "maximum": 0.0027,
+     "sum": 0.1462
+    },
+    "mailbox": {
+     "median": 0.0121,
+     "maximum": 0.0744,
+     "sum": 11.0858
+    },
+    "owner": {
+     "median": 0.0109,
+     "maximum": 0.099,
+     "sum": 10.1539
+    },
+    "total": {
+     "median": 1.58515,
+     "maximum": 17.7398,
+     "sum": 2559.4634
+    },
+    "remainder": {
+     "median": 0.05295000000000061,
+     "maximum": 0.12090000000000001,
+     "sum": 49.6742
+    }
+   },
+   "cohorts": {
+    "long": {
+     "samples": 288,
+     "request_ms": {
+      "median": 4.62875,
+      "maximum": 17.787,
+      "sum": 1571.057
+     },
+     "service_ms": {
+      "queue": {
+       "median": 0.00895,
+       "maximum": 0.0186,
+       "sum": 2.6403
+      },
+      "execution": {
+       "median": 4.54035,
+       "maximum": 17.711,
+       "sum": 1545.4119
+      },
+      "publication": {
+       "median": 0.0001,
+       "maximum": 0.0003,
+       "sum": 0.0415
+      },
+      "mailbox": {
+       "median": 0.0128,
+       "maximum": 0.0412,
+       "sum": 3.6451000000000002
+      },
+      "owner": {
+       "median": 0.0111,
+       "maximum": 0.099,
+       "sum": 3.366
+      },
+      "total": {
+       "median": 4.5748999999999995,
+       "maximum": 17.7398,
+       "sum": 1555.1048
+      },
+      "remainder": {
+       "median": 0.05479999999999974,
+       "maximum": 0.1045999999999978,
+       "sum": 15.952199999999994
+      }
+     }
+    },
+    "short": {
+     "samples": 624,
+     "request_ms": {
+      "median": 1.4417,
+      "maximum": 5.5656,
+      "sum": 1038.0806
+     },
+     "service_ms": {
+      "queue": {
+       "median": 0.0086,
+       "maximum": 0.0262,
+       "sum": 5.531
+      },
+      "execution": {
+       "median": 1.35465,
+       "maximum": 5.4657,
+       "sum": 984.4943
+      },
+      "publication": {
+       "median": 0.0002,
+       "maximum": 0.0027,
+       "sum": 0.1047
+      },
+      "mailbox": {
+       "median": 0.0117,
+       "maximum": 0.0744,
+       "sum": 7.4407
+      },
+      "owner": {
+       "median": 0.01055,
+       "maximum": 0.0261,
+       "sum": 6.7879
+      },
+      "total": {
+       "median": 1.38315,
+       "maximum": 5.5098,
+       "sum": 1004.3586
+      },
+      "remainder": {
+       "median": 0.051899999999999835,
+       "maximum": 0.12090000000000001,
+       "sum": 33.722
+      }
+     }
+    }
+   },
+   "prepare_ms": 1755.3192,
+   "wall_ms": 342.1436,
+   "memory": {
+    "ready": {
+     "controller": 1019904,
+     "clients": 7675904,
+     "engines": 192933888,
+     "total": 201629696
+    },
+    "sampled_peak": {
+     "controller": 1019904,
+     "clients": 8019968,
+     "engines": 200290304,
+     "total": 209330176
+    },
+    "held": {
+     "controller": 1019904,
+     "clients": 8019968,
+     "engines": 200290304,
+     "total": 209330176
+    },
+    "samples": 31,
+    "interval_ms": 10,
+    "max_sweep_ms": 0.0304
+   },
+   "start_spread_ms": 0.0123,
+   "common_work_ms": 313.016
+  }
+ ]
+}

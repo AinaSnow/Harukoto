@@ -4,6 +4,7 @@
 
 using namespace harukoto::engine;
 namespace rs = harukoto::engine::resident;
+static_assert(rs::HostThreads == admission::Limit, "one host worker per client slot");
 #ifdef HARUKOTO_RESIDENT_TESTING
 constexpr bool Testing = true;  // harukoto_engine_owner_test only: injectable roots, never packaged.
 #else
@@ -26,6 +27,7 @@ static int residentMain(int argc, wchar_t **argv) {
     rs::Policy policy;
     std::filesystem::path base, themes, personal;
     std::optional<uint64_t> idleMs;
+    std::optional<size_t> threads;
     for (int i=3;i<argc;i+=2) {
         if (i+1 >= argc) throw std::invalid_argument("missing resident option");
         const std::wstring key = argv[i], value = argv[i+1];
@@ -40,6 +42,8 @@ static int residentMain(int argc, wchar_t **argv) {
         else if (Testing && key == L"--release-subkey") { source.root = HKEY_CURRENT_USER; source.subkey = value; source.requireProtected = false; }
         else if (Testing && key == L"--store-subkey") store = rs::Store::under(value);
         else if (Testing && key == L"--idle-ms" && !value.empty() && value.size() < 10 && value.find_first_not_of(L"0123456789") == std::wstring::npos) idleMs = std::stoull(value);
+        else if (Testing && key == L"--threads" && value.size() <= 2 && !value.empty() && value.find_first_not_of(L"0123456789") == std::wstring::npos &&
+                std::stoul(value) >= 1 && std::stoul(value) <= 16) threads = std::stoul(value);
         else throw std::invalid_argument("invalid resident option");
     }
     pipe::processIdentityOnly();
@@ -73,6 +77,7 @@ static int residentMain(int argc, wchar_t **argv) {
             EngineProcess::Config config{approved->host,base,themes,personal};
             config.dynamicEndpoints = true; config.connections = 8; config.hostSha256 = approved->hostSha256;
             config.ownerLease = instance->handle(); config.stopMs = 3000;
+            config.threads = threads ? *threads : rs::HostThreads;
             EngineOwnerAnchor anchor;
             pipe::Handle ready(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(ready));
             EngineOwner::Lifecycle lifecycle{idle,watch.resume(),[&](size_t clients, DWORD host) { if (ledger) ledger->clients(clients,host); }};

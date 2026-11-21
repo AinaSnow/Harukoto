@@ -67,6 +67,21 @@ static void files(const std::filesystem::path &root) {
     rejected([&] { EngineDeployment p(folder,approved); });
     const auto empty=folder/L"empty.exe"; std::ofstream(empty).close();
     rejected([&] { EngineDeployment p(empty,approved); });
+    { // shared(): reuse a pin only while something in this process still holds it (ENGINE_COST.md).
+        const auto cached=folder/L"cached.exe"; std::filesystem::copy_file(self(),cached);
+        invalid([&] { EngineDeployment::shared(cached,"bad"); });
+        auto first=EngineDeployment::shared(cached,approved), again=EngineDeployment::shared(cached,approved);
+        assert(first && first==again && first->digest()==approved);
+        rejected([&] { EngineDeployment::shared(cached,std::string(64,'0')); }); // Another digest pins and hashes afresh.
+        ep::Handle write(CreateFileW(cached.c_str(),GENERIC_WRITE,FILE_SHARE_READ | FILE_SHARE_WRITE,nullptr,OPEN_EXISTING,0,nullptr));
+        assert(!write && GetLastError()==ERROR_SHARING_VIOLATION); // The vouched bytes cannot change while held.
+        assert(!DeleteFileW(cached.c_str()) && !MoveFileW(cached.c_str(),(folder/L"cached-renamed.exe").c_str()));
+        std::weak_ptr<const EngineDeployment> watch=first;
+        first.reset(); assert(!watch.expired()); again.reset(); assert(watch.expired()); // Nothing outlives the holders.
+        { std::ofstream changed(cached,std::ios::app | std::ios::binary); changed << 'x'; assert(bool(changed)); }
+        rejected([&] { EngineDeployment::shared(cached,approved); }); // Hashed again: the change is caught.
+        auto other=EngineDeployment::shared(executable,approved); assert(!other->sameFile(*EngineDeployment::shared(copy,approved)));
+    }
     assert(CreateHardLinkW(alias.c_str(),executable.c_str(),nullptr));
     {
         std::string uppercase=approved;

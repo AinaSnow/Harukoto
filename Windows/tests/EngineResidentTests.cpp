@@ -4,6 +4,7 @@
 #include "EngineHostTestClient.h"
 #include <fstream>
 #include <csignal>
+#include <tlhelp32.h>
 
 // WIN-03 step 4: resident lifecycle. Real resident owners (the test build of
 // the owner, copied with the host into a temporary version directory and
@@ -285,6 +286,7 @@ static void units(const Env &env) {
     std::deque<uint64_t> restarts;
     assert(rs::hostRestart(p,restarts,1000)==1000 && rs::hostRestart(p,restarts,2000)==2000 && rs::hostRestart(p,restarts,3000)==4000);
     assert(!rs::hostRestart(p,restarts,4000) && rs::hostRestart(p,restarts,1000+p.windowMs)==4000);
+    { rs::EnsureOptions defaults; assert(defaults.startWaitMs<=defaults.budgetMs && rs::HostThreads==admission::Limit && rs::KeyDeadlineMs==1000); }
     assert(rs::clampIdle(0)==0 && rs::clampIdle(1)==5 && rs::clampIdle(30)==30 && rs::clampIdle(5000)==1440);
     assert(rs::idleMinutes(env.store)==0); // Missing value: never.
     {
@@ -352,6 +354,13 @@ static void real(Env &e) {
     }
     assert(alive(owner));
     auto host=readyHost(e,owner);
+    { // The resident host runs one query worker per client slot (ENGINE_COST.md).
+        size_t threads=0; ep::Handle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD,0)); assert(snapshot);
+        THREADENTRY32 entry{sizeof(entry)};
+        for (BOOL more=Thread32First(snapshot.get(),&entry);more;more=Thread32Next(snapshot.get(),&entry)) threads+=entry.th32OwnerProcessID==host;
+        std::cout << "  host threads: " << threads << '\n';
+        assert(threads>rs::HostThreads);
+    }
     assert(waitFor([&] { return e.status().clients==0; },Timeout));
     {
         auto s=e.status(); assert(s.alive && s.reason==rs::Reason::Demand && s.starts.size()==1 && !s.tripped);

@@ -1,5 +1,15 @@
 # 开发状态与接手入口
 
+## 2026-11-21 · WIN-03 第 5 步：成本量化
+
+- 前置：第 4 步已提交（99c37e2）。本批未提交、未打包。TSF 与实际输入路径未改动。
+- 新增测量工具 `harukoto_engine_cost_benchmark`（`Windows/tests/EngineCostBenchmark.cpp`）与 `scripts/benchmark-engine-cost.py`：真实 Explorer 按需启动测试所有者（HKCU 测试键批准），真实客户端子进程经交接取槽；冷启动时间线、握手分段、固定散列、状态键、空闲 CPU、修剪后首键、0→8 会话开销、1／2／4／8 客户端逐键（tuned／holdout／words-dev＋FF14，3,464 键）进程内对引擎 2／4／8 线程。`benchmark-engine-ipc.py` 允许 8 客户端。报告：`docs/benchmarks/engine-cost-win03-5.json`、`engine-ipc-8clients-summary.json`（生成于改默认值之前，source_dirty=true）。
+- 结果：按需启动到 Admitted 中位 1.75 秒（宿主加载 1.69 秒，Explorer＋所有者约 45 ms）；热 `admit()` 1.1 ms；线程≥客户端时经引擎每键中位多 0.06～0.10 ms，2 线程 8 客户端中位 12.5 ms（排队）；8 客户端总私有量 1,485→211 MiB，1 客户端多 3 MiB；空闲 CPU 0，状态键写约 0.06 ms。
+- 决定与改动：`resident::HostThreads`=8（常驻所有者默认，等于接入槽上限）；`resident::KeyDeadlineMs`=1000（第 6 步用）；`EnsureOptions::startWaitMs` 15→10 秒（与预算一致）；空闲、断路器、发现／交接超时不变。`EngineDeployment::shared()`：本进程仍持有固定对象时复用、不再散列（发现 2.3→0.8 ms，冷路径散列 7→2 次），`discover()`／`resident::start()`／`ensure()` 使用。测试构建所有者另接受 `--threads`。
+- 测试：新增 CTest `engine_cost_benchmark`；`engine_deployment`（shared 复用与释放后重新散列）、`engine_handoff`（并发会话共用固定对象）、`engine_resident`（默认值、常驻宿主线程数）补断言。CTest 共 66 项，最后一次代码修改后完整构建、在 PowerShell 中一次运行全部通过（423.32 秒）；之后无残留进程、HKCU 测试键或本批临时目录（%TEMP% 下 2026-11-20 的 harukoto-base-production-* 为此前遗留，未动）。
+- 未验证：冷磁盘缓存、低配机器、真实应用并发度与 TSF 调用方式。详见[常驻引擎成本](ENGINE_COST.md)。
+- 下一步：第 6 步接入 TSF（服务线程 `ensure()`、每键期限、组字边界回退、正式数据路径）。
+
 ## 2026-11-21 · WIN-03 第 4 步：正式常驻生命周期
 
 - 前置：第 3 步已提交（0c20ba0）。本批未提交、未打包。TSF 与实际输入路径未改动，TIP 未改、未复制 DLL。

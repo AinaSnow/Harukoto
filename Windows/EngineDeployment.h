@@ -2,6 +2,8 @@
 #include "EnginePipe.h"
 #include "BaseDictionaryFiles.h"
 #include <cstring>
+#include <map>
+#include <mutex>
 
 namespace harukoto::engine {
 // A caller-supplied digest is the trust root. Never obtain it from a candidate
@@ -99,6 +101,28 @@ public:
         }
         digest_=hash.finish();
         if (total!=static_cast<uint64_t>(size.QuadPart) || digest_!=approved) reject();
+    }
+    // Reuse a pin that something in this process still holds (a live handoff
+    // session holds both), instead of hashing the file again (ENGINE_COST.md).
+    // While any holder keeps it, the file is open without write/delete sharing
+    // and its ancestor directories cannot be renamed, so the bytes hashed then
+    // are the bytes on disk now; nothing outlives the last holder. Keyed by
+    // the exact path and approved digest: a different digest pins afresh.
+    static std::shared_ptr<const EngineDeployment> shared(const std::filesystem::path &path, const std::string &expected) {
+        const auto key=std::make_pair(path.native(),digest(expected));
+        static std::mutex lock;
+        static std::map<std::pair<std::wstring,std::string>,std::weak_ptr<const EngineDeployment>> pins;
+        {
+            std::lock_guard<std::mutex> guard(lock);
+            for (auto it=pins.begin();it!=pins.end();) it=it->second.expired() ? pins.erase(it) : std::next(it);
+            const auto found=pins.find(key);
+            if (found!=pins.end()) if (auto live=found->second.lock()) return live;
+        }
+        auto fresh=std::make_shared<const EngineDeployment>(path,key.second); // Hash outside the lock.
+        std::lock_guard<std::mutex> guard(lock);
+        auto &slot=pins[key];
+        if (auto live=slot.lock()) return live;
+        slot=fresh; return fresh;
     }
     EngineDeployment(const EngineDeployment &)=delete;
     EngineDeployment &operator=(const EngineDeployment &)=delete;
