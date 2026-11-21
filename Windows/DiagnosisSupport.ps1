@@ -56,6 +56,17 @@ function Convert-HarukotoRuntimeRecord {
             UiElements=$counts.ui_elements; UiElementsHostDrawn=$counts.ui_elements_host_drawn; UiElementFailures=$counts.ui_element_failures
             Compositions=$counts.compositions; CompositionFailures=$counts.composition_failures; CompositionsTerminated=$counts.compositions_terminated }
     }
+    # WIN-03 step 6a, absent in older services: who listed the last
+    # candidates (standalone engine or in-process) and why.
+    $engine = $null
+    if ($value.ContainsKey('engine_path')) {
+        $paths = @{off='关闭（进程内）'; in_process='进程内（引擎不适用）'; engine='独立引擎'; fallback='已回退进程内'}
+        if (!$paths.ContainsKey($value.engine_path) -or $value.engine_reason -isnot [string] -or $value.engine_reason -cnotmatch '^[a-z_]{1,32}$') { throw '无效引擎路径字段' }
+        foreach ($key in 'engine_served','engine_fallbacks') {
+            if (($value[$key] -isnot [long] -and $value[$key] -isnot [int]) -or $value[$key] -lt 0) { throw '无效引擎计数' }
+        }
+        $engine = "$($paths[$value.engine_path])；引擎提供 $($value.engine_served) 次，回退 $($value.engine_fallbacks) 次，原因 $($value.engine_reason)"
+    }
     $relation = if (!$PublishedGeneration) { '无可比较的发布指针' }
         elseif ($value.base_generation -ceq $PublishedGeneration) { '已采用发布版本' }
         else { '尚未采用当前发布版本' }
@@ -70,6 +81,7 @@ function Convert-HarukotoRuntimeRecord {
         InputMode=$(if ($game) {$game.InputMode} else {'未报告（旧版）'})
         CandidateUi=$(if ($game) {$game.CandidateUi} else {'未报告（旧版）'})
         GameInput=$game
+        Engine=$(if ($engine) {$engine} else {'未报告（旧版）'})
     }
 }
 

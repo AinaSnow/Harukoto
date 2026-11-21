@@ -5,6 +5,7 @@
 #include "EngineServer.h"
 #include "BaseDictionary.h"
 #include "PersonalDictionary.h"
+#include "EngineIdentity.h"
 #include <chrono>
 
 namespace harukoto::engine {
@@ -14,7 +15,7 @@ class WindowsDictionary {
     std::unique_ptr<base_dictionary::Snapshot> base_;
     std::vector<JapaneseWord> words_;
     std::unordered_map<std::string, std::vector<size_t>> readings_;
-    std::string generation_;
+    std::string generation_, identity_;
     WindowsDictionary() = default;
 public:
     struct QueryTimings {
@@ -23,6 +24,9 @@ public:
     };
     static constexpr size_t PageSize = 16;
     const std::string &generation() const { return generation_; }
+    // WIN-03 step 6a: what a TSF client compares with its own data before
+    // taking these candidates (EngineIdentity.h).
+    const std::string &identity() const { return identity_; }
     const base_dictionary::Snapshot &base() const { return *base_; }
     const std::vector<JapaneseWord> &words() const { return words_; }
     static std::shared_ptr<const WindowsDictionary> load(const std::filesystem::path &folder,
@@ -34,7 +38,7 @@ public:
         if (!personal.empty()) {
             auto source = readPersonalDictionary(personal, true, {});
             if (!source) throw std::runtime_error("invalid personal dictionary");
-            personalHash = source->present ? base_dictionary::sha256(source->bytes) : "absent";
+            personalHash = personalIdentity(source->present, source->bytes);
             result->words_.insert(result->words_.end(), source->words.begin(), source->words.end());
         }
         if (!themes.empty()) {
@@ -60,6 +64,7 @@ public:
             field(word.kana); field(word.source); field(word.chinese); field(word.theme ? "1" : "0");
         }
         result->generation_ = digest.finish();
+        result->identity_ = dataIdentity(result->base_->generation(), themeGeneration, personalHash);
         return result;
     }
     // Profiling is opt-in; normal queries do not read a clock for these phases.
@@ -128,6 +133,7 @@ private:
         auto lookup = [&](const std::string &reading) { return evidence.dictionary(reading, work.key.simplified); };
         const auto relevant = queryWords(work);
         auto choices = windowsCandidates(session.get(), relevant, lookup, work.chineseLocked);
+        std::vector<uint8_t> rounds(choices.size(), 0); // Expansion pass of each choice (step 6a).
         mark(&QueryTimings::merge_ms);
         std::vector<Candidate> converted;
         size_t convertedChoices = 0;
@@ -143,7 +149,11 @@ private:
                     consumed = mpn_candidate_consumed(session.get(), *choice.coreIndex);
                 }
                 if (text.empty() || !consumed) continue;
-                converted.push_back({convertedChoices + 1, static_cast<uint32_t>(consumed), std::move(text), choice.annotation});
+                const uint8_t flags = static_cast<uint8_t>((choice.japanese ? candidate_flag::Japanese : 0) |
+                    (choice.strong ? candidate_flag::Strong : 0) | (choice.directJapanese ? candidate_flag::Direct : 0) |
+                    (rounds[convertedChoices] << candidate_flag::RoundShift));
+                converted.push_back({convertedChoices + 1, static_cast<uint32_t>(consumed), std::move(text), choice.annotation,
+                    choice.coreIndex ? static_cast<uint32_t>(*choice.coreIndex + 1) : 0u, flags});
             }
         };
         const auto start = size_t(work.page) * PageSize;
@@ -156,6 +166,7 @@ private:
         for (int i=0; converted.size()<required && i<3 && mpn_candidates_can_expand(session.get()); ++i) {
             mpn_expand_candidates(session.get());
             appendCandidateExpansion(session.get(), choices, windowsCandidates(session.get(), relevant, lookup, work.chineseLocked));
+            rounds.resize(choices.size(), static_cast<uint8_t>(i + 1));
             mark(&QueryTimings::expansion_ms);
             convert(); mark(&QueryTimings::conversion_ms);
         }

@@ -1,5 +1,15 @@
 # 开发状态与接手入口
 
+## 2026-11-21 · WIN-03 第 6a 步：接入 TSF（开关、异步与回退，基础拼音候选）
+
+- 前置：第 5 步已提交（49b7e06）。本批未提交、未打包。设计与子批次见[接入 TSF](ENGINE_TSF.md)。
+- 协议：候选加核心下标＋1 与标记（日语／强证据／直出／扩展轮次）；`Open` 回复可带数据身份（`EngineIdentity.h`，基础快照代次＋主题代次＋个人表哈希）；`ClientGate` 接受 68 字节的 Open 回复；宿主把 `WindowsDictionary::identity()` 交给每个连接。`EngineMessagesTests` 偏移随编码调整并补新字段编解码。
+- 接入层：新增 `Windows/EngineTsf.h`（开关读取、Driver、工作线程 Link、PipeTransport、rebuild、Client）与 `EngineTsfResident.h`（工作线程上 `resident::ensure()`＋交接＋申请端点）；`TextService.cpp` 只在编辑读音的刷新处允许走引擎，回复经隐藏消息窗口回到 TSF 线程，读取候选的键之前补算，`resetCandidates` 为组字边界；`ThemeReload::personal()`；运行时状态与 `diagnose-ime.ps1` 加引擎路径字段（`DiagnosisSupport.ps1` 可选解析，旧记录显示“未报告”）。TIP 与两个服务测试加链接 shell32。
+- 能力门槛：学习开启或有用户词、模糊音、关纠错、部分选词／分段上下文、F6、数字模式、数据身份不同（含安装目录）、第 0 轮超过 128 项时走进程内并记原因。
+- 测试：新增 CTest `engine_tsf_full`（关闭路径、异步／过期／在途补算／超时／粘滞／身份／门槛、真实宿主进程管道、4,304 个前缀对照不一致 0）。评测 tuned／holdout（只看总数）／words-dev 与 cn07sym、ff1404 除时间与内存外相同（`chinese-*-win036a.json`）。CTest 共 67 项，最后一次代码修改后完整构建、复制 TIP 到 `.build/windows/ime`，在 PowerShell 中一次运行全部通过（168.60 秒，-j 4）；之后无残留进程、HKCU 测试键或本批临时目录。
+- 未验证：真实应用中开启开关（生产没有 HKLM 发行元数据、安装目录不是快照，开启后会稳定走进程内）；非按键时刷新候选窗在各类宿主（UI-less、游戏）中的表现；多应用同时开启。
+- 下一步：6b（模糊音、纠错、个人词频、用户词、选词记忆进入引擎，身份纳入修订号）。
+
 ## 2026-11-21 · WIN-03 第 5 步：成本量化
 
 - 前置：第 4 步已提交（99c37e2）。本批未提交、未打包。TSF 与实际输入路径未改动。

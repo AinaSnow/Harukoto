@@ -93,6 +93,7 @@ int wmain(int argc, wchar_t **argv) {
                 throw std::runtime_error("engine generation failure");
         } while (!generation);
         auto dictionary = WindowsDictionary::load(base,themes,personal);
+        options.identity = dictionary->identity();
         Host::Observer observer;
         if (traces) observer = [&](const EngineTrace &row) { traces->append(row); };
         Host host(names,dictionary,generation,[](const ServerConnection::Ticket &work) {

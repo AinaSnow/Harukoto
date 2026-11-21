@@ -95,7 +95,7 @@ Write-Output "已检查 $checked 个进程，$unknown 个无法确认。"
 Write-Output ('基础词库发布：' + $basePublication.Status + ' ' + $basePublication.Generation)
 foreach ($match in $matches) {
     Write-Output ("运行时 [$($match.Name) / $($match.Id)]：" + $match.Runtime.Status)
-    $match.Runtime.Instances | Format-List ThreadId,SlotId,ServiceVersion,BaseSource,BaseVersion,BaseGeneration,ThemeGeneration,PendingBaseGeneration,Phase,LastApplyFailed,Publication,ObservationAgeSeconds,InputMode,CandidateUi,
+    $match.Runtime.Instances | Format-List ThreadId,SlotId,ServiceVersion,BaseSource,BaseVersion,BaseGeneration,ThemeGeneration,PendingBaseGeneration,Phase,LastApplyFailed,Publication,ObservationAgeSeconds,InputMode,CandidateUi,Engine,
         @{n='OpenClose';e={if ($_.GameInput) {"应用改动 $($_.GameInput.OpenCloseChanges) 次，其中关闭 $($_.GameInput.HostCloses) 次"}}},
         @{n='UiElements';e={if ($_.GameInput) {"$($_.GameInput.UiElements) 次，应用自绘 $($_.GameInput.UiElementsHostDrawn) 次，失败 $($_.GameInput.UiElementFailures) 次"}}},
         @{n='Compositions';e={if ($_.GameInput) {"$($_.GameInput.Compositions) 次，失败 $($_.GameInput.CompositionFailures) 次，被应用结束 $($_.GameInput.CompositionsTerminated) 次"}}}

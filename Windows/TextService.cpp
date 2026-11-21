@@ -29,6 +29,8 @@
 #include <new>
 #include <string>
 #include "WordEvidence.h"
+#include "EngineTsfResident.h"
+namespace tsf_engine = harukoto::tsf_engine;
 
 namespace {
 const CLSID serviceId = {0x961c0ada,0x4dc6,0x488f,{0x95,0x63,0x4f,0xc1,0x44,0xef,0xae,0x27}};
@@ -371,6 +373,7 @@ class Service final : public ITfTextInputProcessor, public ITfKeyEventSink, publ
     public ITfCompartmentEventSink, public ITfCompositionSink, public RefCount {
     friend struct ServiceFocusTest;
     friend struct ServiceReloadTest;
+    friend struct EngineTsfTest;
     friend class ModeButton;
     friend class CandidateElement;
     friend class CompositionEdit;
@@ -458,6 +461,11 @@ public:
         detachMode();
         runtimeStatus.close();
         if (memory) { memory->flush(); memory.reset(); }
+        engineClient.cancel();
+        engineClient.factory = nullptr;
+        engineClient.enabled = false;
+        engineClient.close(); // Its worker thread, if any, ends on its own.
+        if (engineWindow) { DestroyWindow(engineWindow); engineWindow = nullptr; }
         wordBonuses.reset();
         themeReload.reset();
         conjugationPanel.clear();
@@ -556,6 +564,10 @@ public:
     }
     HRESULT STDMETHODCALLTYPE OnTestKeyDown(ITfContext *context, WPARAM key, LPARAM flags, BOOL *eaten) override {
         trackKeyDown(key, flags);
+        // WIN-03 step 6a: these keys are taken only with candidates to act on.
+        if (context == activeContext && (navigation(key) || key == VK_F4 || key == VK_F6)) {
+            try { settleEngine(key); } catch (...) {}
+        }
         *eaten = accepts(context, key);
         return S_OK;
     }
@@ -636,6 +648,16 @@ public:
             if (readEnglishPunctuation(preferenceRoot) != englishPunctuation) {
                 englishPunctuation = !englishPunctuation;
                 if (button) button->changed();
+            }
+            // WIN-03 step 6a: the standalone engine switch, and the candidates
+            // it may still owe for the reading: a key that reads them gets the
+            // same list computed here first.
+            engineClient.enabled = tsf_engine::readStandaloneEngine(preferenceRoot);
+            settleEngine(key);
+            if (!engineClient.enabled && engineClient.link()) {
+                // Switched off: give the slot back; a list still owed is computed here.
+                if (engineClient.pending()) refreshCandidates();
+                engineClient.close();
             }
             std::wstring text;
             // CN-07 batch 6, number mode: digits (and one decimal point) typed
@@ -813,13 +835,17 @@ public:
                 }
                 *eaten = TRUE;
             } else {
+                bool typed = false;
                 if (key >= '1' && key <= '7')
                     *eaten = chooseCandidate(start + key - '1', text);
                 else if (key == VK_RETURN && count)
                     *eaten = chooseCandidate(start + (std::min)(highlighted, count - 1), text);
-                else
+                else {
                     *eaten = mpn_key(session, translate(key));
-                refreshCandidates();
+                    typed = true;
+                }
+                // Only an edited reading may be listed by the engine (step 6a).
+                refreshCandidates(typed);
             }
 
             text += wide(mpn_committed(session));
@@ -1273,7 +1299,8 @@ private:
                 + ",\"candidate_ui\":\"" + game.candidateUi + "\",\"ui_elements\":" + count(game.elementsBegun)
                 + ",\"ui_elements_host_drawn\":" + count(game.elementsHostDrawn) + ",\"ui_element_failures\":" + count(game.elementFailures)
                 + ",\"compositions\":" + count(game.compositions) + ",\"composition_failures\":" + count(game.compositionFailures)
-                + ",\"compositions_terminated\":" + count(game.compositionsTerminated));
+                + ",\"compositions_terminated\":" + count(game.compositionsTerminated)
+                + engineClient.diagnosticFields());
         } catch (...) {}
     }
     bool switchContext(ITfContext *context) {
@@ -1320,6 +1347,8 @@ private:
     }
 
     void resetCandidates() {
+        engineClient.cancel();
+        engineClient.boundary();
         numberInput.clear();
         composedReading.clear(); composedText.clear(); composedSegments = 0;
         conjugationPanel.clear();
@@ -1344,7 +1373,8 @@ private:
         hideCandidates();
     }
 
-    void refreshCandidates() {
+    void refreshCandidates(bool allowEngine = false) {
+        engineClient.cancel();
         conjugationPanel.clear();
         page = highlighted = 0;
         if (!*mpn_input(session)) {
@@ -1354,6 +1384,12 @@ private:
         // CN-07 batch 6: in number mode the generated forms are the list.
         if (!numberInput.empty()) {
             choices = quickCandidates(mpn_input(session), numberInput, clock());
+            return;
+        }
+        // WIN-03 step 6a: the engine lists the reading; the candidates stay
+        // empty until its reply (deliverEngine) or a key that needs them.
+        if (allowEngine && engineClient.enabled && engineRequest()) {
+            choices.clear();
             return;
         }
         choices = windowsCandidates(session, japaneseWords, [&](const std::string &input) {
@@ -1371,6 +1407,103 @@ private:
     }
 
     size_t candidateCount() const { return choices.size(); }
+
+    // WIN-03 step 6a (docs/ENGINE_TSF.md). The data identity of what this
+    // service lists from: its base snapshot, theme packages and personal
+    // table. Empty (never equal to an engine's) on the installation folder.
+    const std::string &engineIdentity() {
+        auto &cache = engineIdentityCache;
+        if (!baseSnapshot || !themeReload || !themeReload->personal()) { cache = {}; return cache.value; }
+        const auto *personal = themeReload->personal().get();
+        if (cache.value.empty() || cache.base != baseSnapshot->generation() || cache.theme != themeReload->activeGeneration() ||
+            cache.personal != personal) {
+            cache.base = baseSnapshot->generation(); cache.theme = themeReload->activeGeneration(); cache.personal = personal;
+            cache.value = harukoto::engine::dataIdentity(cache.base, cache.theme,
+                harukoto::engine::personalIdentity(personal->present, personal->bytes));
+        }
+        return cache.value;
+    }
+    // Capability gate: what 6a's engine cannot rank yet stays in-process.
+    const char *engineUnsupported() const {
+        const std::string input = mpn_input(session);
+        if (!harukoto::engine::inputValid(input)) return "input";
+        if (chineseLocked || *mpn_segment_context(session) || *mpn_committed(session) || composedSegments) return "partial";
+        if (conjugationPanel.active()) return "conjugation";
+        if (memoryEnabled || (memory && !memory->userWords().empty())) return "personal";
+        if (mpn_fuzzy_pinyin(session) || !mpn_typo_correction(session)) return "settings";
+        if (!tsf_engine::representable(session)) return "unrepresentable";
+        return nullptr;
+    }
+    std::unique_ptr<tsf_engine::Link> engineLink() {
+        if (!engineWindow) {
+            engineWindow = CreateWindowExW(0, L"STATIC", nullptr, 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, module, nullptr);
+            if (engineWindow) {
+                SetWindowLongPtrW(engineWindow, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+                originalEngineProc = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(
+                    engineWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&engineWindowProc)));
+            }
+        }
+        const HWND target = engineWindow;
+        return tsf_engine::Link::threaded(tsf_engine::residentConnect(), [target] { if (target) PostMessageW(target, WM_APP + 0x31, 0, 0); });
+    }
+    static LRESULT CALLBACK engineWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
+        auto *service = reinterpret_cast<Service *>(GetWindowLongPtrW(window, GWLP_USERDATA));
+        if (message == WM_APP + 0x31 && service) {
+            try { service->onEngineReply(); } catch (...) {}
+            return 0;
+        }
+        return service && service->originalEngineProc
+            ? CallWindowProcW(service->originalEngineProc, window, message, wParam, lParam)
+            : DefWindowProcW(window, message, wParam, lParam);
+    }
+    bool engineRequest() {
+        if (const char *reason = engineUnsupported()) { engineClient.inProcess(reason); return false; }
+        if (!engineClient.factory) engineClient.factory = [this] { return engineLink(); };
+        const auto now = GetTickCount64();
+        if (!engineClient.ready(now, engineIdentity())) return false;
+        engineClient.send(mpn_input(session), simplified, now);
+        return true;
+    }
+    // Takes the engine's reply when it has arrived. True when the list
+    // changed: the engine's, or the in-process one after a failure.
+    bool deliverEngine() {
+        if (!session || !engineClient.link()) return false;
+        const bool waiting = engineClient.pending();
+        const std::string input = mpn_input(session);
+        tsf_engine::Fetched fetched;
+        std::string reason;
+        const auto now = GetTickCount64();
+        switch (engineClient.collect(input, simplified, now, fetched, reason)) {
+        case tsf_engine::Client::Collect::Waiting: return false;
+        case tsf_engine::Client::Collect::Failed:
+        case tsf_engine::Client::Collect::Declined:
+            if (!waiting) return false;
+            refreshCandidates();
+            return true;
+        case tsf_engine::Client::Collect::Ready: break;
+        }
+        if (!fetched.complete) { engineClient.decline("long_list"); refreshCandidates(); return true; }
+        auto rebuilt = tsf_engine::rebuild(session, fetched.words);
+        if (!rebuilt) { engineClient.fail(now, "mismatch"); refreshCandidates(); return true; }
+        choices = std::move(*rebuilt);
+        mergeQuickCandidates(choices, quickCandidates(input, {}, clock()));
+        engineClient.served();
+        return true;
+    }
+    // Before a key: a key that reads the candidates must not act on a list
+    // still owed by the engine. Letters and Backspace replace it anyway.
+    void settleEngine(WPARAM key) {
+        if (!engineClient.pending() || !session) return;
+        deliverEngine();
+        if (!engineClient.pending()) return;
+        const bool edit = ((key >= 'A' && key <= 'Z') || key == VK_BACK) && GetKeyState(VK_SHIFT) >= 0 &&
+            GetKeyState(VK_CONTROL) >= 0 && GetKeyState(VK_MENU) >= 0;
+        if (!edit) { engineClient.decline("pending_key"); refreshCandidates(); }
+    }
+    void onEngineReply() {
+        if (deliverEngine() && activeContext && session && delivery && delivery->queue.canDeliver()) updatePopup();
+        reportRuntimeStatus();
+    }
 
     void expandCandidates() {
         const auto before = choices.size();
@@ -2036,6 +2169,12 @@ private:
     std::vector<WindowsCandidate> choices;
     bool chineseLocked = false, expanded = false, simplified = true;
     size_t page = 0, highlighted = 0;
+    // WIN-03 step 6a: the standalone engine client, the window its worker
+    // posts to, and the data identity last computed for it.
+    tsf_engine::Client engineClient;
+    HWND engineWindow = nullptr;
+    WNDPROC originalEngineProc = nullptr;
+    struct { std::string base, theme, value; const void *personal = nullptr; } engineIdentityCache;
     // CN-07: punctuation mode as read at the last key, the quote pairing,
     // and where the per-user preferences live (tests use a scratch key).
     bool englishPunctuation = false;

@@ -15,6 +15,7 @@ public:
         size_t threads = 2, capacity = 32, replies = 8;
         uint64_t listenMs = 30000, readMs = 30000, writeMs = 10000, queryMs = 10000, terminalMs = 1000;
         size_t connections = MaxConnections;
+        std::string identity; // Data identity in Open replies (empty: none).
     };
 private:
     struct Endpoint {
@@ -25,8 +26,8 @@ private:
         uint64_t listenDeadline = 0, readDeadline = 0, writeDeadline = 0, terminalDeadline = 0;
         bool reading = false, writing = false, ending = false, closed = false;
         size_t index;
-        Endpoint(uint64_t generation, std::shared_ptr<const WindowsDictionary> dictionary, size_t number)
-            : server(generation,std::move(dictionary)), index(number) {}
+        Endpoint(uint64_t generation, std::shared_ptr<const WindowsDictionary> dictionary, size_t number, const std::string &identity)
+            : server(generation,std::move(dictionary),identity), index(number) {}
     };
     struct Job { Endpoint *owner; ServerConnection::Ticket work; bool cancelled = false; };
     Options options_;
@@ -56,7 +57,7 @@ private:
     }
     void listen(const std::wstring &name, uint64_t time) {
         if (nextEndpoint_ == std::numeric_limits<size_t>::max()) throw std::overflow_error("engine endpoint identity exhausted");
-        auto endpoint = std::make_unique<Endpoint>(generation_,dictionary_,nextEndpoint_);
+        auto endpoint = std::make_unique<Endpoint>(generation_,dictionary_,nextEndpoint_,options_.identity);
         endpoint->listenDeadline = time + options_.listenMs;
         endpoint->listener = std::make_unique<pipe::Listener>(name,time,endpoint->listenDeadline);
         endpoints_.push_back(std::move(endpoint)); ++nextEndpoint_;

@@ -52,7 +52,7 @@ public:
             const auto consumed = mpn_candidate_consumed(session.get(),index);
             if (text.empty() || !consumed) continue;
             if (consumed > work.input.size() || !textValid(text)) throw std::runtime_error("invalid core candidate");
-            words.push_back({index+1,static_cast<uint32_t>(consumed),std::move(text),""});
+            words.push_back({index+1,static_cast<uint32_t>(consumed),std::move(text),"",static_cast<uint32_t>(index+1),0});
         }
         const size_t start = size_t(work.page)*PageSize;
         if (start < words.size()) {

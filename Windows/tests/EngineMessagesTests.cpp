@@ -58,10 +58,24 @@ static void limits() {
     const size_t first = 2 + 2 + page().input.size() + 1 + 2;
     b[first + 8] = 0; assert(!decodePayload(b, output));
     b = encodePayload(page()); b[first + 8] = 255; assert(!decodePayload(b, output));
-    const size_t second = first + 8 + 4 + 2 + page().words[0].text.size() + 2 + page().words[0].reading.size();
+    const size_t second = first + 8 + 4 + 2 + page().words[0].text.size() + 2 + page().words[0].reading.size() + 4 + 1;
     b = encodePayload(page()); b[second] = 11; assert(!decodePayload(b, output));
     b = encodePayload(page()); b[first + 14] = 0xff; assert(!decodePayload(b, output));
     b = encodePayload(page()); b[2] = 255; b[3] = 255; assert(!decodePayload(b, output));
+    // WIN-03 step 6a: core index and flags travel with each candidate.
+    p = page(); p.words[0].core = 7; p.words[0].flags = candidate_flag::Japanese | candidate_flag::Direct | (2 << candidate_flag::RoundShift);
+    codec(p); assert(candidateRound(p.words[0]) == 2);
+    b = encodePayload(p); assert(decodePayload(b, output) && output.words[0].core == 7 && output.words[0].flags == p.words[0].flags);
+    p.words[0].flags = 8; assert(!valid(p));
+    p = page(); p.words[0].core = MaxCoreIndex + 1; assert(!valid(p));
+    const Opened opened{std::string(IdentitySize, 'a')}; codec(opened);
+    Opened openedOut;
+    assert(!decodePayload(encodePayload(KeyMessage{KeyAction::Text, 'a', true}), openedOut));
+    for (const auto &bad : {std::string(IdentitySize - 1, 'a'), std::string(IdentitySize, 'A'), std::string(IdentitySize, 'g')}) {
+        bool refused = false;
+        try { encodePayload(Opened{bad}); } catch (const std::invalid_argument &) { refused = true; }
+        assert(refused);
+    }
 }
 static void selection() {
     CandidateSnapshot snapshot;

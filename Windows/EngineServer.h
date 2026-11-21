@@ -45,6 +45,7 @@ private:
     struct Cached { Frame request, response; };
     const uint64_t engine_;
     const std::shared_ptr<const WindowsDictionary> dictionary_;
+    const std::string identity_;
     uint64_t connection_ = 0, lastRequest_ = 0, lastSession_ = 0;
     bool closed_ = false;
     std::unordered_map<uint64_t, Session> sessions_;
@@ -69,9 +70,12 @@ private:
     }
     static Frame reply(const Frame &request) { return {Kind::Reply, request.id, {}}; }
 public:
-    explicit ServerConnection(uint64_t engine, std::shared_ptr<const WindowsDictionary> dictionary = {})
-        : engine_(engine), dictionary_(std::move(dictionary)) {
+    // identity: optional data identity (EngineIdentity.h) returned with every
+    // Open reply, so a client can refuse an engine serving other data.
+    explicit ServerConnection(uint64_t engine, std::shared_ptr<const WindowsDictionary> dictionary = {}, std::string identity = {})
+        : engine_(engine), dictionary_(std::move(dictionary)), identity_(std::move(identity)) {
         if (!engine) throw std::invalid_argument("zero engine generation");
+        if (!identity_.empty() && !identityValid(identity_)) throw std::invalid_argument("invalid engine identity");
     }
     ServerConnection(const ServerConnection &) = delete;
     ServerConnection &operator=(const ServerConnection &) = delete;
@@ -119,7 +123,9 @@ public:
             if (sessions_.size() >= MaxSessions) return reject(Reason::Capacity);
             const auto added = sessions_.emplace(request.id.session, Session{});
             try {
-                auto result = respond(request, reply(request)); lastSession_ = request.id.session; return result;
+                auto opened = reply(request);
+                if (!identity_.empty()) opened.payload = encodePayload(Opened{identity_});
+                auto result = respond(request, std::move(opened)); lastSession_ = request.id.session; return result;
             } catch (...) { sessions_.erase(added.first); throw; }
         }
         auto found = sessions_.find(request.id.session);

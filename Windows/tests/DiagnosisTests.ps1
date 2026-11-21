@@ -25,6 +25,17 @@ foreach ($bad in @(@{candidate_ui='other'}, @{input_mode='klingon'}, @{host_clos
     try { Convert-HarukotoRuntimeRecord ($broken | ConvertTo-Json -Compress) $null | Out-Null } catch { $rejected = $true }
     if (!$rejected) { throw "Invalid game field accepted: $($bad.Keys)" }
 }
+# WIN-03 step 6a engine fields: optional, validated when present.
+Assert-Equal $game.Engine '未报告（旧版）'
+$record += [ordered]@{engine_path='engine'; engine_served=5; engine_fallbacks=1; engine_reason='none'}
+Assert-Equal (Convert-HarukotoRuntimeRecord ($record | ConvertTo-Json -Compress) $null).Engine '独立引擎；引擎提供 5 次，回退 1 次，原因 none'
+foreach ($bad in @(@{engine_path='remote'}, @{engine_served=-1}, @{engine_reason='Bad Reason'})) {
+    $broken = [ordered]@{} + $record
+    foreach ($key in $bad.Keys) { $broken[$key] = $bad[$key] }
+    $rejected = $false
+    try { Convert-HarukotoRuntimeRecord ($broken | ConvertTo-Json -Compress) $null | Out-Null } catch { $rejected = $true }
+    if (!$rejected) { throw "Invalid engine field accepted: $($bad.Keys)" }
+}
 $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $root = Join-Path $tempBase ('harukoto-diagnosis-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $root | Out-Null

@@ -13,6 +13,7 @@ namespace harukoto::engine {
 constexpr uint16_t ProtocolVersion = 1;
 constexpr size_t HeaderSize = 56, MaxPayload = 65536;
 constexpr size_t MaxSessions = 64;
+constexpr size_t OpenedPayloadSize = 2 + 2 + 64; // tag, length, identity (EngineMessages.h)
 enum class Kind : uint16_t { Hello = 1, HelloAck, Open, Key, Select, Cancel, Close, Reply, Error };
 struct Identity {
     uint64_t connection = 0, engine = 0, session = 0, composition = 0, request = 0;
@@ -185,7 +186,10 @@ public:
             return false;
         }
         const auto kind = s.pending->kind;
-        if ((kind == Kind::Open || kind == Kind::Cancel || kind == Kind::Close) && !f.payload.empty()) return false;
+        if ((kind == Kind::Cancel || kind == Kind::Close) && !f.payload.empty()) return false;
+        // An Open reply may carry the engine's data identity (Payload::Opened,
+        // 68 bytes); the caller decodes and validates it before accepting.
+        if (kind == Kind::Open && !f.payload.empty() && f.payload.size() != OpenedPayloadSize) return false;
         s.pending.reset();
         if (kind == Kind::Open || kind == Kind::Cancel) s.opened = true;
         if (kind == Kind::Close) sessions_.erase(found);

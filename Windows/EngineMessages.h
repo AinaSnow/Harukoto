@@ -1,14 +1,28 @@
 #pragma once
 #include "EngineProtocol.h"
+#include <algorithm>
 #include <string>
 #include <unordered_set>
 
 namespace harukoto::engine {
 constexpr size_t MaxInput = 256, MaxText = 1024, MaxCandidates = 128;
-enum class Payload : uint16_t { Key = 1, Candidates = 2, Select = 3, Commit = 4, Error = ErrorPayloadTag };
+constexpr uint32_t MaxCoreIndex = 1u << 24;
+enum class Payload : uint16_t { Key = 1, Candidates = 2, Select = 3, Commit = 4, Error = ErrorPayloadTag, Opened = 6 };
 enum class KeyAction : uint8_t { Text = 1, Backspace, PageNext, PagePrevious, Refresh };
 struct KeyMessage { KeyAction action = KeyAction::Text; uint8_t text = 0; bool simplified = true; };
-struct Candidate { uint64_t id = 0; uint32_t consumed = 0; std::string text, reading; };
+// WIN-03 step 6a: core is the native candidate index + 1 (0: not a core
+// candidate); flags describe how the Windows merge placed it, so a TSF client
+// can rebuild exactly the in-process list. The round is the expansion pass
+// that produced the candidate (0: before any mpn_expand_candidates).
+namespace candidate_flag {
+constexpr uint8_t Japanese = 1, Strong = 2, Direct = 4, RoundShift = 4, RoundMask = 0x30, Known = 0x37;
+}
+struct Candidate { uint64_t id = 0; uint32_t consumed = 0; std::string text, reading; uint32_t core = 0; uint8_t flags = 0; };
+inline unsigned candidateRound(const Candidate &c) { return (c.flags & candidate_flag::RoundMask) >> candidate_flag::RoundShift; }
+// The Open reply may name the data the engine serves (EngineIdentity.h).
+constexpr size_t IdentitySize = 64;
+struct Opened { std::string identity; };
+static_assert(2 + 2 + IdentitySize == OpenedPayloadSize, "Opened payload layout");
 struct CandidatePage { std::string input; bool more = false; std::vector<Candidate> words; };
 struct Selection { uint64_t sourceRequest = 0, candidate = 0; };
 struct Commit { Selection selection; uint32_t consumed = 0; std::string text, remaining; };
@@ -51,7 +65,8 @@ inline bool valid(const CandidatePage &p) {
     std::unordered_set<uint64_t> ids;
     for (const auto &word : p.words)
         if (!word.id || !ids.insert(word.id).second || !word.consumed || word.consumed > p.input.size() ||
-            word.text.empty() || !textValid(word.text) || !textValid(word.reading)) return false;
+            word.text.empty() || !textValid(word.text) || !textValid(word.reading) ||
+            (word.flags & ~candidate_flag::Known) || word.core > MaxCoreIndex) return false;
     return true;
 }
 inline bool valid(const Selection &s) { return s.sourceRequest && s.candidate; }
@@ -90,6 +105,7 @@ inline std::vector<uint8_t> encodePayload(const CandidatePage &p) {
     putString(b, p.input); put(b, p.more, 1); put(b, p.words.size(), 2);
     for (const auto &w : p.words) {
         put(b, w.id, 8); put(b, w.consumed, 4); putString(b, w.text); putString(b, w.reading);
+        put(b, w.core, 4); put(b, w.flags, 1);
         if (b.size() > MaxPayload) throw std::invalid_argument("candidate frame too large");
     }
     return b;
@@ -117,7 +133,9 @@ inline bool decodePayload(const std::vector<uint8_t> &b, CandidatePage &out) {
     const auto count = r.number(2); if (count > MaxCandidates || more > 1) return false;
     for (size_t i = 0; i < count; ++i) {
         Candidate w; w.id = r.number(8); w.consumed = static_cast<uint32_t>(r.number(4));
-        w.text = r.string(MaxText); w.reading = r.string(MaxText); p.words.push_back(std::move(w));
+        w.text = r.string(MaxText); w.reading = r.string(MaxText);
+        w.core = static_cast<uint32_t>(r.number(4)); w.flags = static_cast<uint8_t>(r.number(1));
+        p.words.push_back(std::move(w));
     }
     if (!r.done() || !valid(p)) return false; out = std::move(p); return true;
 }
@@ -131,6 +149,19 @@ inline bool decodePayload(const std::vector<uint8_t> &b, Commit &out) {
     Commit c; c.selection = {r.number(8), r.number(8)}; c.consumed = static_cast<uint32_t>(r.number(4));
     c.text = r.string(MaxText); c.remaining = r.string(MaxInput);
     if (!r.done() || !valid(c)) return false; out = std::move(c); return true;
+}
+
+inline bool identityValid(const std::string &s) {
+    return s.size() == IdentitySize && std::all_of(s.begin(), s.end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); });
+}
+inline std::vector<uint8_t> encodePayload(const Opened &o) {
+    if (!identityValid(o.identity)) throw std::invalid_argument("invalid engine identity");
+    std::vector<uint8_t> b; put(b, static_cast<uint16_t>(Payload::Opened), 2); putString(b, o.identity); return b;
+}
+inline bool decodePayload(const std::vector<uint8_t> &b, Opened &out) {
+    PayloadReader r(b); if (r.number(2) != static_cast<uint16_t>(Payload::Opened)) return false;
+    Opened o{r.string(IdentitySize)};
+    if (!r.done() || !identityValid(o.identity)) return false; out = std::move(o); return true;
 }
 
 // One snapshot per context, on its owner thread. Caller must first validate frame

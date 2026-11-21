@@ -160,6 +160,8 @@ public:
     bool failed() const { return failed_; }
     const std::string &activeGeneration() const { return active_; }
     const std::string &activeBaseGeneration() const { return activeBase_; }
+    // The personal table merged into the active words (WIN-03 step 6a identity).
+    const std::shared_ptr<const PersonalDictionarySnapshot> &personal() const { return personal_; }
     // Only read worker results after its release/acquire handoff. This is an
     // observation from a real key, not a promise that an idle process refreshed.
     std::string diagnosticFields() const {
