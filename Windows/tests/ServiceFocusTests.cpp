@@ -2,9 +2,38 @@
 #include "../TextService.cpp"
 #include <ctffunc.h>
 #include <cassert>
+#include <csignal>
 #include <iostream>
 
 namespace {
+// Per-test HKCU keys (Software\Harukoto*Service-<pid>). Deleted by remove()
+// on success, by the destructor when an exception unwinds, and by a SIGABRT
+// handler when an assert fails, because abort() runs no destructors.
+class TestKey {
+    static std::vector<std::wstring> &live() { static std::vector<std::wstring> keys; return keys; }
+    static void purge(int) { for (const auto &path : live()) RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()); live().clear(); }
+    void forget() { auto &keys = live(); keys.erase(std::remove(keys.begin(), keys.end(), path), keys.end()); path.clear(); }
+public:
+    std::wstring path;
+    HKEY root = nullptr;
+    explicit TestKey(const wchar_t *prefix) : path(std::wstring(prefix) + std::to_wstring(GetCurrentProcessId())) {
+        static const bool installed = (std::signal(SIGABRT, purge), true);
+        (void)installed;
+        live().push_back(path);
+        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+    }
+    TestKey(const TestKey &) = delete;
+    TestKey &operator=(const TestKey &) = delete;
+    void remove() {
+        if (root) { RegCloseKey(root); root = nullptr; }
+        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+        forget();
+    }
+    ~TestKey() {
+        if (root) RegCloseKey(root);
+        if (!path.empty()) { RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()); forget(); }
+    }
+};
 class RecordingContext;
 // WIN-08: a range and a composition just rich enough for the service's inline
 // reading. Heap objects, deleted at their last release.
@@ -677,9 +706,8 @@ struct ServiceFocusTest {
     // CN-07 through the real key callbacks: which keys the service takes,
     // what reaches the host, and Ctrl+. with its persisted state and switch.
     static void punctuation() {
-        const std::wstring path = L"Software\\HarukotoPunctuationService-" + std::to_wstring(GetCurrentProcessId());
-        HKEY root = nullptr;
-        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        TestKey key(L"Software\\HarukotoPunctuationService-");
+        HKEY root = key.root;
         RecordingContext context;
         {
             Service service;
@@ -792,8 +820,7 @@ struct ServiceFocusTest {
             service.Deactivate();
         }
         assert(context.refs == 1);
-        RegCloseKey(root);
-        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+        key.remove();
     }
 
     // CN-07 batch 2 through the real key callbacks: Shift taps switch
@@ -801,9 +828,8 @@ struct ServiceFocusTest {
     // mid-composition commits the letters, and no Shift key reaches the host
     // ahead of a composition.
     static void inputMode() {
-        const std::wstring path = L"Software\\HarukotoInputModeService-" + std::to_wstring(GetCurrentProcessId());
-        HKEY root = nullptr;
-        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        TestKey key(L"Software\\HarukotoInputModeService-");
+        HKEY root = key.root;
         const auto setting = [&](DWORD value) {
             HKEY input = nullptr;
             assert(RegCreateKeyExW(root, L"Software\\Meowpuut\\Input", 0, nullptr, 0, KEY_SET_VALUE, nullptr, &input, nullptr) == ERROR_SUCCESS);
@@ -916,8 +942,7 @@ struct ServiceFocusTest {
             service.Deactivate();
         }
         assert(context.refs == 1);
-        RegCloseKey(root);
-        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+        key.remove();
 #ifdef _MSC_VER
         // The taskbar item and capability GUIDs defined in TextService.cpp.
         assert(IsEqualGUID(inputModeItem, GUID_LBI_INPUTMODE));
@@ -933,9 +958,8 @@ struct ServiceFocusTest {
     // composing, stop at the first and last page, and are the host's when
     // idle or in English mode.
     static void paging() {
-        const std::wstring path = L"Software\\HarukotoPagingService-" + std::to_wstring(GetCurrentProcessId());
-        HKEY root = nullptr;
-        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        TestKey key(L"Software\\HarukotoPagingService-");
+        HKEY root = key.root;
         RecordingContext context;
         {
             Service service;
@@ -1025,8 +1049,7 @@ struct ServiceFocusTest {
             service.Deactivate();
         }
         assert(context.refs == 1);
-        RegCloseKey(root);
-        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+        key.remove();
     }
 
     // CN-07 batch 4 through the real key callbacks: [ and ] commit the first
@@ -1034,9 +1057,8 @@ struct ServiceFocusTest {
     // reading keeps composing, nothing is learned, and idle, English mode,
     // Shift and non-Chinese candidates keep their own behaviour.
     static void wordCharacters(const std::filesystem::path &folder) {
-        const std::wstring path = L"Software\\HarukotoWordCharacterService-" + std::to_wstring(GetCurrentProcessId());
-        HKEY root = nullptr;
-        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        TestKey key(L"Software\\HarukotoWordCharacterService-");
+        HKEY root = key.root;
         const auto memoryPath = folder / (L"service-pick-" + std::to_wstring(GetCurrentProcessId()) + L".tsv");
         RecordingContext context;
         {
@@ -1142,8 +1164,7 @@ struct ServiceFocusTest {
             service.Deactivate();
         }
         assert(context.refs == 1);
-        RegCloseKey(root);
-        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+        key.remove();
     }
 
     // CN-07 batch 5 through the real key callbacks: Ctrl+Delete or
@@ -1152,9 +1173,8 @@ struct ServiceFocusTest {
     // nothing learned is left alone, a hand-added word is not deleted, and
     // the keys are the host's when idle or in English mode.
     static void forgetting(const std::filesystem::path &folder) {
-        const std::wstring path = L"Software\\HarukotoForgetService-" + std::to_wstring(GetCurrentProcessId());
-        HKEY root = nullptr;
-        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        TestKey key(L"Software\\HarukotoForgetService-");
+        HKEY root = key.root;
         const auto memoryPath = folder / (L"service-forget-" + std::to_wstring(GetCurrentProcessId()) + L".tsv");
         RecordingContext context;
         {
@@ -1275,17 +1295,15 @@ struct ServiceFocusTest {
             service.Deactivate();
         }
         assert(context.refs == 1);
-        RegCloseKey(root);
-        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+        key.remove();
     }
 
     // CN-07 batch 6 through the real key callbacks: v then digits offers
     // numerals, capitals and amounts; vrq / vsj / vxq the date, time and
     // weekday from the (fixed) clock; nothing generated is learned.
     static void quickInput(const std::filesystem::path &folder) {
-        const std::wstring path = L"Software\\HarukotoQuickInputService-" + std::to_wstring(GetCurrentProcessId());
-        HKEY root = nullptr;
-        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        TestKey key(L"Software\\HarukotoQuickInputService-");
+        HKEY root = key.root;
         const auto memoryPath = folder / (L"service-quick-" + std::to_wstring(GetCurrentProcessId()) + L".tsv");
         RecordingContext context;
         {
@@ -1440,17 +1458,15 @@ struct ServiceFocusTest {
             service.Deactivate();
         }
         assert(context.refs == 1);
-        RegCloseKey(root);
-        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+        key.remove();
     }
 
     // CN-07 batch 7 through the real key callbacks: Shift+Space toggles
     // full-width output only when the option is on; literal output becomes
     // full-width in both modes, candidates and Chinese punctuation do not.
     static void fullWidth() {
-        const std::wstring path = L"Software\\HarukotoFullWidthService-" + std::to_wstring(GetCurrentProcessId());
-        HKEY root = nullptr;
-        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        TestKey key(L"Software\\HarukotoFullWidthService-");
+        HKEY root = key.root;
         const auto option = [&](DWORD value) {
             HKEY input = nullptr;
             assert(RegCreateKeyExW(root, L"Software\\Meowpuut\\Input", 0, nullptr, 0, KEY_SET_VALUE, nullptr, &input, nullptr) == ERROR_SUCCESS);
@@ -1547,8 +1563,7 @@ struct ServiceFocusTest {
             service.Deactivate();
         }
         assert(context.refs == 1);
-        RegCloseKey(root);
-        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+        key.remove();
     }
 
     // WIN-08 through the real key callbacks: a host that draws the
@@ -1557,9 +1572,8 @@ struct ServiceFocusTest {
     // leaves them to us sees no change; the open/close compartment set by
     // the host switches the mode without stranding the user in English.
     static void gameInput() {
-        const std::wstring path = L"Software\\HarukotoGameInputService-" + std::to_wstring(GetCurrentProcessId());
-        HKEY root = nullptr;
-        assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &root, nullptr) == ERROR_SUCCESS);
+        TestKey key(L"Software\\HarukotoGameInputService-");
+        HKEY root = key.root;
         const auto option = [&](DWORD value) {
             HKEY input = nullptr;
             assert(RegCreateKeyExW(root, L"Software\\Meowpuut\\Input", 0, nullptr, 0, KEY_SET_VALUE, nullptr, &input, nullptr) == ERROR_SUCCESS);
@@ -1730,8 +1744,7 @@ struct ServiceFocusTest {
         }
         assert(context.refs == 1 && manager.refs == 1 && manager.openClose.refs == 1 && !manager.openClose.sink);
         assert(!manager.element && !context.composing);
-        RegCloseKey(root);
-        assert(RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str()) == ERROR_SUCCESS);
+        key.remove();
 #ifdef _MSC_VER
         assert(IsEqualGUID(uiElementCapability, GUID_TFCAT_TIPCAP_UIELEMENTENABLED));
 #endif

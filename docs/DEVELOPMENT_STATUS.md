@@ -1,5 +1,16 @@
 # 开发状态与接手入口
 
+## 2026-11-21 · WIN-03 第 3 步：竞争失败后的交接
+
+- 前置：第 2 步已提交（6a94f4f）。本批未提交、未打包。TSF 与实际输入路径未改动。
+- 协议：发现握手回 Ok 后同一连接继续 Admit(3)→Grant(4)→Commit(5)→Committed(6)，128 字节 HKDV。每条带握手随机数、随机请求 id、所有者代次（所有者进程创建时间）；所有者在本代次内对同一 id 只受理一次（Duplicate），代次不符 Stale。所有者按管道客户端 PID 打开客户端进程（存活、创建时间符合、令牌同组合），新建映射＋三个事件以最小权限复制进去；Commit 前槽只预留不调度，失败即丢弃；Committed 写出后激活。槽绑定客户端进程退出；释放事件即撤销事件，客户端可置位归还。编号最高位置 1，与启动方编号分开。
+- 接入方 `Windows/EngineHandoff.h`：`handoff::admit()` 返回 `Session`（核对过的 Engine＋带双部署策略的 EngineRegistration）；13 种结果，非 Admitted 留在进程内路径且不持有槽；收到 Grant 后的任何失败先置位释放事件。`attach()` 为开发用启动器：启动锁 `Local\Harukoto.Starter.v1.<身份>.<scope>` 排队，持锁再发现，仍无引擎才调用 `start`，暂时性结果指数退避重试。
+- 所有者 `EngineOwner.h`：预留／激活／释放三态，等待集合加入客户端进程句柄；发现服务析构（停止）丢弃半途的槽；客户端在复制中途消失只让本次交接失败，不关闭发现管道。
+- 测试：新增 CTest `engine_handoff`（真实所有者／宿主、内存发行快照、真实客户端子进程）：会话完成 Inspect／Allocate／查询／部分选词与重复选词被拒；8 槽满 Full、抢最后一槽一胜一 Full、8 线程并发全部 Admitted、重复请求 id Duplicate、原始协议的 Stale／坏随机数／不 Commit／坏 Commit／二次 Admit；慢客户端 Unavailable；客户端在三个阶段死亡；所有者在 Grant 后停止、核对后停止、核对后崩溃、Commit 后崩溃均 Unavailable。每种之后容量恢复 8；24 轮前后句柄数不变。8 个并发启动进程：全部 Admitted、同一所有者、只启动 1 次。
+- 顺带修复：`ServiceFocusTests.cpp` 8 个 HKCU 测试键改用 `TestKey`（成功时删除、异常时析构删除、断言失败时 SIGABRT 处理函数删除）。现存的 `HKCU\Software\HarukotoQuickInputService-18496` 未删除，待用户决定。
+- CTest 共 64 项，完整构建后在一次运行中全部通过（364.46 秒）；之后对交接失败处理加了一处保护，重新构建后 engine_handoff／engine_discovery／engine_owner_process／engine_owner_full／engine_admission／engine_diagnostics 再次通过。HKCU 下除既有 -18496 外无测试键残留。
+- 下一步：第 4 步正式常驻生命周期（所有者不随启动方退出、由谁以发现模式启动、scope 正式取值、空闲／崩溃／注销规则）。
+
 ## 2026-11-21 · WIN-03 第 2 步：发现握手
 
 - 前置：第 1 步已提交（9320496）。本批未提交、未打包。TSF 与实际输入路径未改动。

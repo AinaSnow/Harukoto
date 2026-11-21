@@ -15,7 +15,7 @@ const auto &engine = *outcome.engine;                 // 批准条目、两份 E
 - `discover(snapshot, options)` 供测试注入内存中的发行快照；正式调用只能用无参版本，不能把引擎回复、HKCU、诊断映射的值放进快照。
 - `Options{scope, protocol, timeoutMs}`：scope 默认 `harukoto`，与所有者 `--instance` 相同；超时默认 2 秒，上限 60 秒。
 - `EngineProcess::Config.discovery = true` 让所有者发布管道，要求同时设置 `ownerInstance`。
-- 本步只证明身份，不交出任何能力：Verified 之后还拿不到注册槽或查询端点，那是第 3 步。返回的进程对象只有查询／等待权限、不可继承，两份部署对象继续固定批准的文件和目录。
+- `discover()` 只证明身份，不交出任何能力，返回前关闭连接。要取得注册槽，用第 3 步的 `handoff::admit()`，它在同一条连接上继续交接，见[竞争失败后的交接](ENGINE_HANDOFF.md)。返回的进程对象只有查询／等待权限、不可继承，两份部署对象继续固定批准的文件和目录。
 
 ## 名称与权限
 
@@ -56,7 +56,7 @@ const auto &engine = *outcome.engine;                 // 批准条目、两份 E
 
 ## 服务端检查
 
-读到完整请求后：请求里的 PID 等于 `GetNamedPipeClientProcessId`，客户端会话号相同，客户端是本机；模拟客户端（标识级）取令牌，按同一组合比较；不通过回 `Rejected`（不带任何定位）。通过后才比较协议号（不同回 `ProtocolMismatch`），宿主已退出回 `Unavailable`，否则回 `Ok`、所有者 PID、宿主 PID 与宿主创建时间。写完后等客户端关闭（读到 EOF）或期限到，然后断开、重新监听。坏请求、超时只断开当前连接。
+读到完整请求后（回 Ok 之后连接可继续第 3 步的交接消息，见 [ENGINE_HANDOFF.md](ENGINE_HANDOFF.md)；每个连接含交接总共最多 2 秒）：请求里的 PID 等于 `GetNamedPipeClientProcessId`，客户端会话号相同，客户端是本机；模拟客户端（标识级）取令牌，按同一组合比较；不通过回 `Rejected`（不带任何定位）。通过后才比较协议号（不同回 `ProtocolMismatch`），宿主已退出回 `Unavailable`，否则回 `Ok`、所有者 PID、宿主 PID 与宿主创建时间。写完后等客户端关闭（读到 EOF）、Admit（仅限 Ok 之后）或期限到，然后断开、重新监听。坏请求、超时只断开当前连接。
 
 ## 线格式
 
@@ -112,7 +112,7 @@ CTest `engine_discovery`（`tests/test_engine_discovery.py` 生成临时词库�
 
 ## 留给后续
 
-- 第 3 步：在 Verified 之后取得接入能力。可以让发现握手在同一连接上交出一个绑定该客户端进程的注册槽（复用[动态接入](ENGINE_ADMISSION.md)的复制句柄方式，目标是已核对的客户端进程），而不是另开公开对象；竞争失败的一方用同一份批准条目核对已存在的引擎。
+- 第 3 步（已完成）：在同一连接上交出绑定客户端进程的注册槽，见[竞争失败后的交接](ENGINE_HANDOFF.md)。
 - 第 4 步：所有者常驻后由谁以发现模式启动、scope 的正式取值、所有者在不可发现时是否退出。
 - 可选加固：私有命名空间＋中完整性边界描述符，防止低完整性进程抢注；AppContainer 支持的取舍。
 - 成本（第 5 步）：发现握手包括两次文件固定与哈希（批准文件首次固定时）、两次进程映像核对，尚未测量。
