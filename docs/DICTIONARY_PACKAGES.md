@@ -1,6 +1,6 @@
 # 本地主题词库管理
 
-适用：Windows 0.4.4-alpha.30。图形窗口与命令行均支持多包导入、独立启停、更新和上一版回退。管理工具需要 Python 3.10 或更新版本，图形窗口还需要 tkinter；安装器内置的 PowerShell 不包含 Python。日常输入不需要 Python。
+适用：Windows 0.4.4-alpha.31。图形窗口与命令行均支持多包导入、独立启停、更新和上一版回退。管理工具需要 Python 3.10 或更新版本，图形窗口还需要 tkinter；安装器内置的 PowerShell 不包含 Python。日常输入不需要 Python。
 
 ## 图形窗口
 
