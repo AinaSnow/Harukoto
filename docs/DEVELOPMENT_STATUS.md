@@ -1,5 +1,22 @@
 # 开发状态与接手入口
 
+## 2026-11-22 · WIN-03 第 7 步前置：单次解码、单次跳转请求、SQLite 连接池与热更新基础词库复用
+
+- 前置：6d 已提交（3033f7d）。本批未提交、未打包、未实机。设计与结果见[接入 TSF](ENGINE_TSF.md)第 13 节。
+- 单次解码：核心新增 C API `mpn_set_input`（`Core/MeowpuutCore.h/.cpp`，既有签名不变），一次性校验整串读音并只做一次 `session->refresh()`；`EngineWindows.h` 与 `EngineCore.h` 替换掉逐字节 `mpn_key` 循环（消除宿主侧 O(N²) 重放）。`EngineCoreTests` 补与逐字 `mpn_key` 逐项等价及非法串不破坏原会话断言。
+- 单次跳转请求：协议 `KeyAction` 新增 `Set = 6`（`EngineMessages.h`、`EngineServer.h`，既有 5 种动作线格式逐字节不变），服务端收到 `Set` 直接替换读音并将页码归零；`EngineTsf.h` `Driver::fetch()` 在非单键增删／未翻页刷新时只发 1 条 `KeyAction::Set`，不再 `Cancel` 后逐字发 N 次 IPC（消除快打在途覆盖、部分选词后的 O(N³) 重放）。`EngineMessagesTests`、`EngineServerTests` 补编解码与切换测试，`EngineTsfTests` `behaviour` 补快打跳过多键与部分选词后精确 1 次 exchange 断言。
+- SQLite 连接池：`WindowsDictionary` 内置带锁 `WordEvidence` 连接池（上限 16，声明于 `base_` 之后，析构先关全部 SQLite 连接再释放 `StableFile` 守卫），消除每键 `LoadLibraryExW("winsqlite3.dll")`、`sqlite3_open_v2`、`PRAGMA table_info`、`sqlite3_prepare_v2` 与 `FreeLibrary`。
+- 热更新复用基础词库与旧快照释放：`WindowsDictionary::base_` 改为 `std::shared_ptr<const base_dictionary::Snapshot>`，`load()` 支持复用 `baseSnapshot` 与 `MemoryMirror`；`EngineHost.cpp` 热更新线程在仅主题包或个人表变化时复用基础词库与学习镜像，同时 `wmain` 在启动后释放自身持有的初始 `dictionary` 引用，使旧基础快照在切换完成后即时释放。`EngineWindowsTests` 补复用指针断言，`EngineTsfTests` `layout` 与 `test_engine_tsf.py` 补个人日语表修改、FF14 主题停用与重新启用的引擎侧热更新及宿主私有内存采样。
+- 性能与内存实测：
+  - `benchmark-engine.py`（3 轮完整词库，`.build/windows/engine-performance-pre7.json`）：FF14 executor 请求中位 1.066→0.524 ms、最大 13.488→2.084 ms、查询合计 190.07→75.73 ms、SQLite 打开合计 63.88→0.61 ms（中位 0.0002 ms）；基础 executor 中位 0.943→0.456 ms、查询合计 77.23→39.96 ms。
+  - 宿主热更新内存轨迹（`layout` 阶段）：初始 185 MiB → 发布新基础快照后 193 MiB（切换期峰值工作集 381 MiB，旧快照已回收）→ 改个人表 190 MiB → 停用 FF14 138 MiB → 重启用 FF14 187 MiB。
+- 评测与测试：
+  - 6 套中文评测（`chinese-{tuned,holdout,words-dev,abbrev-dev,typo-dev,fuzzy-dev}-win03pre7.json`）与 6d 报告去掉时间、内存、修订号与哈希后逐字段完全相同（未逐条查看 holdout）。
+  - 完整 Release 构建并复制 `MeowpuutTip.dll` 到 `.build/windows/ime/`（哈希一致）。`engine_tsf_full` 8 场景 31,056 个列表全部由引擎提供，不一致 0。维护者在普通权限（Medium IL）PowerShell 下整套运行 CTest 共 68 项一次全部通过（762.83 秒，`-j 4`）；另在管理员提权（High IL）环境下观察到发现握手按设计拒绝提权进程（`launch=NotNeeded result=Untrusted`），不启动也不接入中完整性引擎。结束后无残留进程、HKCU 测试键或 `%TEMP%\harukoto-*` 目录。
+- 未验证：真实安装、HKLM 发行元数据、真实应用实机（`docs/WINDOWS_VALIDATION.md`）及阶段二第 7、8 步。
+- 文档同步：同步更新 `docs/DEVELOPMENT_PLAN.md`（基线对齐 alpha.29、FF14 0.4.0、6a～6d 已提交状态及本批前置项）、`docs/ENGINE_TSF.md`、`docs/DEVELOPMENT_CHANGELOG.md`。
+- 下一步：提交本批改动；建议打 `alpha.30` 按实机清单摸底，再推进第 7 步（按版本分 scope 换代、连接槽回收、引擎接管选择与扩展并去接入层本地词库）。
+
 ## 2026-11-22 · WIN-03 第 6d 步：同段学习、引擎侧热更新与开关开启下的功能测试
 
 - 前置：6c 已提交（ddb05d3）。本批未提交、未打包、未实机。设计与结果见[接入 TSF](ENGINE_TSF.md)第 12 节。

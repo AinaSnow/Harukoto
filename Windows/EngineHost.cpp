@@ -144,11 +144,19 @@ int wmain(int argc, wchar_t **argv) {
         // Step 6d: adopt newly published data. Load and verify everything on
         // this thread, then hand it to the host, which switches between
         // requests; a failed load keeps the old data (retried when a source
-        // changes again).
+        // changes again). When only themes or the personal table changed,
+        // reuse the pinned base snapshot (and always reuse the learning mirror)
+        // to avoid re-reading ~180 MiB and doubling peak memory.
         std::atomic<bool> quit{false};
         std::thread reload;
-        if (!baseStore.empty() || !themes.empty() || !personal.empty()) reload = std::thread([&] {
+        auto reloadActive = dictionary;
+        const auto initialBase = sources.base;
+        // Release wmain's own handle so an older base snapshot is freed as soon
+        // as Host adopts a newer publication and in-flight queries finish.
+        dictionary.reset();
+        if (!baseStore.empty() || !themes.empty() || !personal.empty()) reload = std::thread([&, active = std::move(reloadActive)]() mutable {
             std::wstring loaded = sources.key;
+            std::filesystem::path loadedBase = initialBase;
             while (!quit.load()) {
                 for (int i = 0; i < 10 && !quit.load(); ++i) Sleep(100);
                 if (quit.load()) break;
@@ -156,11 +164,17 @@ int wmain(int argc, wchar_t **argv) {
                 if (next.key == loaded) continue;
                 loaded = next.key;
                 try {
-                    auto fresh = WindowsDictionary::load(next.base,next.themes,personal,memory);
-                    host.offer(fresh,fresh->identity());
+                    const bool sameBase = next.base == loadedBase;
+                    auto fresh = WindowsDictionary::load(next.base, next.themes, personal, memory,
+                        sameBase ? active->baseSnapshot() : std::shared_ptr<const base_dictionary::Snapshot>{},
+                        active->memoryMirror());
+                    loadedBase = next.base;
+                    active = fresh;
+                    host.offer(std::move(fresh), active->identity());
                 } catch (...) {}
             }
         });
+        else reloadActive.reset();
         try { host.run(stop.get(),ready.get()); } catch (...) { quit = true; if (reload.joinable()) reload.join(); throw; }
         quit = true;
         if (reload.joinable()) reload.join();

@@ -8,16 +8,48 @@
 #include "EngineIdentity.h"
 #include "EngineMemory.h"
 #include <chrono>
+#include <mutex>
 
 namespace harukoto::engine {
 // Preparation validates one complete immutable base. Queries share its lexicon
 // and copied merged words, but never its mutable SQLite connection/statements.
 class WindowsDictionary {
-    std::unique_ptr<base_dictionary::Snapshot> base_;
+    std::shared_ptr<const base_dictionary::Snapshot> base_;
     std::vector<JapaneseWord> words_;
     std::unordered_map<std::string, std::vector<size_t>> readings_;
     std::string generation_, identity_;
     std::shared_ptr<MemoryMirror> memory_; // Step 6b: read-only mirror of the user's learning.
+    // Declared after base_ so every pooled SQLite connection closes before
+    // base_ releases its StableFile guards.
+    mutable std::mutex evidenceMutex_;
+    mutable std::vector<std::unique_ptr<WordEvidence>> evidencePool_;
+    static constexpr size_t MaxEvidencePool = 16;
+    struct EvidenceLease {
+        const WindowsDictionary *owner = nullptr;
+        std::unique_ptr<WordEvidence> value;
+        EvidenceLease() = default;
+        EvidenceLease(const WindowsDictionary *d, std::unique_ptr<WordEvidence> v) : owner(d), value(std::move(v)) {}
+        EvidenceLease(const EvidenceLease &) = delete;
+        EvidenceLease &operator=(const EvidenceLease &) = delete;
+        EvidenceLease(EvidenceLease &&other) noexcept : owner(other.owner), value(std::move(other.value)) { other.owner = nullptr; }
+        ~EvidenceLease() { if (owner && value && value->ready()) owner->releaseEvidence(std::move(value)); }
+    };
+    EvidenceLease acquireEvidence() const {
+        std::unique_ptr<WordEvidence> pooled;
+        {
+            std::lock_guard<std::mutex> lock(evidenceMutex_);
+            if (!evidencePool_.empty()) { pooled = std::move(evidencePool_.back()); evidencePool_.pop_back(); }
+        }
+        if (!pooled) {
+            pooled = std::make_unique<WordEvidence>();
+            pooled->open(base_->databasePath());
+        }
+        return {this, std::move(pooled)};
+    }
+    void releaseEvidence(std::unique_ptr<WordEvidence> value) const {
+        std::lock_guard<std::mutex> lock(evidenceMutex_);
+        if (evidencePool_.size() < MaxEvidencePool) evidencePool_.push_back(std::move(value));
+    }
     WindowsDictionary() = default;
 public:
     struct QueryTimings {
@@ -30,16 +62,25 @@ public:
     // taking these candidates (EngineIdentity.h).
     const std::string &identity() const { return identity_; }
     const base_dictionary::Snapshot &base() const { return *base_; }
+    std::shared_ptr<const base_dictionary::Snapshot> baseSnapshot() const { return base_; }
+    std::shared_ptr<MemoryMirror> memoryMirror() const { return memory_; }
     const std::vector<JapaneseWord> &words() const { return words_; }
     // memory: the user's selection-memory.tsv (its -words and -user siblings
     // beside it), read but never written; empty: requests that need learned
     // state are answered "behind".
+    // reuseBase / reuseMemory: optional immutable base snapshot and learning
+    // mirror retained across theme/personal hot reloads without re-reading the
+    // base lexicon or dropping recent memory history.
     static std::shared_ptr<const WindowsDictionary> load(const std::filesystem::path &folder,
             const std::filesystem::path &themes = {}, const std::filesystem::path &personal = {},
-            const std::filesystem::path &memory = {}) {
+            const std::filesystem::path &memory = {},
+            std::shared_ptr<const base_dictionary::Snapshot> reuseBase = {},
+            std::shared_ptr<MemoryMirror> reuseMemory = {}) {
         auto result = std::shared_ptr<WindowsDictionary>(new WindowsDictionary);
-        if (!memory.empty()) result->memory_ = std::make_shared<MemoryMirror>(memory);
-        result->base_ = base_dictionary::Snapshot::load(folder);
+        if (reuseMemory) result->memory_ = std::move(reuseMemory);
+        else if (!memory.empty()) result->memory_ = std::make_shared<MemoryMirror>(memory);
+        result->base_ = reuseBase ? std::move(reuseBase)
+            : std::shared_ptr<const base_dictionary::Snapshot>(base_dictionary::Snapshot::load(folder));
         result->words_ = result->base_->words();
         std::string themeGeneration, personalHash;
         if (!personal.empty()) {
@@ -150,16 +191,14 @@ private:
             if (personal) mpn_set_personal(session.get(), personal.get());
         }
         mark(&QueryTimings::setup_ms);
-        for (unsigned char c : work.input)
-            if (!mpn_key(session.get(), c) || *mpn_committed(session.get()))
-                throw std::invalid_argument("core rejected input or produced implicit commit");
+        if (!mpn_set_input(session.get(), work.input.c_str()) || *mpn_committed(session.get()))
+            throw std::invalid_argument("core rejected input or produced implicit commit");
         if (work.input != mpn_input(session.get())) throw std::runtime_error("core input mismatch");
         mark(&QueryTimings::replay_ms);
-        WordEvidence evidence; // Construct, use, close entirely on the query thread.
-        evidence.open(base_->databasePath());
-        if (!evidence.ready()) throw std::runtime_error("snapshot SQLite unavailable");
+        auto evidence = acquireEvidence(); // Borrow a pooled read-only connection on this thread.
+        if (!evidence.value || !evidence.value->ready()) throw std::runtime_error("snapshot SQLite unavailable");
         mark(&QueryTimings::sqlite_open_ms);
-        auto lookup = [&](const std::string &reading) { return evidence.dictionary(reading, work.key.simplified); };
+        auto lookup = [&](const std::string &reading) { return evidence.value->dictionary(reading, work.key.simplified); };
         const auto relevant = queryWords(work, locked);
         auto choices = windowsCandidates(session.get(), relevant, lookup, locked);
         if (view && settings.memory) {

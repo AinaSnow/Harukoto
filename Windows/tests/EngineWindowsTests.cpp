@@ -180,6 +180,13 @@ int main(int argc,char **argv) {
             assert(newer->generation()!=old->generation());
             assert(contains(query(newer,"ceshibuci"),"新补词"));
             assert(contains(query(newer,"testcoffee"),"コーヒー"));
+            // Pre-step-7: theme/personal reload reuses the pinned base snapshot
+            // without reloading the base lexicon or SQLite database.
+            auto reused=WindowsDictionary::load(first,theme,personal,{},old->baseSnapshot(),old->memoryMirror());
+            assert(reused->baseSnapshot().get()==old->baseSnapshot().get());
+            assert(reused->identity()!=old->identity());
+            assert(contains(query(reused,"ceshibuci"),"旧补词"));
+            assert(contains(query(reused,"testcoffee"),"コーヒー"));
             assert(contains(old->query(pending),"珈琲"));
             bool mismatch=false;
             try { newer->query(pending); } catch(const std::invalid_argument &) { mismatch=true; }

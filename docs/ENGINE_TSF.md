@@ -183,8 +183,20 @@ WIN-03 阶段二第 6 步，2026-11-21 设计。目标：开关打开时由独�
 
 见[实机验收记录](WINDOWS_VALIDATION.md)“独立引擎开关实机清单”。
 
+## 13. 第 7 步前置扫雷：单次解码、单次跳转请求、SQLite 连接池与热更新复用
+
+在动工第 7 步（换代与接入层去词库）之前，消除 6a～6d 暴露出的四个性能与热更新隐患，均不改变任何排序结果与已有核心 C API 签名：
+
+- **消除宿主侧逐字重放（O(N²)→O(N)）**：核心新增 `mpn_set_input(MPNSession *, const char *)`（`Core/MeowpuutCore.h/.cpp`），一次性校验并写入整串读音后只调用一次 `session->refresh()`，对越界、空格、非法字符或连续边界符返回 0 且不改动原会话。`EngineWindows.h` 与 `EngineCore.h` 改为调用 `mpn_set_input`，不再按字节循环调用 `mpn_key`。
+- **消除客户端侧快打／部分选词重放（O(N³)→O(1) IPC）**：协议 `KeyAction` 新增 `Set = 6`（`EngineMessages.h`、`EngineServer.h`），仅在 `Set` 动作末尾附带目标 `input`，既有 5 种动作的线编码逐字节不变；服务端收到 `Set` 直接替换 `session.input` 并将页码归零。`EngineTsf.h` 的 `Driver::fetch()` 在非单键增删／未翻页刷新时（如快打在途覆盖跳过多键、部分选词后剩余串变化、翻页后再刷新）只发一条 `KeyAction::Set`，不再 `Cancel` 后逐字发 N 次 IPC。
+- **工作线程复用只读 SQLite 连接**：`WindowsDictionary` 内置带锁 `WordEvidence` 连接池（上限 16，声明在 `base_` 之后以确保析构先关全部 SQLite 连接再释放 `StableFile` 守卫），每键借用／归还已打开并准备好的只读连接，不再每键执行 `LoadLibraryExW("winsqlite3.dll")`、`sqlite3_open_v2`、`PRAGMA table_info`、`sqlite3_prepare_v2` 与 `FreeLibrary`。
+- **热更新解耦基础词库并修复旧快照常驻**：`WindowsDictionary::base_` 改为 `std::shared_ptr<const base_dictionary::Snapshot>`，`load()` 支持复用已固定的基础快照与 `MemoryMirror`；`EngineHost.cpp` 的热更新线程在仅主题包或个人日语表变化时直接复用当前基础快照与学习镜像，同时 `wmain` 在启动后立即释放自身持有的初始 `dictionary` 引用，使旧基础快照在切换完成后能即时释放。
+- **验证与实测**：
+  - `benchmark-engine.py`（3 轮完整词库，与[查询测量](ENGINE_PERFORMANCE.md#按页扩展的同条件对照)同口径）：FF14 executor 请求中位 1.066→0.524 ms、最大 13.488→2.084 ms、查询合计 190.07→75.73 ms、SQLite 打开合计 63.88→0.61 ms（仅首键冷开，之后中位 0.0002 ms）；基础 executor 中位 0.943→0.456 ms、查询合计 77.23→39.96 ms。
+  - `engine_tsf_full`：8 场景 31,056 个列表全部由引擎提供，不一致 0；`behaviour` 新增快打多键跳转与部分选词后精确 1 次 exchange 断言；`layout` 新增个人日语表修改、FF14 主题停用与重新启用的引擎侧热更新测试（全部收敛并与进程内逐项一致），宿主私有内存轨迹为初始 185 MiB → 发布新基础快照后 193 MiB（切换期峰值工作集 381 MiB，切换后回落）→ 改个人表 190 MiB → 停用 FF14 138 MiB → 重启用 FF14 187 MiB。
+  - 6 套中文评测（`chinese-*-win03pre7.json`）与 6d 报告去掉时间、内存、修订号与哈希后逐字段完全相同。
+
 ### 第 7 步之前仍缺
 
-- 接入层仍保留本地核心会话（扩展、选择、学习都在本地），内存不降；要让接入层不加载基础词库，需由引擎执行选择与扩展（第 7 步前置）。
-- 真实安装、HKLM 发行元数据、真实应用（记事本、QQ、FF14）均未实机；多应用同时开启、延迟与内存未测（第 8 步）。
-- 主题与个人表的引擎侧热更新未单独测试；引擎在数据切换期间的内存峰值（新旧两份词库）未测。
+- 接入层仍保留本地核心会话（扩展、选择、学习都在本地），内存不降；要让接入层不加载基础词库，需由引擎执行选择与扩展（第 7 步前置设计，含按版本分 scope 换代与连接槽回收策略）。
+- 真实安装、HKLM 发行元数据、真实应用（记事本、QQ、FF14）均未实机；多应用同时开启、真实增量进程内对照下的延迟与内存未测（第 8 步）。

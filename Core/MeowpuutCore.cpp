@@ -3186,6 +3186,43 @@ int mpn_key(MPNSession *session, int32_t key) {
     }
 }
 
+int mpn_set_input(MPNSession *session, const char *input) {
+    if (!session || !input) return 0;
+    try {
+        const std::string_view text(input);
+        if (text.size() > max_input) return 0;
+        if (text.empty()) {
+            session->input.clear();
+            session->preedit.clear();
+            session->candidates.clear();
+            session->sentenceCount = session->literalTail = 0;
+            session->page = 0;
+            session->expansion = 0;
+            return 1;
+        }
+        const bool pinyin = session->lexicon->pinyin;
+        for (size_t i = 0; i < text.size(); ++i) {
+            const char ch = text[i];
+            if (static_cast<unsigned char>(ch) < 32 || static_cast<unsigned char>(ch) > 126 || ch == ' ') return 0;
+            if (pinyin) {
+                const bool boundary = is_tone(ch, true) || ch == '\'';
+                if (!(ch >= 'a' && ch <= 'z') && !boundary) return 0;
+                if (boundary && (i == 0 || is_tone(text[i - 1], true) || text[i - 1] == '\'')) return 0;
+            } else {
+                const bool boundary = is_tone(ch) || ch == '\'';
+                if (keys.find(ch) == keys.npos) return 0;
+                if (boundary && (i == 0 || is_tone(text[i - 1]) || text[i - 1] == '\'')) return 0;
+            }
+        }
+        session->input.assign(text.data(), text.size());
+        session->refresh();
+        return 1;
+    } catch (...) {
+        session->reset();
+        return 0;
+    }
+}
+
 const char *mpn_input(const MPNSession *session) { return session->input.c_str(); }
 const char *mpn_preedit(const MPNSession *session) { return session->preedit.c_str(); }
 const char *mpn_committed(const MPNSession *session) { return session->committed.c_str(); }

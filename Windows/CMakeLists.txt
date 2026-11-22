@@ -346,7 +346,7 @@ if(BUILD_TESTING)
         target_link_libraries(harukoto_service_reload_test PRIVATE MeowpuutCore ole32 oleaut32 uuid advapi32 gdi32 user32 bcrypt psapi shell32)
         # WIN-03 step 6a: the text service with the standalone engine (docs/ENGINE_TSF.md).
         add_executable(harukoto_engine_tsf_test tests/EngineTsfTests.cpp)
-        target_link_libraries(harukoto_engine_tsf_test PRIVATE MeowpuutCore ole32 oleaut32 uuid advapi32 gdi32 user32 bcrypt shell32 Threads::Threads)
+        target_link_libraries(harukoto_engine_tsf_test PRIVATE MeowpuutCore ole32 oleaut32 uuid advapi32 gdi32 user32 bcrypt psapi shell32 Threads::Threads)
         target_compile_features(harukoto_engine_tsf_test PRIVATE cxx_std_17)
         if(MSVC)
             target_compile_options(harukoto_engine_tsf_test PRIVATE /utf-8 /UNDEBUG)

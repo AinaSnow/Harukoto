@@ -23,6 +23,13 @@ void mpn_session_destroy(MPNSession *session);
 // begins a new composition; boundary tone marks complete the old reading.
 size_t mpn_max_input_bytes(void);
 int mpn_key(MPNSession *session, int32_t key);
+// Set a complete reading directly and decode it once, instead of refreshing on
+// every prefix as repeated mpn_key calls would. Accepts empty input (clearing
+// the reading while preserving segment context and pending commits) or any
+// sequence up to mpn_max_input_bytes() that repeated mpn_key calls would accept
+// verbatim without implicit commits or ignored keys; otherwise leaves the
+// session unchanged and returns 0.
+int mpn_set_input(MPNSession *session, const char *input);
 // When enabled, the first candidate always covers the complete composition.
 void mpn_require_full_candidate(MPNSession *session);
 void mpn_set_simplified(MPNSession *session, int simplified);

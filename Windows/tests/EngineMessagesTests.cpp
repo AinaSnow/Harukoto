@@ -90,6 +90,21 @@ static void limits() {
     p.identity = std::string(63, 'e'); assert(!valid(p));
     query.settings.remembered = {"你好", "拟好"}; codec(query);
     query.settings.remembered.assign(MaxRemembered + 1, "字"); assert(!valid(query));
+    // Pre-step-7: KeyAction::Set carries the complete target reading in one message.
+    KeyMessage setPlain{KeyAction::Set, 0, true, false, {}, "zhongguorenmin"}; codec(setPlain);
+    KeyMessage setQuery = query; setQuery.action = KeyAction::Set; setQuery.text = 0; setQuery.settings.remembered = {"你好"}; setQuery.input = "zhongguorenmin";
+    codec(setQuery);
+    KeyMessage setOut;
+    assert(decodePayload(encodePayload(setQuery), setOut) && setOut.action == KeyAction::Set && setOut.input == "zhongguorenmin" && setOut.extended);
+    for (int i = 0; i < 5; ++i) {
+        auto bad = setQuery;
+        if (i == 0) bad.input.clear();
+        else if (i == 1) bad.text = 'a';
+        else if (i == 2) bad.input = "日本";
+        else if (i == 3) bad.input = std::string(MaxInput + 1, 'a');
+        else { bad = KeyMessage{KeyAction::Refresh, 0, true}; bad.input = "ni"; }
+        assert(!valid(bad));
+    }
     p.words.push_back({1, 2, "你", ""}); assert(!valid(p));
     p = {"ni", true, {{1, 2, "你", ""}}, true}; assert(!valid(p));
     const Opened opened{std::string(IdentitySize, 'a')}; codec(opened);

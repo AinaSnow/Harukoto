@@ -163,8 +163,9 @@ public:
                 if (input.size() == MaxInput) return reject(Reason::InputLimit);
                 input.push_back(static_cast<char>(key.text));
             } else if (key.action == KeyAction::Backspace && !input.empty()) input.pop_back();
+            else if (key.action == KeyAction::Set) input = key.input;
             auto page = session.page;
-            if (key.action == KeyAction::Text || key.action == KeyAction::Backspace) page = 0;
+            if (key.action == KeyAction::Text || key.action == KeyAction::Backspace || key.action == KeyAction::Set) page = 0;
             if (key.action == KeyAction::PageNext) {
                 if (page == 4095) return reject(Reason::InputLimit);
                 ++page;

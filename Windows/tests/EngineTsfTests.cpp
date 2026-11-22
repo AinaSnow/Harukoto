@@ -6,6 +6,7 @@
 #include "../TextService.cpp"
 #include "../EngineWindows.h"
 #include "../EngineProcess.h"
+#include <psapi.h>
 #include <cassert>
 #include <csignal>
 #include <iostream>
@@ -158,11 +159,15 @@ struct EngineTsfTest {
         assert(mpn_key(b->session, 'h')); b->refreshCandidates(true); // newer ticket
         assert(!b->deliverEngine() && b->engineClient.pending() && b->engineClient.stats.stale == 1);
         serve(*b); assert(!b->engineClient.pending() && same(a->choices, b->choices));
-        // Latest request wins: two keys before the worker runs cost one reply.
+        // Latest request wins: two keys before the worker runs cost one reply
+        // and exactly one Set exchange (never Cancel + N-key replay).
         type(*a, "nihao", false);
+        const auto exchangesBeforeJump = transport->exchanges;
         assert(mpn_key(b->session, 'a')); b->refreshCandidates(true);
         assert(mpn_key(b->session, 'o')); b->refreshCandidates(true);
-        serve(*b); assert(!b->engineClient.pending() && same(a->choices, b->choices));
+        serve(*b);
+        assert(!b->engineClient.pending() && same(a->choices, b->choices));
+        assert(transport->exchanges == exchangesBeforeJump + 1);
         // A key that reads the candidates while they are owed: computed here.
         type(*a, "zhongwen", false); type(*b, "zhongwe", true); serve(*b);
         assert(mpn_key(b->session, 'n')); b->refreshCandidates(true); assert(b->engineClient.pending());
@@ -200,8 +205,9 @@ struct EngineTsfTest {
         type(*c, "riben", true);
         assert(!c->engineClient.pending() && c->engineClient.stats.reason == "identity" && !c->choices.empty());
         // Step 6b: fuzzy pinyin and the typo switch travel with the request.
+        Loopback *cTransport = nullptr;
         c->engineClient.close();
-        c->engineClient.factory = loopback(dictionary);
+        c->engineClient.factory = loopback(dictionary, &cTransport);
         auto d = service(data, false);
         type(*c, "nihao", true); serve(*c); assert(std::string(c->engineClient.stats.path) == "engine");
         mpn_set_fuzzy_pinyin(c->session, 1); mpn_set_fuzzy_pinyin(d->session, 1);
@@ -229,9 +235,11 @@ struct EngineTsfTest {
             type(*d, "nihao", false);
             std::wstring other;
             assert(c->chooseCandidate(index, text) && d->chooseCandidate(index, other) && text == other);
+            const auto exchangesBeforePartial = cTransport->exchanges;
             c->refreshCandidates(true); d->refreshCandidates();
             assert(c->engineClient.pending()); serve(*c);
             assert(std::string(c->engineClient.stats.path) == "engine" && same(c->choices, d->choices));
+            assert(cTransport->exchanges == exchangesBeforePartial + 1);
         }
         // rebuild() refuses what it cannot show exactly.
         type(*a, "nihao", false);
@@ -632,6 +640,15 @@ struct EngineTsfTest {
                 }, [ready] { SetEvent(ready); });
             };
         }
+        struct Memory { uint64_t priv = 0, peakWs = 0; };
+        Memory memory() const {
+            Memory m;
+            PROCESS_MEMORY_COUNTERS_EX c{}; c.cb = sizeof(c);
+            if (manager && manager->engineHandle() && GetProcessMemoryInfo(manager->engineHandle(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&c), sizeof(c))) {
+                m.priv = c.PrivateUsage; m.peakWs = c.PeakWorkingSetSize;
+            }
+            return m;
+        }
         ~Host() {
             manager->requestStop(ep::now());
             const auto until = ep::now() + 15000;
@@ -644,8 +661,28 @@ struct EngineTsfTest {
         while (!s.baseSnapshot && GetTickCount64() < until) { s.pollDictionaries(GetTickCount64()); Sleep(20); }
         assert(s.baseSnapshot);
     }
-    // layout <version> <dataRoot> <host.exe> [<owner_test.exe>] ; stdin: "published" after the
-    // driver staged a new base snapshot under <dataRoot>\BaseDictionaries.
+    static std::string adoptIdentity(Service &s, const std::string &previous) {
+        mpn_clear(s.session); s.resetCandidates();
+        const auto until = GetTickCount64() + 60000;
+        while (s.engineIdentity() == previous && GetTickCount64() < until) { s.pollDictionaries(GetTickCount64()); Sleep(20); }
+        assert(s.engineIdentity() != previous && !s.engineIdentity().empty());
+        return s.engineIdentity();
+    }
+    static bool hasCandidate(const Service &s, const std::string &text) {
+        return std::any_of(s.choices.begin(), s.choices.end(), [&](const auto &c) { return c.text == text; });
+    }
+    static void converge(Service &a, Service &b, HANDLE ready, const std::string &target,
+                         const std::vector<std::string> &inputs, size_t minServed, size_t &waited, size_t &outServed) {
+        const auto until = GetTickCount64() + 60000;
+        for (;;) {
+            const auto count = served(a, b, ready, inputs);
+            if (count >= minServed && b.engineClient.link()->identity() == target) { outServed = count; return; }
+            assert(GetTickCount64() < until && "the engine did not adopt the publication");
+            ++waited; Sleep(1100);
+        }
+    }
+    // layout <version> <dataRoot> <host.exe> [<owner_test.exe>] ; stdin drives
+    // base publish, personal edit, theme disable/re-enable and corrupt publish.
     static void layout(const std::filesystem::path &version, const std::filesystem::path &dataRoot,
                        const std::filesystem::path &hostExe, const std::filesystem::path &ownerExe) {
         const std::vector<std::string> inputs{"nihao", "zhongguo", "riben", "wozaiditieshang", "shi"};
@@ -660,12 +697,16 @@ struct EngineTsfTest {
         assert(arguments.base == version && arguments.baseStore == dataRoot / L"BaseDictionaries" && arguments.themes == dataRoot / L"Dictionaries" &&
                arguments.personal == dataRoot / L"japanese-custom.tsv" && arguments.memory == dataRoot / L"selection-memory.tsv");
         assert(WindowsDictionary::load(arguments.base, arguments.themes, arguments.personal, arguments.memory)->identity() == identity);
-        size_t first = 0, waited = 0, converged = 0, kept = 0;
+        size_t first = 0, waited = 0, converged = 0, kept = 0, personalWaited = 0, personalServed = 0;
+        size_t themeOffWaited = 0, themeOffServed = 0, themeOnWaited = 0, themeOnServed = 0;
+        auto mib = [](uint64_t bytes) { return static_cast<double>(bytes) / (1024.0 * 1024.0); };
+        Host::Memory memBefore{}, memAfterBase{}, memAfterPersonal{}, memAfterThemeOff{}, memAfterThemeOn{};
         {
             Host host(hostExe, arguments);
             b->engineClient.factory = host.factory(ready);
             first = served(*a, *b, ready, inputs);
             assert(first >= 4);
+            memBefore = host.memory();
             std::cout << "installed layout: identity equal, " << first << "/" << inputs.size() << " served" << std::endl;
             // 2. Step 6d: a newer base snapshot is published. Both services adopt
             //    it at a boundary and the running engine adopts it too; until
@@ -675,14 +716,33 @@ struct EngineTsfTest {
             adopt(*a); adopt(*b);
             const auto published = b->engineIdentity();
             assert(published != identity && !published.empty());
-            const auto until = GetTickCount64() + 60000;
-            for (;;) {
-                const auto count = served(*a, *b, ready, inputs);
-                if (count >= 4) { converged = count; break; }
-                assert(GetTickCount64() < until && "the engine did not adopt the publication");
-                ++waited; Sleep(1100);
-            }
-            assert(b->engineClient.link()->identity() == published);
+            converge(*a, *b, ready, published, inputs, 4, waited, converged);
+            memAfterBase = host.memory();
+            // 3. Pre-step-7: personal table edit hot-reloaded by the engine
+            //    while reusing the pinned base snapshot.
+            std::cout << "ready-personal" << std::endl;
+            std::getline(std::cin, line); assert(line == "personal-updated");
+            const auto personalId = adoptIdentity(*a, published);
+            assert(adoptIdentity(*b, published) == personalId);
+            converge(*a, *b, ready, personalId, {"testcoffee"}, 1, personalWaited, personalServed);
+            assert(hasCandidate(*b, "コーヒー") && !hasCandidate(*b, "珈琲"));
+            memAfterPersonal = host.memory();
+            // 4. Pre-step-7: theme package disabled then re-enabled, hot-reloaded
+            //    by the engine while reusing the pinned base snapshot.
+            std::cout << "ready-theme-off" << std::endl;
+            std::getline(std::cin, line); assert(line == "theme-disabled");
+            const auto themeOffId = adoptIdentity(*a, personalId);
+            assert(adoptIdentity(*b, personalId) == themeOffId);
+            converge(*a, *b, ready, themeOffId, {"tejihuifuyao"}, 1, themeOffWaited, themeOffServed);
+            assert(!hasCandidate(*b, "特级恢复药"));
+            memAfterThemeOff = host.memory();
+            std::cout << "ready-theme-on" << std::endl;
+            std::getline(std::cin, line); assert(line == "theme-enabled");
+            const auto themeOnId = adoptIdentity(*a, themeOffId);
+            assert(adoptIdentity(*b, themeOffId) == themeOnId);
+            converge(*a, *b, ready, themeOnId, {"tejihuifuyao"}, 1, themeOnWaited, themeOnServed);
+            assert(hasCandidate(*b, "特级恢复药"));
+            memAfterThemeOn = host.memory();
             // The formal resident path now, while the store's current snapshot
             // is the one both services use: discovery, handoff and an owner
             // started through the shell, from an injected (HKCU) release source.
@@ -690,7 +750,7 @@ struct EngineTsfTest {
                 resident(*a, *b, version, ownerExe, hostExe, ready, inputs);
                 b->engineClient.factory = host.factory(ready);
             }
-            // 3. A damaged publication (a file changed after staging): every
+            // 5. A damaged publication (a file changed after staging): every
             //    loader refuses it, the services and the engine keep what they
             //    have, identities stay equal and the engine keeps serving.
             std::cout << "ready-corrupt" << std::endl;
@@ -699,18 +759,24 @@ struct EngineTsfTest {
                 mpn_clear(s->session); s->resetCandidates();
                 const auto stop = GetTickCount64() + 5000;
                 while (GetTickCount64() < stop) { s->pollDictionaries(GetTickCount64()); Sleep(50); }
-                assert(s->engineIdentity() == published);
+                assert(s->engineIdentity() == themeOnId);
             }
             Sleep(3000); // The engine's reload thread looks once a second.
             kept = served(*a, *b, ready, inputs);
-            assert(kept >= 4 && b->engineClient.link()->identity() == published);
+            assert(kept >= 4 && b->engineClient.link()->identity() == themeOnId);
             b->engineClient.close();
         }
-        std::cout << "hot reload: published snapshot adopted by services and engine after " << waited
-                  << " in-process round(s), then " << converged << "/" << inputs.size() << " served; damaged publication refused by both, "
-                  << kept << "/" << inputs.size() << " served" << std::endl;
-        // 3. The formal resident path: discovery, handoff and an owner started
-        //    through the shell, from an injected (HKCU) release source.
+        std::cout << "hot reload: published snapshot adopted after " << waited << " round(s) (" << converged << "/" << inputs.size()
+                  << "), personal adopted after " << personalWaited << " round(s) (" << personalServed << "/1)"
+                  << ", theme off/on adopted after " << themeOffWaited << "/" << themeOnWaited << " round(s) ("
+                  << themeOffServed << "/1, " << themeOnServed << "/1); damaged publication refused by both, "
+                  << kept << "/" << inputs.size() << " served"
+                  << "; host private MiB initial=" << static_cast<int>(mib(memBefore.priv))
+                  << " after-base=" << static_cast<int>(mib(memAfterBase.priv))
+                  << " after-personal=" << static_cast<int>(mib(memAfterPersonal.priv))
+                  << " after-theme-off=" << static_cast<int>(mib(memAfterThemeOff.priv))
+                  << " after-theme-on=" << static_cast<int>(mib(memAfterThemeOn.priv))
+                  << " peak-ws=" << static_cast<int>(mib(memAfterThemeOn.peakWs)) << std::endl;
         b.reset(); CloseHandle(ready);
     }
     static void resident(Service &a, Service &b, const std::filesystem::path &dataVersion, const std::filesystem::path &ownerExe,

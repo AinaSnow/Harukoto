@@ -8,7 +8,7 @@ namespace harukoto::engine {
 constexpr size_t MaxInput = 256, MaxText = 1024, MaxCandidates = 128;
 constexpr uint32_t MaxCoreIndex = 1u << 24;
 enum class Payload : uint16_t { Key = 1, Candidates = 2, Select = 3, Commit = 4, Error = ErrorPayloadTag, Opened = 6, Query = 7 };
-enum class KeyAction : uint8_t { Text = 1, Backspace, PageNext, PagePrevious, Refresh };
+enum class KeyAction : uint8_t { Text = 1, Backspace, PageNext, PagePrevious, Refresh, Set };
 // WIN-03 step 6b: the per-user ranking state of a TSF client, sent with each
 // key (Payload::Query). fuzzy/typo set the core session; memory says whether
 // selection memory and word frequency apply (at hour, the hour of the
@@ -37,6 +37,9 @@ struct KeyMessage {
     KeyAction action = KeyAction::Text; uint8_t text = 0; bool simplified = true;
     bool extended = false; // false: the step 6a key, ranked with engine defaults.
     QuerySettings settings;
+    // KeyAction::Set only: replaces the session reading in one round trip
+    // instead of Cancel followed by per-character Text replay.
+    std::string input;
 };
 // WIN-03 step 6a: core is the native candidate index + 1 (0: not a core
 // candidate); flags describe how the Windows merge placed it, so a TSF client
@@ -100,6 +103,8 @@ inline bool valid(const QuerySettings &q) {
 }
 inline bool valid(const KeyMessage &m) {
     if (m.extended && !valid(m.settings)) return false;
+    if (m.action == KeyAction::Set) return m.text == 0 && !m.input.empty() && inputValid(m.input);
+    if (!m.input.empty()) return false;
     if (m.action == KeyAction::Text) return inputByte(m.text);
     return m.text == 0 && (m.action == KeyAction::Backspace || m.action == KeyAction::PageNext ||
                           m.action == KeyAction::PagePrevious || m.action == KeyAction::Refresh);
@@ -151,6 +156,7 @@ inline std::vector<uint8_t> encodePayload(const KeyMessage &m) {
         put(b, q.remembered.size(), 1);
         for (const auto &text : q.remembered) putString(b, text);
     }
+    if (m.action == KeyAction::Set) putString(b, m.input);
     return b;
 }
 inline std::vector<uint8_t> encodePayload(const CandidatePage &p) {
@@ -193,6 +199,7 @@ inline bool decodePayload(const std::vector<uint8_t> &b, KeyMessage &out) {
         if (count > MaxRemembered) return false;
         for (uint64_t i = 0; i < count; ++i) q.remembered.push_back(r.string(MaxRememberedText));
     }
+    if (m.action == KeyAction::Set) m.input = r.string(MaxInput);
     if (simplified > 1 || typo > 1 || memory > 1 || locked > 1 || !r.done() || !valid(m)) return false; out = std::move(m); return true;
 }
 inline bool decodePayload(const std::vector<uint8_t> &b, CandidatePage &out) {

@@ -118,10 +118,59 @@ static void sharedQueries(const CoreDictionary &core) {
     }));
     for (auto &worker : workers) worker.get();
 }
+static void setInputEquivalence(const std::string &bytes) {
+    std::unique_ptr<MPNLexicon,decltype(&mpn_lexicon_destroy)> lex(mpn_lexicon_create(bytes.data(),bytes.size()),mpn_lexicon_destroy);
+    assert(lex);
+    for (const bool hans : {true,false}) {
+        for (const char *context : {"","你好"}) {
+            for (const std::string &input : {std::string(""),std::string("nihao"),std::string("ni3hao3"),
+                                             std::string("ni'hao"),std::string("zhongguo"),std::string("nihaoz"),
+                                             std::string("ceshi")}) {
+                std::unique_ptr<MPNSession,decltype(&mpn_session_destroy)> byKey(mpn_session_create(lex.get()),mpn_session_destroy);
+                std::unique_ptr<MPNSession,decltype(&mpn_session_destroy)> bySet(mpn_session_create(lex.get()),mpn_session_destroy);
+                mpn_set_simplified(byKey.get(),hans); mpn_set_simplified(bySet.get(),hans);
+                mpn_set_segment_context(byKey.get(),context); mpn_set_segment_context(bySet.get(),context);
+                for (unsigned char c : input) assert(mpn_key(byKey.get(),c));
+                assert(mpn_set_input(bySet.get(),input.c_str()) == 1);
+                assert(std::string(mpn_input(byKey.get())) == mpn_input(bySet.get()));
+                assert(std::string(mpn_preedit(byKey.get())) == mpn_preedit(bySet.get()));
+                assert(std::string(mpn_segment_context(byKey.get())) == mpn_segment_context(bySet.get()));
+                for (int round = 0; round < 3; ++round) {
+                    const auto n = mpn_candidate_count(byKey.get());
+                    assert(n == mpn_candidate_count(bySet.get()));
+                    for (size_t i = 0; i < n; ++i) {
+                        assert(std::string(mpn_candidate(byKey.get(),i)) == mpn_candidate(bySet.get(),i));
+                        assert(mpn_candidate_consumed(byKey.get(),i) == mpn_candidate_consumed(bySet.get(),i));
+                        assert(mpn_candidate_literal_tail(byKey.get(),i) == mpn_candidate_literal_tail(bySet.get(),i));
+                    }
+                    assert(mpn_candidates_can_expand(byKey.get()) == mpn_candidates_can_expand(bySet.get()));
+                    if (!mpn_candidates_can_expand(byKey.get())) break;
+                    mpn_expand_candidates(byKey.get()); mpn_expand_candidates(bySet.get());
+                }
+            }
+        }
+    }
+    // Invalid readings must fail without disturbing existing session state.
+    std::unique_ptr<MPNSession,decltype(&mpn_session_destroy)> s(mpn_session_create(lex.get()),mpn_session_destroy);
+    assert(mpn_set_input(nullptr,"nihao") == 0 && mpn_set_input(s.get(),nullptr) == 0);
+    assert(mpn_set_input(s.get(),"nihao") == 1);
+    const std::string beforeFirst = mpn_candidate(s.get(),0);
+    for (const auto &bad : {std::string("'nihao"),std::string("1nihao"),std::string("ni''hao"),
+                            std::string("ni33hao"),std::string("ni3'hao"),std::string("ni hao"),
+                            std::string("NIHAO"),std::string("ni9"),std::string(mpn_max_input_bytes()+1,'a')}) {
+        assert(mpn_set_input(s.get(),bad.c_str()) == 0);
+        assert(std::string(mpn_input(s.get())) == "nihao" && std::string(mpn_candidate(s.get(),0)) == beforeFirst);
+    }
+    // Empty input clears reading while preserving segment context.
+    mpn_set_segment_context(s.get(),"你好");
+    assert(mpn_set_input(s.get(),"") == 1 && std::string(mpn_input(s.get())).empty() &&
+           mpn_candidate_count(s.get()) == 0 && std::string(mpn_segment_context(s.get())) == "你好");
+}
 int main(int argc,char **argv) {
     try {
         std::string bytes=fixture();
         if (argc==2) { std::ifstream file(std::filesystem::u8path(argv[1]),std::ios::binary); assert(file); bytes.assign(std::istreambuf_iterator<char>(file),{}); }
+        setInputEquivalence(bytes);
         CoreDictionary core(bytes);
         for (const bool hans : {true,false}) {
             auto q=work("zhongguo",hans); auto p=core.query(q);

@@ -34,10 +34,8 @@ public:
         if (!session) throw std::runtime_error("cannot create core session");
         mpn_set_simplified(session.get(),work.key.simplified);
         mpn_set_segment_context(session.get(),work.context.c_str());
-        for (unsigned char c : work.input) {
-            if (!mpn_key(session.get(),c) || *mpn_committed(session.get()))
-                throw std::invalid_argument("core rejected input or produced implicit commit");
-        }
+        if (!mpn_set_input(session.get(),work.input.c_str()) || *mpn_committed(session.get()))
+            throw std::invalid_argument("core rejected input or produced implicit commit");
         if (work.input != mpn_input(session.get())) throw std::runtime_error("core input mismatch");
         // Exhaust the existing three bounded expansion passes before slicing,
         // preserving the reconstructed index order across pages.

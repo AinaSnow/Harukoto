@@ -117,6 +117,22 @@ static void selectionAndReplay() {
     assert(p.server.cachedReplies() == ServerConnection::ReplayLimit);
     assert(p.server.receive(select,5,100).reason == Reason::Stale);
     auto after = p.server.receive(p.action(KeyAction::Refresh),5,100); assert(after.work->input == "niha");
+    assert(p.server.complete(after.work,page(after.work),5).response);
+    // Pre-step-7: KeyAction::Set replaces the reading and resets page in one request.
+    auto nextForSet = p.server.receive(p.action(KeyAction::PageNext),5,100);
+    assert(nextForSet.work && nextForSet.work->page == 2);
+    assert(p.server.complete(nextForSet.work,page(nextForSet.work),5).response);
+    auto setFrame = p.frame(Kind::Key);
+    setFrame.payload = encodePayload(KeyMessage{KeyAction::Set,0,true,false,{},"zhongguorenmin"});
+    auto setJob = p.server.receive(setFrame,5,100);
+    assert(setJob.work && setJob.work->input == "zhongguorenmin" && setJob.work->page == 0);
+    assert(p.server.complete(setJob.work,page(setJob.work,"中国人民",14),5).response);
+    auto setPageNext = p.server.receive(p.action(KeyAction::PageNext),5,100);
+    assert(setPageNext.work && setPageNext.work->input == "zhongguorenmin" && setPageNext.work->page == 1);
+    assert(p.server.complete(setPageNext.work,page(setPageNext.work,"中国人民",14),5).response);
+    auto setSelect = p.frame(Kind::Select); setSelect.payload = encodePayload(Selection{setPageNext.work->request.id.request,1});
+    auto setSelected = p.server.receive(setSelect,5,100); Commit setCommit;
+    assert(setSelected.response && decodePayload(setSelected.response->payload,setCommit) && setCommit.text == "中国人民" && setCommit.remaining.empty());
     auto cancel = p.frame(Kind::Cancel,1,2); assert(p.server.receive(cancel,6,100).response);
     assert(p.server.receive(refresh,6,100).reason == Reason::Stale);
 }

@@ -115,6 +115,15 @@ def layout(root):
             if line.strip() == 'ready-publish':
                 bundle.stage(staged, data / 'BaseDictionaries')  # As Dictionaries.cmd publishes a snapshot.
                 process.stdin.write('published\n'); process.stdin.flush()
+            elif line.strip() == 'ready-personal':
+                (data / 'japanese-custom.tsv').write_text('testcoffee|コーヒー|5200|こーひー|english|咖啡\n', encoding='utf-8')
+                process.stdin.write('personal-updated\n'); process.stdin.flush()
+            elif line.strip() == 'ready-theme-off':
+                change(data / 'Dictionaries', 'disable', 'harukoto-ff14')
+                process.stdin.write('theme-disabled\n'); process.stdin.flush()
+            elif line.strip() == 'ready-theme-on':
+                change(data / 'Dictionaries', 'enable', 'harukoto-ff14')
+                process.stdin.write('theme-enabled\n'); process.stdin.flush()
             elif line.strip() == 'ready-corrupt':
                 # A third publication, damaged after staging: no loader may adopt it.
                 generation = bundle.stage(damaged, data / 'BaseDictionaries')

@@ -143,9 +143,10 @@ public:
     Fetched fetch(const std::string &input, bool simplified, const std::optional<engine::QuerySettings> &settings, uint64_t deadline) {
         if (input.empty() || !engine::inputValid(input)) throw std::invalid_argument("invalid engine reading");
         CandidatePage page;
-        const auto message = [&](KeyAction action, uint8_t c) {
+        const auto message = [&](KeyAction action, uint8_t c, std::string full = {}) {
             KeyMessage m{action, c, simplified};
             if (settings) { m.extended = true; m.settings = *settings; }
+            m.input = std::move(full);
             return m;
         };
         const auto text = [&](char c, const std::string &expect) {
@@ -158,11 +159,7 @@ public:
         } else if (input == mirror_ && !paged_) {
             page = key(message(KeyAction::Refresh, 0), input, deadline);
         } else {
-            mirror_.clear();
-            const auto cancel = gate_.cancel(session_, now(), deadline);
-            if (!cancel || !gate_.accept(transport_->exchange(*cancel, deadline), now())) throw std::runtime_error("engine cancel rejected");
-            std::string typed;
-            for (char c : input) { typed.push_back(c); page = text(c, typed); }
+            page = key(message(KeyAction::Set, 0, input), input, deadline);
         }
         mirror_ = input; paged_ = false;
         Fetched out;
