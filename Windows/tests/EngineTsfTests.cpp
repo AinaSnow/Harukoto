@@ -247,6 +247,7 @@ struct EngineTsfTest {
     // memory switch, polling, the personal table, fuzzy pinyin and typo switch.
     struct Scenario { std::string name; uint32_t fuzzy = 0; bool typo = true, memory = false, learn = false; };
     static void prepare(Service &s, const Scenario &scenario) {
+        s.engineChosenWords = false; // As at the start of OnKeyDown.
         s.memoryEnabled = s.memory && scenario.memory;
         if (s.memoryEnabled) s.memory->poll(GetTickCount64(), 0);
         if (s.memory) s.memory->pollUserWords(GetTickCount64(), 0);
@@ -565,7 +566,7 @@ struct EngineTsfTest {
         mpn_set_simplified(s->session, simplified);
         return s;
     }
-    struct Layout { std::filesystem::path base, themes, personal, memory; };
+    struct Layout { std::filesystem::path base, baseStore, themes, personal, memory; };
     static Layout parseLayout(const std::vector<std::wstring> &arguments) {
         Layout result;
         for (size_t i = 0; i + 1 < arguments.size(); i += 2) {
@@ -573,6 +574,7 @@ struct EngineTsfTest {
             else if (arguments[i] == L"--themes") result.themes = arguments[i + 1];
             else if (arguments[i] == L"--personal") result.personal = arguments[i + 1];
             else if (arguments[i] == L"--memory") result.memory = arguments[i + 1];
+            else if (arguments[i] == L"--base-store") result.baseStore = arguments[i + 1];
             else assert(false && "unexpected layout argument");
         }
         return result;
@@ -603,24 +605,28 @@ struct EngineTsfTest {
         std::shared_ptr<engine::EngineRegistration::Endpoint> endpoint;
         Host(const std::filesystem::path &executable, const Layout &layout) {
             EngineProcess::Config config{executable, layout.base, layout.themes, layout.personal};
-            config.memory = layout.memory; config.dynamicEndpoints = true;
+            config.memory = layout.memory; config.baseStore = layout.baseStore; config.dynamicEndpoints = true;
             manager = std::make_unique<EngineProcess>(config);
             const auto until = ep::now() + 60000;
             while (manager->poll(ep::now()) == EngineProcess::State::Starting) wait(until);
             assert(manager->status().state == EngineProcess::State::Ready);
+            endpoint = allocate();
+        }
+        // Each endpoint serves one connection: a new link needs a new one.
+        std::shared_ptr<engine::EngineRegistration::Endpoint> allocate() {
             assert(manager->requestControl(engine::control::Operation::Allocate, ep::now(), 10000));
             while (manager->status().controlState == engine::control::State::Pending) { wait(ep::now() + 10000); manager->poll(ep::now()); }
             auto allocated = manager->takeControl(ep::now()); assert(allocated && allocated->endpoint);
-            endpoint = std::make_shared<engine::EngineRegistration::Endpoint>(std::move(*allocated->endpoint));
+            return std::make_shared<engine::EngineRegistration::Endpoint>(std::move(*allocated->endpoint));
         }
         void wait(uint64_t deadline) {
             auto events = manager->waitHandles();
             const auto now = ep::now(); assert(now < deadline);
             if (!events.empty()) WaitForMultipleObjects(static_cast<DWORD>(events.size()), events.data(), FALSE, static_cast<DWORD>(deadline - now));
         }
-        tsf_engine::Client::Factory factory(HANDLE ready) const {
-            auto target = endpoint;
-            return [target, ready] {
+        tsf_engine::Client::Factory factory(HANDLE ready) {
+            return [this, ready] {
+                auto target = endpoint ? std::move(endpoint) : allocate();
                 return tsf_engine::Link::threaded([target](uint64_t) -> std::unique_ptr<tsf_engine::Transport> {
                     return std::make_unique<tsf_engine::PipeTransport>(target->connect());
                 }, [ready] { SetEvent(ready); });
@@ -651,43 +657,60 @@ struct EngineTsfTest {
         const auto identity = b->engineIdentity();
         assert(!identity.empty() && b->installGeneration == base_dictionary::manifestGeneration(version));
         auto arguments = parseLayout(b->engineLayout());
-        assert(arguments.base == version && !arguments.themes.empty() && arguments.personal == dataRoot / L"japanese-custom.tsv" &&
-               arguments.memory == dataRoot / L"selection-memory.tsv");
+        assert(arguments.base == version && arguments.baseStore == dataRoot / L"BaseDictionaries" && arguments.themes == dataRoot / L"Dictionaries" &&
+               arguments.personal == dataRoot / L"japanese-custom.tsv" && arguments.memory == dataRoot / L"selection-memory.tsv");
         assert(WindowsDictionary::load(arguments.base, arguments.themes, arguments.personal, arguments.memory)->identity() == identity);
-        size_t first = 0, after = 0, fresh = 0;
+        size_t first = 0, waited = 0, converged = 0, kept = 0;
         {
             Host host(hostExe, arguments);
             b->engineClient.factory = host.factory(ready);
             first = served(*a, *b, ready, inputs);
             assert(first >= 4);
             std::cout << "installed layout: identity equal, " << first << "/" << inputs.size() << " served" << std::endl;
-            // 2. A newer base snapshot is published: both services adopt it at a
-            //    boundary; the running engine still serves the old data, so the
-            //    service lists in-process ("identity") until an engine serves the new one.
+            // 2. Step 6d: a newer base snapshot is published. Both services adopt
+            //    it at a boundary and the running engine adopts it too; until
+            //    both use the same data the service lists in-process ("identity").
             std::cout << "ready-publish" << std::endl;
             std::string line; std::getline(std::cin, line); assert(line == "published");
             adopt(*a); adopt(*b);
-            assert(b->engineIdentity() != identity && !b->engineIdentity().empty());
-            for (const auto &input : inputs) {
-                type(*a, input, false); type(*b, input, true);
-                assert(!b->engineClient.pending() && b->engineClient.stats.reason == "identity" && same(a->choices, b->choices));
-                ++after;
+            const auto published = b->engineIdentity();
+            assert(published != identity && !published.empty());
+            const auto until = GetTickCount64() + 60000;
+            for (;;) {
+                const auto count = served(*a, *b, ready, inputs);
+                if (count >= 4) { converged = count; break; }
+                assert(GetTickCount64() < until && "the engine did not adopt the publication");
+                ++waited; Sleep(1100);
             }
+            assert(b->engineClient.link()->identity() == published);
+            // The formal resident path now, while the store's current snapshot
+            // is the one both services use: discovery, handoff and an owner
+            // started through the shell, from an injected (HKCU) release source.
+            if (!ownerExe.empty()) {
+                resident(*a, *b, version, ownerExe, hostExe, ready, inputs);
+                b->engineClient.factory = host.factory(ready);
+            }
+            // 3. A damaged publication (a file changed after staging): every
+            //    loader refuses it, the services and the engine keep what they
+            //    have, identities stay equal and the engine keeps serving.
+            std::cout << "ready-corrupt" << std::endl;
+            std::getline(std::cin, line); assert(line == "corrupted");
+            for (auto *s : {a.get(), b.get()}) {
+                mpn_clear(s->session); s->resetCandidates();
+                const auto stop = GetTickCount64() + 5000;
+                while (GetTickCount64() < stop) { s->pollDictionaries(GetTickCount64()); Sleep(50); }
+                assert(s->engineIdentity() == published);
+            }
+            Sleep(3000); // The engine's reload thread looks once a second.
+            kept = served(*a, *b, ready, inputs);
+            assert(kept >= 4 && b->engineClient.link()->identity() == published);
             b->engineClient.close();
         }
-        auto next = parseLayout(b->engineLayout());
-        assert(next.base == dataRoot / L"BaseDictionaries" / std::wstring(b->baseSnapshot->generation().begin(), b->baseSnapshot->generation().end()));
-        {
-            Host host(hostExe, next);
-            b->engineClient.factory = host.factory(ready);
-            fresh = served(*a, *b, ready, inputs);
-            assert(fresh >= 4);
-            b->engineClient.close();
-        }
-        std::cout << "hot publish: " << after << " readings in-process (identity) until a new engine, then " << fresh << "/" << inputs.size() << " served" << std::endl;
+        std::cout << "hot reload: published snapshot adopted by services and engine after " << waited
+                  << " in-process round(s), then " << converged << "/" << inputs.size() << " served; damaged publication refused by both, "
+                  << kept << "/" << inputs.size() << " served" << std::endl;
         // 3. The formal resident path: discovery, handoff and an owner started
         //    through the shell, from an injected (HKCU) release source.
-        if (!ownerExe.empty()) resident(*a, *b, version, ownerExe, hostExe, ready, inputs);
         b.reset(); CloseHandle(ready);
     }
     static void resident(Service &a, Service &b, const std::filesystem::path &dataVersion, const std::filesystem::path &ownerExe,
@@ -702,6 +725,9 @@ struct EngineTsfTest {
         std::filesystem::copy_file(hostExe, host, std::filesystem::copy_options::overwrite_existing);
         const std::wstring testKey = L"Software\\HarukotoTest-tsf-" + unique, releaseKey = testKey + L"\\EngineReleases", scope = L"tsf-" + unique;
         struct Cleanup {
+            // An assert aborts without unwinding: stop the owner and remove the
+            // test key from the SIGABRT handler too.
+            static Cleanup *&active() { static Cleanup *value = nullptr; return value; }
             std::wstring key, scope; rs::Store store;
             ~Cleanup() {
                 const auto status = rs::inspect(store, scope);
@@ -723,6 +749,9 @@ struct EngineTsfTest {
                 RegDeleteTreeW(HKEY_CURRENT_USER, key.c_str()); RegDeleteKeyW(HKEY_CURRENT_USER, key.c_str());
             }
         } cleanup{testKey, scope, rs::Store::under(testKey)};
+        Cleanup::active() = &cleanup;
+        std::signal(SIGABRT, [](int) { if (auto *c = Cleanup::active()) { Cleanup::active() = nullptr; c->~Cleanup(); } });
+        struct Disarm { ~Disarm() { Cleanup::active() = nullptr; } } disarm;
         // The release value, as the elevated installer writes it under HKLM.
         const auto sha = [](const std::filesystem::path &path) { const auto hex = base_dictionary::StableFile(path).read(true); return std::wstring(hex.begin(), hex.end()); };
         std::wstring value;

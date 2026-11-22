@@ -42,10 +42,15 @@ inline Link::Connect residentConnect(engine::release::Source source = {}, engine
 // started engine reports the same data identity. base is the version
 // folder (a snapshot since the package carries base-dictionary.json) or the
 // published snapshot the service adopted; themes only when packages are on.
+// Step 6d: the engine then follows publications itself: --base is the
+// version folder, --base-store the published snapshots, --themes the package
+// root (served while a package snapshot is current).
 inline std::vector<std::wstring> layoutArguments(const std::filesystem::path &base, const std::filesystem::path &dataRoot, bool themes) {
     std::vector<std::wstring> result{L"--base", base.wstring()};
     if (dataRoot.empty()) return result;
-    if (themes) { result.push_back(L"--themes"); result.push_back((dataRoot / L"Dictionaries").wstring()); }
+    (void)themes;
+    result.push_back(L"--base-store"); result.push_back((dataRoot / L"BaseDictionaries").wstring());
+    result.push_back(L"--themes"); result.push_back((dataRoot / L"Dictionaries").wstring());
     result.push_back(L"--personal"); result.push_back((dataRoot / L"japanese-custom.tsv").wstring());
     result.push_back(L"--memory"); result.push_back((dataRoot / L"selection-memory.tsv").wstring());
     return result;

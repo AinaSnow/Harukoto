@@ -44,8 +44,8 @@ private:
     };
     struct Cached { Frame request, response; };
     const uint64_t engine_;
-    const std::shared_ptr<const WindowsDictionary> dictionary_;
-    const std::string identity_;
+    std::shared_ptr<const WindowsDictionary> dictionary_;
+    std::string identity_;
     uint64_t connection_ = 0, lastRequest_ = 0, lastSession_ = 0;
     bool closed_ = false;
     std::unordered_map<uint64_t, Session> sessions_;
@@ -80,6 +80,12 @@ public:
     ServerConnection(const ServerConnection &) = delete;
     ServerConnection &operator=(const ServerConnection &) = delete;
     bool closed() const { return closed_; }
+    // Step 6d: newly adopted data for the following requests. Work already
+    // scheduled keeps the dictionary it holds; nothing else changes.
+    void setDictionary(std::shared_ptr<const WindowsDictionary> dictionary, std::string identity) {
+        if (!identity.empty() && !identityValid(identity)) throw std::invalid_argument("invalid engine identity");
+        dictionary_ = std::move(dictionary); identity_ = std::move(identity);
+    }
     size_t sessionCount() const { return sessions_.size(); }
     size_t cachedReplies() const { return replies_.size(); }
     void disconnect() { closed_ = true; sessions_.clear(); replies_.clear(); outstanding_.clear(); }

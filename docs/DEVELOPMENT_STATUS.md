@@ -1,5 +1,17 @@
 # 开发状态与接手入口
 
+## 2026-11-22 · WIN-03 第 6d 步：同段学习、引擎侧热更新与开关开启下的功能测试
+
+- 前置：6c 已提交（ddb05d3）。本批未提交、未打包、未实机。设计与结果见[接入 TSF](ENGINE_TSF.md)第 12 节。
+- 同段学习：删除 `learned_segment` 门槛；`QuerySettings::remembered`（接入层 recall，最多 8 条）取代整词记忆摘要；选词前的词频摘要（`engineChosenWords`）；`MemoryMirror` 保留最近 4 个状态；开关开启时每段写出学习日志。对照 8 个场景的打字前缀与剩余段共 31,056 个列表全部由引擎提供，不一致 0。
+- 热更新：候选页带数据身份；`ServerConnection::setDictionary`、`Host::offer`；宿主 `--base-store` 与每秒检查的加载线程（完整校验、失败保留旧数据、启动时损坏快照回到版本目录）；`EngineProcess`／所有者接受 `--base-store`；接入层每秒至多一次向身份不同的引擎重问。layout 阶段：发布后宿主跟随、5/5 由引擎提供；损坏发布两侧都拒绝、5/5；常驻路径 5/5。
+- 功能测试：`ServiceFocusTests` 在开关强制开启、连真实宿主时照常通过（新 CTest `tsf_focus_engine_on`）；因内联小词库身份不同，列表都来自进程内。
+- 实机清单：`docs/WINDOWS_VALIDATION.md` 末尾。
+- %TEMP% 遗留：`harukoto-base-production-1bnvnd52` 为 2026-11-10 创建的空目录（早期一次未清理完的运行），单独运行 `base_dictionary_production` 不再遗留、也不触碰它；已删除。另修了 layout 测试断言失败时不停止测试所有者的问题（SIGABRT 清理）。
+- 评测 tuned／holdout（只看总数）／words-dev／abbrev-dev／typo-dev／fuzzy-dev（--fuzzy 2047）与 6c 报告除时间与内存外相同（`chinese-*-win036d.json`）。CTest 共 68 项，最后一次修改后完整构建、复制 TIP 到 `.build/windows/ime`，在 PowerShell 中一次运行全部通过（826 秒，-j 4）。第一次运行时同时跑评测，engine_resident 与 engine_tsf_full 的期限断言在额外负载下失败，单独重跑通过，随后在无其他负载时整套重跑全部通过；对照数字取自同一份测试在本批第 1 项完成时的输出（之后的改动不影响对照路径）。
+- 未验证：真实安装与应用；主题、个人表的引擎侧热更新单独测试；数据切换时的内存峰值。
+- 下一步：维护者实机清单；第 7 步（组字边界换代与回退）。
+
 ## 2026-11-22 · WIN-03 第 6c 步：部分选词、深页、F6、正式连接与安装布局
 
 - 前置：6b 已提交（614d791）。本批未提交、未打包、未实机。设计与结果见[接入 TSF](ENGINE_TSF.md)第 11 节。

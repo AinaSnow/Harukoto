@@ -142,7 +142,7 @@ private:
             static const std::string noUserWords = memoryDigest(selection_memory::UserWordModel{});
             if (memory_) view = memory_->match(settings, GetTickCount64());
             if (!view && (settings.memory || settings.user != noUserWords || memory_)) {
-                CandidatePage behind{work.input, false, {}, true};
+                CandidatePage behind{work.input, false, {}, true, identity_};
                 encodePayload(behind);
                 return behind;
             }
@@ -165,7 +165,8 @@ private:
         if (view && settings.memory) {
             // What the user chose for this exact reading comes first (CN-06a/b),
             // as the TSF service does before any expansion.
-            selection_memory::apply(choices, work.input, view->phrases.recall(work.input, work.key.simplified), [&](const WindowsCandidate &c) {
+            selection_memory::apply(choices, work.input, settings.phrases.empty() ? settings.remembered
+                : view->phrases.recall(work.input, work.key.simplified), [&](const WindowsCandidate &c) {
                 return c.coreIndex ? mpn_candidate_consumed(session.get(), *c.coreIndex) : work.input.size();
             });
         }
@@ -206,7 +207,7 @@ private:
             mark(&QueryTimings::expansion_ms);
             convert(); mark(&QueryTimings::conversion_ms);
         }
-        CandidatePage page{work.input, false, {}};
+        CandidatePage page{work.input, false, {}, false, identity_};
         if (start < converted.size()) {
             const auto end = std::min(converted.size(), start + pageSize);
             page.words.assign(converted.begin() + start, converted.begin() + end);

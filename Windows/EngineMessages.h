@@ -24,7 +24,13 @@ struct QuerySettings {
     std::string phrases, words, user;
     std::string context;
     bool locked = false;
+    // Step 6d: what the client's selection memory recalls for this reading
+    // (most chosen first, at most 8). With memory on and an empty phrases
+    // digest the engine puts these first instead of its own recall, so pending
+    // learning of the client counts exactly as in-process.
+    std::vector<std::string> remembered;
 };
+constexpr size_t MaxRemembered = 8, MaxRememberedText = 192;
 // Candidates per page of a Query (step 6c); a plain Key keeps 16.
 constexpr size_t QueryPageSize = 128;
 struct KeyMessage {
@@ -47,7 +53,9 @@ struct Opened { std::string identity; };
 static_assert(2 + 2 + IdentitySize == OpenedPayloadSize, "Opened payload layout");
 // behind (step 6b): the engine could not reach the client's memory state; no
 // candidates, the client lists in-process.
-struct CandidatePage { std::string input; bool more = false; std::vector<Candidate> words; bool behind = false; };
+// identity (step 6d): the data identity of the dictionary that listed this
+// page; it changes when the engine adopts newly published data.
+struct CandidatePage { std::string input; bool more = false; std::vector<Candidate> words; bool behind = false; std::string identity; };
 struct Selection { uint64_t sourceRequest = 0, candidate = 0; };
 struct Commit { Selection selection; uint32_t consumed = 0; std::string text, remaining; };
 
@@ -85,7 +93,10 @@ inline bool digestValid(const std::string &s) {
 inline bool valid(const QuerySettings &q) {
     return q.fuzzy <= 0xffff && q.hour >= 0 && q.hour <= 100000000 && digestValid(q.phrases) && digestValid(q.words) &&
         q.user.size() == 64 && digestValid(q.user) && (q.memory || (q.phrases.empty() && q.words.empty())) &&
-        q.context.size() <= 64 && textValid(q.context);
+        q.context.size() <= 64 && textValid(q.context) && q.remembered.size() <= MaxRemembered &&
+        (q.memory || q.remembered.empty()) &&
+        std::all_of(q.remembered.begin(), q.remembered.end(), [](const std::string &t) {
+            return !t.empty() && t.size() <= MaxRememberedText && textValid(t); });
 }
 inline bool valid(const KeyMessage &m) {
     if (m.extended && !valid(m.settings)) return false;
@@ -95,7 +106,7 @@ inline bool valid(const KeyMessage &m) {
 }
 inline bool valid(const CandidatePage &p) {
     if (!inputValid(p.input) || p.words.size() > MaxCandidates || (p.more && p.words.empty()) ||
-        (p.behind && (p.more || !p.words.empty()))) return false;
+        (p.behind && (p.more || !p.words.empty())) || (!p.identity.empty() && (p.identity.size() != 64 || !digestValid(p.identity)))) return false;
     std::unordered_set<uint64_t> ids;
     for (const auto &word : p.words)
         if (!word.id || !ids.insert(word.id).second || !word.consumed || word.consumed > p.input.size() ||
@@ -137,6 +148,8 @@ inline std::vector<uint8_t> encodePayload(const KeyMessage &m) {
         put(b, q.fuzzy, 4); put(b, q.typo, 1); put(b, q.memory, 1); put(b, static_cast<uint64_t>(q.hour), 8);
         putString(b, q.phrases); putString(b, q.words); putString(b, q.user);
         putString(b, q.context); put(b, q.locked, 1);
+        put(b, q.remembered.size(), 1);
+        for (const auto &text : q.remembered) putString(b, text);
     }
     return b;
 }
@@ -149,6 +162,8 @@ inline std::vector<uint8_t> encodePayload(const CandidatePage &p) {
         put(b, w.core, 4); put(b, w.flags, 1);
         if (b.size() > MaxPayload) throw std::invalid_argument("candidate frame too large");
     }
+    putString(b, p.identity);
+    if (b.size() > MaxPayload) throw std::invalid_argument("candidate frame too large");
     return b;
 }
 inline std::vector<uint8_t> encodePayload(const Selection &s) {
@@ -174,6 +189,9 @@ inline bool decodePayload(const std::vector<uint8_t> &b, KeyMessage &out) {
         q.typo = typo != 0; q.memory = memory != 0; q.hour = static_cast<int64_t>(r.number(8));
         q.phrases = r.string(64); q.words = r.string(64); q.user = r.string(64);
         q.context = r.string(64); locked = r.number(1); q.locked = locked != 0;
+        const auto count = r.number(1);
+        if (count > MaxRemembered) return false;
+        for (uint64_t i = 0; i < count; ++i) q.remembered.push_back(r.string(MaxRememberedText));
     }
     if (simplified > 1 || typo > 1 || memory > 1 || locked > 1 || !r.done() || !valid(m)) return false; out = std::move(m); return true;
 }
@@ -187,6 +205,7 @@ inline bool decodePayload(const std::vector<uint8_t> &b, CandidatePage &out) {
         w.core = static_cast<uint32_t>(r.number(4)); w.flags = static_cast<uint8_t>(r.number(1));
         p.words.push_back(std::move(w));
     }
+    p.identity = r.string(64);
     if (!r.done() || !valid(p)) return false; out = std::move(p); return true;
 }
 inline bool decodePayload(const std::vector<uint8_t> &b, Selection &out) {

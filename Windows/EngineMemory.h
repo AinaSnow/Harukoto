@@ -3,6 +3,7 @@
 #include "EngineMessages.h"
 #include "SelectionMemory.h"
 #include "../Core/MeowpuutCore.h"
+#include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -49,7 +50,8 @@ public:
     selection_memory::UserWordModel user;
     std::string phrasesDigest, wordsDigest, userDigest;
     bool matches(const QuerySettings &q) const {
-        return q.user == userDigest && (!q.memory || (q.phrases == phrasesDigest && q.words == wordsDigest));
+        // Step 6d: an empty phrases digest means the client sent its recall.
+        return q.user == userDigest && (!q.memory || ((q.phrases.empty() || q.phrases == phrasesDigest) && q.words == wordsDigest));
     }
     PersonalTable personal(bool memory, int64_t hour) const {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -71,6 +73,10 @@ class MemoryMirror {
     std::unique_ptr<selection_memory::UserWordTable> user_;
     uint64_t seen_[3] = {};
     std::shared_ptr<const MemoryView> view_;
+    // Step 6d: the last few states too. A client lists the rest of a reading
+    // after a chosen segment with the state from before that choice, while
+    // it has already written what the choice taught.
+    std::deque<std::shared_ptr<const MemoryView>> history_;
     uint64_t reloaded_ = 0;
     struct Stats { uint64_t refreshes = 0, reloads = 0, behind = 0; } stats_;
     static std::filesystem::path sibling(const std::filesystem::path &path, const wchar_t *suffix) {
@@ -94,6 +100,7 @@ class MemoryMirror {
         view->phrasesDigest = memoryDigest(view->phrases);
         view->wordsDigest = memoryDigest(view->words);
         view->userDigest = memoryDigest(view->user);
+        if (view_) { history_.push_front(view_); while (history_.size() > 4) history_.pop_back(); }
         view_ = std::move(view);
         std::copy(std::begin(now), std::end(now), std::begin(seen_));
     }
@@ -109,6 +116,7 @@ public:
         if (view_ && view_->matches(q)) return view_;
         refresh();
         if (view_->matches(q)) return view_;
+        for (const auto &earlier : history_) if (earlier->matches(q)) return earlier;
         // A rewritten file of unchanged length, or an engine ahead of a client
         // that has not looked yet: re-read everything, at most once a second.
         if (!reloaded_ || now - reloaded_ >= 1000) {

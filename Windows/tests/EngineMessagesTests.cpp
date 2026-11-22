@@ -85,6 +85,11 @@ static void limits() {
         assert(!valid(bad));
     }
     p = {"ni", false, {}, true}; codec(p);
+    // Step 6d: each page names the data identity it was listed from; remembered texts travel with a query.
+    p = {"ni", false, {{1, 2, "你", ""}}, false, std::string(64, 'e')}; codec(p);
+    p.identity = std::string(63, 'e'); assert(!valid(p));
+    query.settings.remembered = {"你好", "拟好"}; codec(query);
+    query.settings.remembered.assign(MaxRemembered + 1, "字"); assert(!valid(query));
     p.words.push_back({1, 2, "你", ""}); assert(!valid(p));
     p = {"ni", true, {{1, 2, "你", ""}}, true}; assert(!valid(p));
     const Opened opened{std::string(IdentitySize, 'a')}; codec(opened);

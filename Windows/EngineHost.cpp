@@ -1,13 +1,42 @@
 #include "EngineHost.h"
 #include "EngineWindows.h"
+#include <atomic>
 #include <iostream>
 #include <sstream>
+#include <thread>
+
+// WIN-03 step 6d: what the host should serve now. base is the newest
+// published snapshot of --base-store, else --base (the version folder);
+// themes only while a package snapshot is current; the personal table by its
+// file stamp. key changes whenever any of them does.
+struct Sources { std::filesystem::path base, themes; std::wstring key; };
+static std::string themeGeneration(const std::filesystem::path &root) {
+    std::ifstream pointer(root / "CURRENT", std::ios::binary);
+    char text[33]{}; pointer.read(text, 32);
+    return pointer.gcount() == 32 ? std::string(text, 32) : std::string();
+}
+static Sources currentSources(const std::filesystem::path &base, const std::filesystem::path &store,
+                              const std::filesystem::path &themes, const std::filesystem::path &personal) {
+    Sources s; s.base = base;
+    if (!store.empty()) try { s.base = store / base_dictionary::currentGeneration(store); } catch (...) {}
+    std::string generation;
+    if (!themes.empty() && !(generation = themeGeneration(themes)).empty()) s.themes = themes;
+    std::string stamp = "absent";
+    std::error_code error;
+    if (!personal.empty() && std::filesystem::exists(personal, error)) {
+        const auto size = std::filesystem::file_size(personal, error);
+        const auto time = std::filesystem::last_write_time(personal, error).time_since_epoch().count();
+        stamp = std::to_string(size) + ":" + std::to_string(time);
+    }
+    s.key = s.base.wstring() + L"|" + std::wstring(generation.begin(), generation.end()) + L"|" + std::wstring(stamp.begin(), stamp.end());
+    return s;
+}
 
 using namespace harukoto::engine;
 // This is an experimental developer executable, not installed or auto-started.
 int wmain(int argc, wchar_t **argv) {
     try {
-        std::filesystem::path base, themes, personal, memory, tracePath;
+        std::filesystem::path base, baseStore, themes, personal, memory, tracePath;
         Host::Options options; bool threadsSet = false, connectionsSet = false;
         std::vector<std::wstring> names;
         pipe::Handle ready, stop, ownerLease;
@@ -37,6 +66,7 @@ int wmain(int argc, wchar_t **argv) {
             else if (option == L"--themes" && themes.empty()) themes = value;
             else if (option == L"--personal" && personal.empty()) personal = value;
             else if (option == L"--memory" && memory.empty()) memory = value;
+            else if (option == L"--base-store" && baseStore.empty()) baseStore = value;
             else if (option == L"--trace" && tracePath.empty()) tracePath = value;
             else if (option == L"--threads" && !threadsSet) {
                 if (value.empty() || value.find_first_not_of(L"0123456789") != std::wstring::npos)
@@ -62,7 +92,7 @@ int wmain(int argc, wchar_t **argv) {
         }
         if (base.empty() || !base.is_absolute() || (!themes.empty() && !themes.is_absolute()) ||
                 (!personal.empty() && !personal.is_absolute()) ||
-                (!memory.empty() && !memory.is_absolute()) || !ready || !stop || ready.get() == stop.get())
+                (!memory.empty() && !memory.is_absolute()) || (!baseStore.empty() && !baseStore.is_absolute()) || !ready || !stop || ready.get() == stop.get())
             throw std::invalid_argument("invalid host startup");
         const auto controlCount = std::count_if(privateControl.begin(),privateControl.end(),[](const auto &handle) { return bool(handle); });
         if ((controlCount != 0 && controlCount != 3) || connectionsSet != (controlCount == 3) || (controlCount && !names.empty()) ||
@@ -94,7 +124,16 @@ int wmain(int argc, wchar_t **argv) {
             if (BCryptGenRandom(nullptr,reinterpret_cast<PUCHAR>(&generation),sizeof(generation),BCRYPT_USE_SYSTEM_PREFERRED_RNG) < 0)
                 throw std::runtime_error("engine generation failure");
         } while (!generation);
-        auto dictionary = WindowsDictionary::load(base,themes,personal,memory);
+        // Step 6d: the same rule as the TSF service: a published snapshot if
+        // there is one, otherwise the version folder; theme packages while on.
+        auto sources = currentSources(base,baseStore,themes,personal);
+        std::shared_ptr<const WindowsDictionary> dictionary;
+        try { dictionary = WindowsDictionary::load(sources.base,sources.themes,personal,memory); }
+        catch (...) {
+            if (sources.base == base) throw;
+            sources.base = base; // A damaged publication: the version folder, as the service keeps.
+            dictionary = WindowsDictionary::load(sources.base,sources.themes,personal,memory);
+        }
         options.identity = dictionary->identity();
         Host::Observer observer;
         if (traces) observer = [&](const EngineTrace &row) { traces->append(row); };
@@ -102,7 +141,29 @@ int wmain(int argc, wchar_t **argv) {
             if (!work->dictionary) throw std::invalid_argument("missing engine snapshot");
             return work->dictionary->query(work);
         },options,std::move(observer),std::move(endpointControl));
-        host.run(stop.get(),ready.get());
+        // Step 6d: adopt newly published data. Load and verify everything on
+        // this thread, then hand it to the host, which switches between
+        // requests; a failed load keeps the old data (retried when a source
+        // changes again).
+        std::atomic<bool> quit{false};
+        std::thread reload;
+        if (!baseStore.empty() || !themes.empty() || !personal.empty()) reload = std::thread([&] {
+            std::wstring loaded = sources.key;
+            while (!quit.load()) {
+                for (int i = 0; i < 10 && !quit.load(); ++i) Sleep(100);
+                if (quit.load()) break;
+                const auto next = currentSources(base,baseStore,themes,personal);
+                if (next.key == loaded) continue;
+                loaded = next.key;
+                try {
+                    auto fresh = WindowsDictionary::load(next.base,next.themes,personal,memory);
+                    host.offer(fresh,fresh->identity());
+                } catch (...) {}
+            }
+        });
+        try { host.run(stop.get(),ready.get()); } catch (...) { quit = true; if (reload.joinable()) reload.join(); throw; }
+        quit = true;
+        if (reload.joinable()) reload.join();
         if (traces) {
             // No file writes in the I/O/worker query path. A dropped trace makes
             // the benchmark reject this run, without changing service replies.

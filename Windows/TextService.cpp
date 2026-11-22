@@ -378,6 +378,10 @@ class Service final : public ITfTextInputProcessor, public ITfKeyEventSink, publ
     friend class CandidateElement;
     friend class CompositionEdit;
 public:
+    // Tests only (WIN-03 step 6d): run a feature suite with the standalone
+    // engine switch forced on and an injected link. Unset in production.
+    static inline std::function<void(Service &)> testHook;
+    Service() { if (testHook) testHook(*this); }
     ~Service() override { destroying = true; Deactivate(); }
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override {
         *out = nullptr;
@@ -627,6 +631,7 @@ public:
                 delivery->pump();
             }
             if (activeContext != context || !session || !delivery || !delivery->queue.canDeliver()) return S_OK;
+            engineChosenWords = false; // Any refresh from this key on uses the current bonuses.
             pollDictionaries();
             // Selection memory is per user and can be switched off at any time.
             memoryEnabled = memory && selection_memory::enabled(preferenceRoot);
@@ -654,7 +659,7 @@ public:
             // WIN-03 step 6a: the standalone engine switch, and the candidates
             // it may still owe for the reading: a key that reads them gets the
             // same list computed here first.
-            engineClient.enabled = tsf_engine::readStandaloneEngine(preferenceRoot);
+            engineClient.enabled = engineSwitch ? *engineSwitch : tsf_engine::readStandaloneEngine(preferenceRoot);
             settleEngine(key);
             if (!engineClient.enabled && engineClient.link()) {
                 // Switched off: give the slot back; a list still owed is computed here.
@@ -1347,6 +1352,7 @@ private:
     }
 
     void resetCandidates() {
+        engineChosenWords = false;
         engineClient.cancel();
         engineClient.boundary();
         numberInput.clear();
@@ -1437,10 +1443,6 @@ private:
         // Step 6c: partial selection travels with the request; only a
         // segment context longer than the protocol carries stays here.
         if (std::string_view(mpn_segment_context(session)).size() > 64) return "context";
-        // A segment chosen with learning on: the core listed the rest before
-        // the words were learned, so the in-process list rests on bonuses the
-        // engine no longer has. Stays here until 6d.
-        if (memoryEnabled && composedSegments) return "learned_segment";
         if (!tsf_engine::representable(session)) return "unrepresentable";
         return nullptr;
     }
@@ -1460,9 +1462,9 @@ private:
         return tsf_engine::Link::threaded(tsf_engine::residentConnect({}, options), [target] { if (target) PostMessageW(target, WM_APP + 0x31, 0, 0); });
     }
     std::vector<std::wstring> engineLayout() const {
-        const auto base = baseSnapshot ? dataRoot / L"BaseDictionaries" / std::wstring(baseSnapshot->generation().begin(), baseSnapshot->generation().end())
-                                       : installFolder;
-        return tsf_engine::layoutArguments(base, dataRoot, themeReload && !themeReload->activeGeneration().empty());
+        // Step 6d: the version folder and the roots; the engine picks the
+        // published snapshot and packages that are current, as this service does.
+        return tsf_engine::layoutArguments(installFolder, dataRoot, themeReload && !themeReload->activeGeneration().empty());
     }
     static LRESULT CALLBACK engineWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
         auto *service = reinterpret_cast<Service *>(GetWindowLongPtrW(window, GWLP_USERDATA));
@@ -1495,16 +1497,22 @@ private:
         }
         q.user = cache.user;
         if (memoryEnabled) {
-            if (cache.phrases.empty() || cache.phrasesRevision != memory->phrasesRevision() || cache.store != memory.get()) {
-                cache.phrases = engine::memoryDigest(memory->model()); cache.phrasesRevision = memory->phrasesRevision();
-            }
-            if (cache.words.empty() || cache.wordsRevision != memory->wordsRevision() || cache.store != memory.get()) {
-                cache.words = engine::memoryDigest(memory->words()); cache.wordsRevision = memory->wordsRevision();
-            }
-            cache.store = memory.get();
-            q.phrases = cache.phrases; q.words = cache.words;
+            // Step 6d: our own recall for this reading (pending learning
+            // included) instead of a phrase digest; the words the core ranked
+            // with: as before the segment just chosen, if one was.
+            q.remembered = memory->recall(mpn_input(session), simplified);
+            if (q.remembered.size() > engine::MaxRemembered) q.remembered.resize(engine::MaxRemembered);
+            q.words = engineChosenWords ? engineChosenDigest : engineWordsDigest();
         }
         return q;
+    }
+    const std::string &engineWordsDigest() {
+        auto &cache = engineMemoryCache;
+        if (cache.words.empty() || cache.wordsRevision != memory->wordsRevision() || cache.store != memory.get()) {
+            cache.words = harukoto::engine::memoryDigest(memory->words()); cache.wordsRevision = memory->wordsRevision();
+            cache.store = memory.get();
+        }
+        return cache.words;
     }
     bool engineRequest() {
         if (const char *reason = engineUnsupported()) { engineClient.inProcess(reason); return false; }
@@ -1536,6 +1544,9 @@ private:
         case tsf_engine::Client::Collect::Ready: break;
         }
         if (fetched.behind) { engineClient.behind(engineSent, now); refreshCandidates(); return true; }
+        // Step 6d: listed from other data than ours (one side adopted a newer
+        // publication first): in-process until both use the same.
+        if (!fetched.identity.empty() && fetched.identity != engineIdentity()) { engineClient.decline("identity"); refreshCandidates(); return true; }
         if (!fetched.complete) { engineClient.decline("long_list"); refreshCandidates(); return true; }
         auto rebuilt = tsf_engine::rebuild(session, fetched.words);
         if (!rebuilt) { engineClient.fail(now, "mismatch"); refreshCandidates(); return true; }
@@ -1629,6 +1640,9 @@ private:
         const std::string words = memoryEnabled && learn && !form && choices[index].coreIndex
             ? std::string(mpn_candidate_words(session, *choices[index].coreIndex)) : std::string();
         if (choices[index].coreIndex) {
+            // Step 6d: the rest is listed now, with the bonuses from before
+            // this choice teaches anything; the engine is told so.
+            if (engineClient.enabled && memoryEnabled) { engineChosenDigest = engineWordsDigest(); engineChosenWords = true; }
             if (!mpn_choose(session, *choices[index].coreIndex)) return false;
             chineseLocked = *mpn_input(session) != '\0';
         } else {
@@ -1718,7 +1732,12 @@ private:
         if (chosen != reading) memory->record(reading, chosen, simplified);
         learnWords(words);
         composedReading += reading; composedText += chosen; ++composedSegments;
-        if (consumed != input.size()) return;
+        if (consumed != input.size()) {
+            // Step 6d: with the engine on, write each segment's learning at
+            // once, so the engine can rank the following keys with it.
+            if (engineClient.enabled) memory->flush();
+            return;
+        }
         if (composedSegments > 1) memory->record(composedReading, composedText, simplified);
         composedReading.clear(); composedText.clear(); composedSegments = 0;
         memory->flush();
@@ -2229,6 +2248,7 @@ private:
     // WIN-03 step 6a: the standalone engine client, the window its worker
     // posts to, and the data identity last computed for it.
     tsf_engine::Client engineClient;
+    std::optional<bool> engineSwitch; // Tests: overrides StandaloneEngine.
     HWND engineWindow = nullptr;
     WNDPROC originalEngineProc = nullptr;
     struct { std::string base, theme, value; const void *personal = nullptr; } engineIdentityCache;
@@ -2245,6 +2265,10 @@ private:
         const void *store = nullptr, *userStore = nullptr;
     } engineMemoryCache;
     harukoto::engine::QuerySettings engineSent;
+    // Step 6d: the core listed the rest of the reading after a chosen segment
+    // with the word bonuses from before the choice taught anything.
+    bool engineChosenWords = false;
+    std::string engineChosenDigest;
     // CN-07: punctuation mode as read at the last key, the quote pairing,
     // and where the per-user preferences live (tests use a scratch key).
     bool englishPunctuation = false;

@@ -103,6 +103,8 @@ def layout(root):
     (data / 'japanese-custom.tsv').write_text('testcoffee|珈琲|5000|こーひー|english|咖啡\n', encoding='utf-8')
     staged = root / 'staged'
     bundle.create(source, staged, '0.4.4-tsf.2')
+    damaged = root / 'damaged'
+    bundle.create(source, damaged, '0.4.4-tsf.3')
     command = [str(reader), 'layout', str(version), str(data), str(host)] + ([str(owner_test)] if owner_test else [])
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding='utf-8')
     try:
@@ -113,6 +115,11 @@ def layout(root):
             if line.strip() == 'ready-publish':
                 bundle.stage(staged, data / 'BaseDictionaries')  # As Dictionaries.cmd publishes a snapshot.
                 process.stdin.write('published\n'); process.stdin.flush()
+            elif line.strip() == 'ready-corrupt':
+                # A third publication, damaged after staging: no loader may adopt it.
+                generation = bundle.stage(damaged, data / 'BaseDictionaries')
+                (data / 'BaseDictionaries' / generation / 'japanese.tsv').write_text('ai|恋|1\n', encoding='utf-8')
+                process.stdin.write('corrupted\n'); process.stdin.flush()
                 break
         for line in process.stdout:
             print(line.rstrip())
@@ -157,4 +164,4 @@ with tempfile.TemporaryDirectory(prefix='harukoto-engine-tsf-') as temporary:
     for name, run in summary.items():
         assert run['mismatches'] == 0 and run['served'] > run['prefixes'] // 2 and run['f6'] > 0 and run['segments'] > 50, (name, run)
         # Only lists the engine cannot represent yet stay in-process; nothing fails, nothing lags.
-        assert set(run['fallbacks']) <= {'long_list', 'context', 'unrepresentable', 'learned_segment'}, (name, run)
+        assert set(run['fallbacks']) <= {'long_list', 'context', 'unrepresentable'}, (name, run)

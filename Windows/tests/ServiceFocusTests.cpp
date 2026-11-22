@@ -1,5 +1,6 @@
 // Exercise the actual TSF callbacks without registering or installing an IME.
 #include "../TextService.cpp"
+#include "../EngineProcess.h"
 #include <ctffunc.h>
 #include <cassert>
 #include <csignal>
@@ -300,6 +301,10 @@ static void hold(std::initializer_list<int> keys) {
 }
 
 struct ServiceFocusTest {
+    // WIN-03 step 6d: the switch forced on, with an injected link.
+    static void forceEngine(Service &service, tsf_engine::Client::Factory factory) {
+        service.engineSwitch = true; service.engineClient.factory = std::move(factory);
+    }
     static void run() {
         Service service;
         const std::string data = "MEOWPUUT-PINYIN-1\nhao\thao3\t好\t好\t9000\nni\tni3\t你\t你\t9000\n";
@@ -1758,8 +1763,59 @@ struct ServiceFocusTest {
     }
 };
 }
+// WIN-03 step 6d: the same suite with the standalone engine switch forced on
+// and every service linked to one real engine host (production snapshot).
+// These services rank with small inline lexicons, so the engine's data
+// identity never equals theirs: every list must come from the in-process
+// path, and every assertion must hold unchanged.
+struct EngineOn {
+    std::unique_ptr<harukoto::engine::EngineProcess> manager;
+    size_t services = 0, links = 0;
+    std::vector<tsf_engine::Client *> clients;
+    void wait(uint64_t deadline) {
+        auto events = manager->waitHandles();
+        const auto now = harukoto::engine::pipe::now();
+        if (now < deadline && !events.empty()) WaitForMultipleObjects(static_cast<DWORD>(events.size()), events.data(), FALSE, static_cast<DWORD>(deadline - now));
+    }
+    std::shared_ptr<harukoto::engine::EngineRegistration::Endpoint> allocate() {
+        namespace ep = harukoto::engine::pipe;
+        assert(manager->requestControl(harukoto::engine::control::Operation::Allocate, ep::now(), 10000));
+        while (manager->status().controlState == harukoto::engine::control::State::Pending) { wait(ep::now() + 10000); manager->poll(ep::now()); }
+        auto allocated = manager->takeControl(ep::now()); assert(allocated && allocated->endpoint);
+        return std::make_shared<harukoto::engine::EngineRegistration::Endpoint>(std::move(*allocated->endpoint));
+    }
+    EngineOn(const std::filesystem::path &host, const std::filesystem::path &base) {
+        namespace ep = harukoto::engine::pipe;
+        harukoto::engine::EngineProcess::Config config{host, base, {}, {}};
+        config.dynamicEndpoints = true; config.connections = 8;
+        manager = std::make_unique<harukoto::engine::EngineProcess>(config);
+        const auto until = ep::now() + 60000;
+        while (manager->poll(ep::now()) == harukoto::engine::EngineProcess::State::Starting) wait(until);
+        assert(manager->status().state == harukoto::engine::EngineProcess::State::Ready);
+        Service::testHook = [this](Service &service) {
+            ++services;
+            ServiceFocusTest::forceEngine(service, [this] {
+                ++links;
+                auto endpoint = allocate();
+                return tsf_engine::Link::threaded([endpoint](uint64_t) -> std::unique_ptr<tsf_engine::Transport> {
+                    return std::make_unique<tsf_engine::PipeTransport>(endpoint->connect());
+                }, {});
+            });
+        };
+    }
+    ~EngineOn() {
+        Service::testHook = nullptr;
+        namespace ep = harukoto::engine::pipe;
+        manager->requestStop(ep::now());
+        const auto until = ep::now() + 15000;
+        while (manager->poll(ep::now()) != harukoto::engine::EngineProcess::State::Exited && ep::now() < until) wait(until);
+    }
+};
+
 int wmain(int argc, wchar_t **argv) {
-    assert(argc == 2);
+    assert(argc == 2 || argc == 4);
+    std::unique_ptr<EngineOn> engineOn;
+    if (argc == 4) engineOn = std::make_unique<EngineOn>(argv[2], argv[3]); // <host.exe> <snapshot>
     ServiceFocusTest::run(); ServiceFocusTest::memory(argv[1]); ServiceFocusTest::personalWords(argv[1]);
     ServiceFocusTest::userWords(argv[1]);
     ServiceFocusTest::fuzzyPinyin();
@@ -1772,5 +1828,6 @@ int wmain(int argc, wchar_t **argv) {
     ServiceFocusTest::quickInput(argv[1]);
     ServiceFocusTest::fullWidth();
     ServiceFocusTest::gameInput();
+    if (engineOn) std::cout << "engine switch on: " << engineOn->services << " services, " << engineOn->links << " links to a real host\n";
     std::cout << "PASS: TSF focus cancellation, fresh input, selected-text preservation, selection memory, personal words, user words, fuzzy pinyin, typo correction, punctuation, Chinese/English mode, -/= paging, [ ] character picking, forgetting, numbers, dates, full width, candidate UI element, inline composition and host open/close\n";
 }

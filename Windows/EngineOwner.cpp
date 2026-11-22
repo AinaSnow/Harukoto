@@ -25,7 +25,7 @@ static int residentMain(int argc, wchar_t **argv) {
     release::Source source;
     rs::Store store;
     rs::Policy policy;
-    std::filesystem::path base, themes, personal, memory;
+    std::filesystem::path base, themes, personal, memory, baseStore;
     std::optional<uint64_t> idleMs;
     std::optional<size_t> threads;
     for (int i=3;i<argc;i+=2) {
@@ -39,6 +39,7 @@ static int residentMain(int argc, wchar_t **argv) {
         else if (key == L"--themes") path(themes);
         else if (key == L"--personal") path(personal);
         else if (key == L"--memory") path(memory);
+        else if (key == L"--base-store") path(baseStore);
         else if (Testing && key == L"--scope" && EngineInstance::validScope(value)) scope = value;
         else if (Testing && key == L"--release-subkey") { source.root = HKEY_CURRENT_USER; source.subkey = value; source.requireProtected = false; }
         else if (Testing && key == L"--store-subkey") store = rs::Store::under(value);
@@ -76,7 +77,7 @@ static int residentMain(int argc, wchar_t **argv) {
         EngineOwner::Exit how = EngineOwner::Exit::HostExited;
         try {
             EngineProcess::Config config{approved->host,base,themes,personal};
-            config.dynamicEndpoints = true; config.connections = 8; config.hostSha256 = approved->hostSha256; config.memory = memory;
+            config.dynamicEndpoints = true; config.connections = 8; config.hostSha256 = approved->hostSha256; config.memory = memory; config.baseStore = baseStore;
             config.ownerLease = instance->handle(); config.stopMs = 3000;
             config.threads = threads ? *threads : rs::HostThreads;
             EngineOwnerAnchor anchor;
@@ -152,6 +153,7 @@ int wmain(int argc, wchar_t **argv) {
             else if (key == L"--themes" && config.themes.empty()) config.themes = value;
             else if (key == L"--personal" && config.personal.empty()) config.personal = value;
             else if (key == L"--memory" && config.memory.empty()) config.memory = value;
+            else if (key == L"--base-store" && config.baseStore.empty()) config.baseStore = value;
             else if (key == L"--trace" && config.trace.empty()) config.trace = value;
             else if (key == L"--instance" && instanceScope.empty() && EngineInstance::validScope(value)) instanceScope = value;
             else if (key == L"--discovery" && !discoverable && value == L"1") discoverable = true;

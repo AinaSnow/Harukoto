@@ -2,6 +2,8 @@
 #include "EnginePipe.h"
 #include "EngineControl.h"
 #include "EngineTrace.h"
+#include <mutex>
+#include <optional>
 
 namespace harukoto::engine {
 // Experimental service owner. Endpoints are supplied by a trusted launcher;
@@ -42,6 +44,17 @@ private:
     std::unique_ptr<control::Server> control_;
     std::shared_ptr<const WindowsDictionary> dictionary_;
     uint64_t generation_;
+    // Step 6d: data adopted by the reload thread, handed over through offer().
+    pipe::Handle offered_ = completionEvent();
+    std::mutex offerMutex_;
+    std::optional<std::pair<std::shared_ptr<const WindowsDictionary>, std::string>> offer_;
+    void adoptOffered() {
+        std::optional<std::pair<std::shared_ptr<const WindowsDictionary>, std::string>> next;
+        { std::lock_guard<std::mutex> lock(offerMutex_); next.swap(offer_); }
+        if (!next) return;
+        dictionary_ = next->first; options_.identity = next->second;
+        for (auto &endpoint : endpoints_) if (!endpoint->closed) endpoint->server.setDictionary(dictionary_, options_.identity);
+    }
     size_t nextEndpoint_ = 0;
     bool started_ = false;
     static Options validate(Options options, const std::vector<std::wstring> &names, bool controlled) {
@@ -194,6 +207,12 @@ public:
     }
     Host(const Host &) = delete;
     Host &operator=(const Host &) = delete;
+    // Any thread: the dictionary to serve from the next request on, with its
+    // data identity. The I/O thread adopts it between requests.
+    void offer(std::shared_ptr<const WindowsDictionary> dictionary, std::string identity) {
+        { std::lock_guard<std::mutex> lock(offerMutex_); offer_.emplace(std::move(dictionary), std::move(identity)); }
+        pipe::check(SetEvent(offered_.get()));
+    }
     ~Host() { shutdown(); }
     // Ready is signaled only after complete dictionary preparation and every
     // listener creation. Events are borrowed from the trusted launcher.
@@ -233,10 +252,11 @@ public:
                         catch (...) { close(*job.owner); }
                     }
                 }
+                adoptOffered();
                 if (control_) { reap(); controlStep(pipe::now()); }
                 if (!active && !control_) break;
                 if (progress) continue;
-                std::vector<HANDLE> events{stop,completed_.get()};
+                std::vector<HANDLE> events{stop,completed_.get(),offered_.get()};
                 if (control_) events.push_back(control_->event());
                 uint64_t deadline = pipe::now() + 300000;
                 for (const auto &endpoint : endpoints_) {

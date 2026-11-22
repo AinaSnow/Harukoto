@@ -32,6 +32,7 @@ public:
         std::string hostSha256, ownerSha256; // Optional trusted deployment policy; owner mode requires both.
         bool discovery = false; // Owner publishes the step-2 discovery pipe under ownerInstance.
         std::filesystem::path memory; // Step 6b: the user's selection-memory.tsv, read-only.
+        std::filesystem::path baseStore; // Step 6d: published base snapshots the host adopts.
     };
     struct Status {
         State state;
@@ -160,6 +161,7 @@ private:
                 (!config.themes.empty() && !absolute(config.themes)) ||
                 (!config.personal.empty() && !absolute(config.personal)) ||
                 (!config.memory.empty() && !absolute(config.memory)) ||
+                (!config.baseStore.empty() && !absolute(config.baseStore)) ||
                 (!config.ownerExecutable.empty() && (!absolute(config.ownerExecutable) || !config.dynamicEndpoints || config.ownerExecutable == config.executable)) ||
                 (!config.ownerInstance.empty() && (config.ownerExecutable.empty() || !EngineInstance::validScope(config.ownerInstance))) ||
                 (config.ownerLease && (!config.ownerExecutable.empty() || !config.dynamicEndpoints || !config.ownerInstance.empty())) ||
@@ -271,6 +273,7 @@ private:
         if (!config.themes.empty()) { arguments.push_back(L"--themes"); arguments.push_back(config.themes.wstring()); }
         if (!config.personal.empty()) { arguments.push_back(L"--personal"); arguments.push_back(config.personal.wstring()); }
         if (!config.memory.empty()) { arguments.push_back(L"--memory"); arguments.push_back(config.memory.wstring()); }
+        if (!config.baseStore.empty()) { arguments.push_back(L"--base-store"); arguments.push_back(config.baseStore.wstring()); }
         if (config.threads != 2) { arguments.push_back(L"--threads"); arguments.push_back(std::to_wstring(config.threads)); }
         if (!config.trace.empty()) { arguments.push_back(L"--trace"); arguments.push_back(config.trace.wstring()); }
         for (const auto &name : names_) { arguments.push_back(L"--pipe"); arguments.push_back(name); }

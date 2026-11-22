@@ -90,7 +90,8 @@ public:
 
 // The round-0 list of one reading: complete unless it ran past MaxPages.
 // behind (step 6b): the engine could not reach the client's learned state.
-struct Fetched { std::vector<Candidate> words; bool complete = false, behind = false; };
+// identity (step 6d): the data identity of the dictionary that listed it.
+struct Fetched { std::vector<Candidate> words; bool complete = false, behind = false; std::string identity; };
 
 // One engine session. Mirrors the reading the engine holds and sends the
 // smallest key sequence that brings it to the requested one: one letter,
@@ -165,6 +166,7 @@ public:
         }
         mirror_ = input; paged_ = false;
         Fetched out;
+        out.identity = page.identity;
         if (page.behind) { out.behind = true; return out; }
         for (size_t pages = 1;; ++pages) {
             bool later = false;
@@ -233,6 +235,8 @@ private:
         try {
             reply.fetched = s.driver->fetch(request.input, request.simplified, request.settings, engine::pipe::now() + DeadlineMs);
             reply.ok = true;
+            // Step 6d: the engine may have adopted newly published data.
+            if (!reply.fetched.identity.empty()) { std::lock_guard<std::mutex> lock(s.mutex); s.identity = reply.fetched.identity; }
         } catch (const Timeout &) { reply.timeout = true; } catch (...) {}
         std::lock_guard<std::mutex> lock(s.mutex);
         s.replies.push_back(std::move(reply));
@@ -399,6 +403,7 @@ private:
     unsigned consecutive_ = 0;
     uint64_t retryAt_ = 0;
     bool blocked_ = false; // Failed in this composition: in-process until the next boundary.
+    uint64_t identityProbe_ = 0; // Last request sent to an engine with other data (step 6d).
     std::string behind_;   // memoryKey() of the last "behind" reply,
     uint64_t behindAt_ = 0; // and when it came.
 public:
@@ -417,7 +422,13 @@ public:
         const auto state = link_->state();
         if (state == Link::State::Connecting) { inProcess("connecting"); return false; }
         if (state == Link::State::Failed) { fail(now, "unavailable"); return false; }
-        if (identity.empty() || link_->identity() != identity) { inProcess("identity"); return false; }
+        if (identity.empty()) { inProcess("identity"); return false; }
+        // Step 6d: the engine may have adopted newer data since its last
+        // reply: ask at most once a second; each reply names its data.
+        if (link_->identity() != identity) {
+            if (identityProbe_ && now < identityProbe_ + 1000) { inProcess("identity"); return false; }
+            identityProbe_ = now;
+        }
         return true;
     }
     void send(const std::string &input, bool simplified, uint64_t now, std::optional<engine::QuerySettings> settings = {}) {
