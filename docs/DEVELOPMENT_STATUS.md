@@ -1,5 +1,11 @@
 # 开发状态与接手入口
 
+## 2026-11-23 · alpha.32 试用包
+
+- 版本号升至 0.4.4-alpha.32（a734927），内容为 alpha.31 加 WIN-03 第 7 步全部 7a～7d（`4304264` + `714aa5e`：按发行序号版本化换代与旧所有者自退、失焦 15 秒／静置 180 秒礼让与 8 槽空闲 LRU 回收、协议 v2 引擎元查询与按需翻页扩展、接入层瘦客户端去启动期基础词库与懒加载兜底）；实验性独立引擎开关 `StandaloneEngine` 仍默认关闭。从干净提交 a734927 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；全量 68 项 CTest 已于前序提交 `714aa5e` 在普通权限 PowerShell 全部通过，升版后受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（8.33 秒），`test-setup.ps1` 解包、内置 PS7 预检与界面渲染通过。
+- 生成 `Harukoto-0.4.4-alpha.32-windows-x64.zip`（68.4 MiB，SHA-256 `1e0043130bbad1cfe2876b536d07ff3b5174109a6ab483c8f755f04ee9ba7ec1`）和 `Harukoto-0.4.4-alpha.32-Setup.exe`（173.0 MiB，SHA-256 `0175030d048bcde9db249ddfdd2bae4571eea78a3f667ea577f4a5863847d441`）。BUILD-INFO.md 记录源提交 `a73492750851af386388d52b770761db18b5921b`、不含未提交修改；包内 `MeowpuutTip.dll`（`a32f0841…`）、`harukoto_engine_host.exe`、`harukoto_engine_owner.exe`、`harukoto_engine_diagnose.exe`、`harukoto_base_dictionary_check.exe`、`harukoto_candidate_explain.exe` 与 `msvc/Release` 哈希完全一致，DLL 内版本为 `0.4.4-alpha.32`；payload 内 `base-dictionary.json`（generation `200ca0be…`）原生快照校验通过；FF14 词库清单为 0.4.0。
+- 实机多应用瘦客户端内存、冷启动建连首键体感与从 alpha.30／alpha.31（协议 v1）升级至协议 v2 的不兼容提示与重开恢复待安装后实机验证。此条为打包后记录。
+
 ## 2026-11-22 · WIN-03 第 7c／7d 步：引擎接管扩展与选词元数据、接入层瘦客户端与按需兜底
 
 - 前置：7a／7b 已由维护者在普通权限 Medium-IL PowerShell 验收并提交（`4304264`）。本批已由维护者在普通权限 PowerShell 跑全量 68 项 CTest 通过，验收方重新构建（DLL 与 `ime/` 哈希一致）并复核调优集、独立集评测与 `win03pre7` 除耗时／内存／哈希外相同后提交；未打包、未实机。设计细节见[换代与去词库设计](ENGINE_CUTOVER.md)第 5、6 节。
