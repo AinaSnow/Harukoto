@@ -1,5 +1,9 @@
 # 开发变更记录
 
+## 2026-11-23 · alpha.33 试用包
+
+- 版本号升至 0.4.4-alpha.33，内容为 alpha.32 加 WIN-03 第 8 步（CN-02 基准与扩展候选首页按轮次懒扩展；默认开关仍关闭）。从干净提交 0d5bafe 构建并重建词库，全量 69 项 CTest 通过（842.13 秒），生成 ZIP（68.4 MiB）与安装器（173.0 MiB），包内 DLL 与 Release 构建哈希一致。待维护者在开启开关下走 VAL-01 实机清单。
+
 ## 2026-11-23 · WIN-03 第 8 步（CN-02）：真实延迟与内存对比、首页按轮次懒扩展优化与评估报告
 
 - 新增基于生产 `TextService` 与独立多子进程的 CN-02 端到端基准套件（`EngineCn02Benchmark.cpp`、`scripts/benchmark-cn02.py`、`test_engine_cn02_benchmark.py` 与第 69 项 CTest `engine_cn02_benchmark`），对比独立引擎瘦客户端与进程内路径的启动、多应用并发延迟与总内存、深页翻页、5,000 词大个人表与学习重载。

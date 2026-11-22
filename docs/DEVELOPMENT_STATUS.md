@@ -1,5 +1,11 @@
 # 开发状态与接手入口
 
+## 2026-11-23 · alpha.33 试用包
+
+- 版本号升至 0.4.4-alpha.33（0d5bafe），内容为 alpha.32 加 WIN-03 第 8 步（`8c2cfab`：CN-02 延迟与内存基准、扩展候选首页按轮次懒扩展）；独立引擎开关 `StandaloneEngine` 仍默认关闭，协议仍为 v2。从干净提交 0d5bafe 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库，全量 69 项 CTest 在 PowerShell 全部通过（842.13 秒）。
+- 生成 `Harukoto-0.4.4-alpha.33-windows-x64.zip`（68.4 MiB，SHA-256 `cdba6ed4b4f7fb07784c570e372581efb98b5f0e81baf841045997cde0bbf2a1`）和 `Harukoto-0.4.4-alpha.33-Setup.exe`（173.0 MiB，SHA-256 `4a8b3c23920b00d8c473274195c64f7e88bb683fdc8472ce153644f7386b34fb`）。BUILD-INFO 记录源提交 `0d5bafe9242c0831969dc21b61497c4876a733cc`、不含未提交修改；包内 `MeowpuutTip.dll`（`a46676b6…`）与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.33`；FF14 词库仍为 0.4.0。
+- 开启开关下的 VAL-01 实机清单、多应用内存与首页懒扩展的实际体感待安装后验证。此条为打包后记录。
+
 ## 2026-11-23 · WIN-03 第 8 步（CN-02）：真实延迟与内存对比、首页按轮次懒扩展优化与评估报告
 
 - 前置：`0.4.4-alpha.32` 试用包已打包并记录（`a734927` + `2a881ac`）。本批由维护者在普通权限 PowerShell 跑全量 69 项 CTest 与 `resident` 基准通过，验收方重新构建（DLL 与 `ime/` 哈希一致）并复核调优集评测与 `win037cd` 除耗时／内存／哈希外相同后提交；未打包、未实机。完整方法、数据与评估见[CN-02 延迟与内存对比](ENGINE_CN02.md)。
