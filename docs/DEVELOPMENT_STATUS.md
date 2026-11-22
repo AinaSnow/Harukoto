@@ -1,5 +1,11 @@
 # 开发状态与接手入口
 
+## 2026-11-22 · alpha.30 试用包
+
+- 版本号升至 0.4.4-alpha.30（c971673），内容为 alpha.29 加阶段二独立引擎 WIN-03 第 1～6d 步（9320496 至 3033f7d）与第 7 步前置优化（26fd1e8）；实验性独立引擎开关 `StandaloneEngine` 默认关闭，关闭时打字路径与 alpha.29 完全一致。从干净提交 c971673 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；26fd1e8 上普通权限 PowerShell 全量 68 项 CTest 一次全部通过（762.83 秒），c971673 升版本号后受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（7.66 秒），`test-setup.ps1` 安装器解包、内置 PS7 预检与界面渲染通过。
+- 生成 Harukoto-0.4.4-alpha.30-windows-x64.zip（68.3 MiB，SHA-256 196551344ffab072d2a2e079166d6986719d7d4aa3a2cc6700a98e91b8e4c47f）和 Harukoto-0.4.4-alpha.30-Setup.exe（172.9 MiB，SHA-256 94f8670680b4fb1dedc7f3ba93171af59503d68c130328bce5fbb1fda8685b78）。BUILD-INFO.md 记录源提交 c971673d68eef3f084b64f3fe3343c896856c825、不含未提交修改；包内 `MeowpuutTip.dll`、`harukoto_engine_host.exe`、`harukoto_engine_owner.exe`、`harukoto_engine_diagnose.exe`、`harukoto_candidate_explain.exe` 与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.30`；payload 内 `base-dictionary.json`（generation 4414fd82…）原生快照校验通过；FF14 词库清单为 0.4.0。
+- 安装器不替换已启用的主题包（如需 FF14 0.4.0 需在“晴词主题词库”手动导入并启用）。本机未安装，未发布，安装包未签名；实机摸底待维护者按 `docs/WINDOWS_VALIDATION.md` 末尾“独立引擎开关实机清单”与 VAL-01 执行。此条为打包后记录。
+
 ## 2026-11-22 · WIN-03 第 7 步前置：单次解码、单次跳转请求、SQLite 连接池与热更新基础词库复用
 
 - 前置：6d 已提交（3033f7d）。本批未提交、未打包、未实机。设计与结果见[接入 TSF](ENGINE_TSF.md)第 13 节。
