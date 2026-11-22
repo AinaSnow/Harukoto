@@ -66,7 +66,7 @@ function Copy-MeowpuutPayload {
 $script:HarukotoEngineReleaseKey = 'HKLM:\SOFTWARE\Harukoto\EngineReleases'
 $script:HarukotoEngineReleaseFormat = 'format=harukoto-engine-release/1'
 # Must equal ProtocolVersion in Windows/EngineProtocol.h (checked by tests).
-$script:HarukotoEngineProtocol = 1
+$script:HarukotoEngineProtocol = 2
 # Owner Administrators; SYSTEM/Administrators full; users, app containers and
 # the LPAC registryRead capability read only. Not inherited from the parent.
 $script:HarukotoEngineReleaseSddl = 'O:BAD:PAI(A;CI;KA;;;SY)(A;CI;KA;;;BA)(A;CI;KR;;;BU)(A;CI;KR;;;AC)(A;CI;KR;;;S-1-15-3-1024-1065365936-1281604716-3511738428-1654721687-432734479-3232135806-4053264122-3456934681)'

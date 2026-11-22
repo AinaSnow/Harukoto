@@ -355,13 +355,15 @@ static void fixtures(const Root &root) {
     expect(dv::discover(release::Snapshot{},options(scope)),Result::NoRelease,"invalid snapshot");
     release::Snapshot missing; missing.status=release::Status::Missing; missing.error=ERROR_FILE_NOT_FOUND;
     expect(dv::discover(missing,options(scope)),Result::NoRelease,"missing release key");
-    expect(dv::discover(snapshot({a}),options(scope,1000,2)),Result::NoRelease,"no entry for protocol");
+    const auto protoArg=std::to_wstring(ProtocolVersion);
+    const auto nextProtocol=static_cast<uint16_t>(ProtocolVersion+1);
+    expect(dv::discover(snapshot({a}),options(scope,1000,nextProtocol)),Result::NoRelease,"no entry for protocol");
     auto tie=b; tie.sequence=1; expect(dv::discover(snapshot({a,tie}),options(scope)),Result::NoRelease,"ambiguous release");
     auto wrong=a; wrong.ownerSha256=b.ownerSha256; expect(dv::discover(snapshot({wrong}),options(scope)),Result::DeploymentInvalid,"approved hash mismatch");
     expect(dv::discover(approved,options(scope)),Result::NotRunning,"nothing running");
 
     // Approved server: verified, reusable, concurrent clients serialize.
-    auto server=serve(job,aServer,{L"--serve",scope,aHost.wstring(),L"1"});
+    auto server=serve(job,aServer,{L"--serve",scope,aHost.wstring(),protoArg});
     assert(WaitForSingleObject(server.get(),0)==WAIT_TIMEOUT);
     for (int i=0;i<5;++i) {
         auto outcome=dv::discover(approved,options(scope));
@@ -373,9 +375,9 @@ static void fixtures(const Root &root) {
         assert(engine.release.id==L"a" && engine.ownerDeployment && engine.hostDeployment);
     }
     concurrent(approved,scope);
-    // A protocol the running engine does not speak (selected entry says 2).
-    auto newer=a; newer.protocol=2;
-    expect(dv::discover(snapshot({newer}),options(scope,dv::DefaultTimeoutMs,2)),Result::Protocol,"protocol mismatch");
+    // A protocol the running engine does not speak (selected entry says ProtocolVersion + 1).
+    auto newer=a; newer.protocol=nextProtocol;
+    expect(dv::discover(snapshot({newer}),options(scope,dv::DefaultTimeoutMs,nextProtocol)),Result::Protocol,"protocol mismatch");
     expect(dv::discover(snapshot({a,b}),options(scope)),Result::Stale,"older approved release running");
     expect(dv::discover(snapshot({c}),options(scope)),Result::Image,"unapproved image");
     // Remote access to the same pipe through the loopback SMB redirector.
@@ -396,7 +398,7 @@ static void fixtures(const Root &root) {
         std::cout << "appcontainer: unavailable win32=" << error.code << " (unverified)\n";
     }
     // Squatting: a second server must not join an existing name.
-    auto second=serve(job,aServer,{L"--serve",scope,aHost.wstring(),L"1"});
+    auto second=serve(job,aServer,{L"--serve",scope,aHost.wstring(),protoArg});
     assert(finish(second.get())==ERROR_ALREADY_EXISTS);
     expect(dv::discover(approved,options(scope)),Result::Verified,"first server unaffected");
     kill(server.get());
@@ -406,7 +408,7 @@ static void fixtures(const Root &root) {
     {
         ep::Handle squat(CreateNamedPipeW(local.c_str(),PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,PIPE_TYPE_BYTE | PIPE_WAIT,1,256,256,0,nullptr));
         ep::check(bool(squat));
-        auto blocked=serve(job,aServer,{L"--serve",scope,aHost.wstring(),L"1"});
+        auto blocked=serve(job,aServer,{L"--serve",scope,aHost.wstring(),protoArg});
         assert(finish(blocked.get())==ERROR_ALREADY_EXISTS);
         expect(dv::discover(approved,options(scope)),Result::Image,"squatted by unapproved process");
     }
@@ -415,7 +417,7 @@ static void fixtures(const Root &root) {
         auto squat=serve(job,aServer,{L"--squat",scope,aHost.wstring(),L"self"},Sandbox::Low);
         assert(WaitForSingleObject(squat.get(),0)==WAIT_TIMEOUT);
         expect(dv::discover(approved,options(scope)),Result::Integrity,"low-integrity approved image");
-        auto blocked=serve(job,aServer,{L"--serve",scope,aHost.wstring(),L"1"});
+        auto blocked=serve(job,aServer,{L"--serve",scope,aHost.wstring(),protoArg});
         assert(finish(blocked.get())==ERROR_ALREADY_EXISTS); // Denial of service only; detected.
         kill(squat.get());
     }

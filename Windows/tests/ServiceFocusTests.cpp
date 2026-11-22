@@ -304,6 +304,7 @@ struct ServiceFocusTest {
     // WIN-03 step 6d: the switch forced on, with an injected link.
     static void forceEngine(Service &service, tsf_engine::Client::Factory factory) {
         service.engineSwitch = true; service.engineClient.factory = std::move(factory);
+        service.engineReleaseProbe = [] { return harukoto::engine::release::Evaluation{}; };
     }
     static void run() {
         Service service;

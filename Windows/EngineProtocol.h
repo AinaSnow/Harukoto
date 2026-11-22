@@ -10,7 +10,7 @@
 
 // Experimental envelope and client-side ownership gate. No transport or TSF I/O.
 namespace harukoto::engine {
-constexpr uint16_t ProtocolVersion = 1;
+constexpr uint16_t ProtocolVersion = 2;
 constexpr size_t HeaderSize = 56, MaxPayload = 65536;
 constexpr size_t MaxSessions = 64;
 constexpr size_t OpenedPayloadSize = 2 + 2 + 64; // tag, length, identity (EngineMessages.h)

@@ -130,6 +130,16 @@ static void selectionAndReplay() {
     auto setPageNext = p.server.receive(p.action(KeyAction::PageNext),5,100);
     assert(setPageNext.work && setPageNext.work->input == "zhongguorenmin" && setPageNext.work->page == 1);
     assert(p.server.complete(setPageNext.work,page(setPageNext.work,"中国人民",14),5).response);
+    // Step 7c: KeyAction::Inspect preserves session input, page and candidate snapshot.
+    auto inspectFrame = p.frame(Kind::Key);
+    inspectFrame.payload = encodePayload(KeyMessage{KeyAction::Inspect,0,true,false,{},"zhongguo","中国","你好"});
+    auto inspectJob = p.server.receive(inspectFrame,5,100);
+    assert(inspectJob.work && inspectJob.work->input == "zhongguo" && inspectJob.work->key.action == KeyAction::Inspect);
+    CandidatePage inspectReply{"zhongguo",false,{},false,{},true,"zhong1guo2\t中国\n","你好中國"};
+    auto inspectDone = p.server.complete(inspectJob.work,inspectReply,5);
+    assert(inspectDone.status == Status::Reply && inspectDone.response);
+    CandidatePage inspectDecoded; assert(decodePayload(inspectDone.response->payload,inspectDecoded) && inspectDecoded.inspect && inspectDecoded.nextContext == "你好中國");
+    // Session's previous page snapshot is still selectable after Inspect!
     auto setSelect = p.frame(Kind::Select); setSelect.payload = encodePayload(Selection{setPageNext.work->request.id.request,1});
     auto setSelected = p.server.receive(setSelect,5,100); Commit setCommit;
     assert(setSelected.response && decodePayload(setSelected.response->payload,setCommit) && setCommit.text == "中国人民" && setCommit.remaining.empty());

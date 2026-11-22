@@ -164,22 +164,29 @@ public:
                 [](const auto &weak) { return weak.expired(); }), outstanding_.end());
             if (outstanding_.size() >= WorkLimit) return reject(Reason::Capacity);
             auto input = session.input;
-            if (key.action == KeyAction::Text) {
-                if (input.size() == MaxInput) return reject(Reason::InputLimit);
-                input.push_back(static_cast<char>(key.text));
-            } else if (key.action == KeyAction::Backspace && !input.empty()) input.pop_back();
-            else if (key.action == KeyAction::Set) input = key.input;
             auto page = session.page;
-            if (key.action == KeyAction::Text || key.action == KeyAction::Backspace || key.action == KeyAction::Set) page = 0;
-            if (key.action == KeyAction::PageNext) {
-                if (page == 4095) return reject(Reason::InputLimit);
-                ++page;
+            if (key.action == KeyAction::Inspect) {
+                input = key.input;
+                page = 0;
+            } else {
+                if (key.action == KeyAction::Text) {
+                    if (input.size() == MaxInput) return reject(Reason::InputLimit);
+                    input.push_back(static_cast<char>(key.text));
+                } else if (key.action == KeyAction::Backspace && !input.empty()) input.pop_back();
+                else if (key.action == KeyAction::Set) input = key.input;
+                if (key.action == KeyAction::Text || key.action == KeyAction::Backspace || key.action == KeyAction::Set) page = 0;
+                if (key.action == KeyAction::PageNext) {
+                    if (page == 4095) return reject(Reason::InputLimit);
+                    ++page;
+                }
+                if (key.action == KeyAction::PagePrevious && page) --page;
             }
-            if (key.action == KeyAction::PagePrevious && page) --page;
             Ticket work = std::make_shared<const Work>(Work{request, std::move(input), key, deadline, page,
                 session.context, session.chineseLocked, dictionary_});
             outstanding_.push_back(work); // Includes canceled work still held by the executor.
-            session.pending = work; session.candidates.invalidate(); lastRequest_ = request.id.request;
+            session.pending = work;
+            if (key.action != KeyAction::Inspect) session.candidates.invalidate();
+            lastRequest_ = request.id.request;
             return {Status::Scheduled, Reason::None, {}, std::move(work)};
         }
         if (request.kind == Kind::Select) {
@@ -218,9 +225,16 @@ public:
         if (found == sessions_.end() || found->second.pending != work) return reject(Reason::Stale);
         auto &session = found->second;
         if (page.input != work->input) return fail(work, ErrorCode::Backend, now);
+        const bool isInspect = work->key.action == KeyAction::Inspect;
+        if (page.inspect != isInspect) return fail(work, ErrorCode::Backend, now);
         auto response = reply(work->request);
         try { response.payload = encodePayload(page); }
         catch (const std::invalid_argument &) { return fail(work, ErrorCode::Backend, now); }
+        if (isInspect) {
+            auto result = respond(work->request, std::move(response));
+            session.pending.reset();
+            return result;
+        }
         auto candidates = session.candidates;
         if (!candidates.publish(response)) return fail(work, ErrorCode::Backend, now);
         auto input = work->input;

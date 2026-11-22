@@ -165,6 +165,29 @@ static void setInputEquivalence(const std::string &bytes) {
     mpn_set_segment_context(s.get(),"你好");
     assert(mpn_set_input(s.get(),"") == 1 && std::string(mpn_input(s.get())).empty() &&
            mpn_candidate_count(s.get()) == 0 && std::string(mpn_segment_context(s.get())) == "你好");
+    // Step 7c: mpn_decompose_words and mpn_advance_context match mpn_candidate_words / mpn_choose.
+    mpn_set_simplified(s.get(), 1);
+    mpn_set_segment_context(s.get(), "");
+    assert(mpn_set_input(s.get(), "zhongguoz") == 1 && mpn_candidate_count(s.get()) > 0);
+    size_t partialIdx = 0;
+    while (partialIdx < mpn_candidate_count(s.get()) && mpn_candidate_consumed(s.get(), partialIdx) != 8) ++partialIdx;
+    assert(partialIdx < mpn_candidate_count(s.get()));
+    const auto rawCand = std::string(mpn_candidate(s.get(), partialIdx));
+    const auto tailLen = mpn_candidate_literal_tail(s.get(), partialIdx);
+    const std::string candText = rawCand.substr(0, rawCand.size() - tailLen);
+    const std::string byCandidate = mpn_candidate_words(s.get(), partialIdx);
+    const std::string byDecompose = mpn_decompose_words(s.get(), "zhongguo", candText.c_str());
+    assert(!byCandidate.empty() && byCandidate == byDecompose);
+    const std::string advancedEmpty = mpn_advance_context(s.get(), "", candText.c_str());
+    const std::string advancedPrefixed = mpn_advance_context(s.get(), "你好", candText.c_str());
+    assert(mpn_choose(s.get(), partialIdx) == 1);
+    assert(std::string(mpn_segment_context(s.get())) == advancedEmpty);
+    mpn_set_segment_context(s.get(), "你好");
+    assert(mpn_set_input(s.get(), "zhongguoz") == 1);
+    assert(mpn_choose(s.get(), partialIdx) == 1);
+    assert(std::string(mpn_segment_context(s.get())) == advancedPrefixed);
+    assert(std::string(mpn_decompose_words(nullptr, "zhongguo", "中国")).empty());
+    assert(std::string(mpn_advance_context(nullptr, "", "中国")).empty());
 }
 int main(int argc,char **argv) {
     try {

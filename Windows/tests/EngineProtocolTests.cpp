@@ -25,7 +25,7 @@ static void codec() {
     auto bytes = encode(f);
     assert(bytes.size() == 59);
     // Fixed little-endian layout, independent of ABI/structure packing.
-    assert(bytes[0] == 'H' && bytes[3] == 'P' && bytes[4] == 1 && bytes[6] == 4);
+    assert(bytes[0] == 'H' && bytes[3] == 'P' && bytes[4] == ProtocolVersion && bytes[6] == 4);
     assert(bytes[8] == 3 && bytes[16] == 1 && bytes[24] == 2 && bytes[32] == 3 && bytes[40] == 4 && bytes[48] == 5);
     Frame out{Kind::Close, {9,9,9,9,9}, {8}}; size_t consumed = 999;
     for (size_t length = 0; length < bytes.size(); ++length) {
@@ -58,7 +58,7 @@ static void codec() {
         auto wire = encode(sample);
         assert(decode(wire.data(), wire.size(), out, consumed) == Decode::Complete);
         assert(out.id == sample.id && out.payload == sample.payload);
-        wire[4] = 2;
+        wire[4] = static_cast<uint8_t>(ProtocolVersion + 1);
         assert(decode(wire.data(), wire.size(), out, consumed) == Decode::Invalid);
     }
 }

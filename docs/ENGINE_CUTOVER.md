@@ -69,3 +69,40 @@ WIN-03 阶段二第 7 步，2026-11-22 设计（基于 alpha.31 与 alpha.30 实
 
 - **失焦与静置主动礼让**：`TextService` 在 `engineWindow` 上维护 `EngineIdleTimerId` 定时器——失焦（`OnSetFocus(FALSE)`／`OnKillThreadFocus()`）后宽限 15 秒（`FocusYieldMs`）未重新聚焦则于空组字边界调用 `engineClient.yield()` 主动释放槽位（快切窗口 15 秒内不掉热连接）；持续聚焦但静置 180 秒（`IdleYieldMs`，早于宿主 300 秒读超时）亦在空边界礼让释放；组字进行中或有在途查询绝不礼让。
 - **即时退管与零惩罚重连**：`Link` 后台工作线程以 `WaitForMultipleObjects` 同时等待新请求与 `revokeEvent()`；一旦被所有者 LRU 回收，毫秒内关闭宿主管道、置 `State::Reclaimed` 并退出线程。`tsf_engine::Client` 识别 `Reclaimed` 后静默重建连接并递增 `engine_reclaimed`，不计 `failures`、不触发 3 次粘滞回退。诊断字段补充 `engine_yields` 与 `engine_reclaimed`。
+
+## 5. 7c 设计细节：引擎接管扩展、选词与学习元数据
+
+### 5.1 协议升至 v2 与只读元数据原语（`Core/MeowpuutCore.h`、`EngineProtocol.h`、`EngineMessages.h`）
+
+- **协议版本号升至 `ProtocolVersion = 2`**（同步更新 `Windows/InstallSupport.ps1` 的 `$script:HarukotoEngineProtocol = 2`）：因候选标志新增位宽且新增无状态元数据动作，升版触发 7a 的 `ProtocolMismatch` 保护，防止机器上未关闭的 v1 旧接入层与 v2 引擎静默混用。
+- **核心新增两个只读 C API（不改动任何既有签名）**：
+  - `mpn_decompose_words(session, reading, text)`：对已确认的中文片断按核心词典做按词拆解，输出与 `mpn_candidate_words` 相同格式的 `reading\tword\n` 文本，供选词词频学习（CN-06c）与忘记（CN-07）使用；
+  - `mpn_advance_context(session, context, text)`：把新选文字按单字繁化并截断保留最新语境（与 `mpn_choose` 内部语境推进一致），供分段选词与以词定字后延续上下文。
+- **候选标志与无状态检查消息**：
+  - `candidate_flag` 新增 `Typo = 8`、`Personal = 64`、`LiteralTail = 128`（`Known = 0xFF`），覆盖完整 `WindowsCandidate` 元数据，无需再反查本地 `MPNSession`；
+  - 新增 `KeyAction::Inspect = 7`（携带 `reading`、`inspectText`、`inspectContext`、`simplified`）及 `CandidatePage::inspect` 标志（仅在该标志置位时编码 `decomposed` 与 `nextContext`，普通候选页零额外字节）。相比依赖服务端有状态 `Select` 快照，`Inspect` 无状态、不改动会话内容，跨深页翻页、以词定字与忘记均可毫秒内直接完成。
+
+### 5.2 宿主短路执行与接入层自足候选化（`EngineServer.h`、`EngineWindows.h`、`EngineTsf.h`、`TextService.cpp`）
+
+- `EngineServer` 收到 `KeyAction::Inspect` 时保留 `session.input/page/context/chineseLocked/candidates` 原样，直接交由 `WindowsDictionary::queryImpl` 顶部短路执行（仅调用 `mpn_decompose_words` 与 `mpn_advance_context`，不做拼音解码也不查 SQLite，耗时数微秒）。
+- `WindowsCandidate` 补充 `consumed`、`literalTail`、`typo`、`personal`、`engineId` 字段；`tsf_engine::materialize()` 仅凭引擎返回的 `Candidate` 与当前读音即可还原完整候选（含 `LiteralTail` 尾缀拼接），不再读取本地 `MPNSession`。
+- `tsf_engine::Driver` 与 `Link::callSync` 新增 `fetchMore()`（`PageNext` 按需拉取后续翻页）与 `inspect()`（`KeyAction::Inspect`）；`Driver::fetch()` 保留首页随带的第 1～3 轮扩展候选（`extraRounds[3]`），按 `PageDown`／`=` 扩展时先消费本地缓存轮次，不足再按需向引擎拉取下一页。
+- `TextService` 的 `chooseCandidate()`、`forgetCandidate()`、`pickCharacter()`、`candidateReading()`、`canExpandCandidates()`、`expandCandidates()` 与 `typoCandidate()` 对引擎候选全部走引擎元数据与 `Inspect`，完全解除对本地 `MPNSession` 的依赖。
+
+## 6. 7d 设计细节：接入层去启动期基础词库与严格按需兜底
+
+### 6.1 瘦客户端启动条件与 35 字节占位词库（`TextService.cpp`）
+
+- `Activate()` 先加载轻量的 `japanese-conjugations.bin`（约 4 KiB，供 F6 活用面板使用）与个人学习记录存储，随后检查 `canStartThinClient()`：
+  1. `StandaloneEngine` 开关开启；
+  2. 当前进程令牌符合常驻引擎接入条件（`discovery::inspectProcess(GetCurrentProcess()).supported()`，即中完整性、非沙箱、非受限、非提权）；
+  3. HKLM 存在同协议批准发行（`release::evaluate(...) == Compatibility::Match`）。
+- 满足上述三项时以 **瘦客户端模式**（`localLexiconLoaded = false`）启动：不打开 `native-pinyin.tsv`、`japanese.tsv`、主题包与 `language-evidence.sqlite`，仅用 35 字节单行占位词库 `createStubLexicon()` 创建 `< 2 KiB` 的最小 `MPNSession` 负责纯编辑态（`mpn_input`／`mpn_preedit`／`mpn_segment_context`／`mpn_clear`），实测单实例私有内存增量 `< 1 MiB`（验收门槛 `< 10 MiB`，较进程内模式 ~185 MiB 节省 99%+）。
+- 其余场景（开关关闭、提权/低完整性/AppContainer 进程、未安装或协议不兼容发行）在 `Activate()` 保持原有本地词库加载路径不变。
+
+### 6.2 建连推迟、选词短同步等待与按需懒加载兜底（`EngineTsf.h`、`TextService.cpp`）
+
+- **首次建连不误触发本地加载**：瘦客户端首次按键且后台工作线程正处于 `Connecting`（热握手约 1 ms、冷启动约 1.75 s）时，标记 `engineDeferred = true` 暂存请求而不回退；工作线程就绪唤醒 `onEngineReply()` 后立即发出查询并刷新候选（候选窗在 `pending || engineDeferred` 期间保持不闪空帧）。
+- **选词键有界同步等待**：`Link` 新增 `stateEvent`/`replyEvent`/`waitReady()`/`waitPending()`；当用户在建连或回复在途时按下空格／回车／数字选词／翻页／标点／F4／F6，`settleEngine()` 在瘦客户端模式下先同步等待最多 1.5 s 建连与 1 s 查询回复，正常情况下直接由引擎完成，绝不因手速快而拉起 185 MiB 本地词库。
+- **严格懒加载兜底 `ensureLocalLexicon()`**：仅当真正发生不可恢复回退（用户关闭开关、引擎连接/超时失败、断路器断开、超出协议能力门槛或学习记录未追上）时才触发 `ensureLocalLexicon(true)`，一次性加载已发布基础快照或安装目录词库、主题包与 SQLite 证据，并强异常安全地把当前与挂起上下文中的输入、语境、简繁、模糊音与纠错设置完整迁移到新会话。
+- **诊断可见**：`engineClient.diagnosticFields()` 新增 `engine_local_lexicon` 布尔字段，`DiagnosisSupport.ps1` 在 `Engine` 摘要行标注 `，瘦客户端`。

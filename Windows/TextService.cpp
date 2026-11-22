@@ -409,42 +409,36 @@ public:
             simplified = readSimplifiedPreference();
             const auto folder = std::filesystem::path(modulePath()).parent_path();
             installFolder = folder;
-            // Optional auxiliary data: invalid/missing tables must not disable Chinese input.
+            // Optional auxiliary data (~4 KiB): needed for F6 conjugation panel
+            // even in thin-client mode (WIN-03 step 7d).
             conjugations.loadFile(folder / L"japanese-conjugations.bin");
-            std::ifstream file(folder / L"native-pinyin.tsv", std::ios::binary);
-            std::ifstream japanese(folder / L"japanese.tsv", std::ios::binary);
-            japaneseWords = readJapaneseWords(japanese);
-            appendConjugationWords(conjugations, japaneseWords);
             wchar_t localAppData[32768];
             const DWORD localLength = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, ARRAYSIZE(localAppData));
             if (localLength && localLength < ARRAYSIZE(localAppData)) {
-                memory = std::make_unique<selection_memory::Store>(std::filesystem::path(localAppData) / L"Meowpuut/selection-memory.tsv");
                 dataRoot = std::filesystem::path(localAppData) / L"Meowpuut";
-                const auto customPath = std::filesystem::path(localAppData) / L"Meowpuut/japanese-custom.tsv";
-                auto personal = readPersonalDictionary(customPath);
-                const auto themeRoot = std::filesystem::path(localAppData) / L"Meowpuut/Dictionaries";
-                auto snapshot = readJapanesePackageSnapshot(themeRoot);
-                themeReload = std::make_unique<ThemeReload>(themeRoot, japaneseWords, snapshot ? snapshot->generation : std::string(),
-                    customPath, personal, std::filesystem::path(localAppData) / L"Meowpuut/BaseDictionaries");
-                if (personal) japaneseWords.insert(japaneseWords.end(), personal->words.begin(), personal->words.end());
-                if (snapshot) japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(snapshot->words.begin()), std::make_move_iterator(snapshot->words.end()));
+                memory = std::make_unique<selection_memory::Store>(dataRoot / L"selection-memory.tsv");
             }
-            std::stable_sort(japaneseWords.begin(), japaneseWords.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
-            evidence.open(folder / L"language-evidence.sqlite");
-            // Read by size: copying tens of megabytes one character at a time
-            // costs more than parsing them.
-            std::string bytes;
-            file.seekg(0, std::ios::end);
-            if (const auto size = file.tellg(); size > 0) {
-                bytes.resize(static_cast<size_t>(size));
-                file.seekg(0);
-                if (!file.read(bytes.data(), size)) bytes.clear();
+            localLexiconLoaded = false;
+            if (canStartThinClient()) {
+                // WIN-03 step 7d: standalone engine is on with a compatible
+                // approved release and supported token — start with a tiny
+                // stub lexicon (< 2 KiB) and lazy-load local data only on fallback.
+                lexicon = createStubLexicon();
+                session = mpn_session_create(lexicon);
+                if (session) {
+                    mpn_set_simplified(session, simplified);
+                    applyFuzzyPinyin(session, readFuzzyPinyin());
+                    applyTypoCorrection(session, readTypoCorrection());
+                }
+                engineClient.enabled = true;
+                engineClient.stats.localLexicon = false;
+            } else {
+                if (!ensureLocalLexicon(false)) { Deactivate(); return E_FAIL; }
+                if (session) {
+                    applyFuzzyPinyin(session, readFuzzyPinyin());
+                    applyTypoCorrection(session, readTypoCorrection());
+                }
             }
-            lexicon = mpn_lexicon_create(bytes.data(), bytes.size());
-            session = mpn_session_create(lexicon);
-            if (session) mpn_set_simplified(session, simplified);
-            if (session) applyFuzzyPinyin(session, readFuzzyPinyin());
-            if (session) applyTypoCorrection(session, readTypoCorrection());
         } catch (...) { Deactivate(); return E_FAIL; }
         if (!session) { Deactivate(); return E_FAIL; }
         HRESULT result = manager->QueryInterface(IID_ITfKeystrokeMgr, reinterpret_cast<void **>(&keys));
@@ -656,7 +650,7 @@ public:
             if (preference != simplified) conjugationPanel.close(choices, page, highlighted, expanded);
             if (applyPinyinScript(session, simplified, preference)) {
                 simplified = preference;
-                refreshCandidates();
+                refreshCandidates(engineClient.enabled);
             }
             // WIN-08: when the reading is also written as a composition.
             inlineSetting = readInlineComposition(preferenceRoot);
@@ -665,16 +659,22 @@ public:
                 englishPunctuation = !englishPunctuation;
                 if (button) button->changed();
             }
-            // WIN-03 step 6a: the standalone engine switch, and the candidates
-            // it may still owe for the reading: a key that reads them gets the
-            // same list computed here first.
+            // WIN-03 step 6a/7d: the standalone engine switch, and the candidates
+            // it may still owe for the reading.
             engineClient.enabled = engineSwitch ? *engineSwitch : tsf_engine::readStandaloneEngine(preferenceRoot);
             engineFocused = true;
             settleEngine(key);
-            if (!engineClient.enabled && engineClient.link()) {
-                // Switched off: give the slot back; a list still owed is computed here.
-                if (engineClient.pending()) refreshCandidates();
-                engineClient.close();
+            if (!engineClient.enabled) {
+                if (engineClient.link() || engineClient.standby() || engineDeferred) {
+                    // Switched off: give the slot back; load local fallback if thin-client.
+                    engineDeferred = false;
+                    const bool wasPending = engineClient.pending();
+                    engineClient.close();
+                    if (!localLexiconLoaded) ensureLocalLexicon(true);
+                    if (wasPending) refreshCandidates();
+                } else if (!localLexiconLoaded) {
+                    ensureLocalLexicon(true);
+                }
             }
             pollEngineUpgrade(GetTickCount64(), engineClient.standby() != nullptr);
             std::wstring text;
@@ -694,7 +694,7 @@ public:
                     numberDone = true;
                 } else if (numbering && key == VK_BACK) {
                     numberInput.pop_back();
-                    refreshCandidates();
+                    refreshCandidates(engineClient.enabled);
                     numberDone = true;
                 } else if (numbering && key == VK_SPACE) {
                     chooseCandidate(page * pageSize + highlighted, text);
@@ -752,7 +752,7 @@ public:
                     if (writeSimplifiedPreference(next)) {
                         applyPinyinScript(session, simplified, next);
                         simplified = next;
-                        refreshCandidates();
+                        refreshCandidates(engineClient.enabled);
                     }
                 }
                 *eaten = TRUE;
@@ -1251,6 +1251,112 @@ private:
     const WordEvidence &currentEvidence() const {
         return baseSnapshot ? baseSnapshot->evidence() : evidence;
     }
+    static MPNLexicon *createStubLexicon() {
+        static constexpr char Stub[] = "MEOWPUUT-PINYIN-2\na\ta1\t\xe5\x95\x8a\t\xe5\x95\x8a\t1\t1\n";
+        return mpn_lexicon_create(Stub, sizeof(Stub) - 1);
+    }
+    bool canStartThinClient() const {
+        const bool on = engineSwitch ? *engineSwitch : tsf_engine::readStandaloneEngine(preferenceRoot);
+        if (!on) return false;
+        try {
+            if (!engineThinOverride && !harukoto::engine::discovery::inspectProcess(GetCurrentProcess()).supported())
+                return false;
+            const auto probe = engineReleaseProbe ? engineReleaseProbe : [] {
+                return harukoto::engine::release::evaluate(harukoto::engine::release::read(), harukoto::engine::ProtocolVersion);
+            };
+            return probe().kind == harukoto::engine::release::Compatibility::Match;
+        } catch (...) { return false; }
+    }
+    // WIN-03 step 7d: load local base lexicon, SQLite evidence and theme words
+    // strictly on demand (at startup when switch is off / unsupported token /
+    // no compatible release, or lazily if thin-client mode falls back).
+    bool ensureLocalLexicon(bool adoptPublishedBase = true) {
+        if (localLexiconLoaded) return true;
+        try {
+            const auto folder = installFolder.empty() ? std::filesystem::path(modulePath()).parent_path() : installFolder;
+            installFolder = folder;
+            if (!baseSnapshot && adoptPublishedBase && !dataRoot.empty()) {
+                try {
+                    const auto gen = base_dictionary::currentGeneration(dataRoot / L"BaseDictionaries");
+                    if (!gen.empty()) baseSnapshot = base_dictionary::Snapshot::load(dataRoot / L"BaseDictionaries" / gen);
+                } catch (...) { baseSnapshot.reset(); }
+            }
+            std::vector<JapaneseWord> baseWords;
+            if (baseSnapshot) {
+                baseWords = baseSnapshot->words();
+            } else {
+                std::ifstream japanese(folder / L"japanese.tsv", std::ios::binary);
+                baseWords = readJapaneseWords(japanese);
+                appendConjugationWords(conjugations, baseWords);
+            }
+            japaneseWords = baseWords;
+            if (!dataRoot.empty()) {
+                const auto customPath = dataRoot / L"japanese-custom.tsv";
+                auto personal = readPersonalDictionary(customPath);
+                const auto themeRoot = dataRoot / L"Dictionaries";
+                auto snapshot = readJapanesePackageSnapshot(themeRoot);
+                themeReload = std::make_unique<ThemeReload>(themeRoot, baseWords, snapshot ? snapshot->generation : std::string(),
+                    customPath, personal, dataRoot / L"BaseDictionaries");
+                if (personal) japaneseWords.insert(japaneseWords.end(), personal->words.begin(), personal->words.end());
+                if (snapshot) japaneseWords.insert(japaneseWords.end(), std::make_move_iterator(snapshot->words.begin()), std::make_move_iterator(snapshot->words.end()));
+            }
+            std::stable_sort(japaneseWords.begin(), japaneseWords.end(), [](const auto &a, const auto &b) { return a.weight > b.weight; });
+            MPNLexicon *loadedLexicon = nullptr;
+            if (!baseSnapshot) {
+                evidence.open(folder / L"language-evidence.sqlite");
+                std::ifstream file(folder / L"native-pinyin.tsv", std::ios::binary);
+                std::string bytes;
+                file.seekg(0, std::ios::end);
+                if (const auto size = file.tellg(); size > 0) {
+                    bytes.resize(static_cast<size_t>(size));
+                    file.seekg(0);
+                    if (!file.read(bytes.data(), size)) bytes.clear();
+                }
+                loadedLexicon = mpn_lexicon_create(bytes.data(), bytes.size());
+                if (!loadedLexicon) return false;
+            }
+            auto migrate = [&](MPNSession *oldSession, bool script) -> MPNSession * {
+                MPNSession *fresh = baseSnapshot ? baseSnapshot->session(script).release() : mpn_session_create(loadedLexicon);
+                if (!fresh) return nullptr;
+                mpn_set_simplified(fresh, script);
+                if (oldSession) {
+                    mpn_set_fuzzy_pinyin(fresh, mpn_fuzzy_pinyin(oldSession));
+                    mpn_set_typo_correction(fresh, mpn_typo_correction(oldSession));
+                    if (*mpn_segment_context(oldSession)) mpn_set_segment_context(fresh, mpn_segment_context(oldSession));
+                    if (*mpn_input(oldSession)) mpn_set_input(fresh, mpn_input(oldSession));
+                }
+                return fresh;
+            };
+            MPNSession *freshActive = migrate(session, simplified);
+            if (!freshActive) { mpn_lexicon_destroy(loadedLexicon); return false; }
+            std::vector<MPNSession *> freshSuspended;
+            freshSuspended.reserve(suspended.size());
+            for (const auto &entry : suspended) {
+                MPNSession *s = migrate(entry.second.session, entry.second.simplified);
+                if (!s) {
+                    mpn_session_destroy(freshActive);
+                    for (auto *item : freshSuspended) mpn_session_destroy(item);
+                    mpn_lexicon_destroy(loadedLexicon);
+                    return false;
+                }
+                freshSuspended.push_back(s);
+            }
+            mpn_session_destroy(session);
+            session = freshActive;
+            size_t idx = 0;
+            for (auto &entry : suspended) {
+                mpn_session_destroy(entry.second.session);
+                entry.second.session = freshSuspended[idx++];
+            }
+            mpn_lexicon_destroy(lexicon);
+            lexicon = loadedLexicon;
+            localLexiconLoaded = true;
+            engineClient.stats.localLexicon = true;
+            engineIdentityCache = {};
+            attachPersonal();
+            return true;
+        } catch (...) { return false; }
+    }
     MPNSession *newSession() const {
         return baseSnapshot ? baseSnapshot->session(simplified).release() : mpn_session_create(lexicon);
     }
@@ -1352,7 +1458,7 @@ private:
             delivery = std::move(old.delivery);
             chineseLocked = old.chineseLocked; expanded = old.expanded;
             page = old.page; highlighted = old.highlighted;
-            if (applyPinyinScript(session, old.simplified, simplified)) refreshCandidates();
+            if (applyPinyinScript(session, old.simplified, simplified)) refreshCandidates(engineClient.enabled);
         } else {
             context->AddRef();
             session = next;
@@ -1367,6 +1473,12 @@ private:
 
     void resetCandidates() {
         engineChosenWords = false;
+        engineChoicesActive = false;
+        engineExpansionRound = 0;
+        engineMorePages = false;
+        engineFetchedMaxRound = 0;
+        engineDeferred = false;
+        for (auto &r : engineExtraRounds) r.clear();
         engineClient.cancel();
         engineClient.boundary();
         numberInput.clear();
@@ -1395,6 +1507,12 @@ private:
 
     void refreshCandidates(bool allowEngine = false) {
         engineClient.cancel();
+        engineChoicesActive = false;
+        engineExpansionRound = 0;
+        engineMorePages = false;
+        engineFetchedMaxRound = 0;
+        engineDeferred = false;
+        for (auto &r : engineExtraRounds) r.clear();
         conjugationPanel.clear();
         page = highlighted = 0;
         if (!*mpn_input(session)) {
@@ -1406,10 +1524,25 @@ private:
             choices = quickCandidates(mpn_input(session), numberInput, clock());
             return;
         }
-        // WIN-03 step 6a: the engine lists the reading; the candidates stay
+        // WIN-03 step 6a/7d: the engine lists the reading; the candidates stay
         // empty until its reply (deliverEngine) or a key that needs them.
-        if (allowEngine && engineClient.enabled && engineRequest()) {
-            choices.clear();
+        if (allowEngine && engineClient.enabled) {
+            if (engineRequest()) {
+                choices.clear();
+                return;
+            }
+            // Step 7d: in thin-client mode, while the worker is completing its
+            // ~1 ms connect/handshake, defer instead of loading the 185 MiB
+            // local lexicon; onEngineReply() sends as soon as Ready (or loads
+            // fallback if connect fails).
+            if (!localLexiconLoaded && engineClient.stats.reason == "connecting") {
+                engineDeferred = true;
+                choices.clear();
+                return;
+            }
+        }
+        if (!localLexiconLoaded && !ensureLocalLexicon(true)) {
+            choices = quickCandidates(mpn_input(session), {}, clock());
             return;
         }
         choices = windowsCandidates(session, japaneseWords, [&](const std::string &input) {
@@ -1450,14 +1583,14 @@ private:
         }
         return cache.value;
     }
-    // Capability gate: what 6a's engine cannot rank yet stays in-process.
+    // Capability gate: what the engine cannot rank yet stays in-process.
     const char *engineUnsupported() const {
         const std::string input = mpn_input(session);
         if (!harukoto::engine::inputValid(input)) return "input";
         // Step 6c: partial selection travels with the request; only a
         // segment context longer than the protocol carries stays here.
         if (std::string_view(mpn_segment_context(session)).size() > 64) return "context";
-        if (!tsf_engine::representable(session)) return "unrepresentable";
+        if (localLexiconLoaded && !tsf_engine::representable(session)) return "unrepresentable";
         return nullptr;
     }
     std::unique_ptr<tsf_engine::Link> engineLink() {
@@ -1536,7 +1669,8 @@ private:
         if (const char *reason = engineUnsupported()) { engineClient.inProcess(reason); return false; }
         if (!engineClient.factory) engineClient.factory = [this] { return engineLink(); };
         const auto now = GetTickCount64();
-        if (!engineClient.ready(now, engineIdentity())) return false;
+        const std::string emptyIdentity;
+        if (!engineClient.ready(now, localLexiconLoaded ? engineIdentity() : emptyIdentity, !localLexiconLoaded)) return false;
         auto settings = engineSettings();
         if (engineClient.knownBehind(settings, now)) { engineClient.inProcess("memory_behind"); return false; }
         engineSent = settings;
@@ -1562,26 +1696,55 @@ private:
         case tsf_engine::Client::Collect::Ready: break;
         }
         if (fetched.behind) { engineClient.behind(engineSent, now); refreshCandidates(); return true; }
-        // Step 6d: listed from other data than ours (one side adopted a newer
-        // publication first): in-process until both use the same.
-        if (!fetched.identity.empty() && fetched.identity != engineIdentity()) { engineClient.decline("identity"); refreshCandidates(); return true; }
+        // Step 6d: in full-lexicon mode verify identity matches local data; in
+        // step 7d thin-client mode the engine's own identity is authoritative.
+        if (localLexiconLoaded && !fetched.identity.empty() && fetched.identity != engineIdentity()) { engineClient.decline("identity"); refreshCandidates(); return true; }
         if (!fetched.complete) { engineClient.decline("long_list"); refreshCandidates(); return true; }
-        auto rebuilt = tsf_engine::rebuild(session, fetched.words);
+        auto rebuilt = localLexiconLoaded
+            ? tsf_engine::rebuild(session, fetched.words)
+            : tsf_engine::materialize(input, fetched.words, true);
         if (!rebuilt) { engineClient.fail(now, "mismatch"); refreshCandidates(); return true; }
         choices = std::move(*rebuilt);
         mergeQuickCandidates(choices, quickCandidates(input, {}, clock()));
+        engineExtraRounds = std::move(fetched.extraRounds);
+        engineMorePages = fetched.morePages;
+        engineFetchedMaxRound = fetched.maxRound;
+        engineExpansionRound = 0;
+        engineChoicesActive = true;
         engineClient.served();
         return true;
     }
     // Before a key: a key that reads the candidates must not act on a list
     // still owed by the engine. Letters and Backspace replace it anyway.
+    // Step 7d: in thin-client mode wait briefly synchronously for an in-flight
+    // connect/reply before ever falling back to lazy-loading local lexicon.
     void settleEngine(WPARAM key) {
-        if (!engineClient.pending() || !session) return;
-        deliverEngine();
-        if (!engineClient.pending()) return;
+        if (!session) return;
         const bool edit = ((key >= 'A' && key <= 'Z') || key == VK_BACK) && GetKeyState(VK_SHIFT) >= 0 &&
             GetKeyState(VK_CONTROL) >= 0 && GetKeyState(VK_MENU) >= 0;
-        if (!edit) { engineClient.decline("pending_key"); refreshCandidates(); }
+        if (engineDeferred) {
+            if (edit) return;
+            engineDeferred = false;
+            if (engineClient.enabled && engineClient.waitReady(1500) && engineRequest()) {
+                engineClient.waitPending(tsf_engine::DeadlineMs);
+                deliverEngine();
+            }
+            if (engineClient.pending() || choices.empty()) {
+                if (engineClient.pending()) engineClient.decline("pending_key");
+                if (*mpn_input(session)) refreshCandidates();
+            }
+            return;
+        }
+        if (!engineClient.pending()) return;
+        deliverEngine();
+        if (!engineClient.pending() || edit) return;
+        if (!localLexiconLoaded) {
+            engineClient.waitPending(tsf_engine::DeadlineMs);
+            deliverEngine();
+            if (!engineClient.pending()) return;
+        }
+        engineClient.decline("pending_key");
+        refreshCandidates();
     }
     bool pollEngineUpgrade(ULONGLONG now = GetTickCount64(), bool force = false) {
         if (!engineClient.enabled || !dictionaryBoundary() || engineClient.pending()) return false;
@@ -1609,7 +1772,13 @@ private:
         return true;
     }
     void onEngineReply() {
-        if (deliverEngine() && activeContext && session && delivery && delivery->queue.canDeliver()) {
+        bool updated = deliverEngine();
+        if (!updated && engineDeferred && !engineClient.pending() && session && *mpn_input(session)) {
+            engineDeferred = false;
+            refreshCandidates(true);
+            updated = !engineClient.pending() && !engineDeferred;
+        }
+        if (updated && activeContext && session && delivery && delivery->queue.canDeliver()) {
             updatePopup();     // Our window, or the host's UI element (UI-less).
             syncComposition(); // WIN-08: as after a key.
         }
@@ -1619,8 +1788,49 @@ private:
         reportRuntimeStatus();
     }
 
+    bool canExpandCandidates() const {
+        if (!session || !*mpn_input(session)) return false;
+        if (engineChoicesActive) {
+            if (engineExpansionRound >= 3) return false;
+            if (engineMorePages) return true;
+            for (size_t r = engineExpansionRound; r < 3; ++r)
+                if (!engineExtraRounds[r].empty()) return true;
+            return false;
+        }
+        return mpn_candidates_can_expand(session) != 0;
+    }
+
     void expandCandidates() {
         const auto before = choices.size();
+        if (engineChoicesActive) {
+            const std::string input = mpn_input(session);
+            while (choices.size() == before && engineExpansionRound < 3) {
+                ++engineExpansionRound;
+                size_t pagesFetched = 0;
+                while (engineMorePages && engineFetchedMaxRound <= engineExpansionRound && pagesFetched < tsf_engine::Driver::MaxPages) {
+                    ++pagesFetched;
+                    auto more = engineClient.fetchMore(input, simplified, engineSent, GetTickCount64());
+                    if (!more || more->behind) {
+                        engineMorePages = false;
+                        break;
+                    }
+                    if (more->maxRound > engineFetchedMaxRound) engineFetchedMaxRound = more->maxRound;
+                    for (size_t r = 0; r < 3; ++r)
+                        engineExtraRounds[r].insert(engineExtraRounds[r].end(),
+                            std::make_move_iterator(more->extraRounds[r].begin()),
+                            std::make_move_iterator(more->extraRounds[r].end()));
+                    engineMorePages = more->morePages;
+                }
+                auto &roundWords = engineExtraRounds[engineExpansionRound - 1];
+                if (!roundWords.empty()) {
+                    if (auto batch = tsf_engine::materialize(input, roundWords, false)) {
+                        choices.insert(choices.end(), std::make_move_iterator(batch->begin()), std::make_move_iterator(batch->end()));
+                    }
+                    roundWords.clear();
+                }
+            }
+            return;
+        }
         while (choices.size() == before && mpn_candidates_can_expand(session)) {
             mpn_expand_candidates(session);
             const auto more = windowsCandidates(session, japaneseWords, [&](const std::string &input) {
@@ -1645,7 +1855,8 @@ private:
                 mpn_clear(session);
                 break;
             }
-            refreshCandidates();
+            refreshCandidates(engineClient.enabled);
+            if (engineClient.pending() || engineDeferred) settleEngine(VK_RETURN);
             choice = 0;
         }
     }
@@ -1664,7 +1875,8 @@ private:
     std::wstring candidateReading(size_t index) const {
         if (!choices[index].annotation.empty()) return wide(choices[index].annotation.c_str());
         if (!choices[index].coreIndex) return {};
-        const auto consumed = mpn_candidate_consumed(session, *choices[index].coreIndex);
+        const auto consumed = choices[index].consumed ? choices[index].consumed
+            : mpn_candidate_consumed(session, *choices[index].coreIndex);
         const std::string input = mpn_input(session);
         std::wstring reading = consumed < input.size() ? wide(input.substr(0, consumed).c_str()) : std::wstring();
         // CN-05: a typo correction says so on its reading line.
@@ -1676,10 +1888,53 @@ private:
     bool chooseCandidate(size_t index, std::wstring &text, bool learn = true) {
         if (index >= candidateCount()) return false;
         const std::string input = mpn_input(session), chosen = choices[index].text;
-        const size_t consumed = choices[index].coreIndex ? mpn_candidate_consumed(session, *choices[index].coreIndex) : input.size();
-        // A conjugated form is not a reading of the input, nor is a generated
-        // number or date (CN-07 batch 6): neither is learned.
         const bool form = conjugationPanel.active() || choices[index].generated;
+        // WIN-03 step 7c: candidates produced by the engine carry their own
+        // consumed/literalTail metadata and query decomposition + context from
+        // the engine so selection never touches a local MPNSession.
+        if (choices[index].engineId) {
+            const auto &choice = choices[index];
+            const size_t consumed = choice.consumed ? choice.consumed : input.size();
+            const std::string committed = (choice.literalTail && choice.literalTail <= choice.text.size())
+                ? choice.text.substr(0, choice.text.size() - choice.literalTail) : choice.text;
+            const std::string remaining = consumed <= input.size() ? input.substr(consumed) : std::string();
+            const bool needWords = memoryEnabled && learn && !form && choice.coreIndex.has_value();
+            const bool needContext = !remaining.empty() && choice.coreIndex.has_value();
+            std::string words, nextContext;
+            if (needWords || needContext) {
+                if (auto info = engineClient.inspect(input.substr(0, (std::min)(consumed, input.size())),
+                        committed, mpn_segment_context(session), simplified, GetTickCount64())) {
+                    words = std::move(info->decomposed);
+                    nextContext = std::move(info->nextContext);
+                } else if (localLexiconLoaded && choice.coreIndex) {
+                    words = needWords ? std::string(mpn_candidate_words(session, *choice.coreIndex)) : std::string();
+                    if (engineClient.enabled && memoryEnabled) { engineChosenDigest = engineWordsDigest(); engineChosenWords = true; }
+                    if (!mpn_choose(session, *choice.coreIndex)) return false;
+                    chineseLocked = *mpn_input(session) != '\0';
+                    if (memoryEnabled && learn && !form && consumed && consumed <= input.size()) remember(input, consumed, chosen, words);
+                    else { composedReading.clear(); composedText.clear(); composedSegments = 0; }
+                    return true;
+                }
+            }
+            if (choice.coreIndex) {
+                if (engineClient.enabled && memoryEnabled) { engineChosenDigest = engineWordsDigest(); engineChosenWords = true; }
+                text += wide(committed.c_str());
+                mpn_clear(session);
+                if (!remaining.empty()) {
+                    if (!nextContext.empty()) mpn_set_segment_context(session, nextContext.c_str());
+                    mpn_set_input(session, remaining.c_str());
+                }
+                chineseLocked = !remaining.empty();
+            } else {
+                text += candidateText(index);
+                mpn_clear(session);
+                chineseLocked = false;
+            }
+            if (memoryEnabled && learn && !form && consumed && consumed <= input.size()) remember(input, consumed, chosen, words);
+            else { composedReading.clear(); composedText.clear(); composedSegments = 0; }
+            return true;
+        }
+        const size_t consumed = choices[index].coreIndex ? mpn_candidate_consumed(session, *choices[index].coreIndex) : input.size();
         // CN-06c: the dictionary words making up a core candidate, read
         // before mpn_choose replaces the candidate list. Japanese, English
         // and other non-core candidates are not learned word by word.
@@ -1702,28 +1957,31 @@ private:
 
     // CN-07 batch 5: forget what the IME learned for a candidate, never the
     // base dictionary:
-    //  - CN-06a/b: the selection of its text for the keys it consumes (the
-    //    actual input, so a fuzzy, typo or abbreviated reading is forgotten
-    //    as typed) in the current script, including a remembered phrase that
-    //    selection memory put in the list;
-    //  - CN-06c: the learned weight of each dictionary word it is made of
-    //    (by word, wherever it is typed). Abbreviated and corrected
-    //    candidates report no words, so only their selection is forgotten.
-    // A DICT-02b word the user added by hand is not removed here: the table
-    // has one writer, the management script, with an undo; the notice points
-    // to it. Returns the notice for the candidate window.
     std::wstring forgetCandidate(size_t index) {
         if (index >= candidateCount() || conjugationPanel.active()) return L"没有学到的记录";
         const WindowsCandidate candidate = choices[index];
         const std::string input = mpn_input(session);
-        const size_t consumed = candidate.coreIndex ? mpn_candidate_consumed(session, *candidate.coreIndex) : input.size();
-        const bool personal = candidate.coreIndex && mpn_candidate_personal(session, *candidate.coreIndex);
+        const size_t consumed = candidate.consumed ? candidate.consumed
+            : (candidate.coreIndex ? mpn_candidate_consumed(session, *candidate.coreIndex) : input.size());
+        const bool personal = candidate.engineId ? candidate.personal
+            : (candidate.coreIndex && mpn_candidate_personal(session, *candidate.coreIndex));
         bool forgot = false;
         if (memory) {
             memory->poll();
             if (consumed && consumed <= input.size()) forgot = memory->forget(input.substr(0, consumed), candidate.text, simplified);
             if (candidate.coreIndex) {
-                const std::string words = mpn_candidate_words(session, *candidate.coreIndex);
+                std::string words;
+                if (candidate.engineId) {
+                    const std::string committed = (candidate.literalTail && candidate.literalTail <= candidate.text.size())
+                        ? candidate.text.substr(0, candidate.text.size() - candidate.literalTail) : candidate.text;
+                    if (auto info = engineClient.inspect(input.substr(0, (std::min)(consumed, input.size())),
+                            committed, "", simplified, GetTickCount64()))
+                        words = std::move(info->decomposed);
+                    else if (localLexiconLoaded)
+                        words = mpn_candidate_words(session, *candidate.coreIndex);
+                } else {
+                    words = mpn_candidate_words(session, *candidate.coreIndex);
+                }
                 const auto hour = selection_memory::currentHour();
                 for (size_t start = 0; start < words.size();) {
                     const auto end = words.find('\n', start), tab = words.find('\t', start);
@@ -1747,16 +2005,37 @@ private:
         return forgot ? L"已忘记" : L"没有学到的记录";
     }
 
-    // CN-07 batch 4, 以词定字: the candidate consumes the same keys as when
-    // chosen (the rest of the reading stays in composition), but only its
-    // first or last character is committed. Mainstream behaviour; mapping a
-    // single character back to its own syllables is not available from the
-    // core. Like an F6 form it is not learned: neither selection memory
-    // (CN-06a) nor word frequency (CN-06c) records it, because the reading
-    // and the committed text no longer correspond. The next segment is
-    // ranked after the character, not the whole word.
+    // CN-07 batch 4, 以词定字:
     bool pickCharacter(size_t index, bool last, std::wstring &text) {
         if (index >= candidateCount() || !choices[index].coreIndex) return false;
+        if (choices[index].engineId) {
+            const auto choice = choices[index];
+            const std::string input = mpn_input(session);
+            const size_t consumed = choice.consumed ? choice.consumed : input.size();
+            const std::string committed = (choice.literalTail && choice.literalTail <= choice.text.size())
+                ? choice.text.substr(0, choice.text.size() - choice.literalTail) : choice.text;
+            const std::string remaining = consumed <= input.size() ? input.substr(consumed) : std::string();
+            const std::string character = pinyinWordCharacter(committed, last);
+            std::string nextContext;
+            if (!remaining.empty()) {
+                if (auto info = engineClient.inspect(input.substr(0, (std::min)(consumed, input.size())),
+                        character, mpn_segment_context(session), simplified, GetTickCount64()))
+                    nextContext = std::move(info->nextContext);
+                else
+                    nextContext = std::string(mpn_segment_context(session)) + character;
+            }
+            text += wide(mpn_committed(session)) + wide(character.c_str());
+            mpn_clear_commit(session);
+            mpn_clear(session);
+            chineseLocked = !remaining.empty();
+            if (chineseLocked) {
+                if (!nextContext.empty()) mpn_set_segment_context(session, nextContext.c_str());
+                mpn_set_input(session, remaining.c_str());
+            }
+            composedReading.clear(); composedText.clear(); composedSegments = 0;
+            refreshCandidates(true);
+            return true;
+        }
         const std::string context = mpn_segment_context(session);
         const size_t before = std::string(mpn_committed(session)).size();
         if (!mpn_choose(session, *choices[index].coreIndex)) return false;
@@ -1818,13 +2097,13 @@ private:
     // later (another context, a dictionary reload) receive them on their
     // first key, before it is handled.
     void applyFuzzy(uint32_t mask) {
-        if (applyFuzzyPinyin(session, mask) && *mpn_input(session)) refreshCandidates();
+        if (applyFuzzyPinyin(session, mask) && *mpn_input(session)) refreshCandidates(engineClient.enabled);
     }
 
     // CN-05: gives the active session the user's typo correction switch,
     // like applyFuzzy.
     void applyTypo(bool enabled) {
-        if (applyTypoCorrection(session, enabled) && *mpn_input(session)) refreshCandidates();
+        if (applyTypoCorrection(session, enabled) && *mpn_input(session)) refreshCandidates(engineClient.enabled);
     }
 
     // Hands the learned word bonuses and the user's own words (DICT-02b) to
@@ -1832,6 +2111,10 @@ private:
     // removed; without user words either, the table is detached so the core
     // behaves exactly as without.
     void attachPersonal() {
+        if (!localLexiconLoaded) {
+            if (memoryEnabled) personalHour = selection_memory::currentHour();
+            return;
+        }
         const bool userWords = memory && !memory->userWords().empty();
         if ((!memoryEnabled || !memory) && !userWords) {
             if (session) mpn_set_personal(session, nullptr);
@@ -1971,9 +2254,9 @@ private:
             return;
         }
         // Keep the previous popup / host UI element steady while an async
-        // engine reply is in flight instead of flashing an empty candidate
-        // list on every keystroke; onEngineReply() refreshes once it arrives.
-        if (engineClient.pending()) return;
+        // engine reply (or initial thin-client connect) is in flight instead of
+        // flashing an empty candidate list on every keystroke.
+        if (engineClient.pending() || engineDeferred) return;
         // WIN-08: the host may draw the candidates itself.
         if (!presentCandidates()) {
             hideOwnWindow();
@@ -2028,9 +2311,9 @@ private:
         if (engineClient.stats.incompatible) payload += L" · 输入法已更新，请重开应用";
         if (!notice.empty()) payload += L" · " + notice;
         payload += conjugationHint;
-        if (pageCount > 1 || (!conjugationPanel.active() && mpn_candidates_can_expand(session)))
+        if (pageCount > 1 || (!conjugationPanel.active() && canExpandCandidates()))
             payload += L"  ·  " + std::to_wstring(page + 1) + L" / " + std::to_wstring(pageCount);
-        if (!conjugationPanel.active() && mpn_candidates_can_expand(session)) payload += L"+";
+        if (!conjugationPanel.active() && canExpandCandidates()) payload += L"+";
         payload += conjugationPanel.active() ? L"\t2" : expanded ? L"\t1" : L"\t0";
         for (size_t i = 0; i < pageSize && start + i < candidateCount(); ++i)
             payload += L"\n" + candidateText(start + i) + L"\t" + candidateReading(start + i)
@@ -2301,6 +2584,14 @@ private:
     tsf_engine::Client engineClient;
     std::optional<bool> engineSwitch; // Tests: overrides StandaloneEngine.
     std::function<harukoto::engine::release::Evaluation()> engineReleaseProbe; // Step 7a: tests override HKLM release probe.
+    // Step 7c/7d: thin-client state & engine-backed expansion buffer.
+    bool localLexiconLoaded = true;   // Default true for manual test fixtures; Activate() clears in thin-client mode.
+    bool engineThinOverride = false;  // Tests only: allow thin-client Activate() in elevated shells.
+    bool engineChoicesActive = false;
+    bool engineMorePages = false;
+    bool engineDeferred = false;
+    uint8_t engineExpansionRound = 0, engineFetchedMaxRound = 0;
+    std::array<std::vector<harukoto::engine::Candidate>, 3> engineExtraRounds;
     static constexpr UINT_PTR EngineIdleTimerId = 0x32;
     bool engineFocused = true;
     uint64_t engineFocusYieldMs = tsf_engine::Client::FocusYieldMs;

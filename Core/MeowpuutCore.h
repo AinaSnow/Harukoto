@@ -267,6 +267,12 @@ const char *mpn_mixed_pinyin(MPNSession *session, const char *reading, int simpl
 // A complete leading segment and its ASCII reading length, leaving the suffix untouched.
 const char *mpn_mixed_pinyin_prefix(MPNSession *session, const char *reading, int simplified, size_t *consumed);
 
+// Pure read-only helpers for standalone engine metadata (WIN-03 step 7c):
+// decompose (reading, text) into "reading\tword\n" pairs for CN-06c learning
+// and forgetting, and compute the traditionalized segment context after text.
+const char *mpn_decompose_words(MPNSession *session, const char *reading, const char *text);
+const char *mpn_advance_context(MPNSession *session, const char *context, const char *text);
+
 #ifdef __cplusplus
 }
 #endif

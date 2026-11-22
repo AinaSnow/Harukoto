@@ -70,7 +70,7 @@ try {
     $state = Read-Releases
     $entry = $state.Entries['AAAA0001-1111']
     Assert-True ($state.Status -eq 'ready' -and $state.Entries.Count -eq 1 -and $state.Selected -eq 'AAAA0001-1111') 'First publication not readable'
-    Assert-True ($entry.Sequence -eq 1 -and $entry.Protocol -eq 1 -and $published.Sequence -eq 1) 'First sequence'
+    Assert-True ($entry.Sequence -eq 1 -and $entry.Protocol -eq $script:HarukotoEngineProtocol -and $published.Sequence -eq 1) 'First sequence'
     Assert-True ($entry.Host -ceq (Join-Path $a $script:HarukotoEngineHostName) -and $entry.Owner -ceq (Join-Path $a $script:HarukotoEngineOwnerName)) 'Approved paths'
     Assert-True ($entry.HostSha256 -ceq (Get-FileHash -LiteralPath $entry.Host).Hash.ToLowerInvariant()) 'Host digest'
     Assert-True ($entry.OwnerSha256 -ceq (Get-FileHash -LiteralPath $entry.Owner).Hash.ToLowerInvariant()) 'Owner digest'

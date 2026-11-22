@@ -120,6 +120,13 @@ struct WindowsCandidate {
     std::string annotation;
     bool directJapanese = false; // Explicit bridge choices stay visible when collapsed.
     bool generated = false;      // CN-07: a number, date, time or symbol; never learned.
+    // WIN-03 step 7c: self-contained metadata supplied by the standalone engine
+    // so thin-client selection, forgetting, picking and display need no local lexicon.
+    size_t consumed = 0;         // 0: unset (read from local session / full input).
+    size_t literalTail = 0;      // Trailing literal bytes shown in candidate text, omitted on commit.
+    bool typo = false;           // CN-05: typo correction marker.
+    bool personal = false;       // DICT-02b: user-added personal word.
+    uint64_t engineId = 0;       // Non-zero when produced by the standalone engine.
 };
 
 // CN-07 batch 6: the generated candidates of the merge layer. In number
@@ -164,7 +171,7 @@ inline void mergeQuickCandidates(std::vector<WindowsCandidate> &choices, std::ve
 // to type and carry no label. Display only: never part of committed text.
 inline const char *typoMarker() { return "\xe7\xba\xa0\xe9\x94\x99"; } // 纠错 in UTF-8, whatever the source charset
 inline bool typoCandidate(const MPNSession *session, const WindowsCandidate &candidate) {
-    return candidate.coreIndex && mpn_candidate_typo(session, *candidate.coreIndex);
+    return candidate.typo || (!candidate.engineId && candidate.coreIndex && mpn_candidate_typo(session, *candidate.coreIndex));
 }
 
 inline void appendCandidateExpansion(MPNSession *session, std::vector<WindowsCandidate> &current,

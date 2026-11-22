@@ -31,10 +31,10 @@ $record += [ordered]@{engine_path='engine'; engine_served=5; engine_fallbacks=1;
 Assert-Equal (Convert-HarukotoRuntimeRecord ($record | ConvertTo-Json -Compress) $null).Engine '独立引擎；引擎提供 5 次，回退 1 次，原因 none'
 $record += [ordered]@{engine_memory_behind=2}
 Assert-Equal (Convert-HarukotoRuntimeRecord ($record | ConvertTo-Json -Compress) $null).Engine '独立引擎；引擎提供 5 次，回退 1 次，原因 none，学习记录未追上 2 次'
-# WIN-03 step 7a/7b cutover, slot lifecycle & compatibility fields: optional, validated when present.
-$record7a = [ordered]@{} + $record + [ordered]@{engine_sequence=2; engine_cutovers=1; engine_cutover_failures=1; engine_yields=3; engine_reclaimed=2; engine_incompatible=$true}
-Assert-Equal (Convert-HarukotoRuntimeRecord ($record7a | ConvertTo-Json -Compress) $null).Engine '独立引擎；引擎提供 5 次，回退 1 次，原因 none，学习记录未追上 2 次，版本序号 2，已换代 1 次，换代失败 1 次，主动礼让 3 次，空闲回收 2 次，协议不兼容，请重开应用'
-foreach ($bad in @(@{engine_path='remote'}, @{engine_served=-1}, @{engine_reason='Bad Reason'}, @{engine_memory_behind='x'}, @{engine_sequence=-1}, @{engine_cutovers='one'}, @{engine_cutover_failures=-2}, @{engine_yields=-1}, @{engine_reclaimed='two'}, @{engine_incompatible='yes'})) {
+# WIN-03 step 7a/7b/7d cutover, slot lifecycle, thin-client & compatibility fields: optional, validated when present.
+$record7a = [ordered]@{} + $record + [ordered]@{engine_sequence=2; engine_cutovers=1; engine_cutover_failures=1; engine_yields=3; engine_reclaimed=2; engine_local_lexicon=$false; engine_incompatible=$true}
+Assert-Equal (Convert-HarukotoRuntimeRecord ($record7a | ConvertTo-Json -Compress) $null).Engine '独立引擎；引擎提供 5 次，回退 1 次，原因 none，学习记录未追上 2 次，版本序号 2，已换代 1 次，换代失败 1 次，主动礼让 3 次，空闲回收 2 次，瘦客户端，协议不兼容，请重开应用'
+foreach ($bad in @(@{engine_path='remote'}, @{engine_served=-1}, @{engine_reason='Bad Reason'}, @{engine_memory_behind='x'}, @{engine_sequence=-1}, @{engine_cutovers='one'}, @{engine_cutover_failures=-2}, @{engine_yields=-1}, @{engine_reclaimed='two'}, @{engine_local_lexicon='no'}, @{engine_incompatible='yes'})) {
     $broken = [ordered]@{} + $record
     foreach ($key in $bad.Keys) { $broken[$key] = $bad[$key] }
     $rejected = $false

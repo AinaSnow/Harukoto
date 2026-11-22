@@ -215,6 +215,15 @@ int main(int argc,char **argv) {
             auto tail=partial.server.receive(key,3,100);
             assert(tail.work && tail.work->chineseLocked && tail.work->context=="你好" && tail.work->input=="z");
             assert(partial.server.complete(tail.work,old->query(tail.work),4).response);
+            // Step 7c: Inspect query returns word decomposition & traditionalized context without decoding.
+            {
+                auto inspFrame=partial.frame(Kind::Key);
+                inspFrame.payload=encodePayload(KeyMessage{KeyAction::Inspect,0,true,false,{},"zhongguo","中国","你好"});
+                auto inspJob=partial.server.receive(inspFrame,5,100); assert(inspJob.work);
+                auto inspPage=old->query(inspJob.work);
+                assert(inspPage.inspect && !inspPage.decomposed.empty() && inspPage.nextContext=="你好中國");
+                assert(partial.server.complete(inspJob.work,inspPage,5).response);
+            }
             // Invalid optional input fails preparation without damaging the old snapshot.
             { std::ofstream file(personal); file<<"broken"; }
             bool failed=false; try { WindowsDictionary::load(second,theme,personal); } catch(const std::runtime_error &) { failed=true; }

@@ -1,5 +1,28 @@
 # 开发状态与接手入口
 
+## 2026-11-22 · WIN-03 第 7c／7d 步：引擎接管扩展与选词元数据、接入层瘦客户端与按需兜底
+
+- 前置：7a／7b 已由维护者在普通权限 Medium-IL PowerShell 验收并提交（`4304264`）。本批已由维护者在普通权限 PowerShell 跑全量 68 项 CTest 通过，验收方重新构建（DLL 与 `ime/` 哈希一致）并复核调优集、独立集评测与 `win03pre7` 除耗时／内存／哈希外相同后提交；未打包、未实机。设计细节见[换代与去词库设计](ENGINE_CUTOVER.md)第 5、6 节。
+- 7c（协议 v2 与引擎接管扩展／选词／学习元数据）：
+  - `Core/MeowpuutCore.h`、`Core/MeowpuutCore.cpp` 仅新增两个只读 C API（不改动任何既有签名）：`mpn_decompose_words`（按词拆解供选词学习与忘记）与 `mpn_advance_context`（单字繁化并推进分段语境）。
+  - `Windows/EngineProtocol.h`、`Windows/InstallSupport.ps1` 将协议升至 `ProtocolVersion = 2`（`$script:HarukotoEngineProtocol = 2`），保证跨版本升级时旧 v1 接入层触发 7a 的 `ProtocolMismatch` 保护与重开提示而不静默混用。
+  - `Windows/EngineMessages.h`、`EngineServer.h`、`EngineWindows.h`：候选标志新增 `Typo`/`Personal`/`LiteralTail`（`Known = 0xFF`）；新增无状态 `KeyAction::Inspect = 7` 与 `CandidatePage::inspect`（仅在该标志置位时编码 `decomposed` 与 `nextContext`，普通候选页零额外字节），宿主 `queryImpl` 顶部短路执行（不做解码、不查 SQLite），且 `EngineServer` 不改动当前会话或候选快照。
+  - `Windows/MixedComposition.h`、`Windows/EngineTsf.h`、`Windows/TextService.cpp`：`WindowsCandidate` 携带自足元数据（`consumed`/`literalTail`/`typo`/`personal`/`engineId`）；`tsf_engine::materialize()` 不访问本地 `MPNSession` 即可还原完整候选；`Driver`/`Link` 新增 `fetchMore()`（`PageNext` 按需拉页）与 `inspect()`（`KeyAction::Inspect`），保留首页第 1～3 轮扩展缓存；选词、翻页扩展、纠错标注、以词定字与忘记在引擎路径全部脱离本地核心会话。
+- 7d（接入层去启动期基础词库与严格按需兜底）：
+  - `Windows/TextService.cpp`：`Activate()` 仅轻量加载 `japanese-conjugations.bin`（约 4 KiB 供 F6 活用面板）与个人学习记录；当 `StandaloneEngine=1`、进程令牌受支持（`discovery::inspectProcess().supported()`）且 HKLM 存在同协议批准发行（`release::evaluate == Match`）时，以 35 字节单行占位词库 `createStubLexicon()`（`< 2 KiB`）瘦客户端启动，不加载 `native-pinyin.tsv`、`japanese.tsv`、主题包与 `language-evidence.sqlite`。
+  - 瘦客户端首次按键遇后台 `Connecting` 时以 `engineDeferred` 推迟请求而不触发本地词库加载（候选窗在 `pending || engineDeferred` 期间保持不闪空帧）；`Link` 新增 `waitReady()`/`waitPending()`，选词／翻页／标点／F4／F6 等键在 `settleEngine()` 做有界同步等待（建连最多 1.5 s、回复最多 1 s）；仅在真正回退（关闭开关、连接/超时失败、断路器、能力门槛或学习记录未追上）时由 `ensureLocalLexicon()` 强异常安全地懒加载本地词库并迁移当前与挂起会话。
+  - 诊断：`EngineTsf.h` 增 `engine_local_lexicon` 布尔字段，`Windows/DiagnosisSupport.ps1` 校验并在 `Engine` 摘要行标注 `，瘦客户端`。
+- 测试与验证：
+  - 完整 MSVC Release 构建通过，`.build/windows/msvc/Release/MeowpuutTip.dll` 已同步至 `.build/windows/ime/MeowpuutTip.dll`（SHA-256 `BF89BB384E58DA3B661AFAC4C4C4A3AEB23E2B20C6AC40E3664B6751EAA84B6C` 一致）。
+  - 新增/更新测试覆盖：`EngineCoreTests`（`mpn_decompose_words`/`mpn_advance_context` 与 `mpn_candidate_words`/`mpn_choose` 一致性）、`EngineMessagesTests`、`EngineServerTests`、`EngineWindowsTests`、`EngineProtocolTests`、`EngineReleaseTests.ps1`、`EngineDiscoveryTests`（消除硬编码协议 1/2）、`DiagnosisTests.ps1`、`EngineTsfTests`（新增 `thinClient` 实测瘦客户端私有内存增量 `0.016 MiB` `< 10 MiB`、建连推迟、选词同步等待、纠错与 3 轮扩展、关闭开关懒加载兜底；`parity` 侧 `b` 切换为真瘦客户端全程断言 `!b->localLexiconLoaded`）。
+  - 63 项非 Medium-IL CTest 100% 通过（376.92 秒，含 `engine_release_install`、`engine_core_full`、`engine_windows_full`、`engine_host_full`、`engine_owner_full`、`tsf_focus_engine_on`、`installation_diagnosis` 等）。
+  - `test_engine_tsf.py` 全量（不含 Medium-IL `resident` 段）全部通过：`unit`、`steps`、`layout` 热更新（宿主私有内存初始 185 → 关主题 136 → 开主题 187 MiB）以及 **8 场景共 31,056 个列表真瘦客户端对照 0 不一致、0 回退、学习文件逐字节相同**（期间 `localLexiconLoaded` 始终为 `false`）。
+  - 6 套中文评测（`tuned`、`holdout`、`words-dev`、`abbrev-dev`、`fuzzy-dev`、`typo-dev`，输出 `docs/benchmarks/chinese-*-win037cd.json`）扣除耗时、内存、时间戳、修订号与哈希字段后，与 `win03pre7` 逐条 100% 相同（`holdout` 未逐条查看）。
+  - 测试后检查无残留 `HKCU:\Software\HarukotoTest*` 键或 `%TEMP%\harukoto-*` 临时目录。
+- 未验证：
+  - 真实桌面多应用打开后的实际进程私有内存占用、冷启动建连首键体感、简繁切换／F6／以词定字／忘记、以及从 alpha.31（协议 v1）覆盖升级至协议 v2 时的不兼容提示与重启恢复均待打包后实机验证（待实机）。
+- 下一步：打新版试用包实机验证第 7 步整体收益，或推进第 8 步（CN-02 真实延迟与内存对比）。
+
 ## 2026-11-22 · WIN-03 第 7b 步：多应用连接槽失焦宽限礼让、空闲 LRU 回收与零惩罚重连
 
 - 前置：7a 已在当前工作树通过普通权限 Medium-IL 复测（未提交，计划与 7b 合并验收）。设计见[换代与去词库设计](ENGINE_CUTOVER.md)第 4 节。

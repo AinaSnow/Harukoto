@@ -78,11 +78,13 @@ function Convert-HarukotoRuntimeRecord {
             }
         }
         if ($value.ContainsKey('engine_incompatible') -and $value.engine_incompatible -isnot [bool]) { throw '无效引擎路径字段' }
+        if ($value.ContainsKey('engine_local_lexicon') -and $value.engine_local_lexicon -isnot [bool]) { throw '无效引擎路径字段' }
         if ($value.ContainsKey('engine_sequence') -and $value.engine_sequence -gt 0) { $engine += "，版本序号 $($value.engine_sequence)" }
         if ($value.ContainsKey('engine_cutovers') -and $value.engine_cutovers -gt 0) { $engine += "，已换代 $($value.engine_cutovers) 次" }
         if ($value.ContainsKey('engine_cutover_failures') -and $value.engine_cutover_failures -gt 0) { $engine += "，换代失败 $($value.engine_cutover_failures) 次" }
         if ($value.ContainsKey('engine_yields') -and $value.engine_yields -gt 0) { $engine += "，主动礼让 $($value.engine_yields) 次" }
         if ($value.ContainsKey('engine_reclaimed') -and $value.engine_reclaimed -gt 0) { $engine += "，空闲回收 $($value.engine_reclaimed) 次" }
+        if ($value.ContainsKey('engine_local_lexicon') -and !$value.engine_local_lexicon) { $engine += '，瘦客户端' }
         if ($value.ContainsKey('engine_incompatible') -and $value.engine_incompatible) { $engine += '，协议不兼容，请重开应用' }
     }
     $relation = if (!$PublishedGeneration) { '无可比较的发布指针' }

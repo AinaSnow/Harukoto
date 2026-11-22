@@ -8,7 +8,7 @@ namespace harukoto::engine {
 constexpr size_t MaxInput = 256, MaxText = 1024, MaxCandidates = 128;
 constexpr uint32_t MaxCoreIndex = 1u << 24;
 enum class Payload : uint16_t { Key = 1, Candidates = 2, Select = 3, Commit = 4, Error = ErrorPayloadTag, Opened = 6, Query = 7 };
-enum class KeyAction : uint8_t { Text = 1, Backspace, PageNext, PagePrevious, Refresh, Set };
+enum class KeyAction : uint8_t { Text = 1, Backspace, PageNext, PagePrevious, Refresh, Set, Inspect };
 // WIN-03 step 6b: the per-user ranking state of a TSF client, sent with each
 // key (Payload::Query). fuzzy/typo set the core session; memory says whether
 // selection memory and word frequency apply (at hour, the hour of the
@@ -37,28 +37,39 @@ struct KeyMessage {
     KeyAction action = KeyAction::Text; uint8_t text = 0; bool simplified = true;
     bool extended = false; // false: the step 6a key, ranked with engine defaults.
     QuerySettings settings;
-    // KeyAction::Set only: replaces the session reading in one round trip
-    // instead of Cancel followed by per-character Text replay.
+    // KeyAction::Set: replaces the session reading in one round trip.
+    // KeyAction::Inspect (step 7c): reading to decompose, with inspectText and inspectContext.
     std::string input;
+    std::string inspectText, inspectContext;
 };
-// WIN-03 step 6a: core is the native candidate index + 1 (0: not a core
-// candidate); flags describe how the Windows merge placed it, so a TSF client
-// can rebuild exactly the in-process list. The round is the expansion pass
-// that produced the candidate (0: before any mpn_expand_candidates).
+// WIN-03 step 6a/7c: core is the native candidate index + 1 (0: not a core
+// candidate); flags describe how the Windows merge placed it, plus CN-05 typo,
+// DICT-02b personal and literal-tail markers so a thin TSF client needs no local lexicon.
 namespace candidate_flag {
-constexpr uint8_t Japanese = 1, Strong = 2, Direct = 4, RoundShift = 4, RoundMask = 0x30, Known = 0x37;
+constexpr uint8_t Japanese = 1, Strong = 2, Direct = 4, Typo = 8, RoundShift = 4, RoundMask = 0x30, Personal = 64, LiteralTail = 128, Known = 0xFF;
 }
 struct Candidate { uint64_t id = 0; uint32_t consumed = 0; std::string text, reading; uint32_t core = 0; uint8_t flags = 0; };
 inline unsigned candidateRound(const Candidate &c) { return (c.flags & candidate_flag::RoundMask) >> candidate_flag::RoundShift; }
 // The Open reply may name the data the engine serves (EngineIdentity.h).
 constexpr size_t IdentitySize = 64;
+constexpr size_t MaxDecomposed = 4096;
 struct Opened { std::string identity; };
 static_assert(2 + 2 + IdentitySize == OpenedPayloadSize, "Opened payload layout");
 // behind (step 6b): the engine could not reach the client's memory state; no
 // candidates, the client lists in-process.
 // identity (step 6d): the data identity of the dictionary that listed this
 // page; it changes when the engine adopts newly published data.
-struct CandidatePage { std::string input; bool more = false; std::vector<Candidate> words; bool behind = false; std::string identity; };
+// inspect (step 7c): reply to KeyAction::Inspect carrying decomposed words and
+// traditionalized next segment context (no candidates).
+struct CandidatePage {
+    std::string input;
+    bool more = false;
+    std::vector<Candidate> words;
+    bool behind = false;
+    std::string identity;
+    bool inspect = false;
+    std::string decomposed, nextContext;
+};
 struct Selection { uint64_t sourceRequest = 0, candidate = 0; };
 struct Commit { Selection selection; uint32_t consumed = 0; std::string text, remaining; };
 
@@ -93,6 +104,18 @@ inline bool textValid(const std::string &s) {
 inline bool digestValid(const std::string &s) {
     return s.empty() || (s.size() == 64 && std::all_of(s.begin(), s.end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }));
 }
+inline bool decomposedValid(const std::string &s) {
+    if (s.size() > MaxDecomposed) return false;
+    for (size_t start = 0; start < s.size();) {
+        const auto end = s.find('\n', start), tab = s.find('\t', start);
+        if (end == s.npos || tab == s.npos || tab <= start || tab + 1 >= end) return false;
+        const auto reading = s.substr(start, tab - start);
+        const auto word = s.substr(tab + 1, end - tab - 1);
+        if (!inputValid(reading) || !textValid(word)) return false;
+        start = end + 1;
+    }
+    return true;
+}
 inline bool valid(const QuerySettings &q) {
     return q.fuzzy <= 0xffff && q.hour >= 0 && q.hour <= 100000000 && digestValid(q.phrases) && digestValid(q.words) &&
         q.user.size() == 64 && digestValid(q.user) && (q.memory || (q.phrases.empty() && q.words.empty())) &&
@@ -102,6 +125,12 @@ inline bool valid(const QuerySettings &q) {
             return !t.empty() && t.size() <= MaxRememberedText && textValid(t); });
 }
 inline bool valid(const KeyMessage &m) {
+    if (m.action == KeyAction::Inspect) {
+        return !m.extended && m.text == 0 && !m.input.empty() && inputValid(m.input) &&
+               !m.inspectText.empty() && textValid(m.inspectText) &&
+               m.inspectContext.size() <= 64 && textValid(m.inspectContext);
+    }
+    if (!m.inspectText.empty() || !m.inspectContext.empty()) return false;
     if (m.extended && !valid(m.settings)) return false;
     if (m.action == KeyAction::Set) return m.text == 0 && !m.input.empty() && inputValid(m.input);
     if (!m.input.empty()) return false;
@@ -111,7 +140,13 @@ inline bool valid(const KeyMessage &m) {
 }
 inline bool valid(const CandidatePage &p) {
     if (!inputValid(p.input) || p.words.size() > MaxCandidates || (p.more && p.words.empty()) ||
-        (p.behind && (p.more || !p.words.empty())) || (!p.identity.empty() && (p.identity.size() != 64 || !digestValid(p.identity)))) return false;
+        (p.behind && (p.more || !p.words.empty() || p.inspect)) ||
+        (!p.identity.empty() && (p.identity.size() != 64 || !digestValid(p.identity)))) return false;
+    if (p.inspect) {
+        return !p.more && !p.behind && p.words.empty() && decomposedValid(p.decomposed) &&
+               p.nextContext.size() <= 64 && textValid(p.nextContext);
+    }
+    if (!p.decomposed.empty() || !p.nextContext.empty()) return false;
     std::unordered_set<uint64_t> ids;
     for (const auto &word : p.words)
         if (!word.id || !ids.insert(word.id).second || !word.consumed || word.consumed > p.input.size() ||
@@ -157,18 +192,22 @@ inline std::vector<uint8_t> encodePayload(const KeyMessage &m) {
         for (const auto &text : q.remembered) putString(b, text);
     }
     if (m.action == KeyAction::Set) putString(b, m.input);
+    if (m.action == KeyAction::Inspect) {
+        putString(b, m.input); putString(b, m.inspectText); putString(b, m.inspectContext);
+    }
     return b;
 }
 inline std::vector<uint8_t> encodePayload(const CandidatePage &p) {
     if (!valid(p)) throw std::invalid_argument("invalid candidate page");
     std::vector<uint8_t> b; put(b, static_cast<uint16_t>(Payload::Candidates), 2);
-    putString(b, p.input); put(b, (p.more ? 1 : 0) | (p.behind ? 2 : 0), 1); put(b, p.words.size(), 2);
+    putString(b, p.input); put(b, (p.more ? 1 : 0) | (p.behind ? 2 : 0) | (p.inspect ? 4 : 0), 1); put(b, p.words.size(), 2);
     for (const auto &w : p.words) {
         put(b, w.id, 8); put(b, w.consumed, 4); putString(b, w.text); putString(b, w.reading);
         put(b, w.core, 4); put(b, w.flags, 1);
         if (b.size() > MaxPayload) throw std::invalid_argument("candidate frame too large");
     }
     putString(b, p.identity);
+    if (p.inspect) { putString(b, p.decomposed); putString(b, p.nextContext); }
     if (b.size() > MaxPayload) throw std::invalid_argument("candidate frame too large");
     return b;
 }
@@ -200,12 +239,16 @@ inline bool decodePayload(const std::vector<uint8_t> &b, KeyMessage &out) {
         for (uint64_t i = 0; i < count; ++i) q.remembered.push_back(r.string(MaxRememberedText));
     }
     if (m.action == KeyAction::Set) m.input = r.string(MaxInput);
+    if (m.action == KeyAction::Inspect) {
+        m.input = r.string(MaxInput); m.inspectText = r.string(MaxText); m.inspectContext = r.string(64);
+    }
     if (simplified > 1 || typo > 1 || memory > 1 || locked > 1 || !r.done() || !valid(m)) return false; out = std::move(m); return true;
 }
 inline bool decodePayload(const std::vector<uint8_t> &b, CandidatePage &out) {
     PayloadReader r(b); if (r.number(2) != static_cast<uint16_t>(Payload::Candidates)) return false;
-    CandidatePage p; p.input = r.string(MaxInput); const auto more = r.number(1); p.more = (more & 1) != 0; p.behind = (more & 2) != 0;
-    const auto count = r.number(2); if (count > MaxCandidates || more > 3) return false;
+    CandidatePage p; p.input = r.string(MaxInput); const auto more = r.number(1);
+    p.more = (more & 1) != 0; p.behind = (more & 2) != 0; p.inspect = (more & 4) != 0;
+    const auto count = r.number(2); if (count > MaxCandidates || more > 7) return false;
     for (size_t i = 0; i < count; ++i) {
         Candidate w; w.id = r.number(8); w.consumed = static_cast<uint32_t>(r.number(4));
         w.text = r.string(MaxText); w.reading = r.string(MaxText);
@@ -213,6 +256,7 @@ inline bool decodePayload(const std::vector<uint8_t> &b, CandidatePage &out) {
         p.words.push_back(std::move(w));
     }
     p.identity = r.string(64);
+    if (p.inspect) { p.decomposed = r.string(MaxDecomposed); p.nextContext = r.string(64); }
     if (!r.done() || !valid(p)) return false; out = std::move(p); return true;
 }
 inline bool decodePayload(const std::vector<uint8_t> &b, Selection &out) {

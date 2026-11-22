@@ -81,6 +81,25 @@ struct EngineTsfTest {
         s->japaneseWords = std::move(words);
         s->themeReload = std::make_unique<ThemeReload>(data.themes, base, themes ? themes->generation : std::string(),
             data.personal, personal, std::filesystem::path());
+        s->engineReleaseProbe = [] { return engine::release::Evaluation{}; };
+        return s;
+    }
+    // WIN-03 step 7d: thin-client service with only the 35-byte stub lexicon
+    // and ~4 KiB conjugation table (zero base snapshot, SQLite or theme words).
+    static std::unique_ptr<Service> thinService(const Data &data, bool simplified, const std::filesystem::path &memory = {}) {
+        auto s = std::make_unique<Service>();
+        if (!memory.empty()) s->memory = std::make_unique<selection_memory::Store>(memory);
+        s->simplified = simplified;
+        s->clock = &fixedMoment;
+        s->installFolder = data.base;
+        s->conjugations.loadFile(data.base / L"japanese-conjugations.bin");
+        s->lexicon = Service::createStubLexicon();
+        s->session = mpn_session_create(s->lexicon);
+        assert(s->session);
+        mpn_set_simplified(s->session, simplified);
+        s->localLexiconLoaded = false;
+        s->engineClient.stats.localLexicon = false;
+        s->engineReleaseProbe = [] { return engine::release::Evaluation{}; };
         return s;
     }
     static bool same(const WindowsCandidate &a, const WindowsCandidate &b) {
@@ -144,7 +163,7 @@ struct EngineTsfTest {
         assert(b->engineClient.diagnosticFields() ==
             ",\"engine_path\":\"off\",\"engine_served\":0,\"engine_fallbacks\":0,\"engine_reason\":\"none\",\"engine_memory_behind\":0"
             ",\"engine_sequence\":0,\"engine_cutovers\":0,\"engine_cutover_failures\":0,\"engine_incompatible\":false"
-            ",\"engine_yields\":0,\"engine_reclaimed\":0");
+            ",\"engine_yields\":0,\"engine_reclaimed\":0,\"engine_local_lexicon\":true");
         // Step 7a: when off, upgrade probe is never invoked.
         bool probed = false;
         b->engineReleaseProbe = [&] { probed = true; return engine::release::Evaluation{}; };
@@ -251,7 +270,10 @@ struct EngineTsfTest {
             const auto index = static_cast<size_t>(split - c->choices.begin());
             type(*d, "nihao", false);
             std::wstring other;
-            assert(c->chooseCandidate(index, text) && d->chooseCandidate(index, other) && text == other);
+            assert(c->chooseCandidate(index, text) && d->chooseCandidate(index, other));
+            text += wide(mpn_committed(c->session)); other += wide(mpn_committed(d->session));
+            mpn_clear_commit(c->session); mpn_clear_commit(d->session);
+            assert(text == other);
             const auto exchangesBeforePartial = cTransport->exchanges;
             c->refreshCandidates(true); d->refreshCandidates();
             assert(c->engineClient.pending()); serve(*c);
@@ -482,6 +504,82 @@ struct EngineTsfTest {
         std::cout << "slot lifecycle: focus yield, immediate threaded revoke teardown, zero-penalty reclaim" << std::endl;
     }
 
+    // WIN-03 step 7c/7d: thin-client mode (zero startup base-lexicon load),
+    // deferred connect without fallback, bounded sync wait on selection keys,
+    // engine-owned expansion/selection/typo/pick/forget, lazy fallback and memory.
+    static void thinClient(const Data &data, std::shared_ptr<const WindowsDictionary> dictionary) {
+        auto privateBytes = []() -> size_t {
+            PROCESS_MEMORY_COUNTERS_EX pmc{}; pmc.cb = sizeof(pmc);
+            assert(GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&pmc), sizeof(pmc)));
+            return pmc.PrivateUsage;
+        };
+        const size_t beforeThin = privateBytes();
+        auto thin = thinService(data, true);
+        const size_t afterThin = privateBytes();
+        const double thinDeltaMiB = afterThin > beforeThin ? double(afterThin - beforeThin) / (1024.0 * 1024.0) : 0.0;
+        assert(!thin->localLexiconLoaded && !thin->engineClient.stats.localLexicon && thinDeltaMiB < 10.0);
+        assert(thin->engineClient.diagnosticFields().find("\"engine_local_lexicon\":false") != std::string::npos);
+
+        auto ref = service(data, true);
+        thin->engineClient.enabled = true;
+
+        // 1. Connecting state in thin-client mode defers instead of loading 185 MiB local lexicon.
+        ep::Handle gate(CreateEventW(nullptr, TRUE, FALSE, nullptr)); assert(gate);
+        ep::Handle notify(CreateEventW(nullptr, FALSE, FALSE, nullptr)); assert(notify);
+        thin->engineClient.factory = [&] {
+            return tsf_engine::Link::threaded([&, g = gate.get()](uint64_t) -> std::unique_ptr<tsf_engine::Transport> {
+                assert(WaitForSingleObject(g, 10000) == WAIT_OBJECT_0);
+                return std::make_unique<Loopback>(dictionary, 1);
+            }, [ev = notify.get()] { SetEvent(ev); });
+        };
+        mpn_clear(thin->session);
+        assert(mpn_key(thin->session, 'n')); thin->refreshCandidates(true);
+        assert(mpn_key(thin->session, 'i')); thin->refreshCandidates(true);
+        assert(thin->engineDeferred && !thin->localLexiconLoaded && thin->choices.empty());
+
+        // Release connect gate; onEngineReply sends the deferred query without loading local lexicon.
+        assert(SetEvent(gate.get()));
+        assert(WaitForSingleObject(notify.get(), 10000) == WAIT_OBJECT_0);
+        thin->onEngineReply();
+        assert(!thin->engineDeferred && thin->engineClient.pending() && !thin->localLexiconLoaded);
+
+        // 2. Selection key (Space) while reply is in flight waits synchronously instead of falling back.
+        thin->settleEngine(VK_SPACE);
+        type(*ref, "ni", false);
+        assert(!thin->engineClient.pending() && !thin->localLexiconLoaded);
+        assert(same(ref->choices, thin->choices) && std::string(thin->engineClient.stats.path) == "engine" && !thin->engineClient.stats.fallbacks);
+
+        // 3. Typo flag, multi-round expansion (with no local lexicon), and candidateReading match in-process.
+        type(*ref, "nihoa", false);
+        mpn_clear(thin->session); thin->resetCandidates();
+        for (char c : std::string("nihoa")) { assert(mpn_key(thin->session, c)); thin->refreshCandidates(true); }
+        thin->settleEngine(VK_SPACE);
+        assert(!thin->localLexiconLoaded && same(ref->choices, thin->choices));
+        for (size_t i = 0; i < ref->choices.size(); ++i)
+            assert(typoCandidate(ref->session, ref->choices[i]) == typoCandidate(thin->session, thin->choices[i]));
+
+        type(*ref, "zhongguo", false);
+        mpn_clear(thin->session); thin->resetCandidates();
+        for (char c : std::string("zhongguo")) { assert(mpn_key(thin->session, c)); thin->refreshCandidates(true); }
+        thin->settleEngine(VK_SPACE);
+        assert(same(ref->choices, thin->choices) && thin->canExpandCandidates() == (mpn_candidates_can_expand(ref->session) != 0));
+        for (int k = 0; k < 3; ++k) {
+            ref->expandCandidates(); thin->expandCandidates();
+            assert(same(ref->choices, thin->choices) && !thin->localLexiconLoaded);
+        }
+        assert(!thin->canExpandCandidates());
+
+        // 4. True fallback (switch off / unavailable) lazily loads local lexicon and serves exact full candidates.
+        thin->engineClient.close();
+        thin->engineClient.enabled = false;
+        mpn_clear(thin->session); thin->resetCandidates();
+        for (char c : std::string("nihao")) { assert(mpn_key(thin->session, c)); thin->refreshCandidates(true); }
+        type(*ref, "nihao", false);
+        assert(thin->localLexiconLoaded && thin->engineClient.stats.localLexicon);
+        assert(!thin->choices.empty() && thin->choices[0].text == ref->choices[0].text);
+        std::cout << "thin client: delta=" << thinDeltaMiB << " MiB (<10 MiB), deferred connect, sync settle, expansion/typo, lazy fallback" << std::endl;
+    }
+
     // Step 6b: the per-key preparation OnKeyDown does before a key: the
     // memory switch, polling, the personal table, fuzzy pinyin and typo switch.
     struct Scenario { std::string name; uint32_t fuzzy = 0; bool typo = true, memory = false, learn = false; };
@@ -575,7 +673,9 @@ struct EngineTsfTest {
                     std::filesystem::copy_file(file.path(), folder / file.path().filename(), std::filesystem::copy_options::overwrite_existing);
             }
             auto dictionary = WindowsDictionary::load(data.base, data.themes, data.personal, folderB / L"selection-memory.tsv");
-            auto a = service(data, simplified, folderA / L"selection-memory.tsv"), b = service(data, simplified, folderB / L"selection-memory.tsv");
+            // Step 7c/7d: compare full in-process service A against true thin-client
+            // service B (zero local base snapshot, SQLite or FF14 theme words!).
+            auto a = service(data, simplified, folderA / L"selection-memory.tsv"), b = thinService(data, simplified, folderB / L"selection-memory.tsv");
             b->engineClient.enabled = true;
             b->engineClient.factory = loopback(dictionary);
             for (size_t n = 0; n < inputs.size(); ++n) {
@@ -605,6 +705,7 @@ struct EngineTsfTest {
                 mpn_clear(a->session); mpn_clear(b->session); a->resetCandidates(); b->resetCandidates();
             }
             extras(*a, *b, scenario, result);
+            assert(!b->localLexiconLoaded); // Step 7d: thin-client never fell back to local lexicon!
             if (scenario.learn) {
                 // Both sides learned the same: the same models, byte for byte.
                 assert(a->memory->model().state() == b->memory->model().state());
@@ -803,6 +904,7 @@ struct EngineTsfTest {
         s->session = mpn_session_create(s->lexicon);
         assert(s->session);
         mpn_set_simplified(s->session, simplified);
+        s->engineReleaseProbe = [] { return engine::release::Evaluation{}; };
         return s;
     }
     struct Layout { std::filesystem::path base, baseStore, themes, personal, memory; };
@@ -1068,6 +1170,9 @@ struct EngineTsfTest {
             options.ownerArguments.push_back(argument);
         const engine::release::Source source{HKEY_CURRENT_USER, releaseKey, false};
         b.engineClient.close();
+        b.engineReleaseProbe = [source] {
+            return engine::release::evaluate(engine::release::read(source), engine::ProtocolVersion);
+        };
         b.engineClient.factory = [source, options, ready] {
             return tsf_engine::Link::threaded(tsf_engine::residentConnect(source, options), [ready] { SetEvent(ready); }, 60000);
         };
@@ -1076,6 +1181,7 @@ struct EngineTsfTest {
         const auto status = rs::inspect(cleanup.store, scope);
         assert(status.present && status.alive);
         b.engineClient.close();
+        b.engineReleaseProbe = [] { return engine::release::Evaluation{}; };
         std::cout << "resident: owner started through the shell, " << count << "/" << inputs.size() << " served" << std::endl;
     }
 };
@@ -1118,6 +1224,7 @@ static int run(int argc, wchar_t **argv) {
         EngineTsfTest::behaviour(data, dictionary, other);
         EngineTsfTest::cutover(data, dictionary);
         EngineTsfTest::slotLifecycle(data, dictionary);
+        EngineTsfTest::thinClient(data, dictionary);
         EngineTsfTest::pipeHost(data, argv[6]);
     } else if (mode == L"layout") {
         assert(argc == 5 || argc == 6);

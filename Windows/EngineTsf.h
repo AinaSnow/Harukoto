@@ -8,6 +8,7 @@
 #include "EngineMemory.h"
 #include "EngineRelease.h"
 #include "MixedComposition.h"
+#include <array>
 #include <condition_variable>
 #include <deque>
 #include <functional>
@@ -102,7 +103,17 @@ public:
 // The round-0 list of one reading: complete unless it ran past MaxPages.
 // behind (step 6b): the engine could not reach the client's learned state.
 // identity (step 6d): the data identity of the dictionary that listed it.
-struct Fetched { std::vector<Candidate> words; bool complete = false, behind = false; std::string identity; };
+// extraRounds / morePages / maxRound (step 7c): rounds 1..3 returned in the
+// same page(s) so expansion works without a local MPNSession.
+struct Fetched {
+    std::vector<Candidate> words;
+    std::array<std::vector<Candidate>, 3> extraRounds;
+    bool complete = false, behind = false, morePages = false;
+    uint8_t maxRound = 0;
+    std::string identity;
+};
+// WIN-03 step 7c: pure read-only metadata for a chosen/forgotten candidate.
+struct Inspected { std::string decomposed, nextContext; };
 
 // One engine session. Mirrors the reading the engine holds and sends the
 // smallest key sequence that brings it to the requested one: one letter,
@@ -181,9 +192,16 @@ public:
         for (size_t pages = 1;; ++pages) {
             bool later = false;
             for (auto &word : page.words) {
-                if (engine::candidateRound(word)) later = true;
-                else out.words.push_back(std::move(word));
+                const auto round = engine::candidateRound(word);
+                if (round > out.maxRound) out.maxRound = static_cast<uint8_t>(round);
+                if (round) {
+                    later = true;
+                    if (round <= 3) out.extraRounds[round - 1].push_back(std::move(word));
+                } else {
+                    out.words.push_back(std::move(word));
+                }
             }
+            out.morePages = page.more;
             if (later || !page.more) { out.complete = true; break; }
             if (pages >= MaxPages) break;
             paged_ = true;
@@ -191,6 +209,35 @@ public:
             if (page.behind) { out = {}; out.behind = true; return out; }
         }
         return out;
+    }
+    // Step 7c: fetch one more PageNext page of expansion rounds for the
+    // currently mirrored reading.
+    Fetched fetchMore(const std::string &input, bool simplified, const std::optional<engine::QuerySettings> &settings, uint64_t deadline) {
+        if (input.empty() || input != mirror_) throw std::runtime_error("engine page mismatch");
+        KeyMessage m{KeyAction::PageNext, 0, simplified};
+        if (settings) { m.extended = true; m.settings = *settings; }
+        paged_ = true;
+        auto page = key(m, input, deadline);
+        Fetched out;
+        out.identity = page.identity;
+        if (page.behind) { out.behind = true; return out; }
+        for (auto &word : page.words) {
+            const auto round = engine::candidateRound(word);
+            if (round > out.maxRound) out.maxRound = static_cast<uint8_t>(round);
+            if (round && round <= 3) out.extraRounds[round - 1].push_back(std::move(word));
+            else if (!round) out.words.push_back(std::move(word));
+        }
+        out.morePages = page.more;
+        out.complete = true;
+        return out;
+    }
+    // Step 7c: pure read-only decomposition & traditionalized context query.
+    Inspected inspect(const std::string &reading, const std::string &text, const std::string &context, bool simplified, uint64_t deadline) {
+        KeyMessage m{KeyAction::Inspect, 0, simplified};
+        m.input = reading; m.inspectText = text; m.inspectContext = context;
+        auto page = key(m, reading, deadline);
+        if (!page.inspect) throw std::runtime_error("engine inspect rejected");
+        return {std::move(page.decomposed), std::move(page.nextContext)};
     }
 };
 
@@ -210,12 +257,25 @@ public:
         Fetched fetched;
     };
     using Connect = std::function<std::unique_ptr<Transport>(uint64_t deadline)>;
+    struct SyncOp {
+        enum class Type { FetchMore, Inspect } type = Type::Inspect;
+        Request fetch;
+        std::string reading, text, context;
+        bool simplified = true;
+    };
+    struct SyncResult {
+        bool ok = false, reclaimed = false;
+        Fetched fetched;
+        Inspected inspected;
+    };
 private:
     struct Shared {
         std::mutex mutex;
-        engine::pipe::Handle wakeEvent;
+        engine::pipe::Handle wakeEvent, stateEvent, replyEvent, syncEvent;
         std::optional<Request> request;
         std::deque<Reply> replies;
+        std::optional<SyncOp> syncOp;
+        std::optional<SyncResult> syncResult;
         State state = State::Connecting;
         std::string identity;
         uint64_t sequence = 0;
@@ -239,11 +299,16 @@ private:
             driver->open(engine::pipe::now() + DeadlineMs);
             std::lock_guard<std::mutex> lock(s.mutex);
             s.identity = driver->identity(); s.sequence = driver->sequence(); s.driver = std::move(driver);
-            s.state = State::Ready; post(s);
+            s.state = State::Ready;
+            if (s.stateEvent) SetEvent(s.stateEvent.get());
+            post(s);
             return true;
         } catch (...) {}
         std::lock_guard<std::mutex> lock(s.mutex);
-        s.state = State::Failed; post(s);
+        s.state = State::Failed;
+        if (s.stateEvent) SetEvent(s.stateEvent.get());
+        if (s.replyEvent) SetEvent(s.replyEvent.get());
+        post(s);
         return false;
     }
     static bool serve(Shared &s, Request request) {
@@ -263,27 +328,54 @@ private:
         s.replies.push_back(std::move(reply));
         while (s.replies.size() > 4) s.replies.pop_front();
         if (!s.replies.back().ok) s.state = s.replies.back().reclaimed ? State::Reclaimed : State::Failed;
+        if (s.replyEvent) SetEvent(s.replyEvent.get());
         post(s);
         return s.replies.back().ok;
+    }
+    static bool serveSync(Shared &s, SyncOp op) {
+        SyncResult res;
+        try {
+            if (op.type == SyncOp::Type::FetchMore) {
+                res.fetched = s.driver->fetchMore(op.fetch.input, op.fetch.simplified, op.fetch.settings, engine::pipe::now() + DeadlineMs);
+                if (!res.fetched.identity.empty()) { std::lock_guard<std::mutex> lock(s.mutex); s.identity = res.fetched.identity; }
+            } else {
+                res.inspected = s.driver->inspect(op.reading, op.text, op.context, op.simplified, engine::pipe::now() + DeadlineMs);
+            }
+            res.ok = true;
+        } catch (...) {
+            if (revokedNow(s.driver.get())) res.reclaimed = true;
+        }
+        std::lock_guard<std::mutex> lock(s.mutex);
+        if (!res.ok) s.state = res.reclaimed ? State::Reclaimed : State::Failed;
+        s.syncResult = std::move(res);
+        if (s.syncEvent) SetEvent(s.syncEvent.get());
+        if (!s.syncResult->ok && s.replyEvent) SetEvent(s.replyEvent.get());
+        return s.syncResult->ok;
     }
     static void run(const std::shared_ptr<Shared> &shared) {
         auto &s = *shared;
         if (!start(s)) return;
         const HANDLE revoked = s.driver ? s.driver->revokeEvent() : nullptr;
         for (;;) {
-            Request request;
+            std::optional<Request> request;
+            std::optional<SyncOp> syncOp;
             for (;;) {
                 {
                     std::lock_guard<std::mutex> lock(s.mutex);
                     if (s.stop) return;
-                    if (s.request) { request = std::move(*s.request); s.request.reset(); break; }
+                    if (s.syncOp) { syncOp.swap(s.syncOp); break; }
+                    if (s.request) { request.swap(s.request); break; }
                 }
                 // Step 7b: wake immediately when EngineOwner reclaims this idle
                 // slot so our EngineHost pipe closes and frees its endpoint at once.
                 if (revoked && WaitForSingleObject(revoked, 0) == WAIT_OBJECT_0) {
                     std::lock_guard<std::mutex> lock(s.mutex);
                     if (s.stop) return;
-                    if (!s.request) { s.driver.reset(); s.state = State::Reclaimed; post(s); return; }
+                    if (!s.request && !s.syncOp) {
+                        s.driver.reset(); s.state = State::Reclaimed;
+                        if (s.replyEvent) SetEvent(s.replyEvent.get());
+                        post(s); return;
+                    }
                     continue;
                 }
                 HANDLE handles[2]{s.wakeEvent.get(), revoked};
@@ -292,10 +384,15 @@ private:
                 if (waited == WAIT_OBJECT_0 + 1) {
                     std::lock_guard<std::mutex> lock(s.mutex);
                     if (s.stop) return;
-                    if (!s.request) { s.driver.reset(); s.state = State::Reclaimed; post(s); return; }
+                    if (!s.request && !s.syncOp) {
+                        s.driver.reset(); s.state = State::Reclaimed;
+                        if (s.replyEvent) SetEvent(s.replyEvent.get());
+                        post(s); return;
+                    }
                 }
             }
-            if (!serve(s, std::move(request))) return;
+            if (syncOp) { if (!serveSync(s, std::move(*syncOp))) return; }
+            else if (request) { if (!serve(s, std::move(*request))) return; }
         }
     }
     struct Start { std::shared_ptr<Shared> shared; HMODULE module; };
@@ -310,12 +407,18 @@ private:
             {
                 std::lock_guard<std::mutex> lock(shared->mutex);
                 shared->driver.reset(); // Close the connection on this thread.
+                if (shared->stateEvent) SetEvent(shared->stateEvent.get());
+                if (shared->replyEvent) SetEvent(shared->replyEvent.get());
+                if (shared->syncEvent) SetEvent(shared->syncEvent.get());
             }
         } // Destroy all C++ objects before releasing the module reference.
         FreeLibraryAndExitThread(module, 0);
     }
     explicit Link(Connect connect, std::function<void()> notify, uint64_t connectMs) : shared_(std::make_shared<Shared>()) {
         shared_->wakeEvent.reset(CreateEventW(nullptr, FALSE, FALSE, nullptr));
+        shared_->stateEvent.reset(CreateEventW(nullptr, TRUE, FALSE, nullptr));
+        shared_->replyEvent.reset(CreateEventW(nullptr, TRUE, FALSE, nullptr));
+        shared_->syncEvent.reset(CreateEventW(nullptr, TRUE, FALSE, nullptr));
         shared_->connect = std::move(connect); shared_->notify = std::move(notify); shared_->connectMs = connectMs;
     }
 public:
@@ -323,7 +426,7 @@ public:
     // then serves requests. Returns null when no thread could be started.
     static std::unique_ptr<Link> threaded(Connect connect, std::function<void()> notify, uint64_t connectMs = 10000) {
         std::unique_ptr<Link> link(new Link(std::move(connect), std::move(notify), connectMs));
-        if (!link->shared_->wakeEvent) return {};
+        if (!link->shared_->wakeEvent || !link->shared_->stateEvent || !link->shared_->replyEvent || !link->shared_->syncEvent) return {};
         HMODULE module = nullptr;
         if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(&worker), &module)) return {};
         auto start = std::make_unique<Start>(Start{link->shared_, module});
@@ -343,7 +446,7 @@ public:
     Link &operator=(const Link &) = delete;
     ~Link() {
         std::lock_guard<std::mutex> lock(shared_->mutex);
-        shared_->stop = true; shared_->notify = nullptr; shared_->request.reset();
+        shared_->stop = true; shared_->notify = nullptr; shared_->request.reset(); shared_->syncOp.reset();
         if (shared_->wakeEvent) SetEvent(shared_->wakeEvent.get());
     }
     State state() const {
@@ -366,6 +469,66 @@ public:
         if (shared_->replies.empty()) return {};
         auto reply = std::move(shared_->replies.front()); shared_->replies.pop_front();
         return reply;
+    }
+    // Step 7d: bounded synchronous wait for initial connection or an in-flight
+    // reply when a selection key arrives in thin-client mode.
+    bool waitReady(uint64_t timeoutMs) {
+        if (manual_) return state() == State::Ready;
+        {
+            std::lock_guard<std::mutex> lock(shared_->mutex);
+            if (shared_->state != State::Connecting) return shared_->state == State::Ready;
+        }
+        if (shared_->stateEvent) WaitForSingleObject(shared_->stateEvent.get(), static_cast<DWORD>(timeoutMs));
+        return state() == State::Ready;
+    }
+    bool waitReply(uint64_t ticket, uint64_t timeoutMs) {
+        if (manual_) { pump(); return true; }
+        const auto deadline = engine::pipe::now() + timeoutMs;
+        for (;;) {
+            {
+                std::lock_guard<std::mutex> lock(shared_->mutex);
+                for (const auto &r : shared_->replies) if (r.ticket == ticket || !r.ok) return true;
+                if (shared_->state != State::Ready) return true;
+                if (shared_->replyEvent) ResetEvent(shared_->replyEvent.get());
+            }
+            const auto now = engine::pipe::now();
+            if (now >= deadline) return false;
+            if (!shared_->replyEvent) return false;
+            WaitForSingleObject(shared_->replyEvent.get(), static_cast<DWORD>(deadline - now));
+        }
+    }
+    SyncResult callSync(SyncOp op, uint64_t timeoutMs = DeadlineMs + 50) {
+        if (manual_) {
+            {
+                std::lock_guard<std::mutex> lock(shared_->mutex);
+                if (shared_->state != State::Ready || !shared_->driver) return {};
+            }
+            serveSync(*shared_, std::move(op));
+            std::lock_guard<std::mutex> lock(shared_->mutex);
+            SyncResult res = shared_->syncResult ? std::move(*shared_->syncResult) : SyncResult{};
+            shared_->syncResult.reset();
+            return res;
+        }
+        {
+            std::lock_guard<std::mutex> lock(shared_->mutex);
+            if (shared_->state != State::Ready || shared_->stop || !shared_->syncEvent) return {};
+            shared_->syncResult.reset();
+            shared_->syncOp = std::move(op);
+            ResetEvent(shared_->syncEvent.get());
+            if (shared_->wakeEvent) SetEvent(shared_->wakeEvent.get());
+        }
+        WaitForSingleObject(shared_->syncEvent.get(), static_cast<DWORD>(timeoutMs));
+        std::lock_guard<std::mutex> lock(shared_->mutex);
+        if (shared_->syncResult) {
+            SyncResult res = std::move(*shared_->syncResult);
+            shared_->syncResult.reset();
+            return res;
+        }
+        shared_->syncOp.reset();
+        shared_->stop = true;
+        shared_->state = State::Failed;
+        if (shared_->wakeEvent) SetEvent(shared_->wakeEvent.get());
+        return {};
     }
     // Manual links only: serve the waiting request on this thread.
     bool pump() {
@@ -392,6 +555,42 @@ inline bool representable(const MPNSession *session) {
     return true;
 }
 
+// WIN-03 step 7c/7d: build WindowsCandidate entries purely from engine metadata
+// without touching a local MPNSession (used in thin-client mode and for
+// expansion rounds 1..3).
+inline std::optional<std::vector<WindowsCandidate>> materialize(const std::string &input, const std::vector<Candidate> &words, bool requireRoundZero = true) {
+    std::vector<WindowsCandidate> result;
+    result.reserve(words.size());
+    uint64_t expected = 1;
+    for (const auto &word : words) {
+        if (requireRoundZero && (word.id != expected++ || engine::candidateRound(word))) return {};
+        if (!word.consumed || word.consumed > input.size()) return {};
+        WindowsCandidate candidate;
+        candidate.japanese = (word.flags & engine::candidate_flag::Japanese) != 0;
+        candidate.strong = (word.flags & engine::candidate_flag::Strong) != 0;
+        candidate.directJapanese = (word.flags & engine::candidate_flag::Direct) != 0;
+        candidate.typo = (word.flags & engine::candidate_flag::Typo) != 0;
+        candidate.personal = (word.flags & engine::candidate_flag::Personal) != 0;
+        candidate.annotation = word.reading;
+        candidate.consumed = word.consumed;
+        candidate.engineId = word.id;
+        if (word.core) {
+            candidate.coreIndex = word.core - 1;
+            if ((word.flags & engine::candidate_flag::LiteralTail) && word.consumed < input.size()) {
+                candidate.literalTail = input.size() - word.consumed;
+                candidate.text = word.text + input.substr(word.consumed);
+            } else {
+                candidate.text = word.text;
+            }
+        } else {
+            if (word.consumed != input.size()) return {};
+            candidate.text = word.text;
+        }
+        result.push_back(std::move(candidate));
+    }
+    return result;
+}
+
 // What the in-process path would have listed for this reading, rebuilt from
 // the engine's round-0 candidates and checked against the service's own
 // session (same base data, so the same native candidates). Null when the
@@ -410,7 +609,11 @@ inline std::optional<std::vector<WindowsCandidate>> rebuild(const MPNSession *se
         candidate.japanese = (word.flags & engine::candidate_flag::Japanese) != 0;
         candidate.strong = (word.flags & engine::candidate_flag::Strong) != 0;
         candidate.directJapanese = (word.flags & engine::candidate_flag::Direct) != 0;
+        candidate.typo = (word.flags & engine::candidate_flag::Typo) != 0;
+        candidate.personal = (word.flags & engine::candidate_flag::Personal) != 0;
         candidate.annotation = word.reading;
+        candidate.consumed = word.consumed;
+        candidate.engineId = word.id;
         if (word.core) {
             const size_t index = word.core - 1;
             if (index >= count) return {};
@@ -419,6 +622,7 @@ inline std::optional<std::vector<WindowsCandidate>> rebuild(const MPNSession *se
             if (text.compare(0, text.size() - tail, word.text) != 0 || text.size() - tail != word.text.size() ||
                 mpn_candidate_consumed(session, index) != word.consumed) return {};
             candidate.text = std::move(text);
+            candidate.literalTail = tail;
             candidate.coreIndex = index;
         } else {
             if (word.consumed != input.size()) return {};
@@ -453,6 +657,7 @@ public:
         bool incompatible = false;    // Step 7a: installed release speaks another protocol/format.
         uint64_t yields = 0;          // Step 7b: voluntary idle/unfocused slot releases.
         uint64_t reclaimed = 0;       // Step 7b: idle slots reclaimed by owner/host (zero failure penalty).
+        bool localLexicon = true;     // Step 7d: false in thin-client mode (no local base lexicon loaded).
         const char *path = "off";
         std::string reason = "none";
     } stats;
@@ -515,7 +720,9 @@ public:
         return true;
     }
     // Whether the engine may serve now; creates the link on first use.
-    bool ready(uint64_t now, const std::string &identity) {
+    // acceptAnyIdentity (step 7d): thin-client mode loads no local dictionary
+    // so the engine's own data identity is authoritative.
+    bool ready(uint64_t now, const std::string &identity, bool acceptAnyIdentity = false) {
         if (!enabled) { inProcess("off"); link_.reset(); standby_.reset(); targetSequence_ = 0; stats.sequence = 0; return false; }
         if (blocked_) { inProcess("fallback"); return false; }
         if (now < retryAt_) { inProcess("sticky"); return false; }
@@ -530,14 +737,49 @@ public:
         if (state == Link::State::Reclaimed) { resetReclaimed(); inProcess("reclaimed"); return false; }
         if (state == Link::State::Failed) { fail(now, "unavailable"); return false; }
         stats.sequence = link_->sequence();
-        if (identity.empty()) { inProcess("identity"); return false; }
-        // Step 6d: the engine may have adopted newer data since its last
-        // reply: ask at most once a second; each reply names its data.
-        if (link_->identity() != identity) {
-            if (identityProbe_ && now < identityProbe_ + 1000) { inProcess("identity"); return false; }
-            identityProbe_ = now;
+        if (!acceptAnyIdentity) {
+            if (identity.empty()) { inProcess("identity"); return false; }
+            // Step 6d: the engine may have adopted newer data since its last
+            // reply: ask at most once a second; each reply names its data.
+            if (link_->identity() != identity) {
+                if (identityProbe_ && now < identityProbe_ + 1000) { inProcess("identity"); return false; }
+                identityProbe_ = now;
+            }
         }
         return true;
+    }
+    // Step 7d: bounded synchronous waits for thin-client selection keys.
+    bool waitReady(uint64_t timeoutMs) { return link_ && link_->waitReady(timeoutMs); }
+    bool waitPending(uint64_t timeoutMs) {
+        if (!link_ || !pending_) return false;
+        return link_->waitReply(pending_->ticket, timeoutMs);
+    }
+    // Step 7c: synchronous expansion page fetch and candidate metadata inspection.
+    std::optional<Fetched> fetchMore(const std::string &input, bool simplified, std::optional<engine::QuerySettings> settings, uint64_t now) {
+        if (!link_ || link_->state() != Link::State::Ready) return {};
+        Link::SyncOp op;
+        op.type = Link::SyncOp::Type::FetchMore;
+        op.fetch = {0, input, simplified, std::move(settings)};
+        auto res = link_->callSync(std::move(op));
+        if (!res.ok) {
+            if (res.reclaimed) resetReclaimed();
+            else fail(now, "unavailable");
+            return {};
+        }
+        return std::move(res.fetched);
+    }
+    std::optional<Inspected> inspect(const std::string &reading, const std::string &text, const std::string &context, bool simplified, uint64_t now) {
+        if (!link_ || link_->state() != Link::State::Ready) return {};
+        Link::SyncOp op;
+        op.type = Link::SyncOp::Type::Inspect;
+        op.reading = reading; op.text = text; op.context = context; op.simplified = simplified;
+        auto res = link_->callSync(std::move(op));
+        if (!res.ok) {
+            if (res.reclaimed) resetReclaimed();
+            else fail(now, "unavailable");
+            return {};
+        }
+        return std::move(res.inspected);
     }
     // Step 7a: evaluate the installed release at an empty composition boundary.
     // Never called mid-composition. Pre-connects a newer same-protocol release
@@ -665,7 +907,8 @@ public:
             ",\"engine_cutover_failures\":" + std::to_string(stats.cutoverFailures) +
             ",\"engine_incompatible\":" + std::string(stats.incompatible ? "true" : "false") +
             ",\"engine_yields\":" + std::to_string(stats.yields) +
-            ",\"engine_reclaimed\":" + std::to_string(stats.reclaimed);
+            ",\"engine_reclaimed\":" + std::to_string(stats.reclaimed) +
+            ",\"engine_local_lexicon\":" + std::string(stats.localLexicon ? "true" : "false");
     }
 };
 } // namespace harukoto::tsf_engine

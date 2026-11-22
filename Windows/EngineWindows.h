@@ -166,6 +166,20 @@ private:
         if (!inputValid(work.input) || work.input.size() > mpn_max_input_bytes() || work.page > 4095 ||
             work.context.size() > 64 || !textValid(work.context) || !valid(work.key))
             throw std::invalid_argument("unsupported Windows query");
+        // WIN-03 step 7c: pure read-only metadata query (word decomposition +
+        // traditionalized segment context) with zero decoding or SQLite I/O.
+        if (work.key.action == KeyAction::Inspect) {
+            auto session = base_->session(work.key.simplified);
+            CandidatePage result;
+            result.input = work.input;
+            result.identity = identity_;
+            result.inspect = true;
+            result.decomposed = mpn_decompose_words(session.get(), work.input.c_str(), work.key.inspectText.c_str());
+            result.nextContext = mpn_advance_context(session.get(), work.key.inspectContext.c_str(), work.key.inspectText.c_str());
+            encodePayload(result);
+            mark(&QueryTimings::conversion_ms);
+            return result;
+        }
         auto session = base_->session(work.key.simplified);
         // Step 6c: a Query carries the client's own segment context and
         // partial-selection state; a plain key uses the server session's.
@@ -217,16 +231,21 @@ private:
             for (; convertedChoices<choices.size(); ++convertedChoices) {
                 const auto &choice = choices[convertedChoices];
                 auto text = choice.text;
-                size_t consumed = work.input.size();
+                size_t consumed = work.input.size(), tail = 0;
+                bool typo = false, personalWord = false;
                 if (choice.coreIndex) {
-                    const auto tail = mpn_candidate_literal_tail(session.get(), *choice.coreIndex);
+                    tail = mpn_candidate_literal_tail(session.get(), *choice.coreIndex);
                     if (tail > text.size()) throw std::runtime_error("invalid candidate tail");
                     text.resize(text.size() - tail);
                     consumed = mpn_candidate_consumed(session.get(), *choice.coreIndex);
+                    typo = mpn_candidate_typo(session.get(), *choice.coreIndex) != 0;
+                    personalWord = mpn_candidate_personal(session.get(), *choice.coreIndex) != 0;
                 }
                 if (text.empty() || !consumed) continue;
                 const uint8_t flags = static_cast<uint8_t>((choice.japanese ? candidate_flag::Japanese : 0) |
                     (choice.strong ? candidate_flag::Strong : 0) | (choice.directJapanese ? candidate_flag::Direct : 0) |
+                    (typo ? candidate_flag::Typo : 0) | (personalWord ? candidate_flag::Personal : 0) |
+                    (tail ? candidate_flag::LiteralTail : 0) |
                     (rounds[convertedChoices] << candidate_flag::RoundShift));
                 converted.push_back({convertedChoices + 1, static_cast<uint32_t>(consumed), std::move(text), choice.annotation,
                     choice.coreIndex ? static_cast<uint32_t>(*choice.coreIndex + 1) : 0u, flags});

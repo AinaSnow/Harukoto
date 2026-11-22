@@ -3438,6 +3438,31 @@ const char *mpn_candidate_words(MPNSession *session, size_t index) {
     return session->candidateWords.c_str();
 }
 
+const char *mpn_decompose_words(MPNSession *session, const char *reading, const char *text) {
+    if (!session) return "";
+    session->candidateWords.clear();
+    if (!reading || !*reading || !text || !*text) return session->candidateWords.c_str();
+    try {
+        for (const auto &[wordReading, piece] : composition(*session->lexicon, reading, text, session->hans))
+            session->candidateWords += wordReading + '\t' + piece + '\n';
+    } catch (...) { session->candidateWords.clear(); }
+    return session->candidateWords.c_str();
+}
+
+const char *mpn_advance_context(MPNSession *session, const char *context, const char *text) {
+    if (!session) return "";
+    session->candidateWords.clear();
+    if (!text || !*text) return session->candidateWords.c_str();
+    try {
+        const auto traditional = session->lexicon->traditionalize(text, true);
+        if (traditional.empty()) return session->candidateWords.c_str();
+        const std::string_view previous = context ? std::string_view(context) : std::string_view();
+        if (previous.size() > 64) return session->candidateWords.c_str();
+        session->candidateWords = session->lexicon->traditionalize(std::string(previous) + traditional, true);
+    } catch (...) { session->candidateWords.clear(); }
+    return session->candidateWords.c_str();
+}
+
 const char *mpn_candidate_explain(MPNSession *session, size_t index) {
     if (!session) return "";
     session->explanation.clear();

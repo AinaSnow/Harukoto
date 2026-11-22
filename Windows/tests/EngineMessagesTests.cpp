@@ -62,11 +62,10 @@ static void limits() {
     b = encodePayload(page()); b[second] = 11; assert(!decodePayload(b, output));
     b = encodePayload(page()); b[first + 14] = 0xff; assert(!decodePayload(b, output));
     b = encodePayload(page()); b[2] = 255; b[3] = 255; assert(!decodePayload(b, output));
-    // WIN-03 step 6a: core index and flags travel with each candidate.
-    p = page(); p.words[0].core = 7; p.words[0].flags = candidate_flag::Japanese | candidate_flag::Direct | (2 << candidate_flag::RoundShift);
+    // WIN-03 step 6a/7c: core index and flags (including Typo/Personal/LiteralTail) travel with each candidate.
+    p = page(); p.words[0].core = 7; p.words[0].flags = candidate_flag::Japanese | candidate_flag::Direct | candidate_flag::Typo | candidate_flag::Personal | candidate_flag::LiteralTail | (2 << candidate_flag::RoundShift);
     codec(p); assert(candidateRound(p.words[0]) == 2);
     b = encodePayload(p); assert(decodePayload(b, output) && output.words[0].core == 7 && output.words[0].flags == p.words[0].flags);
-    p.words[0].flags = 8; assert(!valid(p));
     p = page(); p.words[0].core = MaxCoreIndex + 1; assert(!valid(p));
     // WIN-03 step 6b: a key with the client's ranking state, and "behind".
     KeyMessage query{KeyAction::Text, 'n', false, true, {0x7ff, false, true, 493000, std::string(64, 'b'), std::string(64, 'c'), std::string(64, 'd')}};
@@ -103,6 +102,35 @@ static void limits() {
         else if (i == 2) bad.input = "日本";
         else if (i == 3) bad.input = std::string(MaxInput + 1, 'a');
         else { bad = KeyMessage{KeyAction::Refresh, 0, true}; bad.input = "ni"; }
+        assert(!valid(bad));
+    }
+    // Step 7c: KeyAction::Inspect and CandidatePage::inspect carry decomposition & nextContext.
+    KeyMessage inspect{KeyAction::Inspect, 0, true, false, {}, "zhongguo", "中国", "你好"};
+    codec(inspect);
+    KeyMessage inspectOut;
+    assert(decodePayload(encodePayload(inspect), inspectOut) && inspectOut.action == KeyAction::Inspect &&
+           inspectOut.input == "zhongguo" && inspectOut.inspectText == "中国" && inspectOut.inspectContext == "你好");
+    for (int i = 0; i < 5; ++i) {
+        auto bad = inspect;
+        if (i == 0) bad.input.clear();
+        else if (i == 1) bad.inspectText.clear();
+        else if (i == 2) bad.extended = true;
+        else if (i == 3) bad.inspectContext = std::string(65, 'a');
+        else { bad = KeyMessage{KeyAction::Refresh, 0, true}; bad.inspectText = "中国"; }
+        assert(!valid(bad));
+    }
+    CandidatePage inspectReply{"zhongguo", false, {}, false, std::string(64, 'a'), true, "zhong1guo2\t中国\n", "你好中國"};
+    codec(inspectReply);
+    CandidatePage inspectReplyOut;
+    assert(decodePayload(encodePayload(inspectReply), inspectReplyOut) && inspectReplyOut.inspect &&
+           inspectReplyOut.decomposed == "zhong1guo2\t中国\n" && inspectReplyOut.nextContext == "你好中國");
+    for (int i = 0; i < 5; ++i) {
+        auto bad = inspectReply;
+        if (i == 0) bad.more = true;
+        else if (i == 1) bad.words.push_back({1, 2, "中", ""});
+        else if (i == 2) bad.decomposed = "missing_tab\n";
+        else if (i == 3) bad.nextContext = std::string(65, 'a');
+        else { bad.inspect = false; } // decomposed/nextContext forbidden when !inspect
         assert(!valid(bad));
     }
     p.words.push_back({1, 2, "你", ""}); assert(!valid(p));
