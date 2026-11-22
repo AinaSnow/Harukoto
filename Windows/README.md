@@ -1,4 +1,4 @@
-# 晴词 · Harukoto 0.4.4-alpha.29 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.30 · Windows x64
 
 开发产物清理：使用 PowerShell 7 运行 `Windows/clean-build.ps1` 预览，添加 `-Apply` 执行。只清理脚本固定匹配的旧产物，保留最新两个 0.4.4-alpha 版本、最新 FF14 包、当前 MSVC／ime／tools 与源数据；未知文件保留。请在构建／打包结束后运行。
 
@@ -40,7 +40,7 @@ alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.29-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.30-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -99,7 +99,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.29
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.30
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。
@@ -197,3 +197,5 @@ alpha.27 汇集中文输入的多项改进：可选模糊音（设置中按对�
 alpha.28 在 alpha.27 基础上：方向键／Tab 越过本页最后一个候选时自动翻页；新增只读的候选来源诊断 Explain.cmd（见[候选来源诊断](../docs/CANDIDATE_EXPLAIN.md)）；FF14 词库升至 0.4.0，修订约 800 个多音字读音（如长靴、马尾），新增技能、副本和 51 条玩家简称（绝欧、零式、日随等）。真实应用与游戏内效果尚待实机确认。
 
 alpha.29 在 alpha.28 基础上增加常用符号：vbd 标点、vsx 数学、vjt 箭头、vxh 序号、vdw 单位／货币、vtx 图形、vxl 希腊字母、vkh 括号、vts 特殊，vfh 列出全部（见[用户指南](../docs/USER_GUIDE.md)）。FF14 词库 0.4.0 需在“晴词主题词库”中导入并启用后生效，安装器不会自动替换已启用的旧版。
+
+alpha.30 在 alpha.29 基础上首次随包附带实验性独立引擎接入（WIN-03 第 1～6d 步与第 7 步前置优化）：默认关闭（HKCU\Software\Meowpuut\Input DWORD `StandaloneEngine` 为 0 或缺失），关闭时打字路径与 alpha.29 完全一致；安装器写入 HKLM 批准元数据、版本目录带 `base-dictionary.json`、Diagnose.cmd 显示独立引擎开关与常驻状态；开启开关后支持常驻按需启动、模糊音／纠错／选词记忆／个人词频／个人词／部分选词／F6／热更新与单次解码加速。实机验证清单见[Windows 验收记录](../docs/WINDOWS_VALIDATION.md)。FF14 词库 0.4.0 仍需在“晴词主题词库”中手动导入并启用。
