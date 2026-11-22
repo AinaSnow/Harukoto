@@ -185,3 +185,14 @@ FF14（或其他游戏，UI-less）
 - 任何与关闭开关时不同的候选或上屏结果（输入的拼音、期望与实际）。
 - Diagnose.cmd 中“常驻引擎”一行与各实例 Engine 行的原文。
 - 明显的延迟、卡顿或候选窗闪烁出现在哪个应用。
+
+### alpha.30 实机摸底观察（2026-11-22，c971673，Setup SHA-256 `94f86706…`）
+
+- 准备与安装：提权安装日志记录 `Engine release approved: 815032885CDD...1E2D09A315A0, sequence 1.`，`HKLM\SOFTWARE\Harukoto\EngineReleases` 写入成功；`Diagnose.cmd` 检查 350 个进程，已加载的 5 个进程（`explorer`、`ffxiv_dx11`、`Notepad`、`steamwebhelper`、`XIVLauncher`）DLL 均与注册版本 `0.4.4-alpha.30` 一致。
+- 开启 `StandaloneEngine=1` 后实机留证（`Diagnose.cmd`）：
+  - **常驻引擎与崩溃恢复**：初始就绪（所有者 `14992`、宿主重启 0 次）；任务管理器结束 `harukoto_engine_host.exe` 后，`owner` 自动拉起新宿主，诊断显示`常驻引擎：就绪，所有者 14992（运行中），接入方 1，宿主重启 1 次，近期按需启动 0 次`。
+  - **记事本（`Notepad / 30172`）**：`CandidateUi：晴词候选窗`，`Engine：独立引擎；引擎提供 52 次，回退 2 次，原因 none，学习记录未追上 0 次`（杀宿主期间自动回退顶上后无缝恢复走独立引擎）。
+  - **FF14 游戏内（`ffxiv_dx11 / 6868`）**：`CandidateUi：应用自绘（UI-less）`，`Engine：独立引擎；引擎提供 19 次，回退 0 次，原因 none，学习记录未追上 0 次`，`UiElements：3 次，应用自绘 3 次，失败 0 次`，`Compositions：3 次，失败 0 次，被应用结束 0 次`。
+  - **主题词库 0.4.0**：`FF14 全量名称与定型文 0.4.0` 已启用（117,507 组触发，`ThemeGeneration：5600477293004e43b0e90eb5cdce5c6e`），引擎与记事本／游戏同步采用。
+- 发现的问题：第一次输入后（引擎就绪进入异步路径），第二次输入起每次按键候选窗都会闪一下——原因是 `refreshCandidates(true)` 发出请求时清空 `choices`，紧接着 `OnKeyDown` 立刻调用 `updatePopup()` 发送了 0 候选的空帧，1～2 ms 后回复到达才重新撑开。已修复为 `engineClient.pending()` 时 `updatePopup()` 保持上一帧、等 `onEngineReply()` 到达后整帧替换（待打包实机确认）。
+- 尚未实机：修复后的防闪烁复验、基础词库快照发布热更新、关闭开关回退验证、多应用并发同时活跃输入压测。

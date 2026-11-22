@@ -1924,6 +1924,10 @@ private:
             if (popup) ShowWindow(popup, SW_HIDE);
             return;
         }
+        // Keep the previous popup / host UI element steady while an async
+        // engine reply is in flight instead of flashing an empty candidate
+        // list on every keystroke; onEngineReply() refreshes once it arrives.
+        if (engineClient.pending()) return;
         // WIN-08: the host may draw the candidates itself.
         if (!presentCandidates()) {
             hideOwnWindow();

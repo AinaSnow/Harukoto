@@ -153,6 +153,11 @@ struct EngineTsfTest {
         type(*a, "nih", false);
         mpn_clear(b->session);
         assert(mpn_key(b->session, 'n')); b->refreshCandidates(true); assert(b->engineClient.pending() && b->choices.empty());
+        // While an engine reply is in flight, updatePopup() keeps the previous
+        // visual frame instead of flashing an empty candidate list.
+        b->popupIndices = {0, 1, 2};
+        b->updatePopup();
+        assert(b->popupIndices == (std::vector<size_t>{0, 1, 2}) && !b->popup);
         serve(*b); assert(!b->engineClient.pending() && !b->choices.empty());
         assert(mpn_key(b->session, 'i')); b->refreshCandidates(true);
         b->engineClient.link()->pump();               // reply for "ni" is waiting

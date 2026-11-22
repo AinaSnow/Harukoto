@@ -1,5 +1,15 @@
 # 开发状态与接手入口
 
+## 2026-11-22 · alpha.30 独立引擎实机首测与异步候选防闪烁修复
+
+- 实机首测（alpha.30，提交 `c971673`）：真实提权安装成功写入 `HKLM\SOFTWARE\Harukoto\EngineReleases`（`sequence 1`）；开启 `StandaloneEngine=1` 后：
+  - 记事本（`Notepad`）：引擎提供 52 次、回退 2 次（含杀宿主恢复）、原因 `none`、学习记录未追上 0 次；
+  - FF14（`ffxiv_dx11`）：`CandidateUi：应用自绘（UI-less）`、`UiElements：3 次（应用自绘 3 次、失败 0 次）`、`Compositions：3 次（失败 0 次）`、`Engine：独立引擎（19 次、回退 0 次）`；
+  - 崩溃恢复与主题 0.4.0：结束 `harukoto_engine_host.exe` 后所有者自动拉起新宿主（`宿主重启 1 次`）且记事本无缝恢复；FF14 0.4.0（117,507 组）已启用并同步采用。
+  - 另观察到单机同时有 5 个进程共 7 个 TSF 实例加载了 DLL（其中 `explorer` 3 个、`steamwebhelper`/`XIVLauncher` 各 1 个均未打字不占槽，但当前过渡期各持一份词库），进一步印证第 7 步去除接入层启动期基础词库加载的收益。
+- 发现问题与修复：维护者反馈引擎就绪后（第二次输入起）每次按键候选窗会闪一下。原因是 `refreshCandidates(true)` 在异步请求发出后立即 `choices.clear()`，`OnKeyDown` 随后的 `updatePopup()` 向候选窗／UI 元素发送了 0 候选的空帧，1～2 ms 后 `onEngineReply()` 到达再重新撑开。已改在 `TextService.cpp` `updatePopup()` 中当 `engineClient.pending()` 为真时保持上一帧（退格到空、选词补算及回复到达照常立即刷新）；`EngineTsfTests.cpp` `behaviour` 补 pending 时不刷新空候选断言。
+- 验证：重新编译 `MeowpuutTip.dll` 并复制到 `.build/windows/ime/`，`tsf_focus_cancel`、`tsf_focus_engine_on`、`service_dictionary_reload` 与 `engine_tsf` `unit` 阶段全部通过。未提交、未打包，修复后不再闪烁待下一版实机确认；多应用、FF14、热更新与崩溃恢复实机仍待执行。
+
 ## 2026-11-22 · alpha.30 试用包
 
 - 版本号升至 0.4.4-alpha.30（c971673），内容为 alpha.29 加阶段二独立引擎 WIN-03 第 1～6d 步（9320496 至 3033f7d）与第 7 步前置优化（26fd1e8）；实验性独立引擎开关 `StandaloneEngine` 默认关闭，关闭时打字路径与 alpha.29 完全一致。从干净提交 c971673 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；26fd1e8 上普通权限 PowerShell 全量 68 项 CTest 一次全部通过（762.83 秒），c971673 升版本号后受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（7.66 秒），`test-setup.ps1` 安装器解包、内置 PS7 预检与界面渲染通过。
