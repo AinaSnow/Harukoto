@@ -1,4 +1,4 @@
-# 晴词 · Harukoto 0.4.4-alpha.31 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.32 · Windows x64
 
 开发产物清理：使用 PowerShell 7 运行 `Windows/clean-build.ps1` 预览，添加 `-Apply` 执行。只清理脚本固定匹配的旧产物，保留最新两个 0.4.4-alpha 版本、最新 FF14 包、当前 MSVC／ime／tools 与源数据；未知文件保留。请在构建／打包结束后运行。
 
@@ -40,7 +40,7 @@ alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.31-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.32-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -99,7 +99,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.31
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.32
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。
@@ -201,3 +201,5 @@ alpha.29 在 alpha.28 基础上增加常用符号：vbd 标点、vsx 数学、vj
 alpha.30 在 alpha.29 基础上首次随包附带实验性独立引擎接入（WIN-03 第 1～6d 步与第 7 步前置优化）：默认关闭（HKCU\Software\Meowpuut\Input DWORD `StandaloneEngine` 为 0 或缺失），关闭时打字路径与 alpha.29 完全一致；安装器写入 HKLM 批准元数据、版本目录带 `base-dictionary.json`、Diagnose.cmd 显示独立引擎开关与常驻状态；开启开关后支持常驻按需启动、模糊音／纠错／选词记忆／个人词频／个人词／部分选词／F6／热更新与单次解码加速。实机验证清单见[Windows 验收记录](../docs/WINDOWS_VALIDATION.md)。FF14 词库 0.4.0 仍需在“晴词主题词库”中手动导入并启用。
 
 alpha.31 在 alpha.30 基础上修复开启独立引擎实验开关后每次按键候选窗先闪空帧的问题：请求在途期间（约 1～2 ms）候选窗与游戏 UI 元素保持上一帧，回复到达后再整帧刷新；退格清空与选词补算照常立即响应。默认开关仍保持关闭。
+
+alpha.32 在 alpha.31 基础上完成独立引擎第 7 步（WIN-03 7a～7d）：按发行序号隔离常驻 scope 并支持空组字边界无缝换代与旧所有者自动退场；失焦 15 秒／静置 180 秒空边界主动礼让释放连接槽，所有者与宿主均支持 8 槽满时按 LRU 回收空闲槽且被回收方零惩罚静默重连；协议升至 v2，引擎接管翻页扩展、选词／学习拆词与分段语境元数据；开启 `StandaloneEngine` 且满足条件的应用改为瘦客户端启动（以 35 字节占位词库替代启动期 ~185 MiB 本地词库加载，仅回退时懒加载兜底，Diagnose 标注“瘦客户端”）。注意：因协议由 v1 升至 v2，从 alpha.30／alpha.31 覆盖升级后，已打开的应用将提示“输入法已更新，请重开应用”，重开后即可切入新版瘦客户端；默认开关仍保持关闭。
