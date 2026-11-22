@@ -1,5 +1,11 @@
 # 开发状态与接手入口
 
+## 2026-11-22 · alpha.31 试用包
+
+- 版本号升至 0.4.4-alpha.31（5ade5f8），内容为 alpha.30 加独立引擎异步候选防闪烁修复（1cd4877）与 alpha.30 实机留证；实验性独立引擎开关 `StandaloneEngine` 仍默认关闭。从干净提交 5ade5f8 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（8.77 秒），`test-setup.ps1` 解包、内置 PS7 预检与界面渲染通过。
+- 生成 Harukoto-0.4.4-alpha.31-windows-x64.zip（68.3 MiB，SHA-256 e6c8889737fadcb87f8ca5bd673cd922dd7d00abcc9775e82ada901414508d97）和 Harukoto-0.4.4-alpha.31-Setup.exe（172.9 MiB，SHA-256 b654174c20fdad54492a3cb209b110357c02903dc0992454ebcbf77b254f1ee1）。BUILD-INFO.md 记录源提交 5ade5f893ad402d0e3eb80696969e2461281df6a、不含未提交修改；包内 `MeowpuutTip.dll` 及引擎与诊断程序与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.31`；payload 内 `base-dictionary.json`（generation a4c80a85…）原生快照校验通过；FF14 词库清单为 0.4.0。
+- 防闪烁修复待安装后实机复验。此条为打包后记录。
+
 ## 2026-11-22 · alpha.30 独立引擎实机首测与异步候选防闪烁修复
 
 - 实机首测（alpha.30，提交 `c971673`）：真实提权安装成功写入 `HKLM\SOFTWARE\Harukoto\EngineReleases`（`sequence 1`）；开启 `StandaloneEngine=1` 后：
