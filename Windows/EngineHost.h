@@ -16,6 +16,10 @@ public:
     struct Options {
         size_t threads = 2, capacity = 32, replies = 8;
         uint64_t listenMs = 30000, readMs = 30000, writeMs = 10000, queryMs = 10000, terminalMs = 1000;
+        // WIN-03 step 7b: when non-zero and all connection slots are occupied,
+        // Allocate evicts the oldest idle connected endpoint with no in-flight
+        // work that has been quiet for at least idleEvictMs.
+        uint64_t idleEvictMs = 0;
         size_t connections = MaxConnections;
         std::string identity; // Data identity in Open replies (empty: none).
     };
@@ -25,7 +29,7 @@ private:
         std::unique_ptr<pipe::Channel> channel;
         ServerConnection server;
         std::deque<Frame> replies;
-        uint64_t listenDeadline = 0, readDeadline = 0, writeDeadline = 0, terminalDeadline = 0;
+        uint64_t listenDeadline = 0, readDeadline = 0, writeDeadline = 0, terminalDeadline = 0, lastActivity = 0;
         bool reading = false, writing = false, ending = false, closed = false;
         size_t index;
         Endpoint(uint64_t generation, std::shared_ptr<const WindowsDictionary> dictionary, size_t number, const std::string &identity)
@@ -63,6 +67,7 @@ private:
             throw std::invalid_argument("invalid engine host limits");
         for (auto duration : {options.listenMs,options.readMs,options.writeMs,options.queryMs,options.terminalMs})
             if (!duration || duration > 300000) throw std::invalid_argument("invalid engine host deadline");
+        if (options.idleEvictMs > 300000) throw std::invalid_argument("invalid engine host idle eviction");
         for (size_t i = 0; i < names.size(); ++i)
             if (!pipe::validName(names[i]) || std::find(names.begin(),names.begin() + i,names[i]) != names.begin() + i)
                 throw std::invalid_argument("invalid engine host endpoint");
@@ -72,6 +77,7 @@ private:
         if (nextEndpoint_ == std::numeric_limits<size_t>::max()) throw std::overflow_error("engine endpoint identity exhausted");
         auto endpoint = std::make_unique<Endpoint>(generation_,dictionary_,nextEndpoint_,options_.identity);
         endpoint->listenDeadline = time + options_.listenMs;
+        endpoint->lastActivity = time;
         endpoint->listener = std::make_unique<pipe::Listener>(name,time,endpoint->listenDeadline);
         endpoints_.push_back(std::move(endpoint)); ++nextEndpoint_;
     }
@@ -81,12 +87,30 @@ private:
             return std::none_of(jobs_.begin(),jobs_.end(),[&](const auto &job) { return job.owner == endpoint.get(); });
         }),endpoints_.end());
     }
+    // Step 7b: evict the least-recently-used idle endpoint when all slots are full.
+    bool reclaimIdle(uint64_t time) {
+        if (!options_.idleEvictMs || endpoints_.size() < options_.connections) return false;
+        Endpoint *victim = nullptr;
+        for (const auto &ep : endpoints_) {
+            if (ep->closed || ep->listener || ep->ending || ep->writing || !ep->replies.empty() || ep->server.busy()) continue;
+            if (std::any_of(jobs_.begin(),jobs_.end(),[&](const auto &job) { return job.owner == ep.get(); })) continue;
+            if (time < ep->lastActivity || time - ep->lastActivity < options_.idleEvictMs) continue;
+            if (!victim || ep->lastActivity < victim->lastActivity) victim = ep.get();
+        }
+        if (!victim) return false;
+        close(*victim);
+        if (victim->channel) victim->channel->drain(true);
+        reap();
+        return endpoints_.size() < options_.connections;
+    }
     void controlStep(uint64_t time) {
         if (!control_) return;
         const auto request = control_->take(); if (!request) return;
         control::Response response; response.request = *request; response.generation = generation_;
         response.limit = static_cast<uint32_t>(options_.connections);
         if (request->operation == control::Operation::Allocate) {
+            reap();
+            if (endpoints_.size() >= options_.connections) reclaimIdle(time);
             if (endpoints_.size() >= options_.connections) response.code = control::Code::Full;
             else {
                 try { response.name = pipe::newName(); listen(response.name,time); }
@@ -149,7 +173,7 @@ private:
         if (endpoint.listener) {
             endpoint.listener->poll(time);
             if (auto channel = endpoint.listener->take()) {
-                endpoint.channel = std::move(channel); endpoint.listener.reset(); progress = true;
+                endpoint.channel = std::move(channel); endpoint.listener.reset(); endpoint.lastActivity = time; progress = true;
             } else if (endpoint.listener->closed()) { close(endpoint); return true; }
             else return false;
         }
@@ -160,7 +184,7 @@ private:
         if (channel.closed()) { close(endpoint); return true; }
         if (endpoint.writing && channel.writeDone()) { endpoint.writing = false; progress = true; }
         if (auto frame = channel.take()) {
-            endpoint.reading = false; progress = true;
+            endpoint.reading = false; endpoint.lastActivity = time; progress = true;
             if (!endpoint.ending) {
                 const auto received = endpoint.server.receive(*frame,time,time + options_.queryMs);
                 if ((frame->kind == Kind::Cancel || frame->kind == Kind::Close) &&
@@ -239,9 +263,11 @@ public:
                     const auto job = *found; jobs_.erase(found); progress = true;
                     if (!job.cancelled && !job.owner->closed && !job.owner->ending) {
                         try {
-                            auto received = completion->deliver(job.owner->server,pipe::now());
+                            const auto doneTime = pipe::now();
+                            job.owner->lastActivity = doneTime;
+                            auto received = completion->deliver(job.owner->server,doneTime);
                             const bool replied = received.status == ServerConnection::Status::Reply;
-                            result(*job.owner,std::move(received),pipe::now(),true);
+                            result(*job.owner,std::move(received),doneTime,true);
                             if (observer_ && completion->timings && replied && !job.owner->closed) {
                                 const EngineTrace trace{job.owner->index,job.work->request.id,*completion->timings,Executor::traceNow()};
                                 // Like Wake, the optional observer must not block,

@@ -88,6 +88,11 @@ public:
     }
     size_t sessionCount() const { return sessions_.size(); }
     size_t cachedReplies() const { return replies_.size(); }
+    // WIN-03 step 7b: true when any session has an in-flight request.
+    bool busy() const {
+        for (const auto &entry : sessions_) if (entry.second.pending) return true;
+        return false;
+    }
     void disconnect() { closed_ = true; sessions_.clear(); replies_.clear(); outstanding_.clear(); }
     bool expire(uint64_t now) {
         for (const auto &entry : sessions_) {

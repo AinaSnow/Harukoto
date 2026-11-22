@@ -18,7 +18,10 @@ inline Link::Connect residentConnect(engine::release::Source source = {}, engine
         auto options = base;
         options.budgetMs = deadline - time;
         options.startWaitMs = std::min<uint64_t>(options.startWaitMs, options.budgetMs);
-        auto outcome = resident::ensure(engine::release::read(source), options);
+        const auto snapshot = engine::release::read(source);
+        const auto eval = engine::release::evaluate(snapshot, options.handoff.discovery.protocol);
+        if (eval.kind != engine::release::Compatibility::Match) throw std::runtime_error("engine release incompatible");
+        auto outcome = resident::ensure(snapshot, options);
         auto &admitted = outcome.attach.outcome;
         if (admitted.result != engine::handoff::Result::Admitted || !admitted.session) throw std::runtime_error("engine not admitted");
         std::shared_ptr<engine::handoff::Session> session(std::move(admitted.session));
@@ -34,7 +37,7 @@ inline Link::Connect residentConnect(engine::release::Source source = {}, engine
         auto result = registration.take(pipe::now());
         if (!result || !result->endpoint) throw std::runtime_error("engine allocation failed");
         // The slot stays ours while the transport lives; destroying it hands it back.
-        return std::make_unique<PipeTransport>(result->endpoint->connect(), session);
+        return std::make_unique<PipeTransport>(result->endpoint->connect(), session, outcome.sequence, session->revokeEvent());
     };
 }
 

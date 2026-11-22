@@ -50,6 +50,7 @@ public:
     EngineRegistration &registration() { return *registration_; }
     const discovery::Engine &engine() const { return engine_; }
     uint64_t id() const { return registration_->id(); }
+    HANDLE revokeEvent() const { return release_.get(); }
     void release() { if (release_) { SetEvent(release_.get()); release_.reset(); } }
 };
 struct Outcome {

@@ -23,8 +23,16 @@ public:
         uint64_t idleMs = 0;
         HANDLE resume = nullptr;
         std::function<void(size_t clients, DWORD host)> observe;
+        // Step 7a: returns true once a newer release supersedes this owner.
+        // The owner closes its discovery pipe and exits cleanly once its last
+        // existing client disconnects.
+        std::function<bool()> superseded;
+        uint64_t supersededCheckMs = 2000;
+        // Step 7b: when non-zero and all 8 client slots are occupied on a new
+        // Admit, evict the least-recently-used active slot idle >= this duration.
+        uint64_t slotIdleEvictMs = 0;
     };
-    enum class Exit { None, Stopped, Idle, HostExited, ControlFailed };
+    enum class Exit { None, Stopped, Idle, HostExited, ControlFailed, Superseded };
 private:
     EngineProcess engine_;
     control::Server *upstream_; // Null: resident, no launcher port.
@@ -85,8 +93,8 @@ public:
     // Explicit stop must observe host exit before this loop can report success.
     bool run(HANDLE stop, HANDLE ready) {
         if (!stop || !ready || stop == ready) throw std::invalid_argument("invalid engine owner events");
-        bool stopping = false, failed = false, announced = false, idle = false;
-        uint64_t lastBusy = 0; size_t observedClients = SIZE_MAX;
+        bool stopping = false, failed = false, announced = false, idle = false, draining = false, supersededExit = false;
+        uint64_t lastBusy = 0, lastSupersededCheck = 0; size_t observedClients = SIZE_MAX;
         struct Pending { size_t port; uint64_t registration; control::Request request; };
         std::optional<Pending> pending;
         std::vector<control::Server *> ports{upstream_};
@@ -94,12 +102,13 @@ public:
         std::vector<bool> active; for (auto *port : ports) active.push_back(port != nullptr);
         // Handoff slots between Grant and Commit: hold a position, never scheduled.
         std::vector<bool> reserved(ports.size(),false);
+        std::vector<uint64_t> lastActivity(ports.size(),0);
         size_t next = 0;
         auto release = [&](size_t index) {
             if (!active[index] && !reserved[index]) return;
             auto &client = clients_[index-1];
             pipe::check(SetEvent(client.revoked.get()));
-            active[index] = false; reserved[index] = false; ports[index] = nullptr; client.port.reset(); client.process.reset();
+            active[index] = false; reserved[index] = false; lastActivity[index] = 0; ports[index] = nullptr; client.port.reset(); client.process.reset();
             // Pending keeps only an index and copied request. Host completion
             // will be drained and discarded, never written through this port.
         };
@@ -127,6 +136,16 @@ public:
             observeRevocations();
             size_t index = 0;
             for (size_t i=1;i<ports.size();++i) if (!active[i] && !reserved[i]) { index = i; break; }
+            if (!index && lifecycle_.slotIdleEvictMs) {
+                const auto now = pipe::now();
+                size_t victim = 0;
+                for (size_t i=1;i<ports.size();++i) {
+                    if (!active[i] || reserved[i] || (pending && pending->port == i)) continue;
+                    if (now < lastActivity[i] || now - lastActivity[i] < lifecycle_.slotIdleEvictMs) continue;
+                    if (!victim || lastActivity[i] < lastActivity[victim]) victim = i;
+                }
+                if (victim) { release(victim); index = victim; }
+            }
             if (!index) { offer.code = discovery::Grant::Full; return offer; }
             if (handoffNext_ >= HandoffIds-1) { offer.code = discovery::Grant::Full; return offer; } // Never wrap.
             HANDLE raw = nullptr;
@@ -145,7 +164,7 @@ public:
             if (!index || !reserved[index]) return false;
             if (!stopping) observeRevocations(); // Released or exited meanwhile.
             if (stopping || !reserved[index]) { release(index); return false; }
-            reserved[index] = false; active[index] = true; ports[index] = clients_[index-1].port.get();
+            reserved[index] = false; active[index] = true; lastActivity[index] = pipe::now(); ports[index] = clients_[index-1].port.get();
             return true;
         };
         admitter.discard = [&](uint64_t id) { if (const auto index = handoffIndex(id)) release(index); };
@@ -173,7 +192,7 @@ public:
             const auto state = engine_.poll(pipe::now());
             if (state == EngineProcess::State::Exited) {
                 const auto status = engine_.status();
-                exit_ = !stopping ? Exit::HostExited : failed ? Exit::ControlFailed : idle ? Exit::Idle : Exit::Stopped;
+                exit_ = !stopping ? Exit::HostExited : failed ? Exit::ControlFailed : supersededExit ? Exit::Superseded : idle ? Exit::Idle : Exit::Stopped;
                 if (lifecycle_.observe && observedClients) lifecycle_.observe(0,0);
                 return stopping && !failed && status.failure == EngineProcess::Failure::None && status.exitCode == DWORD(0);
             }
@@ -201,14 +220,27 @@ public:
                 }
                 size_t clients = 0;
                 for (size_t i=1;i<ports.size();++i) clients += active[i] || reserved[i];
+                const bool clientsChanged = clients != observedClients;
                 // The last client leaving starts the idle clock afresh.
-                if (clients || pending || clients != observedClients) lastBusy = pipe::now();
-                if (clients != observedClients) {
+                if (clients || pending || clientsChanged) lastBusy = pipe::now();
+                if (clientsChanged) {
                     observedClients = clients;
                     if (lifecycle_.observe) lifecycle_.observe(clients,GetProcessId(engine_.engineHandle()));
                 }
                 if (lifecycle_.idleMs && !clients && !pending && pipe::now()-lastBusy >= lifecycle_.idleMs) {
                     idle = true; stopHost(); continue; // Re-poll: stopping now waits for the host to exit.
+                }
+                if (lifecycle_.superseded) {
+                    const auto now = pipe::now();
+                    if (!draining && (!lastSupersededCheck || clientsChanged || now - lastSupersededCheck >= lifecycle_.supersededCheckMs)) {
+                        lastSupersededCheck = now;
+                        try {
+                            if (lifecycle_.superseded()) { draining = true; discoverable.reset(); }
+                        } catch (...) {}
+                    }
+                    if (draining && !clients && !pending) {
+                        supersededExit = true; stopHost(); continue;
+                    }
                 }
                 if (discoverable) {
                     try { discoverable->poll(pipe::now()); }
@@ -260,6 +292,7 @@ public:
                             release(index); continue; // Retire only this malformed client.
                         }
                         if (!request) continue;
+                        if (index) lastActivity[index] = pipe::now();
                         pending = Pending{index,index ? clients_[index-1].id : 0,*request}; next = (index+1)%ports.size();
                         if (!engine_.requestControl(request->operation,pipe::now())) { failed = true; stopHost(); }
                         break;
@@ -280,6 +313,10 @@ public:
             auto deadline = engine_.deadline();
             if (announced && !stopping && lifecycle_.idleMs) {
                 const auto own = lastBusy+lifecycle_.idleMs;
+                if (!deadline || own < deadline) deadline = own;
+            }
+            if (announced && !stopping && !draining && lifecycle_.superseded && lifecycle_.supersededCheckMs) {
+                const auto own = (lastSupersededCheck ? lastSupersededCheck : pipe::now()) + lifecycle_.supersededCheckMs;
                 if (!deadline || own < deadline) deadline = own;
             }
             if (discoverable && !stopping) {

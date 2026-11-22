@@ -22,11 +22,12 @@ static int residentMain(int argc, wchar_t **argv) {
     const std::wstring why = argv[2];
     const auto reason = why == L"logon" ? rs::Reason::Logon : why == L"demand" ? rs::Reason::Demand : throw std::invalid_argument("invalid resident reason");
     std::wstring scope = rs::DefaultScope;
+    bool scopeExplicit = false, versionedScope = false;
     release::Source source;
     rs::Store store;
     rs::Policy policy;
     std::filesystem::path base, themes, personal, memory, baseStore;
-    std::optional<uint64_t> idleMs;
+    std::optional<uint64_t> idleMs, slotIdleMs;
     std::optional<size_t> threads;
     for (int i=3;i<argc;i+=2) {
         if (i+1 >= argc) throw std::invalid_argument("missing resident option");
@@ -40,10 +41,12 @@ static int residentMain(int argc, wchar_t **argv) {
         else if (key == L"--personal") path(personal);
         else if (key == L"--memory") path(memory);
         else if (key == L"--base-store") path(baseStore);
-        else if (Testing && key == L"--scope" && EngineInstance::validScope(value)) scope = value;
+        else if (Testing && key == L"--scope" && EngineInstance::validScope(value)) { scope = value; scopeExplicit = true; }
+        else if (Testing && key == L"--versioned-scope" && value == L"1") versionedScope = true;
         else if (Testing && key == L"--release-subkey") { source.root = HKEY_CURRENT_USER; source.subkey = value; source.requireProtected = false; }
         else if (Testing && key == L"--store-subkey") store = rs::Store::under(value);
         else if (Testing && key == L"--idle-ms" && !value.empty() && value.size() < 10 && value.find_first_not_of(L"0123456789") == std::wstring::npos) idleMs = std::stoull(value);
+        else if (Testing && key == L"--slot-idle-ms" && !value.empty() && value.size() < 10 && value.find_first_not_of(L"0123456789") == std::wstring::npos && std::stoull(value) <= 300000) slotIdleMs = std::stoull(value);
         else if (Testing && key == L"--threads" && value.size() <= 2 && !value.empty() && value.find_first_not_of(L"0123456789") == std::wstring::npos &&
                 std::stoul(value) >= 1 && std::stoul(value) <= 16) threads = std::stoul(value);
         else throw std::invalid_argument("invalid resident option");
@@ -52,6 +55,11 @@ static int residentMain(int argc, wchar_t **argv) {
     // Only the approved release may serve, whoever started this process.
     const auto approved = release::select(release::read(source),ProtocolVersion);
     if (!approved) return static_cast<int>(rs::ExitNotApproved);
+    // Step 7a: isolate each release's lease and discovery pipe by install
+    // sequence so a newly installed engine can start while the older one
+    // drains remaining clients at composition boundaries.
+    if (!scopeExplicit || versionedScope) scope = rs::releaseScope(approved->sequence,scope);
+    const uint64_t mySequence = approved->sequence;
     std::unique_ptr<EngineDeployment> self;
     try { self = std::make_unique<EngineDeployment>(approved->owner,approved->ownerSha256); self->verify(GetCurrentProcess()); }
     catch (const pipe::Error &) { return static_cast<int>(rs::ExitNotApproved); }
@@ -69,6 +77,7 @@ static int residentMain(int argc, wchar_t **argv) {
     const auto pid = GetCurrentProcessId();
     if (ledger) ledger->started(pid,rs::created(GetCurrentProcess()),reason,GetTickCount64());
     const uint64_t idle = idleMs ? *idleMs : uint64_t(rs::idleMinutes(store))*60000;
+    const uint64_t slotIdle = slotIdleMs ? *slotIdleMs : rs::SlotIdleEvictMs;
     std::deque<uint64_t> restarts;
     DWORD restartCount = 0;
     rs::Exit result = rs::Exit::Failed;
@@ -80,9 +89,20 @@ static int residentMain(int argc, wchar_t **argv) {
             config.dynamicEndpoints = true; config.connections = 8; config.hostSha256 = approved->hostSha256; config.memory = memory; config.baseStore = baseStore;
             config.ownerLease = instance->handle(); config.stopMs = 3000;
             config.threads = threads ? *threads : rs::HostThreads;
+            config.hostReadMs = rs::HostReadMs;
+            config.hostIdleEvictMs = slotIdle;
             EngineOwnerAnchor anchor;
             pipe::Handle ready(CreateEventW(nullptr,TRUE,FALSE,nullptr)); pipe::check(bool(ready));
-            EngineOwner::Lifecycle lifecycle{idle,watch.resume(),[&](size_t clients, DWORD host) { if (ledger) ledger->clients(clients,host); }};
+            EngineOwner::Lifecycle lifecycle{idle,watch.resume(),
+                [&](size_t clients, DWORD host) { if (ledger) ledger->clients(clients,host); },
+                [&source, mySequence, myId = approved->id]() -> bool {
+                    const auto snap = release::read(source);
+                    if (snap.status != release::Status::Ready) return true;
+                    const auto eval = release::evaluate(snap, ProtocolVersion);
+                    return eval.kind != release::Compatibility::Match || !eval.selected || eval.selected->sequence != mySequence || eval.selected->id != myId;
+                },
+                Testing ? 500 : 2000,
+                slotIdle};
             EngineOwner owner(std::move(config),nullptr,anchor,{},nullptr,scope,std::move(lifecycle));
             owner.run(watch.stop(),ready.get());
             how = owner.exitReason();
@@ -91,6 +111,7 @@ static int residentMain(int argc, wchar_t **argv) {
         }
         if (how == EngineOwner::Exit::Stopped) { result = watch.reason(); break; }
         if (how == EngineOwner::Exit::Idle) { result = rs::Exit::Idle; break; }
+        if (how == EngineOwner::Exit::Superseded) { result = rs::Exit::Superseded; break; }
         if (WaitForSingleObject(watch.stop(),0) == WAIT_OBJECT_0) { result = watch.reason(); break; }
         // Host crashed, failed to start or its control failed. Clients see
         // Closed and fall back; they re-admit to the next host. Nothing is replayed.

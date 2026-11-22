@@ -80,17 +80,23 @@ struct Env {
     }
     rs::Status status() const { return rs::inspect(store,scope); }
 };
-static void writeRelease(const std::wstring &subkey, const std::wstring &id, const Env &env, const std::string &ownerSha, const std::string &hostSha) {
+static std::string sha(const std::filesystem::path &path) { return base_dictionary::StableFile(path).read(true); }
+static void writeReleaseAt(const std::wstring &subkey, const std::wstring &id, uint64_t sequence,
+        const std::filesystem::path &ownerPath, const std::filesystem::path &hostPath,
+        const std::string &ownerSha, const std::string &hostSha, uint16_t protocol=ProtocolVersion) {
     std::wstring value;
-    for (const auto &line : {std::wstring(L"format=harukoto-engine-release/1"),L"id="+id,std::wstring(L"sequence=1"),
-            L"protocol="+std::to_wstring(ProtocolVersion),L"host="+env.host.wstring(),L"host-sha256="+wide(hostSha),
-            L"owner="+env.owner.wstring(),L"owner-sha256="+wide(ownerSha)})
+    for (const auto &line : {std::wstring(L"format=harukoto-engine-release/1"),L"id="+id,L"sequence="+std::to_wstring(sequence),
+            L"protocol="+std::to_wstring(protocol),L"host="+hostPath.wstring(),L"host-sha256="+wide(hostSha),
+            L"owner="+ownerPath.wstring(),L"owner-sha256="+wide(ownerSha)})
         value+=line+L'\0';
     value+=L'\0';
     HKEY key=nullptr;
     assert(RegCreateKeyExW(HKEY_CURRENT_USER,subkey.c_str(),0,nullptr,0,KEY_SET_VALUE,nullptr,&key,nullptr)==ERROR_SUCCESS);
     assert(RegSetValueExW(key,id.c_str(),0,REG_MULTI_SZ,reinterpret_cast<const BYTE *>(value.data()),static_cast<DWORD>(value.size()*sizeof(wchar_t)))==ERROR_SUCCESS);
     RegCloseKey(key);
+}
+static void writeRelease(const std::wstring &subkey, const std::wstring &id, const Env &env, const std::string &ownerSha, const std::string &hostSha) {
+    writeReleaseAt(subkey,id,1,env.owner,env.host,ownerSha,hostSha);
 }
 // Owners are started outside this process tree on purpose, so nothing reaps
 // them for us: the destructor and a failed assertion (abort) both do.
@@ -302,6 +308,7 @@ static void units(const Env &env) {
     }
     const auto name=rs::sessionName(env.scope);
     assert(name.size()==24+1+env.scope.size() && name.substr(25)==env.scope);
+    assert(rs::releaseScope(1)==L"harukoto-s1" && rs::releaseScope(42,L"rt")==L"rt-s42");
     {
         rs::Ledger ledger(env.store,env.scope);
         // Volatile: a persistent child cannot be created under it.
@@ -542,9 +549,112 @@ static void real(Env &e) {
         ep::check(PostMessageW(waitWindow(owner),WM_CLOSE,0,0));
         assert(exitCode(ownerProcess.get(),15000)==rs::ExitClean);
     }
+    std::cout << "[cutover] step 7a: versioned scopes coexist, old owner drains while serving and exits Superseded when last client leaves\n";
+    {
+        const auto cutoverKey=e.testKey+L"\\CutoverReleases";
+        const auto id1=e.version.filename().wstring();
+        const auto id2=id1+L"-v2";
+        const auto v2Dir=e.root/id2; std::filesystem::create_directories(v2Dir);
+        const auto owner2Path=v2Dir/L"harukoto_engine_owner.exe", host2Path=v2Dir/L"harukoto_engine_host.exe";
+        std::filesystem::copy_file(e.owner,owner2Path); std::filesystem::copy_file(e.host,host2Path);
+        const auto oSha=sha(e.owner), hSha=sha(e.host);
+        writeReleaseAt(cutoverKey,id1,1,e.owner,e.host,oSha,hSha);
+        const auto scope1=rs::releaseScope(1,e.scope), scope2=rs::releaseScope(2,e.scope);
+        auto makeOptions=[&] {
+            auto opts=e.ensure(rs::Policy{},{L"--versioned-scope",L"1"},cutoverKey);
+            opts.versionedScope=true;
+            return opts;
+        };
+        auto snap=[&] { return release::read({HKEY_CURRENT_USER,cutoverKey,false}); };
+        auto a1=rs::ensure(snap(),makeOptions());
+        assert(a1.launch==rs::Launch::Started && a1.sequence==1 && a1.attach.outcome.result==Result::Admitted && a1.attach.outcome.session);
+        const DWORD owner1=ownerOf(a1); tracked.push_back(owner1);
+        auto owner1Proc=open(owner1);
+        DWORD host1=0;
+        assert(waitFor([&] { const auto s=rs::inspect(e.store,scope1); host1=s.hostPid; return s.ownerPid==owner1 && s.state==rs::State::Ready && host1; },30000));
+        tracked.push_back(host1);
+        auto &reg1=a1.attach.outcome.session->registration();
+        assert(reg1.request(control::Operation::Allocate,ep::now(),Timeout));
+        while (reg1.poll(ep::now())==control::State::Pending) wait(reg1.waitHandles(),ep::now()+Timeout);
+        auto ep1=reg1.take(ep::now()); assert(ep1 && ep1->endpoint);
+        auto client1=std::make_unique<Client>(ep1->endpoint->connect());
+        client1->type("nihao"); find(client1->current,"你好");
+        // Publish v2 (sequence=2): owner1 must close discovery (draining) while keeping client1 alive.
+        writeReleaseAt(cutoverKey,id2,2,owner2Path,host2Path,oSha,hSha);
+        hf::Options s1Opts; s1Opts.discovery.scope=scope1;
+        assert(waitFor([&] { return hf::admit(snap(),s1Opts).result==Result::NotRunning; },10000));
+        assert(alive(owner1));
+        client1->cancel(); client1->type("zhongguo"); find(client1->current,"中国");
+        // Start v2 concurrently on its own versioned scope: both owners coexist cleanly.
+        auto a2=rs::ensure(snap(),makeOptions());
+        assert(a2.launch==rs::Launch::Started && a2.sequence==2 && a2.attach.outcome.result==Result::Admitted && a2.attach.outcome.session);
+        const DWORD owner2=ownerOf(a2); assert(owner2!=owner1); tracked.push_back(owner2);
+        auto owner2Proc=open(owner2);
+        DWORD host2=0;
+        assert(waitFor([&] { const auto s=rs::inspect(e.store,scope2); host2=s.hostPid; return s.ownerPid==owner2 && s.state==rs::State::Ready && host2; },30000));
+        tracked.push_back(host2);
+        assert(inspect(*a2.attach.outcome.session) && alive(owner1) && alive(owner2));
+        // Once client1 disconnects (TSF cut over to v2 at boundary), owner1 exits cleanly as Superseded.
+        client1.reset(); a1.attach.outcome.session.reset();
+        assert(exitCode(owner1Proc.get(),15000)==rs::ExitClean);
+        const auto s1=rs::inspect(e.store,scope1);
+        assert(!s1.alive && s1.state==rs::State::Exited && s1.lastExit==rs::Exit::Superseded && s1.starts.empty() && !s1.tripped);
+        const auto diagnose=env(L"HARUKOTO_DIAGNOSE");
+        if (!diagnose.empty()) {
+            std::string json;
+            assert(run(quote(diagnose)+L" --resident --scope "+scope1+L" --store-subkey "+quote(e.testKey)+L" --json",&json)==0);
+            assert(json.find("\"last_exit\":\"superseded\"")!=std::string::npos);
+        }
+        assert(alive(owner2) && inspect(*a2.attach.outcome.session));
+        a2.attach.outcome.session.reset();
+        ep::check(PostMessageW(waitWindow(owner2),WM_CLOSE,0,0));
+        assert(exitCode(owner2Proc.get(),15000)==rs::ExitClean);
+    }
+    std::cout << "[slot reclamation] step 7b: 12 clients share 8 slots via LRU idle eviction with zero Full\n";
+    {
+        auto a=ensure(e,rs::Policy{},{L"--slot-idle-ms",L"250"});
+        assert(a.launch==rs::Launch::Started && a.attach.outcome.result==Result::Admitted);
+        owner=ownerOf(a); host=readyHost(e,owner);
+        auto ownerProcess=open(owner);
+        struct Held { std::unique_ptr<hf::Session> session; std::unique_ptr<Client> client; };
+        std::vector<Held> held;
+        auto attachAndServe=[&](std::unique_ptr<hf::Session> session) {
+            auto &reg=session->registration();
+            assert(reg.request(control::Operation::Allocate,ep::now(),Timeout));
+            while (reg.poll(ep::now())==control::State::Pending) wait(reg.waitHandles(),ep::now()+Timeout);
+            auto epAlloc=reg.take(ep::now()); assert(epAlloc && epAlloc->endpoint);
+            auto client=std::make_unique<Client>(epAlloc->endpoint->connect());
+            client->type("nihao"); find(client->current,"你好");
+            held.push_back(Held{std::move(session),std::move(client)});
+        };
+        attachAndServe(std::move(a.attach.outcome.session));
+        // Fill all 8 slots spaced slightly apart to establish deterministic LRU order.
+        for (int i=1;i<8;++i) {
+            Sleep(25);
+            auto next=admit(e); assert(next.result==Result::Admitted && next.session);
+            attachAndServe(std::move(next.session));
+        }
+        assert(waitFor([&] { return e.status().clients==8; },Timeout));
+        // Wait past --slot-idle-ms (250 ms) so idle slots become LRU-evictable.
+        Sleep(300);
+        // 4 more clients (total 12) must ALL succeed with zero Full, evicting slots 0..3 in LRU order.
+        for (int i=8;i<12;++i) {
+            auto next=admit(e);
+            assert(next.result==Result::Admitted && next.session);
+            attachAndServe(std::move(next.session));
+        }
+        for (size_t i=0;i<4;++i) assert(WaitForSingleObject(held[i].session->revokeEvent(),0)==WAIT_OBJECT_0);
+        for (size_t i=4;i<12;++i) {
+            assert(WaitForSingleObject(held[i].session->revokeEvent(),0)==WAIT_TIMEOUT);
+            held[i].client->cancel(); held[i].client->type("zhongguo"); find(held[i].client->current,"中国");
+        }
+        held.clear();
+        assert(waitFor([&] { return e.status().clients==0; },Timeout));
+        ep::check(PostMessageW(waitWindow(owner),WM_CLOSE,0,0));
+        assert(exitCode(ownerProcess.get(),15000)==rs::ExitClean);
+    }
 }
 
-static std::string sha(const std::filesystem::path &path) { return base_dictionary::StableFile(path).read(true); }
 int wmain(int argc, wchar_t **argv) {
     std::cout << std::unitbuf;
     try {

@@ -223,6 +223,44 @@ static void registry() {
     assert(snapshot.status==Status::Unprotected && snapshot.entries.empty() && !release::select(snapshot,1));
     std::wcout<<L"PASS: registry source, upgrade window, corruption, bounds and ACL rejection\n";
 }
+static void evaluation() {
+    using release::Compatibility;
+    release::Snapshot empty; empty.status=Status::Missing;
+    assert(release::evaluate(empty,1).kind==Compatibility::None);
+    release::Snapshot ready; ready.status=Status::Ready;
+    assert(release::evaluate(ready,1).kind==Compatibility::None);
+    // Unsupported future format alone => ProtocolMismatch.
+    ready.unsupported=1;
+    assert(release::evaluate(ready,1).kind==Compatibility::ProtocolMismatch);
+    ready.unsupported=0;
+    // Two same-protocol entries => Match selects highest sequence.
+    Entry v1, v2, v4;
+    assert(release::parse(L"V1",lines(L"V1",L"1",L"1",folder(L"V1")),v1)==Parse::Ok);
+    assert(release::parse(L"V2",lines(L"V2",L"2",L"1",folder(L"V2")),v2)==Parse::Ok);
+    assert(release::parse(L"V4",lines(L"V4",L"4",L"2",folder(L"V4")),v4)==Parse::Ok);
+    ready.entries={v1,v2};
+    auto ev=release::evaluate(ready,1);
+    assert(ev.kind==Compatibility::Match && ev.selected && ev.selected->id==L"V2" && ev.latestSequence==2 && ev.latestProtocol==1);
+    // Asking with a different protocol => ProtocolMismatch.
+    ev=release::evaluate(ready,2);
+    assert(ev.kind==Compatibility::ProtocolMismatch && !ev.selected && ev.latestSequence==2 && ev.latestProtocol==1);
+    // Adding a newer entry with higher protocol => ProtocolMismatch for protocol 1, Match for protocol 2.
+    ready.entries.push_back(v4);
+    ev=release::evaluate(ready,1);
+    assert(ev.kind==Compatibility::ProtocolMismatch && !ev.selected && ev.latestSequence==4 && ev.latestProtocol==2);
+    ev=release::evaluate(ready,2);
+    assert(ev.kind==Compatibility::Match && ev.selected && ev.selected->id==L"V4" && ev.latestSequence==4 && ev.latestProtocol==2);
+    // Unsupported future format alongside valid entry => ProtocolMismatch even when entry protocol matches.
+    ready.entries={v2}; ready.unsupported=1;
+    ev=release::evaluate(ready,1);
+    assert(ev.kind==Compatibility::ProtocolMismatch && !ev.selected && ev.latestSequence==2);
+    ready.unsupported=0;
+    // Tie at highest sequence => None (ambiguous).
+    Entry twin=v2; twin.id=L"TWIN";
+    ready.entries={v1,v2,twin};
+    assert(release::evaluate(ready,1).kind==Compatibility::None);
+    std::wcout<<L"PASS: step 7a release compatibility evaluation\n";
+}
 static std::string utf8(const std::wstring &text) {
     if (text.empty()) return {};
     const int size=WideCharToMultiByte(CP_UTF8,0,text.data(),static_cast<int>(text.size()),nullptr,0,nullptr,nullptr);
@@ -246,7 +284,7 @@ static int dump(const std::wstring &subkey, uint16_t protocol) {
 }
 int wmain(int argc, wchar_t **argv) {
     if (argc==4 && std::wstring(argv[1])==L"--dump") return dump(argv[2],static_cast<uint16_t>(std::stoul(argv[3])));
-    parsing(); splitting(); descriptors(); realObjects(); registry();
+    parsing(); splitting(); descriptors(); realObjects(); registry(); evaluation();
     std::wcout<<L"PASS: engine release source\n";
     return 0;
 }

@@ -469,9 +469,10 @@ public:
         if (memory) { memory->flush(); memory.reset(); }
         engineClient.cancel();
         engineClient.factory = nullptr;
+        engineClient.sequenceFactory = nullptr;
         engineClient.enabled = false;
         engineClient.close(); // Its worker thread, if any, ends on its own.
-        if (engineWindow) { DestroyWindow(engineWindow); engineWindow = nullptr; }
+        if (engineWindow) { KillTimer(engineWindow, EngineIdleTimerId); DestroyWindow(engineWindow); engineWindow = nullptr; }
         wordBonuses.reset();
         themeReload.reset();
         conjugationPanel.clear();
@@ -525,12 +526,20 @@ public:
     }
 
     HRESULT STDMETHODCALLTYPE OnSetFocus(BOOL foreground) override {
+        engineFocused = foreground != FALSE;
         if (!foreground) cancelForFocusChange();
+        armEngineIdleTimer();
         return S_OK;
     }
-    HRESULT STDMETHODCALLTYPE OnSetThreadFocus() override { return S_OK; }
+    HRESULT STDMETHODCALLTYPE OnSetThreadFocus() override {
+        engineFocused = true;
+        armEngineIdleTimer();
+        return S_OK;
+    }
     HRESULT STDMETHODCALLTYPE OnKillThreadFocus() override {
+        engineFocused = false;
         cancelForFocusChange();
+        armEngineIdleTimer();
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnInitDocumentMgr(ITfDocumentMgr *) override { return S_OK; }
@@ -660,12 +669,14 @@ public:
             // it may still owe for the reading: a key that reads them gets the
             // same list computed here first.
             engineClient.enabled = engineSwitch ? *engineSwitch : tsf_engine::readStandaloneEngine(preferenceRoot);
+            engineFocused = true;
             settleEngine(key);
             if (!engineClient.enabled && engineClient.link()) {
                 // Switched off: give the slot back; a list still owed is computed here.
                 if (engineClient.pending()) refreshCandidates();
                 engineClient.close();
             }
+            pollEngineUpgrade(GetTickCount64(), engineClient.standby() != nullptr);
             std::wstring text;
             // CN-07 batch 6, number mode: digits (and one decimal point) typed
             // after a lone "v" are kept here beside the core's "v" and offered
@@ -867,6 +878,8 @@ public:
                 updatePopup();
                 syncComposition();
             }
+            pollEngineUpgrade(GetTickCount64(), engineClient.standby() != nullptr);
+            armEngineIdleTimer();
             reportRuntimeStatus();
         } catch (...) {
             // Do not discard a composition or replay an already handled key.
@@ -1285,6 +1298,7 @@ private:
     bool pollDictionaries(ULONGLONG now = GetTickCount64()) {
         const bool changed = themeReload && themeReload->poll(dictionaryBoundary(), japaneseWords,
             [this](auto &next, auto &retired) { return adoptBase(next, retired); }, now);
+        pollEngineUpgrade(now);
         reportRuntimeStatus();
         return changed;
     }
@@ -1472,6 +1486,10 @@ private:
             try { service->onEngineReply(); } catch (...) {}
             return 0;
         }
+        if (message == WM_TIMER && wParam == EngineIdleTimerId && service) {
+            try { service->onEngineIdleTimer(); } catch (...) {}
+            return 0;
+        }
         return service && service->originalEngineProc
             ? CallWindowProcW(service->originalEngineProc, window, message, wParam, lParam)
             : DefWindowProcW(window, message, wParam, lParam);
@@ -1565,11 +1583,39 @@ private:
             GetKeyState(VK_CONTROL) >= 0 && GetKeyState(VK_MENU) >= 0;
         if (!edit) { engineClient.decline("pending_key"); refreshCandidates(); }
     }
+    bool pollEngineUpgrade(ULONGLONG now = GetTickCount64(), bool force = false) {
+        if (!engineClient.enabled || !dictionaryBoundary() || engineClient.pending()) return false;
+        if (!engineClient.factory) engineClient.factory = [this] { return engineLink(); };
+        const auto probe = engineReleaseProbe ? engineReleaseProbe : [] {
+            return harukoto::engine::release::evaluate(harukoto::engine::release::read(), harukoto::engine::ProtocolVersion);
+        };
+        return engineClient.pollUpgrade(now, probe, force);
+    }
+    void armEngineIdleTimer() {
+        if (!engineWindow) return;
+        if (!engineClient.enabled || (!engineClient.link() && !engineClient.standby())) {
+            KillTimer(engineWindow, EngineIdleTimerId);
+            return;
+        }
+        const uint64_t delay = engineFocused ? engineIdleYieldMs : engineFocusYieldMs;
+        if (!delay) { KillTimer(engineWindow, EngineIdleTimerId); return; }
+        SetTimer(engineWindow, EngineIdleTimerId, static_cast<UINT>(delay), nullptr);
+    }
+    bool onEngineIdleTimer() {
+        if (engineWindow) KillTimer(engineWindow, EngineIdleTimerId);
+        if (!engineClient.enabled || !dictionaryBoundary() || engineClient.pending()) return false;
+        if (!engineClient.yield()) return false;
+        reportRuntimeStatus();
+        return true;
+    }
     void onEngineReply() {
         if (deliverEngine() && activeContext && session && delivery && delivery->queue.canDeliver()) {
             updatePopup();     // Our window, or the host's UI element (UI-less).
             syncComposition(); // WIN-08: as after a key.
         }
+        if (engineClient.standby() && dictionaryBoundary() && !engineClient.pending())
+            pollEngineUpgrade(GetTickCount64(), true);
+        armEngineIdleTimer();
         reportRuntimeStatus();
     }
 
@@ -1933,7 +1979,7 @@ private:
             hideOwnWindow();
             return;
         }
-        auto display = preeditText() + (simplified ? L"  简" : L"  繁") + (englishPunctuation ? L" · 英文标点" : L"") + (fullWidthOn() ? L" · 全角" : L"") + (notice.empty() ? L"" : L" · " + notice);
+        auto display = preeditText() + (simplified ? L"  简" : L"  繁") + (englishPunctuation ? L" · 英文标点" : L"") + (fullWidthOn() ? L" · 全角" : L"") + (engineClient.stats.incompatible ? L" · 输入法已更新，请重开应用" : L"") + (notice.empty() ? L"" : L" · " + notice);
         const bool canConjugate = !conjugationPanel.active() && page * pageSize + highlighted < choices.size() &&
             conjugationFor(currentConjugations(), choices[page * pageSize + highlighted], mpn_input(session));
         const std::wstring conjugationHint = conjugationPanel.active() ? L"  活用 · F6/Esc 返回" : canConjugate ? L"  F6 活用" : L"";
@@ -1979,6 +2025,7 @@ private:
         if (englishPunctuation) payload += L" · 英文标点";
         if (fullWidthOn()) payload += L" · 全角";
         if (themeReload && themeReload->failed()) payload += L" · 词库更新失败，沿用旧版";
+        if (engineClient.stats.incompatible) payload += L" · 输入法已更新，请重开应用";
         if (!notice.empty()) payload += L" · " + notice;
         payload += conjugationHint;
         if (pageCount > 1 || (!conjugationPanel.active() && mpn_candidates_can_expand(session)))
@@ -2253,6 +2300,11 @@ private:
     // posts to, and the data identity last computed for it.
     tsf_engine::Client engineClient;
     std::optional<bool> engineSwitch; // Tests: overrides StandaloneEngine.
+    std::function<harukoto::engine::release::Evaluation()> engineReleaseProbe; // Step 7a: tests override HKLM release probe.
+    static constexpr UINT_PTR EngineIdleTimerId = 0x32;
+    bool engineFocused = true;
+    uint64_t engineFocusYieldMs = tsf_engine::Client::FocusYieldMs;
+    uint64_t engineIdleYieldMs = tsf_engine::Client::IdleYieldMs;
     HWND engineWindow = nullptr;
     WNDPROC originalEngineProc = nullptr;
     struct { std::string base, theme, value; const void *personal = nullptr; } engineIdentityCache;

@@ -1,5 +1,45 @@
 # 开发状态与接手入口
 
+## 2026-11-22 · WIN-03 第 7b 步：多应用连接槽失焦宽限礼让、空闲 LRU 回收与零惩罚重连
+
+- 前置：7a 已在当前工作树通过普通权限 Medium-IL 复测（未提交，计划与 7b 合并验收）。设计见[换代与去词库设计](ENGINE_CUTOVER.md)第 4 节。
+- 宿主与所有者侧：
+  - `Windows/EngineServer.h` 新增 `ServerConnection::busy()`；`Windows/EnginePipe.h` `Channel::drain(bool wait = false)` 支持同步回收已取消管道；`Windows/EngineHost.h`、`EngineHost.cpp`、`EngineProcess.h` 新增 `--read-ms` 与 `--idle-evict-ms`，在满槽 `Allocate` 时按严格 LRU 回收无在途请求、无待写回复的空闲端点。
+  - `Windows/EngineResident.h` 定义常驻宿主 `HostReadMs = 300000`（5 分钟，消除聚焦停顿 30 秒误断管）与 `SlotIdleEvictMs = 5000`（5 秒）；`Windows/EngineOwner.h`、`EngineOwner.cpp` 跟踪各槽位活跃时间，8 槽满且新接入方到达时按 LRU 回收空闲活跃槽（置位 `revoked`）；`Windows/EngineHandoff.h` 暴露 `Session::revokeEvent()`。
+- 接入层与诊断：
+  - `Windows/EngineTsf.h`、`EngineTsfResident.h`：`Link` 工作线程改以 `WaitForMultipleObjects` 同时等待新请求与 `revokeEvent()`，被回收时毫秒级断开宿主管道并置 `State::Reclaimed`；`Client` 新增 `yield()` 与 `Reclaimed` 零惩罚静默重连（不计 `failures`、不触发粘滞回退），诊断字段新增 `engine_yields`/`engine_reclaimed`。
+  - `Windows/TextService.cpp` 在 `engineWindow` 接入失焦 15 秒（`FocusYieldMs`）与聚焦静置 180 秒（`IdleYieldMs`）宽限定时器，仅在空组字边界主动礼让释放槽位（快切窗口 15 秒内不掉热连接）。
+  - `Windows/DiagnosisSupport.ps1` 与 `Windows/tests/DiagnosisTests.ps1` 补齐 `engine_yields`/`engine_reclaimed` 校验与展示。
+- 验证：
+  - 完整 MSVC Release 构建通过，已将 `.build/windows/msvc/Release/MeowpuutTip.dll` 复制到 `.build/windows/ime/`。
+  - 14 项定向 CTest 全过（35.68 秒）：含 `engine_host`（新增 `idleEviction` 验证 LRU 顺序与绝不驱逐在途查询）、`engine_host_process`、`engine_owner_process`、`engine_server`、`engine_pipe`、`engine_control`、`engine_admission`、`engine_release`、`engine_diagnostics`、`tsf_focus_cancel`、`tsf_focus_engine_on`、`service_dictionary_reload`、`runtime_status_diagnosis`、`installation_diagnosis`。
+  - `test_engine_tsf.py` `unit` 阶段全过：含 `off path`、`behaviour`、`cutover`、新增 `slot lifecycle`（失焦礼让、组字中不礼让、线程级 `revokeEvent` 即时拆管、连续 5 次回收 0 失败不触发粘滞回退）与 `pipe host`。
+- 未验证：
+  - `EngineResidentTests` 新增的真实 12 客户端共用 8 槽 LRU 回收用例（`[slot reclamation]`）与 `engine_cost_benchmark`（核实 8 槽并发突击仍返回 `Full`）、`engine_tsf_full` 全量复跑需在普通权限（Medium IL）PowerShell 执行；实机多应用切换验证待打包后执行（待实机）。
+- 下一步：维护者在普通权限 PowerShell 复跑 7a+7b 验收并提交，随后推进 7c（引擎接管扩展、选词与学习元数据）与 7d（接入层去启动期基础词库加载）。
+
+## 2026-11-22 · WIN-03 第 7a 步：按版本分 scope 无缝换代、旧所有者优雅退场与协议不兼容提示
+
+- 前置：`alpha.31` 试用包已提交（`ba44d2e`）。本批未提交、未打包、未实机。设计与 7a～7d 拆分见[换代与去词库设计](ENGINE_CUTOVER.md)。
+- 发行评估与版本化 scope：
+  - `Windows/EngineRelease.h` 新增 `Compatibility`（`None`/`Match`/`ProtocolMismatch`）、`Evaluation` 与 `release::evaluate()`，以全局最高 `sequence`（并列返回 `None`）判定同协议可切换还是跨协议／未知新格式（`unsupported > 0`）不兼容。
+  - `Windows/EngineResident.h` 新增 `releaseScope(sequence, prefix = DefaultScope)`（`harukoto-s<seq>`）、干净退出码 `Exit::Superseded = 7`、`EnsureOptions::versionedScope`（对生产 `DefaultScope` 自动开启）与 `EnsureOutcome::sequence`；`EngineDiagnose.cpp` 支持 `"superseded"`／`"已换代退出"` 并在未显式传 `--scope` 时优先探查最新有记录的版本化 scope。
+- 旧所有者优雅退场：
+  - `Windows/EngineOwner.h` 新增 `Lifecycle::superseded`、`supersededCheckMs` 与 `Exit::Superseded`；检测到被新版本取代或撤销时进入 `draining`，立即关闭发现管道、继续服务现有连接并在 `clients == 0 && !pending` 时优雅停宿主退出（不触发断路器，且在连接数变化时即刻检查）。
+  - `Windows/EngineOwner.cpp` 生产常驻模式按 `approved->sequence` 使用 `releaseScope` 隔离租约与发现管道，使新旧引擎在升级窗口期可安全并存。
+- 接入层空边界换代、失败保旧与不兼容提示：
+  - `Windows/EngineTsf.h` 与 `EngineTsfResident.h` 为 `Transport`/`PipeTransport`/`Driver`/`Link` 增加 `sequence()`，`residentConnect` 拒绝 `ProtocolMismatch`；`tsf_engine::Client` 增加 `standby_` 后台预连、`checkUpgrade()`／`pollUpgrade()`（每 2 秒节流，仅空组字边界触发）、原子替换、失败保旧（60 秒冷却）与不兼容标记，诊断字段补充 `engine_sequence`/`engine_cutovers`/`engine_cutover_failures`/`engine_incompatible`。
+  - `Windows/TextService.cpp` 在空组字边界及 `onEngineReply()` 调度换代，协议不兼容时在候选窗状态栏显示“输入法已更新，请重开应用”；`Windows/DiagnosisSupport.ps1` 解析校验新可选字段并在 `Engine` 行展示。
+- 验证：
+  - 完整 MSVC Release 构建通过，已将 `.build/windows/msvc/Release/MeowpuutTip.dll` 复制到 `.build/windows/ime/`。
+  - 8 项定向 CTest 全部通过（28.09 秒）：`engine_release`（含 `evaluate()` 矩阵）、`engine_diagnostics`、`engine_owner_process`、`tsf_focus_cancel`、`service_dictionary_reload`、`runtime_status_diagnosis`、`installation_diagnosis`（含 7a 字段与 `superseded` 解析校验）、`tsf_focus_engine_on`。
+  - `test_engine_tsf.py`（无 Medium-IL `owner_test` 阶段）全部通过：`off path`、`behaviour`、新增 `cutover`（组字中不切、空边界异步 `standby_` 预连同时旧连接续服、空边界原子切并释放旧连接、坏 `v3` 启动失败保旧 `v2` 与冷却、协议 2 `v4` 标示不兼容不混用、关闭开关零探测）、`pipe host`、`steps`、`layout` 热更新与 8 场景 31,056 个列表 0 不一致 0 回退。
+  - 普通权限（Medium IL）PowerShell 复跑 6 项核心测试全部通过：`engine_release`（0.02 秒）、`engine_discovery`（7.05 秒）、`engine_handoff`（11.48 秒）、`engine_resident`（52.83 秒，含双版本 `v1`/`v2` 并存、`draining` 停发现期间继续服务存量客户端、连接归零以 `Superseded` 干净退出与诊断校验）、`installation_diagnosis`（0.74 秒）与 `engine_tsf_full`（815.53 秒，含常驻段与 8 场景 31,056 个列表 0 不一致）。
+  - 结束后无残留测试进程、HKCU 测试键或 `%TEMP%\harukoto-*` 目录。
+- 未验证：
+  - 真实桌面跨版本覆盖升级实机未测（待实机）。
+- 下一步：由维护者复核提交 7a，随后按 `docs/ENGINE_CUTOVER.md` 推进 7b（连接槽失焦宽限与空闲 LRU 回收）、7c（引擎接管选词与扩展）、7d（接入层去启动期基础词库）。
+
 ## 2026-11-22 · alpha.31 试用包
 
 - 版本号升至 0.4.4-alpha.31（5ade5f8），内容为 alpha.30 加独立引擎异步候选防闪烁修复（1cd4877）与 alpha.30 实机留证；实验性独立引擎开关 `StandaloneEngine` 仍默认关闭。从干净提交 5ade5f8 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（8.77 秒），`test-setup.ps1` 解包、内置 PS7 预检与界面渲染通过。

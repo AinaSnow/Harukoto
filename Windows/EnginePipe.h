@@ -258,9 +258,9 @@ public:
         received_.reset(); reading_ = writing_ = false;
         read_.cancel(pipe_.get()); write_.cancel(pipe_.get());
     }
-    bool drain() {
+    bool drain(bool wait = false) {
         if (!closed()) return false; // Never consume a live operation's completion here.
-        const bool read = read_.drain(pipe_.get(), false), write = write_.drain(pipe_.get(), false);
+        const bool read = read_.drain(pipe_.get(), wait), write = write_.drain(pipe_.get(), wait);
         if (closed() && read && write) pipe_.reset();
         return read && write;
     }

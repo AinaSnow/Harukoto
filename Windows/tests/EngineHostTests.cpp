@@ -167,6 +167,53 @@ static void expiryAndMalformed() {
     auto frame = bad.keyFrame(KeyAction::Text,'x'); frame.payload = {1}; bad.send(frame); bad.closed();
     assert(good.key(KeyAction::Text,'y').input == "y"); malformed.finish();
 }
+// WIN-03 step 7b: LRU idle endpoint reclamation when all slots are occupied,
+// while strictly preserving active endpoints and any endpoint with in-flight work.
+static void idleEviction() {
+    control::Client owner;
+    Host::Options options; options.connections = 2; options.threads = 2; options.idleEvictMs = 100;
+    Runner runner(page,options,0,&owner);
+    const auto first = request(owner,control::Operation::Allocate);
+    assert(first.code == control::Code::Ok);
+    Client oldest(first.name,GetCurrentProcess()); assert(oldest.key(KeyAction::Text,'a').input == "a");
+    Sleep(50);
+    const auto second = request(owner,control::Operation::Allocate);
+    assert(second.code == control::Code::Ok);
+    Client newer(second.name,GetCurrentProcess()); assert(newer.key(KeyAction::Text,'b').input == "b");
+    // Before idleEvictMs has elapsed, Allocate must still return Full.
+    assert(request(owner,control::Operation::Allocate).code == control::Code::Full);
+    // Keep newer active while oldest ages past idleEvictMs.
+    Sleep(80);
+    assert(newer.key(KeyAction::Text,'c').input == "bc");
+    // Allocate evicts oldest (LRU) while newer stays completely alive.
+    const auto third = request(owner,control::Operation::Allocate);
+    assert(third.code == control::Code::Ok && third.name != first.name && third.name != second.name);
+    oldest.closed();
+    Client replacement(third.name,GetCurrentProcess());
+    assert(replacement.key(KeyAction::Text,'d').input == "d");
+    assert(newer.key(KeyAction::Text,'e').input == "bce");
+    newer.channel.reset(); replacement.channel.reset();
+    runner.finish();
+
+    control::Client busyOwner; Latch busyLatch;
+    Host::Options busyOpts; busyOpts.connections = 1; busyOpts.threads = 1; busyOpts.idleEvictMs = 40;
+    Runner busyRunner([&](const auto &work) { if (work->input == "x") busyLatch.block(); return page(work); },busyOpts,0,&busyOwner);
+    const auto only = request(busyOwner,control::Operation::Allocate);
+    Client active(only.name,GetCurrentProcess());
+    active.send(active.keyFrame(KeyAction::Text,'x')); busyLatch.wait();
+    Sleep(80);
+    assert(request(busyOwner,control::Operation::Allocate).code == control::Code::Full);
+    busyLatch.open();
+    assert(active.accept(active.receive()).input == "x");
+    Sleep(80);
+    // Once idle past idleEvictMs with no in-flight job, the slot is reclaimed cleanly.
+    const auto next = request(busyOwner,control::Operation::Allocate);
+    assert(next.code == control::Code::Ok && next.name != only.name);
+    active.closed();
+    Client fresh(next.name,GetCurrentProcess());
+    assert(fresh.key(KeyAction::Text,'z').input == "z");
+    busyRunner.finish();
+}
 static void limits() {
     const auto name = ep::newName();
     for (int variant=0;variant<8;++variant) {
@@ -191,6 +238,7 @@ int main() {
         std::cerr << "host: cancellation and disconnect\n"; cancelRunningAndDisconnect();
         std::cerr << "host: overload and failure\n"; overloadAndFailure();
         std::cerr << "host: expiry and malformed\n"; expiryAndMalformed();
+        std::cerr << "host: step 7b idle LRU eviction\n"; idleEviction();
         std::cout << "engine_host: bounded event loop, owner wake, cancellation, overload, failures and shutdown passed\n";
         return 0;
     } catch (const ep::Error &error) { std::cerr << "host failure=" << static_cast<int>(error.reason) << " win32=" << error.code << '\n'; return 1; }

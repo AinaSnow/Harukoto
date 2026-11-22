@@ -33,9 +33,15 @@ public:
     std::shared_ptr<const WindowsDictionary> dictionary;
     ServerConnection server;
     std::function<void(const engine::Frame &)> fault;
+    std::function<void()> onDestroy;
     size_t exchanges = 0;
-    explicit Loopback(std::shared_ptr<const WindowsDictionary> value)
-        : dictionary(value), server(42, value, value->identity()) {}
+    uint64_t sequence_ = 0;
+    HANDLE revoke_ = nullptr;
+    explicit Loopback(std::shared_ptr<const WindowsDictionary> value, uint64_t seq = 0, HANDLE revoke = nullptr)
+        : dictionary(value), server(42, value, value->identity()), sequence_(seq), revoke_(revoke) {}
+    ~Loopback() override { if (onDestroy) onDestroy(); }
+    uint64_t sequence() const override { return sequence_; }
+    HANDLE revokeEvent() const override { return revoke_; }
     static engine::Frame wire(const engine::Frame &frame) {
         const auto bytes = engine::encode(frame);
         engine::Frame out; size_t used = 0;
@@ -136,7 +142,13 @@ struct EngineTsfTest {
         }
         assert(!called && std::string(b->engineClient.stats.path) == "off" && !b->engineClient.stats.served);
         assert(b->engineClient.diagnosticFields() ==
-            ",\"engine_path\":\"off\",\"engine_served\":0,\"engine_fallbacks\":0,\"engine_reason\":\"none\",\"engine_memory_behind\":0");
+            ",\"engine_path\":\"off\",\"engine_served\":0,\"engine_fallbacks\":0,\"engine_reason\":\"none\",\"engine_memory_behind\":0"
+            ",\"engine_sequence\":0,\"engine_cutovers\":0,\"engine_cutover_failures\":0,\"engine_incompatible\":false"
+            ",\"engine_yields\":0,\"engine_reclaimed\":0");
+        // Step 7a: when off, upgrade probe is never invoked.
+        bool probed = false;
+        b->engineReleaseProbe = [&] { probed = true; return engine::release::Evaluation{}; };
+        assert(!b->pollEngineUpgrade(10000, true) && !probed);
         (void)dictionary;
         std::cout << "off path: identical, no link" << std::endl;
     }
@@ -254,6 +266,220 @@ struct EngineTsfTest {
         assert(!tsf_engine::rebuild(a->session, {gap}));
         const auto none = tsf_engine::rebuild(a->session, {}); assert(none && none->empty());
         std::cout << "behaviour: async, stale, pending key, timeout, sticky, identity, gates" << std::endl;
+    }
+
+    // WIN-03 step 7a: versioned cutover at empty boundaries, async standby
+    // pre-connect while old engine serves, keep-old-on-failure with cooldown,
+    // and explicit protocol-mismatch notice without silent mixing.
+    static void cutover(const Data &data, std::shared_ptr<const WindowsDictionary> dictionary) {
+        using engine::release::Compatibility;
+        using engine::release::Entry;
+        using engine::release::Evaluation;
+        auto makeMatch = [](uint64_t seq, uint16_t proto = engine::ProtocolVersion) {
+            Evaluation ev; ev.kind = Compatibility::Match; ev.latestProtocol = proto; ev.latestSequence = seq;
+            Entry e; e.id = L"V" + std::to_wstring(seq); e.sequence = seq; e.protocol = proto; ev.selected = e;
+            return ev;
+        };
+        auto a = service(data, true), b = service(data, true);
+        b->engineClient.enabled = true;
+        bool v1Closed = false;
+        size_t v1Exchanges = 0, v2Exchanges = 0, v3Attempts = 0;
+        Loopback *v1 = nullptr, *v2 = nullptr;
+        b->engineClient.factory = [&] {
+            return tsf_engine::Link::manual([&](uint64_t) -> std::unique_ptr<tsf_engine::Transport> {
+                auto t = std::make_unique<Loopback>(dictionary, 1);
+                t->onDestroy = [&] { v1Closed = true; };
+                v1 = t.get();
+                return t;
+            });
+        };
+        Evaluation currentEval = makeMatch(1);
+        b->engineReleaseProbe = [&] { return currentEval; };
+
+        // Start on v1 (sequence 1).
+        type(*a, "nihao", false); type(*b, "nihao", true); serve(*b);
+        assert(std::string(b->engineClient.stats.path) == "engine" && same(a->choices, b->choices));
+        assert(b->engineClient.stats.sequence == 1 && b->engineClient.stats.cutovers == 0);
+        v1Exchanges = v1->exchanges; assert(v1Exchanges > 0);
+
+        // Mid-composition: v2 appears, must NOT pre-connect or switch while typing.
+        currentEval = makeMatch(2);
+        ep::Handle gateV2(CreateEventW(nullptr, TRUE, FALSE, nullptr)); assert(gateV2);
+        ep::Handle notifyV2(CreateEventW(nullptr, FALSE, FALSE, nullptr)); assert(notifyV2);
+        b->engineClient.sequenceFactory = [&](uint64_t seq) -> std::unique_ptr<tsf_engine::Link> {
+            if (seq == 2) {
+                return tsf_engine::Link::threaded([&, gate = gateV2.get()](uint64_t) -> std::unique_ptr<tsf_engine::Transport> {
+                    assert(WaitForSingleObject(gate, 10000) == WAIT_OBJECT_0);
+                    auto t = std::make_unique<Loopback>(dictionary, 2);
+                    v2 = t.get();
+                    return t;
+                }, [ev = notifyV2.get()] { SetEvent(ev); });
+            }
+            if (seq == 3) {
+                ++v3Attempts;
+                return tsf_engine::Link::manual([](uint64_t) -> std::unique_ptr<tsf_engine::Transport> {
+                    throw std::runtime_error("broken v3 engine");
+                });
+            }
+            return {};
+        };
+        assert(!b->dictionaryBoundary());
+        assert(!b->pollEngineUpgrade(10000, true));
+        assert(!b->engineClient.standby() && b->engineClient.link()->sequence() == 1);
+
+        // Empty boundary: standby starts connecting to v2 asynchronously while v1 keeps serving.
+        mpn_clear(b->session); b->resetCandidates();
+        assert(b->dictionaryBoundary());
+        assert(!b->pollEngineUpgrade(10000, true)); // Connecting, not swapped yet.
+        assert(b->engineClient.standby() && b->engineClient.standby()->state() == tsf_engine::Link::State::Connecting);
+        assert(!v1Closed && b->engineClient.link()->sequence() == 1);
+
+        // While v2 is still connecting, v1 serves another composition cleanly.
+        type(*a, "zhongwen", false); type(*b, "zhongwen", true); serve(*b);
+        assert(same(a->choices, b->choices) && v1->exchanges > v1Exchanges && !v1Closed);
+
+        // Let v2 finish connecting; mid-composition must STILL hold off the swap!
+        assert(SetEvent(gateV2.get()));
+        assert(WaitForSingleObject(notifyV2.get(), 10000) == WAIT_OBJECT_0);
+        assert(b->engineClient.standby()->state() == tsf_engine::Link::State::Ready);
+        b->onEngineReply();
+        assert(b->engineClient.standby() && !v1Closed && b->engineClient.stats.cutovers == 0);
+
+        // Reach empty boundary: onEngineReply atomically swaps to v2 and closes v1.
+        mpn_clear(b->session); b->resetCandidates();
+        assert(b->dictionaryBoundary());
+        b->onEngineReply();
+        assert(!b->engineClient.standby() && v1Closed);
+        assert(b->engineClient.link() && b->engineClient.link()->sequence() == 2);
+        assert(b->engineClient.stats.sequence == 2 && b->engineClient.stats.cutovers == 1 && !b->engineClient.stats.cutoverFailures);
+
+        // Next composition is served by v2 (threaded link).
+        type(*a, "riben", false); type(*b, "riben", true);
+        assert(b->engineClient.pending());
+        const auto deadline = GetTickCount64() + 5000;
+        while (b->engineClient.pending() && GetTickCount64() < deadline) {
+            WaitForSingleObject(notifyV2.get(), 200);
+            b->deliverEngine();
+        }
+        assert(!b->engineClient.pending() && same(a->choices, b->choices) && std::string(b->engineClient.stats.path) == "engine");
+        v2Exchanges = v2->exchanges; assert(v2Exchanges > 0);
+
+        // Failing v3: standby fails, v2 is kept untouched, cooldown suppresses immediate retry.
+        mpn_clear(b->session); b->resetCandidates();
+        currentEval = makeMatch(3);
+        assert(!b->pollEngineUpgrade(20000, true));
+        assert(v3Attempts == 1 && !b->engineClient.standby());
+        assert(b->engineClient.stats.cutoverFailures == 1 && b->engineClient.stats.cutovers == 1);
+        assert(b->engineClient.link() && b->engineClient.link()->sequence() == 2);
+        // Within 60 s cooldown: does not retry v3.
+        assert(!b->pollEngineUpgrade(25000, true) && v3Attempts == 1);
+        // v2 still serves cleanly after v3 failed.
+        type(*a, "nihao", false); type(*b, "nihao", true);
+        while (b->engineClient.pending() && GetTickCount64() < deadline + 5000) {
+            WaitForSingleObject(notifyV2.get(), 200);
+            b->deliverEngine();
+        }
+        assert(!b->engineClient.pending() && same(a->choices, b->choices) && v2->exchanges > v2Exchanges);
+
+        // Protocol mismatch (v4, protocol 2): marks incompatible, clears standby, never mixes.
+        mpn_clear(b->session); b->resetCandidates();
+        Evaluation mismatch; mismatch.kind = Compatibility::ProtocolMismatch; mismatch.latestProtocol = engine::ProtocolVersion + 1; mismatch.latestSequence = 4;
+        currentEval = mismatch;
+        assert(!b->pollEngineUpgrade(90000, true));
+        assert(b->engineClient.stats.incompatible && !b->engineClient.standby());
+        const auto diag = b->engineClient.diagnosticFields();
+        assert(diag.find("\"engine_sequence\":2") != std::string::npos);
+        assert(diag.find("\"engine_cutovers\":1") != std::string::npos);
+        assert(diag.find("\"engine_cutover_failures\":1") != std::string::npos);
+        assert(diag.find("\"engine_incompatible\":true") != std::string::npos);
+
+        // Fresh service with ProtocolMismatch: never invokes factory, stays in-process with reason "incompatible".
+        auto fresh = service(data, true);
+        bool freshFactoryCalled = false;
+        fresh->engineClient.enabled = true;
+        fresh->engineClient.factory = [&] { freshFactoryCalled = true; return std::unique_ptr<tsf_engine::Link>(); };
+        fresh->engineReleaseProbe = [&] { return mismatch; };
+        assert(!fresh->pollEngineUpgrade(10000, true) && fresh->engineClient.stats.incompatible);
+        type(*fresh, "nihao", true);
+        assert(!freshFactoryCalled && !fresh->engineClient.link() && fresh->engineClient.stats.reason == "incompatible" && same(a->choices, fresh->choices));
+
+        b->engineClient.close();
+        std::cout << "cutover: boundary swap, async standby, keep-old-on-failure, protocol mismatch" << std::endl;
+    }
+
+    // WIN-03 step 7b: voluntary focus-loss/idle slot yield and graceful
+    // reclamation (revokeEvent) without failure penalty or sticky fallback.
+    static void slotLifecycle(const Data &data, std::shared_ptr<const WindowsDictionary> dictionary) {
+        auto a = service(data, true), b = service(data, true);
+        b->engineClient.enabled = true;
+        b->engineClient.factory = loopback(dictionary);
+        type(*a, "nihao", false); type(*b, "nihao", true); serve(*b);
+        assert(b->engineClient.link() && std::string(b->engineClient.stats.path) == "engine" && same(a->choices, b->choices));
+
+        // Mid-composition: idle timer must NEVER yield the slot.
+        assert(!b->dictionaryBoundary());
+        assert(!b->onEngineIdleTimer() && b->engineClient.link() && !b->engineClient.stats.yields);
+
+        // Focus loss clears composition; idle timer then yields the slot cleanly with 0 failures.
+        b->OnSetFocus(FALSE);
+        assert(!b->engineFocused && b->dictionaryBoundary());
+        assert(b->onEngineIdleTimer() && !b->engineClient.link());
+        assert(b->engineClient.stats.yields == 1 && !b->engineClient.stats.failures);
+
+        // Next typing reconnects cleanly and serves from engine with 0 failures.
+        type(*b, "zhongwen", true); serve(*b);
+        type(*a, "zhongwen", false);
+        assert(same(a->choices, b->choices) && std::string(b->engineClient.stats.path) == "engine" && !b->engineClient.stats.failures);
+
+        // Manual link: 5 consecutive idle reclaims (exceeding StickyFailures=3)
+        // never count as failures and never trigger sticky fallback.
+        mpn_clear(b->session); b->resetCandidates(); b->engineClient.close();
+        ep::Handle revoke(CreateEventW(nullptr, TRUE, FALSE, nullptr)); assert(revoke);
+        size_t created = 0;
+        b->engineClient.factory = [&] {
+            ++created;
+            return tsf_engine::Link::manual([&](uint64_t) -> std::unique_ptr<tsf_engine::Transport> {
+                return std::make_unique<Loopback>(dictionary, 1, revoke.get());
+            });
+        };
+        type(*a, "riben", false);
+        for (int i = 0; i < 5; ++i) {
+            assert(ResetEvent(revoke.get()));
+            type(*b, "riben", true); serve(*b);
+            assert(std::string(b->engineClient.stats.path) == "engine" && same(a->choices, b->choices));
+            mpn_clear(b->session); b->resetCandidates();
+            assert(SetEvent(revoke.get()));
+            assert(b->engineClient.link()->state() == tsf_engine::Link::State::Reclaimed);
+        }
+        assert(ResetEvent(revoke.get()));
+        type(*b, "riben", true); serve(*b);
+        assert(std::string(b->engineClient.stats.path) == "engine" && same(a->choices, b->choices));
+        assert(b->engineClient.stats.reclaimed == 5 && !b->engineClient.stats.failures && created == 6);
+
+        // Threaded link: signaling revokeEvent immediately wakes the worker thread,
+        // destroys the transport (closing the EngineHost pipe), and enters Reclaimed.
+        mpn_clear(b->session); b->resetCandidates(); b->engineClient.close();
+        ep::Handle tRevoke(CreateEventW(nullptr, TRUE, FALSE, nullptr)); assert(tRevoke);
+        ep::Handle tNotify(CreateEventW(nullptr, FALSE, FALSE, nullptr)); assert(tNotify);
+        ep::Handle tDestroyed(CreateEventW(nullptr, TRUE, FALSE, nullptr)); assert(tDestroyed);
+        auto tLink = tsf_engine::Link::threaded([&](uint64_t) -> std::unique_ptr<tsf_engine::Transport> {
+            auto t = std::make_unique<Loopback>(dictionary, 1, tRevoke.get());
+            t->onDestroy = [ev = tDestroyed.get()] { SetEvent(ev); };
+            return t;
+        }, [ev = tNotify.get()] { SetEvent(ev); });
+        assert(tLink && WaitForSingleObject(tNotify.get(), 5000) == WAIT_OBJECT_0);
+        assert(tLink->state() == tsf_engine::Link::State::Ready);
+        assert(SetEvent(tRevoke.get()));
+        assert(WaitForSingleObject(tDestroyed.get(), 5000) == WAIT_OBJECT_0);
+        assert(WaitForSingleObject(tNotify.get(), 5000) == WAIT_OBJECT_0 || tLink->state() == tsf_engine::Link::State::Reclaimed);
+        assert(tLink->state() == tsf_engine::Link::State::Reclaimed);
+        tLink.reset();
+
+        const auto diag = b->engineClient.diagnosticFields();
+        assert(diag.find("\"engine_yields\":1") != std::string::npos);
+        assert(diag.find("\"engine_reclaimed\":5") != std::string::npos);
+        b->engineClient.close();
+        std::cout << "slot lifecycle: focus yield, immediate threaded revoke teardown, zero-penalty reclaim" << std::endl;
     }
 
     // Step 6b: the per-key preparation OnKeyDown does before a key: the
@@ -890,6 +1116,8 @@ static int run(int argc, wchar_t **argv) {
         assert(other->identity() != dictionary->identity());
         EngineTsfTest::offPath(data, dictionary);
         EngineTsfTest::behaviour(data, dictionary, other);
+        EngineTsfTest::cutover(data, dictionary);
+        EngineTsfTest::slotLifecycle(data, dictionary);
         EngineTsfTest::pipeHost(data, argv[6]);
     } else if (mode == L"layout") {
         assert(argc == 5 || argc == 6);

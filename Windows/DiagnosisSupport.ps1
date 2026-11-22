@@ -1,4 +1,4 @@
-function Compare-HarukotoModule {
+﻿function Compare-HarukotoModule {
     param($Registered, $Loaded)
     if ($Registered.Sha256 -and $Loaded.Sha256) {
         if ($Registered.Sha256 -eq $Loaded.Sha256) { return '一致' }
@@ -71,6 +71,19 @@ function Convert-HarukotoRuntimeRecord {
             if (($value.engine_memory_behind -isnot [long] -and $value.engine_memory_behind -isnot [int]) -or $value.engine_memory_behind -lt 0) { throw '无效引擎计数' }
             $engine += "，学习记录未追上 $($value.engine_memory_behind) 次"
         }
+        # Step 7a/7b, optional: active release sequence, cutover/yield/reclaimed counts and protocol compatibility.
+        foreach ($key in 'engine_sequence','engine_cutovers','engine_cutover_failures','engine_yields','engine_reclaimed') {
+            if ($value.ContainsKey($key)) {
+                if (($value[$key] -isnot [long] -and $value[$key] -isnot [int]) -or $value[$key] -lt 0) { throw '无效引擎计数' }
+            }
+        }
+        if ($value.ContainsKey('engine_incompatible') -and $value.engine_incompatible -isnot [bool]) { throw '无效引擎路径字段' }
+        if ($value.ContainsKey('engine_sequence') -and $value.engine_sequence -gt 0) { $engine += "，版本序号 $($value.engine_sequence)" }
+        if ($value.ContainsKey('engine_cutovers') -and $value.engine_cutovers -gt 0) { $engine += "，已换代 $($value.engine_cutovers) 次" }
+        if ($value.ContainsKey('engine_cutover_failures') -and $value.engine_cutover_failures -gt 0) { $engine += "，换代失败 $($value.engine_cutover_failures) 次" }
+        if ($value.ContainsKey('engine_yields') -and $value.engine_yields -gt 0) { $engine += "，主动礼让 $($value.engine_yields) 次" }
+        if ($value.ContainsKey('engine_reclaimed') -and $value.engine_reclaimed -gt 0) { $engine += "，空闲回收 $($value.engine_reclaimed) 次" }
+        if ($value.ContainsKey('engine_incompatible') -and $value.engine_incompatible) { $engine += '，协议不兼容，请重开应用' }
     }
     $relation = if (!$PublishedGeneration) { '无可比较的发布指针' }
         elseif ($value.base_generation -ceq $PublishedGeneration) { '已采用发布版本' }

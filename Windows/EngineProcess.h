@@ -33,6 +33,7 @@ public:
         bool discovery = false; // Owner publishes the step-2 discovery pipe under ownerInstance.
         std::filesystem::path memory; // Step 6b: the user's selection-memory.tsv, read-only.
         std::filesystem::path baseStore; // Step 6d: published base snapshots the host adopts.
+        uint64_t hostReadMs = 0, hostIdleEvictMs = 0; // Step 7b: resident host idle timeout & LRU eviction.
     };
     struct Status {
         State state;
@@ -275,6 +276,8 @@ private:
         if (!config.memory.empty()) { arguments.push_back(L"--memory"); arguments.push_back(config.memory.wstring()); }
         if (!config.baseStore.empty()) { arguments.push_back(L"--base-store"); arguments.push_back(config.baseStore.wstring()); }
         if (config.threads != 2) { arguments.push_back(L"--threads"); arguments.push_back(std::to_wstring(config.threads)); }
+        if (!ownerAnchor_ && config.hostReadMs) { arguments.push_back(L"--read-ms"); arguments.push_back(std::to_wstring(config.hostReadMs)); }
+        if (!ownerAnchor_ && config.hostIdleEvictMs) { arguments.push_back(L"--idle-evict-ms"); arguments.push_back(std::to_wstring(config.hostIdleEvictMs)); }
         if (!config.trace.empty()) { arguments.push_back(L"--trace"); arguments.push_back(config.trace.wstring()); }
         for (const auto &name : names_) { arguments.push_back(L"--pipe"); arguments.push_back(name); }
         if (control_) {

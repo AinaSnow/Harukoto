@@ -37,7 +37,7 @@ using namespace harukoto::engine;
 int wmain(int argc, wchar_t **argv) {
     try {
         std::filesystem::path base, baseStore, themes, personal, memory, tracePath;
-        Host::Options options; bool threadsSet = false, connectionsSet = false;
+        Host::Options options; bool threadsSet = false, connectionsSet = false, readMsSet = false, idleEvictSet = false;
         std::vector<std::wstring> names;
         pipe::Handle ready, stop, ownerLease;
         std::array<pipe::Handle,3> privateControl;
@@ -81,6 +81,18 @@ int wmain(int argc, wchar_t **argv) {
                 const auto number = std::stoull(value);
                 if (!number || number > Host::MaxConnections) throw std::invalid_argument("invalid connection limit");
                 options.connections = static_cast<size_t>(number); connectionsSet = true;
+            }
+            else if (option == L"--read-ms" && !readMsSet) {
+                if (value.empty() || value.size() > 9 || value.find_first_not_of(L"0123456789") != std::wstring::npos) throw std::invalid_argument("invalid read timeout");
+                const auto number = std::stoull(value);
+                if (!number || number > 300000) throw std::invalid_argument("invalid read timeout");
+                options.readMs = number; readMsSet = true;
+            }
+            else if (option == L"--idle-evict-ms" && !idleEvictSet) {
+                if (value.empty() || value.size() > 9 || value.find_first_not_of(L"0123456789") != std::wstring::npos) throw std::invalid_argument("invalid idle eviction");
+                const auto number = std::stoull(value);
+                if (number > 300000) throw std::invalid_argument("invalid idle eviction");
+                options.idleEvictMs = number; idleEvictSet = true;
             }
             else if (option == L"--ready") ownControl(ready,value);
             else if (option == L"--stop") ownControl(stop,value);

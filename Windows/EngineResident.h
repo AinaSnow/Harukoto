@@ -20,6 +20,11 @@
 // Blocking calls: run on a service / I/O thread, never in a TSF callback.
 namespace harukoto::engine::resident {
 constexpr wchar_t DefaultScope[]=L"harukoto";       // Same as discovery::DefaultScope.
+// WIN-03 step 7a: per-release scope so a newer installed engine can run
+// alongside an older one draining its remaining clients at composition boundaries.
+inline std::wstring releaseScope(uint64_t sequence, const std::wstring &prefix=DefaultScope) {
+    return prefix+L"-s"+std::to_wstring(sequence);
+}
 constexpr wchar_t WindowClass[]=L"Harukoto.ResidentOwner.v1";
 constexpr uint32_t IdleNever=0, IdleMinMinutes=5, IdleMaxMinutes=1440;
 // Formal budgets from the step-5 measurements (docs/ENGINE_COST.md).
@@ -31,13 +36,18 @@ constexpr size_t HostThreads=8;
 // work after it). The slowest measured query, a 49-letter sentence with 8
 // clients typing at once, took about 0.24 s in-process and through the engine.
 constexpr uint64_t KeyDeadlineMs=1000;
+// WIN-03 step 7b: resident host idle read timeout (5 min) and idle LRU slot
+// reclamation threshold (5 s) so 8 slots serve dozens of desktop apps cleanly.
+constexpr uint64_t HostReadMs=300000;
+constexpr uint64_t SlotIdleEvictMs=5000;
 // Owner process exit codes in resident mode.
 constexpr DWORD ExitClean=0, ExitFailure=1, ExitNotApproved=3, ExitCrashLoop=4, ExitExists=ERROR_ALREADY_EXISTS;
 
 enum class Reason : uint32_t { Unknown=0, Logon=1, Demand=2 };
 enum class State : uint32_t { None=0, Starting=1, Ready=2, Restarting=3, Stopping=4, Exited=5 };
-// Why the last owner exited. Stopped: asked to (WM_CLOSE, e.g. uninstall).
-enum class Exit : uint32_t { None=0, Stopped=1, Idle=2, Logoff=3, Shutdown=4, CrashLoop=5, Failed=6 };
+// Why the last owner exited. Stopped: asked to (WM_CLOSE, e.g. uninstall);
+// Superseded: a newer release was installed and the last client left (step 7a).
+enum class Exit : uint32_t { None=0, Stopped=1, Idle=2, Logoff=3, Shutdown=4, CrashLoop=5, Failed=6, Superseded=7 };
 
 struct Policy {
     // On-demand starts since the last clean owner exit, counted in a window.
@@ -158,7 +168,7 @@ public:
             for (size_t i=0;i<size/sizeof(uint64_t) && i<starts.size();++i) if (starts[i]) s.starts.push_back(starts[i]);
         if (static_cast<uint32_t>(s.reason)>2) s.reason=Reason::Unknown;
         if (static_cast<uint32_t>(s.state)>5) s.state=State::None;
-        if (static_cast<uint32_t>(s.lastExit)>6) s.lastExit=Exit::None;
+        if (static_cast<uint32_t>(s.lastExit)>7) s.lastExit=Exit::None;
         return s;
     }
     Status read() const { return read(key_); }
@@ -332,11 +342,16 @@ struct EnsureOptions {
     Policy policy;
     Store store;
     std::vector<std::wstring> ownerArguments; // See start().
+    // Step 7a: derive "<scope>-s<sequence>" from the approved release so new
+    // and draining releases never collide on one global lease/discovery pipe.
+    // Enabled automatically when scope is DefaultScope (production).
+    bool versionedScope=false;
 };
 struct EnsureOutcome {
     handoff::AttachOutcome attach;            // attach.outcome.session when Admitted.
     Launch launch=Launch::NotNeeded;
     HRESULT hr=S_OK;
+    uint64_t sequence=0;                      // Approved release sequence targeted (step 7a).
 };
 // The formal replacement for attach()'s dev starter: discover/admit; if no
 // engine answers, under the starter lock consult the breaker, ask the shell
@@ -345,14 +360,17 @@ struct EnsureOutcome {
 inline EnsureOutcome ensure(const release::Snapshot &snapshot, const EnsureOptions &options) {
     EnsureOutcome out;
     const auto approved=release::select(snapshot,options.handoff.discovery.protocol);
-    const auto &scope=options.handoff.discovery.scope;
+    const bool useVersioned=approved && (options.versionedScope || options.handoff.discovery.scope==DefaultScope);
+    const std::wstring scope=useVersioned ? releaseScope(approved->sequence,options.handoff.discovery.scope)
+        : options.handoff.discovery.scope;
+    if (approved) out.sequence=approved->sequence;
     // Pin the approved files once for the whole call: every discovery attempt
     // and the start below reuse these pins instead of hashing again. A file
     // that cannot be pinned is reported by discovery itself (DeploymentInvalid).
     std::shared_ptr<const EngineDeployment> ownerPin, hostPin;
     if (approved) try { ownerPin=EngineDeployment::shared(approved->owner,approved->ownerSha256); hostPin=EngineDeployment::shared(approved->host,approved->hostSha256); }
     catch (const pipe::Error &) {} catch (const std::exception &) {}
-    handoff::AttachOptions attach; attach.handoff=options.handoff; attach.budgetMs=options.budgetMs; attach.maxAttempts=options.maxAttempts;
+    handoff::AttachOptions attach; attach.handoff=options.handoff; attach.handoff.discovery.scope=scope; attach.budgetMs=options.budgetMs; attach.maxAttempts=options.maxAttempts;
     if (approved) attach.start=[&](uint64_t deadline) {
         // Starter lock held; a fresh discovery just said NotRunning.
         try {

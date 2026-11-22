@@ -65,7 +65,7 @@ static int residentStatus(const rs::Store &store, const std::wstring &scope, boo
     const auto now=GetTickCount64();
     constexpr const char *reasons[]{"unknown","logon","demand"};
     constexpr const char *states[]{"none","starting","ready","restarting","stopping","exited"};
-    constexpr const char *exits[]{"none","stopped","idle","logoff","shutdown","crash_loop","failed"};
+    constexpr const char *exits[]{"none","stopped","idle","logoff","shutdown","crash_loop","failed","superseded"};
     const bool running=s.alive && s.startTick && now>=s.startTick;
     if (asJson) {
         std::cout << "{\"format\":1,\"scope\":\"resident_engine\",\"trusted_discovery\":false,\"present\":" << (s.present ? "true" : "false");
@@ -87,7 +87,7 @@ static int residentStatus(const rs::Store &store, const std::wstring &scope, boo
         if (!s.present) std::cout << "没有记录：本次登录后尚未启动过常驻引擎。\n";
         else {
             constexpr const char *reasonText[]{"未知","登录启动","按需启动"};
-            constexpr const char *exitText[]{"无","被要求停止","空闲退出","注销","关机","宿主反复崩溃","失败"};
+            constexpr const char *exitText[]{"无","被要求停止","空闲退出","注销","关机","宿主反复崩溃","失败","已换代退出"};
             std::cout << "所有者 " << s.ownerPid << (s.alive ? "（运行中）" : "（已不在运行）") << "，" << reasonText[static_cast<size_t>(s.reason)];
             if (running) std::cout << "，已运行 " << (now-s.startTick)/1000 << " 秒";
             std::cout << "\n接入方 " << s.clients << "，宿主 " << s.hostPid << "，宿主重启 " << s.hostRestarts
@@ -99,13 +99,35 @@ static int residentStatus(const rs::Store &store, const std::wstring &scope, boo
 }
 int wmain(int argc, wchar_t **argv) {
     if (argc>=2 && std::wstring(argv[1])==L"--resident") {
-        rs::Store store; std::wstring scope=rs::DefaultScope; bool asJson=false;
+        rs::Store store; std::wstring scope=rs::DefaultScope; bool scopeSet=false, asJson=false;
         for (int i=2;i<argc;++i) {
             const std::wstring key=argv[i];
             if (key==L"--json" && !asJson) asJson=true;
-            else if (key==L"--scope" && i+1<argc) scope=argv[++i];
+            else if (key==L"--scope" && i+1<argc) { scope=argv[++i]; scopeSet=true; }
             else if (key==L"--store-subkey" && i+1<argc) store=rs::Store::under(argv[++i]); // Tests; read only.
             else { std::cerr << "usage: harukoto_engine_diagnose --resident [--json]\n"; return 1; }
+        }
+        // Step 7a: production resident owners use per-release scope harukoto-s<seq>.
+        // Prefer the newest present versioned scope (approved first, then any
+        // draining older release), falling back to legacy DefaultScope.
+        if (!scopeSet) {
+            try {
+                const auto snap=release::read();
+                std::wstring chosen;
+                if (const auto approved=release::select(snap,ProtocolVersion)) {
+                    const auto versioned=rs::releaseScope(approved->sequence,scope);
+                    if (rs::inspect(store,versioned).present) chosen=versioned;
+                }
+                if (chosen.empty() && snap.status==release::Status::Ready) {
+                    uint64_t bestSeq=0;
+                    for (const auto &entry : snap.entries) {
+                        if (entry.sequence<=bestSeq) continue;
+                        const auto versioned=rs::releaseScope(entry.sequence,scope);
+                        if (rs::inspect(store,versioned).present) { bestSeq=entry.sequence; chosen=versioned; }
+                    }
+                }
+                if (!chosen.empty()) scope=chosen;
+            } catch (...) {}
         }
         return residentStatus(store,scope,asJson);
     }

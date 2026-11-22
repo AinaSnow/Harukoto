@@ -319,4 +319,38 @@ inline std::optional<Entry> select(const Snapshot &snapshot, uint16_t protocol) 
     if (!best || tie) return std::nullopt;
     return *best;
 }
+
+// WIN-03 step 7a: evaluate the newest installed release across all protocols
+// so an older TIP distinguishes "upgraded to same protocol (can cut over)"
+// from "upgraded to an incompatible protocol or newer format (must restart)".
+enum class Compatibility { None, Match, ProtocolMismatch };
+struct Evaluation {
+    Compatibility kind=Compatibility::None;
+    std::optional<Entry> selected;
+    uint16_t latestProtocol=0;
+    uint64_t latestSequence=0;
+};
+inline Evaluation evaluate(const Snapshot &snapshot, uint16_t protocol) {
+    Evaluation out;
+    if (snapshot.status!=Status::Ready) return out;
+    const Entry *best=nullptr; bool tie=false;
+    for (const auto &entry : snapshot.entries) {
+        if (!best || entry.sequence>best->sequence) { best=&entry; tie=false; }
+        else if (entry.sequence==best->sequence) tie=true;
+    }
+    if (tie) return out;
+    if (!best) {
+        if (snapshot.unsupported>0) out.kind=Compatibility::ProtocolMismatch;
+        return out;
+    }
+    out.latestProtocol=best->protocol;
+    out.latestSequence=best->sequence;
+    if (best->protocol!=protocol || snapshot.unsupported>0) {
+        out.kind=Compatibility::ProtocolMismatch;
+        return out;
+    }
+    out.kind=Compatibility::Match;
+    out.selected=*best;
+    return out;
+}
 } // namespace harukoto::engine::release

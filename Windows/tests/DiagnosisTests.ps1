@@ -1,4 +1,4 @@
-#requires -Version 7.0
+﻿#requires -Version 7.0
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../DiagnosisSupport.ps1')
 function Assert-Equal($Actual, $Expected) { if ($Actual -ne $Expected) { throw "Expected $Expected, got $Actual" } }
@@ -31,7 +31,10 @@ $record += [ordered]@{engine_path='engine'; engine_served=5; engine_fallbacks=1;
 Assert-Equal (Convert-HarukotoRuntimeRecord ($record | ConvertTo-Json -Compress) $null).Engine '独立引擎；引擎提供 5 次，回退 1 次，原因 none'
 $record += [ordered]@{engine_memory_behind=2}
 Assert-Equal (Convert-HarukotoRuntimeRecord ($record | ConvertTo-Json -Compress) $null).Engine '独立引擎；引擎提供 5 次，回退 1 次，原因 none，学习记录未追上 2 次'
-foreach ($bad in @(@{engine_path='remote'}, @{engine_served=-1}, @{engine_reason='Bad Reason'}, @{engine_memory_behind='x'})) {
+# WIN-03 step 7a/7b cutover, slot lifecycle & compatibility fields: optional, validated when present.
+$record7a = [ordered]@{} + $record + [ordered]@{engine_sequence=2; engine_cutovers=1; engine_cutover_failures=1; engine_yields=3; engine_reclaimed=2; engine_incompatible=$true}
+Assert-Equal (Convert-HarukotoRuntimeRecord ($record7a | ConvertTo-Json -Compress) $null).Engine '独立引擎；引擎提供 5 次，回退 1 次，原因 none，学习记录未追上 2 次，版本序号 2，已换代 1 次，换代失败 1 次，主动礼让 3 次，空闲回收 2 次，协议不兼容，请重开应用'
+foreach ($bad in @(@{engine_path='remote'}, @{engine_served=-1}, @{engine_reason='Bad Reason'}, @{engine_memory_behind='x'}, @{engine_sequence=-1}, @{engine_cutovers='one'}, @{engine_cutover_failures=-2}, @{engine_yields=-1}, @{engine_reclaimed='two'}, @{engine_incompatible='yes'})) {
     $broken = [ordered]@{} + $record
     foreach ($key in $bad.Keys) { $broken[$key] = $bad[$key] }
     $rejected = $false
@@ -42,6 +45,8 @@ foreach ($bad in @(@{engine_path='remote'}, @{engine_served=-1}, @{engine_reason
 Assert-Equal (Convert-HarukotoResidentRecord '{"format":1,"scope":"resident_engine","trusted_discovery":false,"present":false}').Present $false
 $resident = Convert-HarukotoResidentRecord '{"format":1,"scope":"resident_engine","trusted_discovery":false,"present":true,"owner_pid":42,"alive":true,"start_reason":"demand","state":"ready","uptime_ms":5,"clients":2,"host_pid":43,"host_restarts":0,"last_exit":"none","last_exit_pid":0,"last_exit_age_ms":null,"recent_on_demand_starts":1,"breaker_tripped":false}'
 Assert-Equal $resident.Status '就绪，所有者 42（运行中），接入方 2，宿主重启 0 次，近期按需启动 1 次'
+$superseded = Convert-HarukotoResidentRecord '{"format":1,"scope":"resident_engine","trusted_discovery":false,"present":true,"owner_pid":42,"alive":false,"start_reason":"demand","state":"exited","uptime_ms":0,"clients":0,"host_pid":0,"host_restarts":0,"last_exit":"superseded","last_exit_pid":42,"last_exit_age_ms":100,"recent_on_demand_starts":0,"breaker_tripped":false}'
+Assert-Equal $superseded.State 'exited'
 foreach ($bad in @('{"format":2,"scope":"resident_engine","present":false}', '{"format":1,"scope":"resident_engine","present":true,"state":"flying","alive":true,"breaker_tripped":false}')) {
     $rejected = $false
     try { Convert-HarukotoResidentRecord $bad | Out-Null } catch { $rejected = $true }
