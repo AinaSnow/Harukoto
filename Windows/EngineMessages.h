@@ -15,12 +15,18 @@ enum class KeyAction : uint8_t { Text = 1, Backspace, PageNext, PagePrevious, Re
 // client's personal table); the digests (EngineMemory.h) name the exact
 // phrase, word and user-word models the client ranks with. Phrase and word
 // digests are empty when memory is off; the user digest is always given.
+// Step 6c: context and locked are the segment context and partial-selection
+// state of the client's session (the reading after a chosen segment).
 struct QuerySettings {
     uint32_t fuzzy = 0;
     bool typo = true, memory = false;
     int64_t hour = 0;
     std::string phrases, words, user;
+    std::string context;
+    bool locked = false;
 };
+// Candidates per page of a Query (step 6c); a plain Key keeps 16.
+constexpr size_t QueryPageSize = 128;
 struct KeyMessage {
     KeyAction action = KeyAction::Text; uint8_t text = 0; bool simplified = true;
     bool extended = false; // false: the step 6a key, ranked with engine defaults.
@@ -78,7 +84,8 @@ inline bool digestValid(const std::string &s) {
 }
 inline bool valid(const QuerySettings &q) {
     return q.fuzzy <= 0xffff && q.hour >= 0 && q.hour <= 100000000 && digestValid(q.phrases) && digestValid(q.words) &&
-        q.user.size() == 64 && digestValid(q.user) && (q.memory || (q.phrases.empty() && q.words.empty()));
+        q.user.size() == 64 && digestValid(q.user) && (q.memory || (q.phrases.empty() && q.words.empty())) &&
+        q.context.size() <= 64 && textValid(q.context);
 }
 inline bool valid(const KeyMessage &m) {
     if (m.extended && !valid(m.settings)) return false;
@@ -129,6 +136,7 @@ inline std::vector<uint8_t> encodePayload(const KeyMessage &m) {
         const auto &q = m.settings;
         put(b, q.fuzzy, 4); put(b, q.typo, 1); put(b, q.memory, 1); put(b, static_cast<uint64_t>(q.hour), 8);
         putString(b, q.phrases); putString(b, q.words); putString(b, q.user);
+        putString(b, q.context); put(b, q.locked, 1);
     }
     return b;
 }
@@ -159,14 +167,15 @@ inline bool decodePayload(const std::vector<uint8_t> &b, KeyMessage &out) {
     if (tag != static_cast<uint16_t>(Payload::Key) && tag != static_cast<uint16_t>(Payload::Query)) return false;
     KeyMessage m; m.action = static_cast<KeyAction>(r.number(1)); m.text = static_cast<uint8_t>(r.number(1));
     const auto simplified = r.number(1); m.simplified = simplified != 0;
-    uint64_t typo = 0, memory = 0;
+    uint64_t typo = 0, memory = 0, locked = 0;
     if (tag == static_cast<uint16_t>(Payload::Query)) {
         auto &q = m.settings; m.extended = true;
         q.fuzzy = static_cast<uint32_t>(r.number(4)); typo = r.number(1); memory = r.number(1);
         q.typo = typo != 0; q.memory = memory != 0; q.hour = static_cast<int64_t>(r.number(8));
         q.phrases = r.string(64); q.words = r.string(64); q.user = r.string(64);
+        q.context = r.string(64); locked = r.number(1); q.locked = locked != 0;
     }
-    if (simplified > 1 || typo > 1 || memory > 1 || !r.done() || !valid(m)) return false; out = std::move(m); return true;
+    if (simplified > 1 || typo > 1 || memory > 1 || locked > 1 || !r.done() || !valid(m)) return false; out = std::move(m); return true;
 }
 inline bool decodePayload(const std::vector<uint8_t> &b, CandidatePage &out) {
     PayloadReader r(b); if (r.number(2) != static_cast<uint16_t>(Payload::Candidates)) return false;

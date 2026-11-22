@@ -1,5 +1,16 @@
 # 开发状态与接手入口
 
+## 2026-11-22 · WIN-03 第 6c 步：部分选词、深页、F6、正式连接与安装布局
+
+- 前置：6b 已提交（614d791）。本批未提交、未打包、未实机。设计与结果见[接入 TSF](ENGINE_TSF.md)第 11 节。
+- 引擎与协议：`QuerySettings` 加分段上下文与 `locked`，Query 每页 128 项（客户端最多取 32 页）；宿主／所有者／`EngineProcess` 已有 `--memory`。
+- 接入层：删除 `partial`、`conjugation` 门槛（新增 `context`：上下文超过 64 字节；`learned_segment`：学习开启时同段后续段，留 6d）；OnKeyDown 选词、以词定字、忘记之后的刷新可走引擎；`rebuild()` 接受空列表；回复到达后刷新 UI 元素与内联组字；工厂改用 `residentConnect({}, options)`，所有者参数来自 `layoutArguments()`（版本目录或已采用的发布快照、主题、个人表、学习文件）；未采用快照时用版本目录清单算身份（`base_dictionary::manifestGeneration`）。
+- 打包与安装：`scripts/base_dictionary.py describe`、`manage-base-dictionary.py describe`；`package-ime.ps1` 给 payload 写 `base-dictionary.json`、带 `harukoto_engine_diagnose.exe`、新增 `-OutputDirectory`；安装器复制清单；`Publish-HarukotoEngineRelease` 要求清单（仍只警告，原因见 ENGINE_TSF）。在临时输出目录实际打包检查：包内有清单与两个引擎程序，原生加载器把 payload 当快照加载成功（generation 24983b15…）；未运行安装器。
+- 诊断：Diagnose.cmd 显示独立引擎开关、常驻引擎状态（`Convert-HarukotoResidentRecord`），各实例 Engine 行显示来源与原因。
+- 测试：`engine_tsf_full` 加选词序列、以词定字、F6、生成候选、数字模式、忘记，以及 layout 阶段（模拟安装布局身份、热发布回退、HKCU 注入来源的常驻路径）；`EngineReleaseTests.ps1`、`DiagnosisTests.ps1`、`engine_messages` 补断言。评测 tuned／holdout（只看总数）／words-dev／abbrev-dev／typo-dev／fuzzy-dev（--fuzzy 2047）与 6b 报告除时间与内存外相同（`chinese-*-win036c.json`）。CTest 共 67 项，最后一次修改后完整构建、复制 TIP 到 `.build/windows/ime`，在 PowerShell 中一次运行全部通过（773 秒，-j 4）；之后无残留进程、HKCU 测试键或本批临时目录（%TEMP% 下 harukoto-base-production-1bnvnd52 为此前遗留，未动）。
+- 未验证：真实安装后的 HKLM 发行元数据与常驻启动；真实应用（含 UI-less 游戏）中异步候选的显示；多应用同时开启；阶段一功能测试在开关开启下整套重跑（6d）。
+- 下一步：6d。
+
 ## 2026-11-22 · WIN-03 第 6b 步：模糊音、纠错与学习记录进入引擎
 
 - 前置：6a 已提交（6ccb156）。本批未提交、未打包。设计见[接入 TSF](ENGINE_TSF.md)第 3、10 节。

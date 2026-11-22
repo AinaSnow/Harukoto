@@ -46,7 +46,7 @@ foreach ($process in Get-Process) {
 }
 # WIN-08: whether the TIP is in the user's input list, the default input
 # method override, and the game-related settings. Read-only.
-$inputSettings = [ordered]@{ InLanguageList = '无法确认'; DefaultOverride = '无法确认'; InlineComposition = '默认（0 自动）'; ShiftToggle = '默认（1 左右均可）' }
+$inputSettings = [ordered]@{ InLanguageList = '无法确认'; DefaultOverride = '无法确认'; InlineComposition = '默认（0 自动）'; ShiftToggle = '默认（1 左右均可）'; StandaloneEngine = '关闭（默认）' }
 try {
     $tips = @(Get-WinUserLanguageList -ErrorAction Stop | ForEach-Object { $_.InputMethodTips })
     $inputSettings.InLanguageList = if ($tips | Where-Object { $_ -like '*961C0ADA-4DC6-488F-9563-4FC144EFAE27*' }) { '是' } else { '否（请在语言设置中添加晴词）' }
@@ -61,7 +61,16 @@ try {
     $inputKey = Get-ItemProperty -LiteralPath 'HKCU:\Software\Meowpuut\Input' -ErrorAction Stop
     if ($null -ne $inputKey.InlineComposition) { $inputSettings.InlineComposition = "$($inputKey.InlineComposition)" }
     if ($null -ne $inputKey.ShiftToggle) { $inputSettings.ShiftToggle = "$($inputKey.ShiftToggle)" }
+    # WIN-03 step 6: the experimental standalone engine switch (DWORD, 0 or absent: off).
+    if ($inputKey.StandaloneEngine -is [int] -and $inputKey.StandaloneEngine -ne 0) { $inputSettings.StandaloneEngine = '开启（实验）' }
 } catch {}
+# WIN-03 step 6c: the resident engine's self-reported state (read only, no input content).
+$resident = [pscustomobject]@{ Status = '未随本工具提供引擎诊断程序' }
+$engineDiagnose = Join-Path $PSScriptRoot 'harukoto_engine_diagnose.exe'
+if (Test-Path -LiteralPath $engineDiagnose -PathType Leaf) {
+    try { $resident = Convert-HarukotoResidentRecord ((& $engineDiagnose --resident --json) -join "`n") }
+    catch { $resident = [pscustomobject]@{ Status = '无法读取常驻引擎状态' } }
+}
 $version = $null
 try { $version = (Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Meowpuut').DisplayVersion } catch {}
 $report = [pscustomobject]@{
@@ -70,6 +79,7 @@ $report = [pscustomobject]@{
     CheckedProcesses = $checked; UnknownProcesses = $unknown
     BasePublication = $basePublication
     InputSettings = [pscustomobject]$inputSettings
+    ResidentEngine = $resident
     Dictionaries = Get-HarukotoDictionarySummary (Join-Path $env:LOCALAPPDATA 'Meowpuut/Dictionaries')
     Notes = @('安装器版本不等于进程版本；DLL 以路径和 SHA256 对比，缺少文件版本时不猜测。',
         '比较模块路径当前文件的哈希；不是进程内存校验。采用版本目录的安装可据此排查残留旧模块。',
@@ -104,6 +114,9 @@ Write-Output '输入设置（WIN-08）：'
 Write-Output ('  语言列表含晴词：' + $report.InputSettings.InLanguageList)
 Write-Output ('  默认输入法覆盖：' + $report.InputSettings.DefaultOverride)
 Write-Output ('  InlineComposition：' + $report.InputSettings.InlineComposition + '；ShiftToggle：' + $report.InputSettings.ShiftToggle)
+Write-Output ('独立引擎开关（WIN-03，实验）：' + $report.InputSettings.StandaloneEngine)
+Write-Output ('常驻引擎：' + $report.ResidentEngine.Status)
+Write-Output '  每个应用实际由谁提供候选、回退原因见上方各实例的 Engine 一行。'
 Write-Output ('主题词库：' + $report.Dictionaries.Status)
 if ($report.Dictionaries.Packages.Count) { $report.Dictionaries.Packages | Format-Table Name,Version,Enabled,Entries -AutoSize }
 $report.Notes | ForEach-Object { Write-Output "- $_" }

@@ -17,6 +17,9 @@ def main():
     create.add_argument('source', type=Path)
     create.add_argument('destination', type=Path)
     create.add_argument('--version', required=True)
+    describe = commands.add_parser('describe', help='为安装包版本目录就地写清单（WIN-03 第 6c 步）')
+    describe.add_argument('folder', type=Path)
+    describe.add_argument('--version', required=True)
     verify = commands.add_parser('verify', help='检查文件完整性与容器格式')
     verify.add_argument('snapshot', type=Path)
     verify.add_argument('--native-loader', type=Path, help='额外运行已构建的 harukoto_base_dictionary_check.exe')
@@ -30,6 +33,8 @@ def main():
     try:
         if args.command == 'create':
             result = bundle.create(args.source, args.destination, args.version)
+        elif args.command == 'describe':
+            result = bundle.describe(args.folder, args.version)
         elif args.command == 'verify':
             result = bundle.verify(args.snapshot)
             if args.native_loader:

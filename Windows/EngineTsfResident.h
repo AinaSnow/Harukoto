@@ -2,19 +2,20 @@
 #include "EngineResident.h"
 #include "EngineTsf.h"
 
-// WIN-03 step 6a: how a TSF link reaches the resident engine. Runs on the
+// WIN-03 step 6a/6c: how a TSF link reaches the resident engine. Runs on the
 // link's worker thread only: discovery, handoff (and, when nothing answers,
 // the shell-started owner of step 4), one private endpoint, a verified pipe.
 // The release source is HKLM in production; tests pass an HKCU test key.
+// options.ownerArguments carry the data layout the owner should serve
+// (--base/--themes/--personal/--memory), chosen by the starting client.
 namespace harukoto::tsf_engine {
-inline Link::Connect residentConnect(engine::release::Source source = {}, std::wstring scope = engine::resident::DefaultScope) {
-    return [source = std::move(source), scope = std::move(scope)](uint64_t deadline) -> std::unique_ptr<Transport> {
+inline Link::Connect residentConnect(engine::release::Source source = {}, engine::resident::EnsureOptions base = {}) {
+    return [source = std::move(source), base = std::move(base)](uint64_t deadline) -> std::unique_ptr<Transport> {
         namespace resident = engine::resident;
         namespace pipe = engine::pipe;
         const auto time = pipe::now();
         if (deadline <= time) throw Timeout();
-        resident::EnsureOptions options;
-        options.handoff.discovery.scope = scope;
+        auto options = base;
         options.budgetMs = deadline - time;
         options.startWaitMs = std::min<uint64_t>(options.startWaitMs, options.budgetMs);
         auto outcome = resident::ensure(engine::release::read(source), options);
@@ -35,5 +36,18 @@ inline Link::Connect residentConnect(engine::release::Source source = {}, std::w
         // The slot stays ours while the transport lives; destroying it hands it back.
         return std::make_unique<PipeTransport>(result->endpoint->connect(), session);
     };
+}
+
+// Step 6c: the owner arguments for the data a TSF service ranks with, so a
+// started engine reports the same data identity. base is the version
+// folder (a snapshot since the package carries base-dictionary.json) or the
+// published snapshot the service adopted; themes only when packages are on.
+inline std::vector<std::wstring> layoutArguments(const std::filesystem::path &base, const std::filesystem::path &dataRoot, bool themes) {
+    std::vector<std::wstring> result{L"--base", base.wstring()};
+    if (dataRoot.empty()) return result;
+    if (themes) { result.push_back(L"--themes"); result.push_back((dataRoot / L"Dictionaries").wstring()); }
+    result.push_back(L"--personal"); result.push_back((dataRoot / L"japanese-custom.tsv").wstring());
+    result.push_back(L"--memory"); result.push_back((dataRoot / L"selection-memory.tsv").wstring());
+    return result;
 }
 } // namespace harukoto::tsf_engine

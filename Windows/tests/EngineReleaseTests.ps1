@@ -40,6 +40,8 @@ function New-Version($id, $content) {
     New-Item -ItemType Directory $folder | Out-Null
     Set-Content -LiteralPath (Join-Path $folder $script:HarukotoEngineHostName) -Value "host-$content" -Encoding ascii
     Set-Content -LiteralPath (Join-Path $folder $script:HarukotoEngineOwnerName) -Value "owner-$content" -Encoding ascii
+    # Step 6c: a release needs the manifest that makes the folder a base snapshot.
+    Set-Content -LiteralPath (Join-Path $folder 'base-dictionary.json') -Value '{}' -Encoding ascii
     return $folder
 }
 function Read-Releases {
@@ -99,6 +101,11 @@ try {
     $failure = ''
     try { Publish $broken | Out-Null } catch { $failure = $_.Exception.Message }
     Assert-True ($failure.Contains('Missing engine program')) "Missing owner must fail: $failure"
+    $unlisted = New-Version '9999ABCD-0000' 'x'
+    Remove-Item -LiteralPath (Join-Path $unlisted 'base-dictionary.json')
+    $failure = ''
+    try { Publish $unlisted | Out-Null } catch { $failure = $_.Exception.Message }
+    Assert-True ($failure.Contains('base-dictionary.json')) "A version without its base manifest must fail: $failure"
     foreach ($case in @(@{ Folder = $a; Id = 'Other' }, @{ Folder = $a; Id = '-bad' })) {
         $failure = ''
         try { Publish-HarukotoEngineRelease -VersionDirectory $case.Folder -Id $case.Id -KeyPath $key -Sddl $testSddl | Out-Null } catch { $failure = $_.Exception.Message }

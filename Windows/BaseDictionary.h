@@ -130,6 +130,19 @@ public:
     }
 };
 
+// WIN-03 step 6c: the generation a folder's manifest names, without checking
+// its files (Snapshot::load does). For a TSF service running on the files of
+// its protected version folder: the engine loads the same folder as a full
+// snapshot, so equal generations mean the same validated files.
+inline std::string manifestGeneration(const std::filesystem::path &folder) {
+    StableFile file(folder / "base-dictionary.json", 65536);
+    const auto manifest = MetadataParser(file.read()).parse();
+    manifest.keys({"format", "engine_abi", "version", "files"});
+    if (manifest.at("format").count() != 1 || manifest.at("engine_abi").count() != 1)
+        throw std::runtime_error("unsupported base dictionary format or ABI");
+    return sha256(manifest.canonical());
+}
+
 inline std::string currentGeneration(const std::filesystem::path &root) {
     StableFile pointer(root / "STATE.json", 65536);
     const auto state = MetadataParser(pointer.read()).parse();

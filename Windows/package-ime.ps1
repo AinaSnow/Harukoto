@@ -1,7 +1,9 @@
 param(
     [string]$Compiler,
     [switch]$MSVC,
-    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.29'
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$')][string]$Version = '0.4.4-alpha.29',
+    # Where the archives go; default .build/windows/dist (tests use a temporary folder).
+    [string]$OutputDirectory
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,7 +11,7 @@ if ($MSVC -and $Compiler) { throw 'Choose -MSVC or -Compiler, not both.' }
 if (!$MSVC -and !$Compiler) { throw 'Specify -MSVC or the LLVM-MinGW -Compiler path.' }
 $root = Split-Path $PSScriptRoot
 $build = Join-Path $root '.build/windows'
-$output = Join-Path $build 'dist'
+$output = if ($OutputDirectory) { $OutputDirectory } else { Join-Path $build 'dist' }
 New-Item -ItemType Directory -Force $output | Out-Null
 $output = (Resolve-Path -LiteralPath $output).Path
 $stage = Join-Path $output ([guid]::NewGuid().ToString('N'))
@@ -48,6 +50,13 @@ try {
         foreach ($name in 'harukoto_engine_host.exe','harukoto_engine_owner.exe') {
             Copy-Item -LiteralPath (Join-Path $build "msvc/Release/$name") -Destination $payload
         }
+        # WIN-03 step 6c: Diagnose.cmd shows the resident engine's state.
+        Copy-Item -LiteralPath (Join-Path $build 'msvc/Release/harukoto_engine_diagnose.exe') -Destination $stage
+        # WIN-03 step 6c: the version folder is itself a base snapshot, so the
+        # engine can serve the installed files and report their generation.
+        $python = (Get-Command python -ErrorAction Stop).Source
+        & $python -X utf8 (Join-Path $PSScriptRoot 'manage-base-dictionary.py') describe $payload --version $Version | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot describe the packaged base dictionary.' }
     }
     Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_dictionary.py') -Destination (Join-Path $stage 'scripts')
     Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_packages.py') -Destination (Join-Path $stage 'scripts')

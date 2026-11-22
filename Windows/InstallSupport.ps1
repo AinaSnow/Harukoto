@@ -142,6 +142,8 @@ function Publish-HarukotoEngineRelease {
     if ((Split-Path $folder -Leaf) -cne $Id) { throw 'The engine release id must name its version directory.' }
     if ($folder -notmatch '^[A-Za-z]:\\[^\\]') { throw "Engine programs must be on a local drive path: $folder" }
     if ((Get-Item -LiteralPath $folder -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing a redirected engine directory.' }
+    # WIN-03 step 6c: the engine serves this folder as a base snapshot.
+    if (!(Test-Path -LiteralPath (Join-Path $folder 'base-dictionary.json') -PathType Leaf)) { throw 'Missing base-dictionary.json: the engine could not load this version.' }
     $files = foreach ($name in $script:HarukotoEngineHostName, $script:HarukotoEngineOwnerName) {
         $path = Join-Path $folder $name
         if (!(Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing engine program: $path" }

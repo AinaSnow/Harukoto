@@ -92,6 +92,10 @@ if ($Register) {
     $packageFiles = @($sourceDll, $sourceLexicon, $sourceJapanese, $sourceEvidence, $renderer) + @($managerFiles)
     $conjugationData = Join-Path $build 'japanese-conjugations.bin'
     if (Test-Path -LiteralPath $conjugationData -PathType Leaf) { $packageFiles += $conjugationData }
+    # WIN-03 step 6c: the manifest that makes the version folder a base snapshot
+    # the engine can load (docs/ENGINE_TSF.md).
+    $baseManifest = Join-Path $build 'base-dictionary.json'
+    if (Test-Path -LiteralPath $baseManifest -PathType Leaf) { $packageFiles += $baseManifest }
     # Experimental engine programs (WIN-03) are optional payload files; the
     # input service does not start them yet.
     foreach ($name in $script:HarukotoEngineHostName, $script:HarukotoEngineOwnerName) {
@@ -117,7 +121,10 @@ if ($Register) {
     Invoke-MeowpuutRegistration -Dll $dll -PreviousDll $previousDll -RegisterServer $registerServer -UnregisterServer $unregisterServer -GetRegisteredDll $getRegisteredDll
     # WIN-03 step 1: approve this version's engine programs only after the new
     # input service is registered. A failed registration returned above and
-    # left the previous approvals untouched. Typing does not use them yet.
+    # left the previous approvals untouched. Since step 6c the input service
+    # starts the approved engine only when the user turns on StandaloneEngine
+    # (default off). A failure here only warns: the switch then stays on the
+    # in-process path (docs/ENGINE_TSF.md).
     $enginePrograms = @(foreach ($name in $script:HarukotoEngineHostName, $script:HarukotoEngineOwnerName) {
         $engineProgram = Join-Path $install $name
         if (Test-Path -LiteralPath $engineProgram -PathType Leaf) { $engineProgram }

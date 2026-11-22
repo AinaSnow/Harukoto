@@ -89,8 +89,8 @@ private:
     // windowsCandidates uses whole-input matches; mixedReading additionally
     // uses source-empty substrings of length 3..10 for all-letter inputs 5..24.
     // Original row indices preserve every tie/order/first-match decision.
-    std::vector<JapaneseWord> queryWords(const ServerConnection::Work &work) const {
-        if (work.chineseLocked) return {};
+    std::vector<JapaneseWord> queryWords(const ServerConnection::Work &work, bool locked) const {
+        if (locked) return {};
         std::vector<size_t> indices;
         auto include = [&](const std::string &reading, bool mixedOnly) {
             const auto found = readings_.find(reading);
@@ -126,7 +126,11 @@ private:
             work.context.size() > 64 || !textValid(work.context) || !valid(work.key))
             throw std::invalid_argument("unsupported Windows query");
         auto session = base_->session(work.key.simplified);
-        mpn_set_segment_context(session.get(), work.context.c_str());
+        // Step 6c: a Query carries the client's own segment context and
+        // partial-selection state; a plain key uses the server session's.
+        const bool locked = work.key.extended ? work.key.settings.locked : work.chineseLocked;
+        mpn_set_segment_context(session.get(), (work.key.extended ? work.key.settings.context : work.context).c_str());
+        const size_t pageSize = work.key.extended ? QueryPageSize : PageSize;
         // Step 6b: the client's fuzzy pinyin, typo switch and learned state,
         // set before any key exactly as its own session has them.
         std::shared_ptr<const MemoryView> view;
@@ -156,8 +160,8 @@ private:
         if (!evidence.ready()) throw std::runtime_error("snapshot SQLite unavailable");
         mark(&QueryTimings::sqlite_open_ms);
         auto lookup = [&](const std::string &reading) { return evidence.dictionary(reading, work.key.simplified); };
-        const auto relevant = queryWords(work);
-        auto choices = windowsCandidates(session.get(), relevant, lookup, work.chineseLocked);
+        const auto relevant = queryWords(work, locked);
+        auto choices = windowsCandidates(session.get(), relevant, lookup, locked);
         if (view && settings.memory) {
             // What the user chose for this exact reading comes first (CN-06a/b),
             // as the TSF service does before any expansion.
@@ -188,23 +192,23 @@ private:
                     choice.coreIndex ? static_cast<uint32_t>(*choice.coreIndex + 1) : 0u, flags});
             }
         };
-        const auto start = size_t(work.page) * PageSize;
+        const auto start = size_t(work.page) * pageSize;
         // Expansion only appends, and native indices remain stable. Once we
         // have this page plus one valid choice, neither its contents/IDs nor
         // more=true can change. Later pages rebuild the same prefix and expand
         // further as needed, retaining the original three-round search budget.
-        const auto required = start + PageSize + (work.page < 4095 ? 1 : 0);
+        const auto required = start + pageSize + (work.page < 4095 ? 1 : 0);
         convert(); mark(&QueryTimings::conversion_ms);
         for (int i=0; converted.size()<required && i<3 && mpn_candidates_can_expand(session.get()); ++i) {
             mpn_expand_candidates(session.get());
-            appendCandidateExpansion(session.get(), choices, windowsCandidates(session.get(), relevant, lookup, work.chineseLocked));
+            appendCandidateExpansion(session.get(), choices, windowsCandidates(session.get(), relevant, lookup, locked));
             rounds.resize(choices.size(), static_cast<uint8_t>(i + 1));
             mark(&QueryTimings::expansion_ms);
             convert(); mark(&QueryTimings::conversion_ms);
         }
         CandidatePage page{work.input, false, {}};
         if (start < converted.size()) {
-            const auto end = std::min(converted.size(), start + PageSize);
+            const auto end = std::min(converted.size(), start + pageSize);
             page.words.assign(converted.begin() + start, converted.begin() + end);
             page.more = end < converted.size() && work.page < 4095;
         }

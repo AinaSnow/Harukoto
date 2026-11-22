@@ -1,12 +1,14 @@
 """WIN-03 第 6a／6b 步：文本服务的独立引擎开关、异步与回退，进程内／引擎路径逐项对照，
 以及学习记录（选词记忆、个人词频、个人词）经引擎只读加载后的一致性。
 
-用法：test_engine_tsf.py <harukoto_engine_tsf_test> <harukoto_engine_host> <词库目录> [pwsh]
+用法：test_engine_tsf.py <harukoto_engine_tsf_test> <harukoto_engine_host> <词库目录> [pwsh [owner_test]]
 词库目录做成临时基础快照，加 FF14 全量主题与一张个人表；学习记录都放在临时目录，
 不碰 %LOCALAPPDATA%；结束时删除临时目录。给出 pwsh 时用真实管理脚本做清除与个人词改动。
 """
 from pathlib import Path
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,6 +20,7 @@ from japanese_packages import change
 
 reader, host, source = (Path(value).resolve() for value in sys.argv[1:4])
 pwsh = sys.argv[4] if len(sys.argv) > 4 else None
+owner_test = Path(sys.argv[5]).resolve() if len(sys.argv) > 5 else None
 DATA = ROOT / 'Windows/tests/data'
 SCRIPT = ROOT / 'Windows/manage-selection-memory.ps1'
 
@@ -86,6 +89,39 @@ def steps(base, themes, personal, root):
             process.kill(); process.wait()
 
 
+def layout(root):
+    """第 6c 步：模拟安装布局（版本目录＋%LOCALAPPDATA%\\Meowpuut），核对数据身份、热发布与常驻路径。"""
+    version = root / 'installed' / 'version'
+    version.mkdir(parents=True)
+    for name in bundle.FILES:
+        shutil.copy2(source / name, version / name)
+    bundle.describe(version, '0.4.4-tsf.1')  # As package-ime.ps1 does for the payload.
+    data = root / 'local' / 'Meowpuut'
+    data.mkdir(parents=True)
+    change(data / 'Dictionaries', 'import', ROOT / 'Resources/DictionaryPackages/ff14/full/manifest.json')
+    change(data / 'Dictionaries', 'enable', 'harukoto-ff14')
+    (data / 'japanese-custom.tsv').write_text('testcoffee|珈琲|5000|こーひー|english|咖啡\n', encoding='utf-8')
+    staged = root / 'staged'
+    bundle.create(source, staged, '0.4.4-tsf.2')
+    command = [str(reader), 'layout', str(version), str(data), str(host)] + ([str(owner_test)] if owner_test else [])
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding='utf-8')
+    try:
+        while True:
+            line = process.stdout.readline()
+            assert line, 'layout check stopped early'
+            print(line.rstrip())
+            if line.strip() == 'ready-publish':
+                bundle.stage(staged, data / 'BaseDictionaries')  # As Dictionaries.cmd publishes a snapshot.
+                process.stdin.write('published\n'); process.stdin.flush()
+                break
+        for line in process.stdout:
+            print(line.rstrip())
+        assert process.wait(timeout=600) == 0
+    finally:
+        if process.poll() is None:
+            process.kill(); process.wait()
+
+
 with tempfile.TemporaryDirectory(prefix='harukoto-engine-tsf-') as temporary:
     root = Path(temporary)
     base = root / 'base'
@@ -96,19 +132,29 @@ with tempfile.TemporaryDirectory(prefix='harukoto-engine-tsf-') as temporary:
     personal, other = root / 'personal.tsv', root / 'other.tsv'
     personal.write_text('testcoffee|珈琲|5000|こーひー|english|咖啡\n', encoding='utf-8')
     other.write_text('testcoffee|珈琲|5100|こーひー|english|咖啡\n', encoding='utf-8')
-    subprocess.run([str(reader), 'unit', str(base), str(themes), str(personal), str(other), str(host)],
-                   check=True, timeout=300)
-    steps(base, themes, personal, root)
+    only = os.environ.get('HARUKOTO_ENGINE_TSF_ONLY')  # Development: run one phase.
+    if only in (None, 'unit'):
+        subprocess.run([str(reader), 'unit', str(base), str(themes), str(personal), str(other), str(host)],
+                       check=True, timeout=300)
+    if only in (None, 'steps'):
+        steps(base, themes, personal, root)
+    if only in (None, 'layout'):
+        layout(root)
+    if only not in (None, 'parity'):
+        raise SystemExit(0)
     scratch = root / 'parity'
     scratch.mkdir()
     result = subprocess.run([str(reader), 'parity', str(base), str(themes), str(personal), str(scratch),
                              *(str(DATA / name) for name in ('chinese-evaluation.tsv', 'chinese-words-dev.tsv',
                                                              'chinese-fuzzy-dev.tsv', 'chinese-typo-dev.tsv',
                                                              'chinese-abbrev-dev.tsv'))],
-                            check=True, timeout=1800, capture_output=True, text=True, encoding='utf-8')
+                            timeout=3000, capture_output=True, text=True, encoding='utf-8')
+    if result.returncode:
+        print(result.stderr[-4000:], file=sys.stderr)
+        raise SystemExit(f'parity failed: {result.returncode}')
     summary = json.loads(result.stdout.strip().splitlines()[-1])
     print(json.dumps(summary, ensure_ascii=False))
     for name, run in summary.items():
-        assert run['mismatches'] == 0 and run['served'] > run['prefixes'] // 2, (name, run)
+        assert run['mismatches'] == 0 and run['served'] > run['prefixes'] // 2 and run['f6'] > 0 and run['segments'] > 50, (name, run)
         # Only lists the engine cannot represent yet stay in-process; nothing fails, nothing lags.
-        assert set(run['fallbacks']) <= {'long_list', 'partial', 'unrepresentable'}, (name, run)
+        assert set(run['fallbacks']) <= {'long_list', 'context', 'unrepresentable', 'learned_segment'}, (name, run)

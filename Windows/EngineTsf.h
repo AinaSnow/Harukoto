@@ -114,7 +114,7 @@ class Driver {
         return page;
     }
 public:
-    static constexpr size_t MaxPages = 8;
+    static constexpr size_t MaxPages = 32; // Of 128 for a Query (step 6c), of 16 otherwise.
     explicit Driver(std::unique_ptr<Transport> transport) : transport_(std::move(transport)) {
         if (!transport_) throw std::invalid_argument("missing engine transport");
     }
@@ -344,7 +344,7 @@ inline bool representable(const MPNSession *session) {
 // session (same base data, so the same native candidates). Null when the
 // page cannot be shown as is: an id gap or a native candidate the engine
 // leaves out (no text after its literal tail, or nothing consumed), an index
-// or text that does not match, or an empty list.
+// or text that does not match.
 inline std::optional<std::vector<WindowsCandidate>> rebuild(const MPNSession *session, const std::vector<Candidate> &words) {
     const std::string input = mpn_input(session);
     const size_t count = mpn_candidate_count(session);
@@ -373,7 +373,8 @@ inline std::optional<std::vector<WindowsCandidate>> rebuild(const MPNSession *se
         }
         result.push_back(std::move(candidate));
     }
-    if (result.empty()) return {};
+    // Empty is a real list: after a chosen segment (locked) the merge lists
+    // only native candidates, and there may be none (step 6c).
     return result;
 }
 

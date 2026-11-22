@@ -38,6 +38,15 @@ foreach ($bad in @(@{engine_path='remote'}, @{engine_served=-1}, @{engine_reason
     try { Convert-HarukotoRuntimeRecord ($broken | ConvertTo-Json -Compress) $null | Out-Null } catch { $rejected = $true }
     if (!$rejected) { throw "Invalid engine field accepted: $($bad.Keys)" }
 }
+# WIN-03 step 6c: the resident engine record from harukoto_engine_diagnose --resident --json.
+Assert-Equal (Convert-HarukotoResidentRecord '{"format":1,"scope":"resident_engine","trusted_discovery":false,"present":false}').Present $false
+$resident = Convert-HarukotoResidentRecord '{"format":1,"scope":"resident_engine","trusted_discovery":false,"present":true,"owner_pid":42,"alive":true,"start_reason":"demand","state":"ready","uptime_ms":5,"clients":2,"host_pid":43,"host_restarts":0,"last_exit":"none","last_exit_pid":0,"last_exit_age_ms":null,"recent_on_demand_starts":1,"breaker_tripped":false}'
+Assert-Equal $resident.Status '就绪，所有者 42（运行中），接入方 2，宿主重启 0 次，近期按需启动 1 次'
+foreach ($bad in @('{"format":2,"scope":"resident_engine","present":false}', '{"format":1,"scope":"resident_engine","present":true,"state":"flying","alive":true,"breaker_tripped":false}')) {
+    $rejected = $false
+    try { Convert-HarukotoResidentRecord $bad | Out-Null } catch { $rejected = $true }
+    if (!$rejected) { throw "Invalid resident record accepted: $bad" }
+}
 $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $root = Join-Path $tempBase ('harukoto-diagnosis-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $root | Out-Null

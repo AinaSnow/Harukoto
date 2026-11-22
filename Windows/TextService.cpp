@@ -404,6 +404,7 @@ public:
         try {
             simplified = readSimplifiedPreference();
             const auto folder = std::filesystem::path(modulePath()).parent_path();
+            installFolder = folder;
             // Optional auxiliary data: invalid/missing tables must not disable Chinese input.
             conjugations.loadFile(folder / L"japanese-conjugations.bin");
             std::ifstream file(folder / L"native-pinyin.tsv", std::ios::binary);
@@ -414,6 +415,7 @@ public:
             const DWORD localLength = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, ARRAYSIZE(localAppData));
             if (localLength && localLength < ARRAYSIZE(localAppData)) {
                 memory = std::make_unique<selection_memory::Store>(std::filesystem::path(localAppData) / L"Meowpuut/selection-memory.tsv");
+                dataRoot = std::filesystem::path(localAppData) / L"Meowpuut";
                 const auto customPath = std::filesystem::path(localAppData) / L"Meowpuut/japanese-custom.tsv";
                 auto personal = readPersonalDictionary(customPath);
                 const auto themeRoot = std::filesystem::path(localAppData) / L"Meowpuut/Dictionaries";
@@ -835,17 +837,15 @@ public:
                 }
                 *eaten = TRUE;
             } else {
-                bool typed = false;
                 if (key >= '1' && key <= '7')
                     *eaten = chooseCandidate(start + key - '1', text);
                 else if (key == VK_RETURN && count)
                     *eaten = chooseCandidate(start + (std::min)(highlighted, count - 1), text);
-                else {
+                else
                     *eaten = mpn_key(session, translate(key));
-                    typed = true;
-                }
-                // Only an edited reading may be listed by the engine (step 6a).
-                refreshCandidates(typed);
+                // The edited reading, or what remains after a chosen
+                // segment (step 6c), may be listed by the engine.
+                refreshCandidates(true);
             }
 
             text += wide(mpn_committed(session));
@@ -1413,11 +1413,18 @@ private:
     // table. Empty (never equal to an engine's) on the installation folder.
     const std::string &engineIdentity() {
         auto &cache = engineIdentityCache;
-        if (!baseSnapshot || !themeReload || !themeReload->personal()) { cache = {}; return cache.value; }
+        // Step 6c: on the version folder's own files, its manifest names them.
+        if (!baseSnapshot && !installGenerationRead) {
+            installGenerationRead = true;
+            try { if (!installFolder.empty()) installGeneration = base_dictionary::manifestGeneration(installFolder); }
+            catch (...) { installGeneration.clear(); }
+        }
+        const std::string &base = baseSnapshot ? baseSnapshot->generation() : installGeneration;
+        if (base.empty() || !themeReload || !themeReload->personal()) { cache = {}; return cache.value; }
         const auto *personal = themeReload->personal().get();
-        if (cache.value.empty() || cache.base != baseSnapshot->generation() || cache.theme != themeReload->activeGeneration() ||
+        if (cache.value.empty() || cache.base != base || cache.theme != themeReload->activeGeneration() ||
             cache.personal != personal) {
-            cache.base = baseSnapshot->generation(); cache.theme = themeReload->activeGeneration(); cache.personal = personal;
+            cache.base = base; cache.theme = themeReload->activeGeneration(); cache.personal = personal;
             cache.value = harukoto::engine::dataIdentity(cache.base, cache.theme,
                 harukoto::engine::personalIdentity(personal->present, personal->bytes));
         }
@@ -1427,8 +1434,13 @@ private:
     const char *engineUnsupported() const {
         const std::string input = mpn_input(session);
         if (!harukoto::engine::inputValid(input)) return "input";
-        if (chineseLocked || *mpn_segment_context(session) || *mpn_committed(session) || composedSegments) return "partial";
-        if (conjugationPanel.active()) return "conjugation";
+        // Step 6c: partial selection travels with the request; only a
+        // segment context longer than the protocol carries stays here.
+        if (std::string_view(mpn_segment_context(session)).size() > 64) return "context";
+        // A segment chosen with learning on: the core listed the rest before
+        // the words were learned, so the in-process list rests on bonuses the
+        // engine no longer has. Stays here until 6d.
+        if (memoryEnabled && composedSegments) return "learned_segment";
         if (!tsf_engine::representable(session)) return "unrepresentable";
         return nullptr;
     }
@@ -1442,7 +1454,15 @@ private:
             }
         }
         const HWND target = engineWindow;
-        return tsf_engine::Link::threaded(tsf_engine::residentConnect(), [target] { if (target) PostMessageW(target, WM_APP + 0x31, 0, 0); });
+        // Step 6c: an owner started by this service serves the data it uses.
+        harukoto::engine::resident::EnsureOptions options;
+        options.ownerArguments = engineLayout();
+        return tsf_engine::Link::threaded(tsf_engine::residentConnect({}, options), [target] { if (target) PostMessageW(target, WM_APP + 0x31, 0, 0); });
+    }
+    std::vector<std::wstring> engineLayout() const {
+        const auto base = baseSnapshot ? dataRoot / L"BaseDictionaries" / std::wstring(baseSnapshot->generation().begin(), baseSnapshot->generation().end())
+                                       : installFolder;
+        return tsf_engine::layoutArguments(base, dataRoot, themeReload && !themeReload->activeGeneration().empty());
     }
     static LRESULT CALLBACK engineWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
         auto *service = reinterpret_cast<Service *>(GetWindowLongPtrW(window, GWLP_USERDATA));
@@ -1465,6 +1485,8 @@ private:
         q.typo = mpn_typo_correction(session) != 0;
         q.memory = memoryEnabled;
         q.hour = memoryEnabled ? personalHour : 0;
+        q.context = mpn_segment_context(session);
+        q.locked = chineseLocked;
         auto &cache = engineMemoryCache;
         const uint64_t user = memory ? memory->userWordsRevision() : 0;
         if (cache.user.empty() || cache.userRevision != user || cache.userStore != memory.get()) {
@@ -1533,7 +1555,10 @@ private:
         if (!edit) { engineClient.decline("pending_key"); refreshCandidates(); }
     }
     void onEngineReply() {
-        if (deliverEngine() && activeContext && session && delivery && delivery->queue.canDeliver()) updatePopup();
+        if (deliverEngine() && activeContext && session && delivery && delivery->queue.canDeliver()) {
+            updatePopup();     // Our window, or the host's UI element (UI-less).
+            syncComposition(); // WIN-08: as after a key.
+        }
         reportRuntimeStatus();
     }
 
@@ -1655,7 +1680,7 @@ private:
             attachPersonal();
             const std::string context = mpn_segment_context(session);
             mpn_set_segment_context(session, context.c_str());
-            refreshCandidates();
+            refreshCandidates(true); // Step 6c: the same reading, through the engine when on.
         }
         if (personal) return forgot ? L"已忘记学习记录；个人词请用 manage-selection-memory.ps1 -RemoveWord 删除"
                                     : L"这是手动添加的个人词，请用 manage-selection-memory.ps1 -RemoveWord 删除";
@@ -1682,7 +1707,7 @@ private:
         chineseLocked = *mpn_input(session) != '\0';
         if (chineseLocked) mpn_set_segment_context(session, (context + character).c_str());
         composedReading.clear(); composedText.clear(); composedSegments = 0;
-        refreshCandidates();
+        refreshCandidates(true); // Step 6c: the rest may be listed by the engine.
         return true;
     }
 
@@ -2207,6 +2232,11 @@ private:
     HWND engineWindow = nullptr;
     WNDPROC originalEngineProc = nullptr;
     struct { std::string base, theme, value; const void *personal = nullptr; } engineIdentityCache;
+    // Step 6c: where this service's data lives (install folder, %LOCALAPPDATA%\Meowpuut)
+    // and the generation the install folder's manifest names.
+    std::filesystem::path installFolder, dataRoot;
+    std::string installGeneration;
+    bool installGenerationRead = false;
     // Step 6b: digests of the learning last sent, by model revision, and the
     // settings of the request in flight.
     struct {

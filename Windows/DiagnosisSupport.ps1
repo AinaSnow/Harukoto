@@ -90,6 +90,21 @@ function Convert-HarukotoRuntimeRecord {
     }
 }
 
+# WIN-03 step 6c: harukoto_engine_diagnose --resident --json, as one line of text.
+function Convert-HarukotoResidentRecord {
+    param([string]$Json)
+    $value = $Json | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+    if ($value.format -ne 1 -or $value.scope -ne 'resident_engine' -or $value.present -isnot [bool]) { throw '无效常驻引擎记录' }
+    if (!$value.present) { return [pscustomobject]@{ Status = '本次登录后尚未启动过常驻引擎'; Present = $false } }
+    $states = @{none='无'; starting='启动中'; ready='就绪'; restarting='重启中'; stopping='停止中'; exited='已退出'}
+    if (!$states.ContainsKey($value.state) -or $value.alive -isnot [bool] -or $value.breaker_tripped -isnot [bool]) { throw '无效常驻引擎记录' }
+    foreach ($key in 'owner_pid','clients','host_restarts','recent_on_demand_starts') {
+        if (($value[$key] -isnot [long] -and $value[$key] -isnot [int]) -or $value[$key] -lt 0) { throw '无效常驻引擎计数' }
+    }
+    $text = "$($states[$value.state])，所有者 $($value.owner_pid)$(if ($value.alive) {'（运行中）'} else {'（已不在运行）'})，接入方 $($value.clients)，宿主重启 $($value.host_restarts) 次，近期按需启动 $($value.recent_on_demand_starts) 次$(if ($value.breaker_tripped) {'，断路器已打开'})"
+    [pscustomobject]@{ Status = $text; Present = $true; State = $value.state; Alive = $value.alive; Clients = $value.clients; BreakerTripped = $value.breaker_tripped }
+}
+
 function Get-HarukotoRuntimeStatus {
     param([Diagnostics.Process]$Process, [string]$PublishedGeneration)
     try {

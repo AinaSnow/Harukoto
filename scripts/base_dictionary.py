@@ -103,6 +103,21 @@ def create(source, destination, version):
     return identity(manifest)
 
 
+def describe(folder, version):
+    """WIN-03 第 6c 步：为已有的整套词库文件（安装包的版本目录）就地写清单，使其成为合法快照。"""
+    folder = Path(folder)
+    if not VERSION.fullmatch(version) or len(version) > 128:
+        raise ValueError('版本号格式不正确：' + version)
+    records = {}
+    for name in FILES:
+        path = folder / name
+        if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= MAX_SIZE:
+            raise ValueError('构建文件缺失或超限：' + name)
+        records[name] = dict(size=path.stat().st_size, sha256=digest(path))
+    atomic_json(folder / MANIFEST, dict(format=1, engine_abi=1, version=version, files=records))
+    return identity(verify(folder))
+
+
 @contextlib.contextmanager
 def locked(root):
     root.mkdir(parents=True, exist_ok=True)
