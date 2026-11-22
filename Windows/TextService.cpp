@@ -1415,7 +1415,7 @@ private:
             // open/close changes from outside, who draws the candidates and
             // inline compositions.
             const auto count = [](unsigned value) { return std::to_string(value); };
-            runtimeStatus.publish("\"service_version\":\"0.4.4-alpha.32\",\"base_version\":" +
+            runtimeStatus.publish("\"service_version\":\"0.4.4-alpha.33\",\"base_version\":" +
                 Metadata::quote(baseSnapshot ? baseSnapshot->version() : std::string()) + "," +
                 (themeReload ? themeReload->diagnosticFields() :
                     "\"base_generation\":\"\",\"theme_generation\":\"\",\"pending_base_generation\":\"\",\"phase\":\"unavailable\",\"last_apply_failed\":false")
