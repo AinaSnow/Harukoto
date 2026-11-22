@@ -224,6 +224,27 @@ int main(int argc,char **argv) {
                 assert(inspPage.inspect && !inspPage.decomposed.empty() && inspPage.nextContext=="你好中國");
                 assert(partial.server.complete(inspJob.work,inspPage,5).response);
             }
+            // Step 8 (CN-02): extended page 0 returns round-0 only without eager expansion;
+            // PageNext delivers rounds 1..3 continuously with no gaps or duplicates.
+            {
+                Peer ext(old);
+                QuerySettings qs;
+                qs.user = memoryDigest(selection_memory::UserWordModel{});
+                auto setFrame = ext.frame(Kind::Key);
+                setFrame.payload = encodePayload(KeyMessage{KeyAction::Set, 0, true, true, qs, "fanyeceshi"});
+                auto setJob = ext.server.receive(setFrame, 1, 100); assert(setJob.work);
+                auto p0 = old->query(setJob.work);
+                assert(!p0.words.empty() && p0.words.size() < QueryPageSize && p0.more);
+                for (const auto &w : p0.words) assert(candidateRound(w) == 0);
+                assert(ext.server.complete(setJob.work, p0, 2).response);
+                auto nextFrame = ext.frame(Kind::Key);
+                nextFrame.payload = encodePayload(KeyMessage{KeyAction::PageNext, 0, true, true, qs});
+                auto nextJob = ext.server.receive(nextFrame, 3, 100); assert(nextJob.work);
+                auto p1 = old->query(nextJob.work);
+                assert(!p1.words.empty() && p1.words.front().id == p0.words.back().id + 1);
+                for (const auto &w : p1.words) assert(candidateRound(w) >= 1);
+                assert(ext.server.complete(nextJob.work, p1, 4).response);
+            }
             // Invalid optional input fails preparation without damaging the old snapshot.
             { std::ofstream file(personal); file<<"broken"; }
             bool failed=false; try { WindowsDictionary::load(second,theme,personal); } catch(const std::runtime_error &) { failed=true; }

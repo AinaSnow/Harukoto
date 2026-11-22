@@ -1708,7 +1708,8 @@ private:
         mergeQuickCandidates(choices, quickCandidates(input, {}, clock()));
         engineExtraRounds = std::move(fetched.extraRounds);
         engineMorePages = fetched.morePages;
-        engineFetchedMaxRound = fetched.maxRound;
+        engineFetchedMaxRound = fetched.roundComplete ? fetched.maxRound
+            : (fetched.maxRound ? static_cast<uint8_t>(fetched.maxRound - 1) : 0);
         engineExpansionRound = 0;
         engineChoicesActive = true;
         engineClient.served();
@@ -1807,14 +1808,16 @@ private:
             while (choices.size() == before && engineExpansionRound < 3) {
                 ++engineExpansionRound;
                 size_t pagesFetched = 0;
-                while (engineMorePages && engineFetchedMaxRound <= engineExpansionRound && pagesFetched < tsf_engine::Driver::MaxPages) {
+                while (engineMorePages && engineFetchedMaxRound < engineExpansionRound && pagesFetched < tsf_engine::Driver::MaxPages) {
                     ++pagesFetched;
                     auto more = engineClient.fetchMore(input, simplified, engineSent, GetTickCount64());
                     if (!more || more->behind) {
                         engineMorePages = false;
                         break;
                     }
-                    if (more->maxRound > engineFetchedMaxRound) engineFetchedMaxRound = more->maxRound;
+                    const uint8_t done = more->roundComplete ? more->maxRound
+                        : (more->maxRound ? static_cast<uint8_t>(more->maxRound - 1) : 0);
+                    if (done > engineFetchedMaxRound) engineFetchedMaxRound = done;
                     for (size_t r = 0; r < 3; ++r)
                         engineExtraRounds[r].insert(engineExtraRounds[r].end(),
                             std::make_move_iterator(more->extraRounds[r].begin()),

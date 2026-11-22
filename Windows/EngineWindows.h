@@ -251,25 +251,64 @@ private:
                     choice.coreIndex ? static_cast<uint32_t>(*choice.coreIndex + 1) : 0u, flags});
             }
         };
-        const auto start = size_t(work.page) * pageSize;
-        // Expansion only appends, and native indices remain stable. Once we
-        // have this page plus one valid choice, neither its contents/IDs nor
-        // more=true can change. Later pages rebuild the same prefix and expand
-        // further as needed, retaining the original three-round search budget.
-        const auto required = start + pageSize + (work.page < 4095 ? 1 : 0);
-        convert(); mark(&QueryTimings::conversion_ms);
-        for (int i=0; converted.size()<required && i<3 && mpn_candidates_can_expand(session.get()); ++i) {
-            mpn_expand_candidates(session.get());
-            appendCandidateExpansion(session.get(), choices, windowsCandidates(session.get(), relevant, lookup, locked));
-            rounds.resize(choices.size(), static_cast<uint8_t>(i + 1));
-            mark(&QueryTimings::expansion_ms);
-            convert(); mark(&QueryTimings::conversion_ms);
-        }
         CandidatePage page{work.input, false, {}, false, identity_};
-        if (start < converted.size()) {
-            const auto end = std::min(converted.size(), start + pageSize);
-            page.words.assign(converted.begin() + start, converted.begin() + end);
-            page.more = end < converted.size() && work.page < 4095;
+        convert(); mark(&QueryTimings::conversion_ms);
+        if (work.key.extended) {
+            // WIN-03 step 8 (CN-02): round-by-round lazy expansion.
+            // Round 0 occupies pages [0, p0) with zero expansion calls; each
+            // expansion round r (1..3) with nr > 0 new candidates occupies its
+            // own ceil(nr / pageSize) pages and stops expanding as soon as
+            // work.page falls inside round r.
+            const size_t n0 = converted.size();
+            const size_t p0 = n0 ? (n0 + pageSize - 1) / pageSize : 1;
+            if (work.page < p0) {
+                const size_t start = size_t(work.page) * pageSize;
+                if (start < n0) {
+                    const size_t end = std::min(n0, start + pageSize);
+                    page.words.assign(converted.begin() + start, converted.begin() + end);
+                    page.more = (end < n0 || mpn_candidates_can_expand(session.get()) != 0) && work.page < 4095;
+                }
+            } else {
+                size_t pageCursor = p0, prevEnd = n0;
+                for (int r = 1; r <= 3 && mpn_candidates_can_expand(session.get()); ++r) {
+                    mpn_expand_candidates(session.get());
+                    appendCandidateExpansion(session.get(), choices, windowsCandidates(session.get(), relevant, lookup, locked));
+                    rounds.resize(choices.size(), static_cast<uint8_t>(r));
+                    mark(&QueryTimings::expansion_ms);
+                    convert(); mark(&QueryTimings::conversion_ms);
+                    const size_t nr = converted.size() - prevEnd;
+                    if (!nr) continue;
+                    const size_t pr = (nr + pageSize - 1) / pageSize;
+                    if (work.page < pageCursor + pr) {
+                        const size_t sliceStart = prevEnd + size_t(work.page - pageCursor) * pageSize;
+                        const size_t sliceEnd = std::min(converted.size(), sliceStart + pageSize);
+                        page.words.assign(converted.begin() + sliceStart, converted.begin() + sliceEnd);
+                        page.more = (sliceEnd < converted.size() || (r < 3 && mpn_candidates_can_expand(session.get()) != 0)) && work.page < 4095;
+                        break;
+                    }
+                    pageCursor += pr;
+                    prevEnd = converted.size();
+                }
+            }
+        } else {
+            const auto start = size_t(work.page) * pageSize;
+            // Expansion only appends, and native indices remain stable. Once we
+            // have this page plus one valid choice, neither its contents/IDs nor
+            // more=true can change. Later pages rebuild the same prefix and expand
+            // further as needed, retaining the original three-round search budget.
+            const auto required = start + pageSize + (work.page < 4095 ? 1 : 0);
+            for (int i=0; converted.size()<required && i<3 && mpn_candidates_can_expand(session.get()); ++i) {
+                mpn_expand_candidates(session.get());
+                appendCandidateExpansion(session.get(), choices, windowsCandidates(session.get(), relevant, lookup, locked));
+                rounds.resize(choices.size(), static_cast<uint8_t>(i + 1));
+                mark(&QueryTimings::expansion_ms);
+                convert(); mark(&QueryTimings::conversion_ms);
+            }
+            if (start < converted.size()) {
+                const auto end = std::min(converted.size(), start + pageSize);
+                page.words.assign(converted.begin() + start, converted.begin() + end);
+                page.more = end < converted.size() && work.page < 4095;
+            }
         }
         encodePayload(page); // Reject bad text/ranges and budget violations atomically.
         mark(&QueryTimings::conversion_ms);

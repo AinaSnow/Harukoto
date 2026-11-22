@@ -1,5 +1,23 @@
 # 开发状态与接手入口
 
+## 2026-11-23 · WIN-03 第 8 步（CN-02）：真实延迟与内存对比、首页按轮次懒扩展优化与评估报告
+
+- 前置：`0.4.4-alpha.32` 试用包已打包并记录（`a734927` + `2a881ac`）。本批由维护者在普通权限 PowerShell 跑全量 69 项 CTest 与 `resident` 基准通过，验收方重新构建（DLL 与 `ime/` 哈希一致）并复核调优集评测与 `win037cd` 除耗时／内存／哈希外相同后提交；未打包、未实机。完整方法、数据与评估见[CN-02 延迟与内存对比](ENGINE_CN02.md)。
+- 基准工具与 CTest：
+  - 新增 `Windows/tests/EngineCn02Benchmark.cpp`（目标 `harukoto_engine_cn02_benchmark`）、`scripts/benchmark-cn02.py`、`Windows/tests/test_engine_cn02_benchmark.py` 及第 69 项 CTest `engine_cn02_benchmark`（`Windows/CMakeLists.txt`）。
+  - 直接驱动生产 `TextService`（`Service`）在独立子进程中对比「进程内」vs「独立引擎瘦客户端」，支持 `--mode resident`（真实 Explorer 启动所有者＋HKCU 测试键）与 `--mode direct`（直连 8 线程 `harukoto_engine_host.exe`），完整覆盖启动、1/2/4/8 并发＋4 待机（12 应用）总内存与逐键／选词延迟、10 词深页翻页一致性、5,000 词大个人表与学习落盘重载。
+- 发现并修复的关键性能问题：
+  - 首轮生产词库 CN-02 测量暴露：`WindowsDictionary::queryImpl()` 在 TSF 扩展查询（`QueryPageSize = 128`）首页凑不满 129 条时对每次按键都提前跑完了全部 3 轮 `mpn_expand_candidates()`，导致单客户端长句 p95 101.4 ms、max 465.7 ms（慢于进程内 10～35×）。
+  - 已改 `Windows/EngineWindows.h`、`Windows/EngineTsf.h`、`Windows/TextService.cpp` 为**按轮次严格懒扩展分页**（协议保持 v2 不变）：第 0 轮独占 `[0, p0)` 绝不提前扩展，空首页不置 `more`；第 1～3 轮仅在客户端 `PageNext` 时按需算到命中的那一轮即停；`Fetched` 增 `roundComplete` 标记避免多余 `PageNext`；`Windows/tests/EngineWindowsTests.cpp` 补充回归断言。
+- 正式验证与对比结果（维护者普通权限 Medium IL PowerShell，生产词库 410k＋FF14 0.4.0，`--mode resident` 归档 `docs/benchmarks/engine-cn02-win03-8.json`）：
+  - 完整 MSVC Release 构建通过，`.build/windows/msvc/Release/MeowpuutTip.dll` 已同步至 `.build/windows/ime/MeowpuutTip.dll`（SHA-256 `FF1C65914D4A63226ECE182E9F312954F24C2535CD2736259DF4CBFDA05CE7DC` 一致）。
+  - **全量 69 / 69 项 CTest 在普通权限 PowerShell 100% 通过**（1,884.98 秒，含全部 Medium-IL 常驻测试、第 69 项 `engine_cn02_benchmark`、`engine_windows_full` 新增回归断言与 `engine_tsf_full` 8 场景 31,056 列表真瘦客户端 0 不一致 0 回退对照）；未改动 `Core/` 与词库／排序逻辑。
+  - `--mode resident` 正式实测：首次经 Explorer 冷启动至首键可见 **2,391.5 ms**（快于进程内 3,345.5 ms），次应用热启动 **7.30 ms / 1.22 MiB**（快 458×，单应用内存 −99.0%）；1 应用逐键中位 **1.51 ms**（进程内 3.74 ms，快 2.5×，p99 8.22 vs 13.62 ms）；4 并发 **2.57 ms**（进程内 18.04 ms，快 7.0×，省内存 68.7%）；8 并发＋4 待机（12 应用）逐键中位 **3.61 ms**（进程内 29.51 ms，快 8.2×，p99 19.59 vs 105.29 ms）、总私有内存 **238.8 MiB**（进程内 2,030.1 MiB，**省 88.2% / 1.75 GiB**）；10 词深页 455 页／3,158 候选 100% 文本哈希一致且扩展中位更快（12.10 vs 15.57 ms）；5,000 词大个人表稳态逐键 **4.39 ms**（进程内 6.66 ms），选词学习落盘后首键 22.83 ms（0 回退、0 `memory_behind`）。
+  - 无残留 `HKCU:\Software\HarukotoTest*` 键或 `%TEMP%\harukoto-*` 目录。
+- 未验证：
+  - 真实应用内的按键到屏幕绘制体感、冷磁盘缓存与低配机表现、以及开启开关下的 VAL-01 实机清单待打入下一版试用包后执行（待实机）；默认开关继续保持关闭。
+- 下一步：可打 `0.4.4-alpha.33` 试用包（将首页按轮次懒扩展优化带入实机），走通开启开关下的 VAL-01 实机清单后即可评估默认开启独立引擎，并转入阶段三发布项（WIN-01／WIN-02／UI-03／RELEASE-01）。
+
 ## 2026-11-23 · alpha.32 试用包
 
 - 版本号升至 0.4.4-alpha.32（a734927），内容为 alpha.31 加 WIN-03 第 7 步全部 7a～7d（`4304264` + `714aa5e`：按发行序号版本化换代与旧所有者自退、失焦 15 秒／静置 180 秒礼让与 8 槽空闲 LRU 回收、协议 v2 引擎元查询与按需翻页扩展、接入层瘦客户端去启动期基础词库与懒加载兜底）；实验性独立引擎开关 `StandaloneEngine` 仍默认关闭。从干净提交 a734927 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；全量 68 项 CTest 已于前序提交 `714aa5e` 在普通权限 PowerShell 全部通过，升版后受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（8.33 秒），`test-setup.ps1` 解包、内置 PS7 预检与界面渲染通过。

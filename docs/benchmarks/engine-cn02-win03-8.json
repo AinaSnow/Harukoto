@@ -1,0 +1,3048 @@
+{
+  "format": 1,
+  "step": "WIN-03-step-8-CN-02",
+  "mode": "resident",
+  "timestamp": "2026-11-23T03:24:24+0800",
+  "machine": {
+    "os": "Windows-11-10.0.26300-SP0",
+    "cpu": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD",
+    "logical_cpus": 16
+  },
+  "git": {
+    "revision": "2a881acaa49287cb4e1cabde5dc637ff48c98628",
+    "dirty": true
+  },
+  "hashes": {
+    "Core/MeowpuutCore.cpp": "838abfe50e85f2fee11ce26a41ece028461a53bc6b7d1a851c572435c482f4b4",
+    "Windows/TextService.cpp": "f6ce74b3c0ba4963cc12a56419e8f470820c0f871c2f3413f78b6fdcd2148545",
+    "Windows/EngineTsf.h": "e48cbc227157a5b2ebae0269ef6df6f87a1e43c4153603b5191a2a31dbe14f2a",
+    "Windows/EngineTsfResident.h": "698e053076dc8c5f621b35cdfbee70fc1e527bb141d0a96ac714ef17dcb46332",
+    "Windows/EngineMessages.h": "18eacfaafca739e81c9c477deb8a50581578aacce25e0715291b4c845efb19a0",
+    "Windows/EngineServer.h": "e1a06f0919254437b6212f79aa1036ca81f59e963142ad15f4a11c193711e0f6",
+    "Windows/EngineWindows.h": "41e222c8ab7f22b08e67981be73f977b51fbc06bdd23d62ad7db1ca778ee8226",
+    "Windows/EngineHost.h": "2e8efdfaf92eb3917d221cb3a8ed6dc44769cdda5bffe6979dd3647d69b2556a",
+    "Windows/EngineOwner.h": "816a8ddc21c83c7eb7d583effdb824e2592b2967502e250dbc1b14c9dffbd826",
+    "Windows/EngineResident.h": "8ac37e183367a7734af81042c54388a71d6caaee7863e6115ab0d6460cc94b7f",
+    "Windows/tests/EngineCn02Benchmark.cpp": "f24ed2e82e043ad144fb23979566a566e4ec0597e8768a9fb65eaa6dcbd92cdc",
+    "scripts/benchmark-cn02.py": "55d886a18390e10711b052b45e0a6b8b8a6d91b80b0f5547cfc07f80bd1d34cc"
+  },
+  "config": {
+    "counts": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "standby": 4,
+    "cold": 5,
+    "warm": 10,
+    "themes": true,
+    "corpus_items": 377,
+    "corpus_keys": 3464,
+    "large": {
+      "jp": 5000,
+      "phrases": 5000,
+      "words": 5000,
+      "user_words": 1000
+    }
+  },
+  "summary": {
+    "startup": {
+      "inproc": {
+        "n": 10,
+        "init_ms_median": 3338.6167,
+        "first_key_ms_median": 6.2066,
+        "total_to_first_ms_median": 3345.5472,
+        "total_to_first_ms_max": 4405.0138,
+        "next_key_ms_median": 4.2074,
+        "client_init_mib": 169.46,
+        "client_steady_mib": 169.62,
+        "owner_mib": 0.0,
+        "host_mib": 0.0
+      },
+      "engine-cold": {
+        "n": 5,
+        "init_ms_median": 0.3892,
+        "first_key_ms_median": 2390.8524,
+        "total_to_first_ms_median": 2391.5317,
+        "total_to_first_ms_max": 2445.7932,
+        "next_key_ms_median": 0.7913,
+        "client_init_mib": 1.22,
+        "client_steady_mib": 2.43,
+        "owner_mib": 1.62,
+        "host_mib": 183.02
+      },
+      "engine-warm": {
+        "n": 10,
+        "init_ms_median": 0.3872,
+        "first_key_ms_median": 6.9097,
+        "total_to_first_ms_median": 7.2969,
+        "total_to_first_ms_max": 9.5601,
+        "next_key_ms_median": 0.6962,
+        "client_init_mib": 1.22,
+        "client_steady_mib": 1.73,
+        "owner_mib": 1.62,
+        "host_mib": 183.27
+      }
+    },
+    "keys": [
+      {
+        "mode": "inproc",
+        "clients": 1,
+        "standbys": 0,
+        "total_apps": 1,
+        "wall_ms": 15327.38,
+        "median_ms": 3.7373,
+        "p95_ms": 9.3946,
+        "p99_ms": 13.6223,
+        "max_ms": 22.2831,
+        "delta_median_ms": 0.0,
+        "select_median_ms": 0.0068,
+        "select_p95_ms": 0.0147,
+        "select_max_ms": 0.5565,
+        "positions": {
+          "1-4": {
+            "median": 2.6671,
+            "p95": 4.6852,
+            "p99": 8.3995,
+            "max": 22.2831
+          },
+          "17+": {
+            "median": 8.7999,
+            "p95": 15.0146,
+            "p99": 17.9171,
+            "max": 19.2158
+          },
+          "5-8": {
+            "median": 4.4007,
+            "p95": 8.9534,
+            "p99": 12.7019,
+            "max": 17.2981
+          },
+          "9-16": {
+            "median": 4.8265,
+            "p95": 8.7983,
+            "p99": 12.5079,
+            "max": 13.7132
+          }
+        },
+        "per_client_mib": 170.92,
+        "standbys_mib": 0.0,
+        "owner_mib": 0.0,
+        "host_mib": 0.0,
+        "total_mib": 170.92,
+        "memory_saved_pct": 0.0,
+        "fallbacks": 0
+      },
+      {
+        "mode": "engine",
+        "clients": 1,
+        "standbys": 0,
+        "total_apps": 1,
+        "wall_ms": 6813.74,
+        "median_ms": 1.5099,
+        "p95_ms": 5.2163,
+        "p99_ms": 8.2238,
+        "max_ms": 12.4486,
+        "delta_median_ms": -2.2274,
+        "select_median_ms": 0.0006,
+        "select_p95_ms": 0.0015,
+        "select_max_ms": 0.17,
+        "positions": {
+          "1-4": {
+            "median": 0.7833,
+            "p95": 3.5974,
+            "p99": 6.1586,
+            "max": 10.5397
+          },
+          "17+": {
+            "median": 4.9315,
+            "p95": 10.5427,
+            "p99": 12.074,
+            "max": 12.4486
+          },
+          "5-8": {
+            "median": 1.7363,
+            "p95": 4.3178,
+            "p99": 6.4682,
+            "max": 8.4662
+          },
+          "9-16": {
+            "median": 2.2057,
+            "p95": 4.8764,
+            "p99": 6.7063,
+            "max": 10.4852
+          }
+        },
+        "per_client_mib": 2.18,
+        "standbys_mib": 0.0,
+        "owner_mib": 1.62,
+        "host_mib": 187.99,
+        "total_mib": 191.79,
+        "memory_saved_pct": -12.2,
+        "fallbacks": 0
+      },
+      {
+        "mode": "inproc",
+        "clients": 2,
+        "standbys": 0,
+        "total_apps": 2,
+        "wall_ms": 20885.04,
+        "median_ms": 4.7201,
+        "p95_ms": 13.3815,
+        "p99_ms": 18.6594,
+        "max_ms": 30.7489,
+        "delta_median_ms": 0.0,
+        "select_median_ms": 0.0084,
+        "select_p95_ms": 0.0223,
+        "select_max_ms": 1.7357,
+        "positions": {
+          "1-4": {
+            "median": 3.0931,
+            "p95": 9.5,
+            "p99": 13.9693,
+            "max": 23.6224
+          },
+          "17+": {
+            "median": 10.5483,
+            "p95": 18.2838,
+            "p99": 21.6763,
+            "max": 25.7818
+          },
+          "5-8": {
+            "median": 5.505,
+            "p95": 14.8867,
+            "p99": 21.5471,
+            "max": 30.7489
+          },
+          "9-16": {
+            "median": 5.7814,
+            "p95": 11.6768,
+            "p99": 15.1956,
+            "max": 20.7079
+          }
+        },
+        "per_client_mib": 170.91,
+        "standbys_mib": 0.0,
+        "owner_mib": 0.0,
+        "host_mib": 0.0,
+        "total_mib": 341.82,
+        "memory_saved_pct": 0.0,
+        "fallbacks": 0
+      },
+      {
+        "mode": "engine",
+        "clients": 2,
+        "standbys": 0,
+        "total_apps": 2,
+        "wall_ms": 11003.8,
+        "median_ms": 2.3755,
+        "p95_ms": 8.8329,
+        "p99_ms": 13.8282,
+        "max_ms": 25.4733,
+        "delta_median_ms": -2.3446,
+        "select_median_ms": 0.0008,
+        "select_p95_ms": 0.0021,
+        "select_max_ms": 0.6876,
+        "positions": {
+          "1-4": {
+            "median": 1.1839,
+            "p95": 5.8581,
+            "p99": 9.8624,
+            "max": 14.4745
+          },
+          "17+": {
+            "median": 8.6655,
+            "p95": 16.9422,
+            "p99": 23.4845,
+            "max": 25.4733
+          },
+          "5-8": {
+            "median": 2.7562,
+            "p95": 6.765,
+            "p99": 9.5572,
+            "max": 13.4364
+          },
+          "9-16": {
+            "median": 3.6436,
+            "p95": 7.7143,
+            "p99": 11.4008,
+            "max": 18.4331
+          }
+        },
+        "per_client_mib": 2.19,
+        "standbys_mib": 0.0,
+        "owner_mib": 1.54,
+        "host_mib": 197.16,
+        "total_mib": 203.09,
+        "memory_saved_pct": 40.6,
+        "fallbacks": 0
+      },
+      {
+        "mode": "inproc",
+        "clients": 4,
+        "standbys": 0,
+        "total_apps": 4,
+        "wall_ms": 67059.0,
+        "median_ms": 18.0399,
+        "p95_ms": 34.5755,
+        "p99_ms": 45.7067,
+        "max_ms": 140.6563,
+        "delta_median_ms": 0.0,
+        "select_median_ms": 0.0163,
+        "select_p95_ms": 0.0875,
+        "select_max_ms": 3.1187,
+        "positions": {
+          "1-4": {
+            "median": 13.595,
+            "p95": 24.2522,
+            "p99": 33.9029,
+            "max": 68.1761
+          },
+          "17+": {
+            "median": 30.8193,
+            "p95": 47.9871,
+            "p99": 58.2219,
+            "max": 71.0176
+          },
+          "5-8": {
+            "median": 20.6017,
+            "p95": 34.4697,
+            "p99": 44.1293,
+            "max": 95.547
+          },
+          "9-16": {
+            "median": 21.8561,
+            "p95": 34.8943,
+            "p99": 44.5287,
+            "max": 140.6563
+          }
+        },
+        "per_client_mib": 170.71,
+        "standbys_mib": 0.0,
+        "owner_mib": 0.0,
+        "host_mib": 0.0,
+        "total_mib": 682.31,
+        "memory_saved_pct": 0.0,
+        "fallbacks": 0
+      },
+      {
+        "mode": "engine",
+        "clients": 4,
+        "standbys": 0,
+        "total_apps": 4,
+        "wall_ms": 11938.12,
+        "median_ms": 2.5669,
+        "p95_ms": 9.663,
+        "p99_ms": 15.0947,
+        "max_ms": 31.6004,
+        "delta_median_ms": -15.473,
+        "select_median_ms": 0.0007,
+        "select_p95_ms": 0.002,
+        "select_max_ms": 1.2054,
+        "positions": {
+          "1-4": {
+            "median": 1.2821,
+            "p95": 7.0223,
+            "p99": 11.5851,
+            "max": 22.0164
+          },
+          "17+": {
+            "median": 8.5604,
+            "p95": 16.4134,
+            "p99": 21.0623,
+            "max": 31.6004
+          },
+          "5-8": {
+            "median": 3.0135,
+            "p95": 7.85,
+            "p99": 11.6611,
+            "max": 29.1581
+          },
+          "9-16": {
+            "median": 3.8387,
+            "p95": 8.5591,
+            "p99": 15.0295,
+            "max": 28.6924
+          }
+        },
+        "per_client_mib": 2.19,
+        "standbys_mib": 0.0,
+        "owner_mib": 1.54,
+        "host_mib": 203.48,
+        "total_mib": 213.73,
+        "memory_saved_pct": 68.7,
+        "fallbacks": 0
+      },
+      {
+        "mode": "inproc",
+        "clients": 8,
+        "standbys": 4,
+        "total_apps": 12,
+        "wall_ms": 117363.9,
+        "median_ms": 29.5094,
+        "p95_ms": 67.8,
+        "p99_ms": 105.2866,
+        "max_ms": 382.8968,
+        "delta_median_ms": 0.0,
+        "select_median_ms": 0.018,
+        "select_p95_ms": 0.0956,
+        "select_max_ms": 5.271,
+        "positions": {
+          "1-4": {
+            "median": 22.7469,
+            "p95": 54.5542,
+            "p99": 86.9743,
+            "max": 382.8968
+          },
+          "17+": {
+            "median": 47.4009,
+            "p95": 87.2302,
+            "p99": 125.7888,
+            "max": 176.7421
+          },
+          "5-8": {
+            "median": 32.4405,
+            "p95": 72.5795,
+            "p99": 115.279,
+            "max": 249.0476
+          },
+          "9-16": {
+            "median": 34.4097,
+            "p95": 70.5445,
+            "p99": 112.675,
+            "max": 269.9668
+          }
+        },
+        "per_client_mib": 169.67,
+        "standbys_mib": 672.64,
+        "owner_mib": 0.0,
+        "host_mib": 0.0,
+        "total_mib": 2030.13,
+        "memory_saved_pct": 0.0,
+        "fallbacks": 0
+      },
+      {
+        "mode": "engine",
+        "clients": 8,
+        "standbys": 4,
+        "total_apps": 12,
+        "wall_ms": 16774.8,
+        "median_ms": 3.6066,
+        "p95_ms": 12.8564,
+        "p99_ms": 19.5887,
+        "max_ms": 62.7567,
+        "delta_median_ms": -25.9028,
+        "select_median_ms": 0.0008,
+        "select_p95_ms": 0.0021,
+        "select_max_ms": 1.7234,
+        "positions": {
+          "1-4": {
+            "median": 1.922,
+            "p95": 9.2577,
+            "p99": 15.5747,
+            "max": 26.8585
+          },
+          "17+": {
+            "median": 11.2276,
+            "p95": 23.645,
+            "p99": 36.0395,
+            "max": 62.7567
+          },
+          "5-8": {
+            "median": 4.1784,
+            "p95": 10.8762,
+            "p99": 16.1672,
+            "max": 60.5059
+          },
+          "9-16": {
+            "median": 5.2364,
+            "p95": 11.7514,
+            "p99": 17.2764,
+            "max": 51.0786
+          }
+        },
+        "per_client_mib": 2.15,
+        "standbys_mib": 4.83,
+        "owner_mib": 1.54,
+        "host_mib": 215.21,
+        "total_mib": 238.8,
+        "memory_saved_pct": 88.2,
+        "fallbacks": 0
+      }
+    ],
+    "deep_page": {
+      "inproc": {
+        "initial_median_ms": 5.196,
+        "expand_n": 20,
+        "expand_median_ms": 15.5674,
+        "expand_p95_ms": 85.6719,
+        "expand_max_ms": 157.6273,
+        "page_step_median_ms": 0.0008,
+        "page_step_max_ms": 157.6325,
+        "total_pages": 455,
+        "total_candidates": 3158,
+        "parity_verified": true
+      },
+      "engine": {
+        "initial_median_ms": 3.73,
+        "expand_n": 20,
+        "expand_median_ms": 12.1025,
+        "expand_p95_ms": 92.9966,
+        "expand_max_ms": 171.3058,
+        "page_step_median_ms": 0.0007,
+        "page_step_max_ms": 171.311,
+        "total_pages": 455,
+        "total_candidates": 3158,
+        "parity_verified": true
+      }
+    },
+    "large_personal": {
+      "inproc": {
+        "ready_ms": 3601.2738,
+        "steady_key_median_ms": 6.661,
+        "steady_key_p95_ms": 15.4627,
+        "steady_key_max_ms": 23.2018,
+        "learn_commit_median_ms": 2.4315,
+        "learn_commit_max_ms": 3.3574,
+        "post_learn_first_key_median_ms": 2.6253,
+        "post_learn_first_key_max_ms": 3.6049,
+        "client_mib": 176.61,
+        "owner_mib": 0.0,
+        "host_mib": 0.0,
+        "total_mib": 176.61,
+        "memory_behind": 0,
+        "fallbacks": 0
+      },
+      "engine": {
+        "ready_ms": 56.8487,
+        "steady_key_median_ms": 4.3877,
+        "steady_key_p95_ms": 9.4036,
+        "steady_key_max_ms": 13.5296,
+        "learn_commit_median_ms": 3.8404,
+        "learn_commit_max_ms": 4.5601,
+        "post_learn_first_key_median_ms": 22.8274,
+        "post_learn_first_key_max_ms": 27.053,
+        "client_mib": 7.46,
+        "owner_mib": 1.77,
+        "host_mib": 217.2,
+        "total_mib": 226.43,
+        "memory_behind": 0,
+        "fallbacks": 0
+      }
+    }
+  },
+  "events": [
+    {
+      "type": "setup",
+      "mode": "resident",
+      "protocol": 2,
+      "host_threads": 8,
+      "corpus_items": 377,
+      "corpus_keys": 3464
+    },
+    {
+      "type": "startup",
+      "kind": "inproc",
+      "run": 0,
+      "client": {
+        "init_ms": 2178.0774,
+        "first_key_ms": 6.2106,
+        "total_to_first_ms": 2184.288,
+        "next_key_median_ms": 4.073,
+        "thin": false,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 177680384,
+          "working_set": 177229824,
+          "peak_working_set": 221638656,
+          "handles": 107
+        },
+        "mem_first": {
+          "private": 177725440,
+          "working_set": 177324032,
+          "peak_working_set": 221638656,
+          "handles": 107
+        },
+        "mem_steady": {
+          "private": 177860608,
+          "working_set": 177504256,
+          "peak_working_set": 221638656,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "inproc",
+      "run": 1,
+      "client": {
+        "init_ms": 2145.3818,
+        "first_key_ms": 2.6779,
+        "total_to_first_ms": 2148.0597,
+        "next_key_median_ms": 2.3949,
+        "thin": false,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 178941952,
+          "working_set": 177864704,
+          "peak_working_set": 221655040,
+          "handles": 107
+        },
+        "mem_first": {
+          "private": 179142656,
+          "working_set": 177950720,
+          "peak_working_set": 221655040,
+          "handles": 107
+        },
+        "mem_steady": {
+          "private": 179286016,
+          "working_set": 178126848,
+          "peak_working_set": 221655040,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "inproc",
+      "run": 2,
+      "client": {
+        "init_ms": 2189.5475,
+        "first_key_ms": 2.9854,
+        "total_to_first_ms": 2192.5329,
+        "next_key_median_ms": 2.4064,
+        "thin": false,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 178941952,
+          "working_set": 177856512,
+          "peak_working_set": 221638656,
+          "handles": 107
+        },
+        "mem_first": {
+          "private": 179118080,
+          "working_set": 177942528,
+          "peak_working_set": 221638656,
+          "handles": 107
+        },
+        "mem_steady": {
+          "private": 179257344,
+          "working_set": 178114560,
+          "peak_working_set": 221638656,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "inproc",
+      "run": 3,
+      "client": {
+        "init_ms": 3355.2848,
+        "first_key_ms": 9.6853,
+        "total_to_first_ms": 3364.9701,
+        "next_key_median_ms": 5.5278,
+        "thin": false,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 178941952,
+          "working_set": 178397184,
+          "peak_working_set": 222203904,
+          "handles": 107
+        },
+        "mem_first": {
+          "private": 179118080,
+          "working_set": 178409472,
+          "peak_working_set": 222203904,
+          "handles": 107
+        },
+        "mem_steady": {
+          "private": 179257344,
+          "working_set": 178548736,
+          "peak_working_set": 222203904,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "inproc",
+      "run": 4,
+      "client": {
+        "init_ms": 4398.7742,
+        "first_key_ms": 6.2396,
+        "total_to_first_ms": 4405.0138,
+        "next_key_median_ms": 5.1804,
+        "thin": false,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 177692672,
+          "working_set": 177307648,
+          "peak_working_set": 221712384,
+          "handles": 107
+        },
+        "mem_first": {
+          "private": 177733632,
+          "working_set": 177389568,
+          "peak_working_set": 221712384,
+          "handles": 107
+        },
+        "mem_steady": {
+          "private": 177860608,
+          "working_set": 177557504,
+          "peak_working_set": 221712384,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "inproc",
+      "run": 5,
+      "client": {
+        "init_ms": 3770.7664,
+        "first_key_ms": 6.2025,
+        "total_to_first_ms": 3776.9689,
+        "next_key_median_ms": 4.3516,
+        "thin": false,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 178950144,
+          "working_set": 178331648,
+          "peak_working_set": 222146560,
+          "handles": 107
+        },
+        "mem_first": {
+          "private": 179150848,
+          "working_set": 178343936,
+          "peak_working_set": 222146560,
+          "handles": 107
+        },
+        "mem_steady": {
+          "private": 179294208,
+          "working_set": 178487296,
+          "peak_working_set": 222146560,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "inproc",
+      "run": 6,
+      "client": {
+        "init_ms": 4067.0879,
+        "first_key_ms": 9.5613,
+        "total_to_first_ms": 4076.6492,
+        "next_key_median_ms": 5.6772,
+        "thin": false,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 177680384,
+          "working_set": 177725440,
+          "peak_working_set": 222113792,
+          "handles": 107
+        },
+        "mem_first": {
+          "private": 177696768,
+          "working_set": 177737728,
+          "peak_working_set": 222113792,
+          "handles": 107
+        },
+        "mem_steady": {
+          "private": 177819648,
+          "working_set": 177868800,
+          "peak_working_set": 222113792,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "inproc",
+      "run": 7,
+      "client": {
+        "init_ms": 3468.7361,
+        "first_key_ms": 6.6963,
+        "total_to_first_ms": 3475.4324,
+        "next_key_median_ms": 3.5818,
+        "thin": false,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 176672768,
+          "working_set": 177758208,
+          "peak_working_set": 222232576,
+          "handles": 107
+        },
+        "mem_first": {
+          "private": 176775168,
+          "working_set": 177766400,
+          "peak_working_set": 222232576,
+          "handles": 107
+        },
+        "mem_steady": {
+          "private": 176934912,
+          "working_set": 177913856,
+          "peak_working_set": 222232576,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "inproc",
+      "run": 8,
+      "client": {
+        "init_ms": 3321.9486,
+        "first_key_ms": 4.1756,
+        "total_to_first_ms": 3326.1242,
+        "next_key_median_ms": 4.3418,
+        "thin": false,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 177680384,
+          "working_set": 177758208,
+          "peak_working_set": 222167040,
+          "handles": 107
+        },
+        "mem_first": {
+          "private": 177721344,
+          "working_set": 177766400,
+          "peak_working_set": 222167040,
+          "handles": 107
+        },
+        "mem_steady": {
+          "private": 177848320,
+          "working_set": 177901568,
+          "peak_working_set": 222167040,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "inproc",
+      "run": 9,
+      "client": {
+        "init_ms": 2248.8958,
+        "first_key_ms": 4.0405,
+        "total_to_first_ms": 2252.9363,
+        "next_key_median_ms": 2.0551,
+        "thin": false,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 176427008,
+          "working_set": 178032640,
+          "peak_working_set": 222236672,
+          "handles": 107
+        },
+        "mem_first": {
+          "private": 176431104,
+          "working_set": 178040832,
+          "peak_working_set": 222236672,
+          "handles": 107
+        },
+        "mem_steady": {
+          "private": 176594944,
+          "working_set": 178200576,
+          "peak_working_set": 222236672,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-cold",
+      "run": 0,
+      "client": {
+        "init_ms": 0.6793,
+        "first_key_ms": 2390.8524,
+        "total_to_first_ms": 2391.5317,
+        "next_key_median_ms": 0.7581,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1282048,
+          "working_set": 9031680,
+          "peak_working_set": 9031680,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 2506752,
+          "working_set": 14741504,
+          "peak_working_set": 19726336,
+          "handles": 200
+        },
+        "mem_steady": {
+          "private": 2555904,
+          "working_set": 14782464,
+          "peak_working_set": 19726336,
+          "handles": 200
+        }
+      },
+      "owner": {
+        "private": 1941504,
+        "working_set": 10088448,
+        "peak_working_set": 10170368,
+        "handles": 147
+      },
+      "host": {
+        "private": 191913984,
+        "working_set": 191541248,
+        "peak_working_set": 217686016,
+        "handles": 97
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-cold",
+      "run": 1,
+      "client": {
+        "init_ms": 0.3604,
+        "first_key_ms": 2397.7106,
+        "total_to_first_ms": 2398.071,
+        "next_key_median_ms": 0.7913,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1294336,
+          "working_set": 9043968,
+          "peak_working_set": 9043968,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 2514944,
+          "working_set": 14753792,
+          "peak_working_set": 19726336,
+          "handles": 200
+        },
+        "mem_steady": {
+          "private": 2551808,
+          "working_set": 14778368,
+          "peak_working_set": 19726336,
+          "handles": 200
+        }
+      },
+      "owner": {
+        "private": 1691648,
+        "working_set": 9437184,
+        "peak_working_set": 9494528,
+        "handles": 140
+      },
+      "host": {
+        "private": 191922176,
+        "working_set": 191041536,
+        "peak_working_set": 217038848,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-cold",
+      "run": 2,
+      "client": {
+        "init_ms": 0.3477,
+        "first_key_ms": 2445.4455,
+        "total_to_first_ms": 2445.7932,
+        "next_key_median_ms": 0.797,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1273856,
+          "working_set": 9035776,
+          "peak_working_set": 9035776,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 2506752,
+          "working_set": 14745600,
+          "peak_working_set": 19742720,
+          "handles": 200
+        },
+        "mem_steady": {
+          "private": 2564096,
+          "working_set": 14802944,
+          "peak_working_set": 19742720,
+          "handles": 200
+        }
+      },
+      "owner": {
+        "private": 1859584,
+        "working_set": 9457664,
+        "peak_working_set": 9510912,
+        "handles": 140
+      },
+      "host": {
+        "private": 191897600,
+        "working_set": 190988288,
+        "peak_working_set": 216993792,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-cold",
+      "run": 3,
+      "client": {
+        "init_ms": 0.4893,
+        "first_key_ms": 2295.9196,
+        "total_to_first_ms": 2296.4089,
+        "next_key_median_ms": 1.0045,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1273856,
+          "working_set": 9035776,
+          "peak_working_set": 9035776,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 2502656,
+          "working_set": 14741504,
+          "peak_working_set": 19701760,
+          "handles": 200
+        },
+        "mem_steady": {
+          "private": 2539520,
+          "working_set": 14778368,
+          "peak_working_set": 19701760,
+          "handles": 200
+        }
+      },
+      "owner": {
+        "private": 1695744,
+        "working_set": 9437184,
+        "peak_working_set": 9490432,
+        "handles": 140
+      },
+      "host": {
+        "private": 191877120,
+        "working_set": 190980096,
+        "peak_working_set": 217001984,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-cold",
+      "run": 4,
+      "client": {
+        "init_ms": 0.3892,
+        "first_key_ms": 2353.068,
+        "total_to_first_ms": 2353.4572,
+        "next_key_median_ms": 0.7457,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1282048,
+          "working_set": 9031680,
+          "peak_working_set": 9031680,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 2498560,
+          "working_set": 14725120,
+          "peak_working_set": 19709952,
+          "handles": 200
+        },
+        "mem_steady": {
+          "private": 2543616,
+          "working_set": 14757888,
+          "peak_working_set": 19709952,
+          "handles": 200
+        }
+      },
+      "owner": {
+        "private": 1683456,
+        "working_set": 9441280,
+        "peak_working_set": 9494528,
+        "handles": 140
+      },
+      "host": {
+        "private": 192016384,
+        "working_set": 191074304,
+        "peak_working_set": 217038848,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-warm",
+      "run": 0,
+      "client": {
+        "init_ms": 0.4722,
+        "first_key_ms": 7.0207,
+        "total_to_first_ms": 7.4929,
+        "next_key_median_ms": 0.8356,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1273856,
+          "working_set": 9035776,
+          "peak_working_set": 9035776,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 1810432,
+          "working_set": 9805824,
+          "peak_working_set": 9867264,
+          "handles": 138
+        },
+        "mem_steady": {
+          "private": 1810432,
+          "working_set": 9859072,
+          "peak_working_set": 9867264,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1699840,
+        "working_set": 9441280,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 192069632,
+        "working_set": 191111168,
+        "peak_working_set": 217042944,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-warm",
+      "run": 1,
+      "client": {
+        "init_ms": 0.3519,
+        "first_key_ms": 6.0544,
+        "total_to_first_ms": 6.4063,
+        "next_key_median_ms": 0.6643,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1269760,
+          "working_set": 9035776,
+          "peak_working_set": 9035776,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 1802240,
+          "working_set": 9801728,
+          "peak_working_set": 9863168,
+          "handles": 138
+        },
+        "mem_steady": {
+          "private": 1802240,
+          "working_set": 9854976,
+          "peak_working_set": 9863168,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1699840,
+        "working_set": 9441280,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 192143360,
+        "working_set": 191201280,
+        "peak_working_set": 217042944,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-warm",
+      "run": 2,
+      "client": {
+        "init_ms": 0.4914,
+        "first_key_ms": 6.3684,
+        "total_to_first_ms": 6.8598,
+        "next_key_median_ms": 0.6436,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1273856,
+          "working_set": 9035776,
+          "peak_working_set": 9035776,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 1814528,
+          "working_set": 9809920,
+          "peak_working_set": 9863168,
+          "handles": 138
+        },
+        "mem_steady": {
+          "private": 1814528,
+          "working_set": 9850880,
+          "peak_working_set": 9863168,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1699840,
+        "working_set": 9441280,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 192155648,
+        "working_set": 191213568,
+        "peak_working_set": 217042944,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-warm",
+      "run": 3,
+      "client": {
+        "init_ms": 0.4958,
+        "first_key_ms": 7.2646,
+        "total_to_first_ms": 7.7604,
+        "next_key_median_ms": 0.7249,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1273856,
+          "working_set": 9035776,
+          "peak_working_set": 9035776,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 1810432,
+          "working_set": 9801728,
+          "peak_working_set": 9863168,
+          "handles": 138
+        },
+        "mem_steady": {
+          "private": 1810432,
+          "working_set": 9854976,
+          "peak_working_set": 9863168,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1699840,
+        "working_set": 9449472,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 192163840,
+        "working_set": 191221760,
+        "peak_working_set": 217042944,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-warm",
+      "run": 4,
+      "client": {
+        "init_ms": 0.4799,
+        "first_key_ms": 8.1974,
+        "total_to_first_ms": 8.6773,
+        "next_key_median_ms": 1.2669,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1282048,
+          "working_set": 9039872,
+          "peak_working_set": 9039872,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 1810432,
+          "working_set": 9805824,
+          "peak_working_set": 9863168,
+          "handles": 138
+        },
+        "mem_steady": {
+          "private": 1810432,
+          "working_set": 9854976,
+          "peak_working_set": 9863168,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1699840,
+        "working_set": 9449472,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 192176128,
+        "working_set": 191234048,
+        "peak_working_set": 217042944,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-warm",
+      "run": 5,
+      "client": {
+        "init_ms": 0.3721,
+        "first_key_ms": 9.188,
+        "total_to_first_ms": 9.5601,
+        "next_key_median_ms": 1.7834,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1277952,
+          "working_set": 9043968,
+          "peak_working_set": 9043968,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 1806336,
+          "working_set": 9809920,
+          "peak_working_set": 9867264,
+          "handles": 138
+        },
+        "mem_steady": {
+          "private": 1806336,
+          "working_set": 9859072,
+          "peak_working_set": 9867264,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1699840,
+        "working_set": 9449472,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 192176128,
+        "working_set": 191254528,
+        "peak_working_set": 217042944,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-warm",
+      "run": 6,
+      "client": {
+        "init_ms": 0.3454,
+        "first_key_ms": 6.4974,
+        "total_to_first_ms": 6.8428,
+        "next_key_median_ms": 0.6675,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1282048,
+          "working_set": 9035776,
+          "peak_working_set": 9035776,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 1818624,
+          "working_set": 9814016,
+          "peak_working_set": 9863168,
+          "handles": 138
+        },
+        "mem_steady": {
+          "private": 1818624,
+          "working_set": 9842688,
+          "peak_working_set": 9863168,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1699840,
+        "working_set": 9449472,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 192176128,
+        "working_set": 191254528,
+        "peak_working_set": 217042944,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-warm",
+      "run": 7,
+      "client": {
+        "init_ms": 0.3969,
+        "first_key_ms": 6.8307,
+        "total_to_first_ms": 7.2276,
+        "next_key_median_ms": 0.6645,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1277952,
+          "working_set": 9039872,
+          "peak_working_set": 9039872,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 1818624,
+          "working_set": 9809920,
+          "peak_working_set": 9871360,
+          "handles": 138
+        },
+        "mem_steady": {
+          "private": 1818624,
+          "working_set": 9863168,
+          "peak_working_set": 9871360,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1699840,
+        "working_set": 9449472,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 192176128,
+        "working_set": 191254528,
+        "peak_working_set": 217042944,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-warm",
+      "run": 8,
+      "client": {
+        "init_ms": 0.3775,
+        "first_key_ms": 6.9886,
+        "total_to_first_ms": 7.3661,
+        "next_key_median_ms": 0.652,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1286144,
+          "working_set": 9039872,
+          "peak_working_set": 9039872,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 1822720,
+          "working_set": 9801728,
+          "peak_working_set": 9867264,
+          "handles": 138
+        },
+        "mem_steady": {
+          "private": 1822720,
+          "working_set": 9859072,
+          "peak_working_set": 9867264,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1699840,
+        "working_set": 9449472,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 192176128,
+        "working_set": 191254528,
+        "peak_working_set": 217042944,
+        "handles": 90
+      }
+    },
+    {
+      "type": "startup",
+      "kind": "engine-warm",
+      "run": 9,
+      "client": {
+        "init_ms": 0.3444,
+        "first_key_ms": 6.7758,
+        "total_to_first_ms": 7.1202,
+        "next_key_median_ms": 0.8039,
+        "thin": true,
+        "fallbacks": 0,
+        "digest": 103160581252768556,
+        "mem_init": {
+          "private": 1273856,
+          "working_set": 9035776,
+          "peak_working_set": 9035776,
+          "handles": 98
+        },
+        "mem_first": {
+          "private": 1814528,
+          "working_set": 9805824,
+          "peak_working_set": 9867264,
+          "handles": 138
+        },
+        "mem_steady": {
+          "private": 1814528,
+          "working_set": 9859072,
+          "peak_working_set": 9867264,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1699840,
+        "working_set": 9449472,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 192176128,
+        "working_set": 191254528,
+        "peak_working_set": 217042944,
+        "handles": 90
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "inproc",
+      "clients": 1,
+      "standbys": 0,
+      "wall_ms": 15327.3776,
+      "served": 0,
+      "fallbacks": 0,
+      "memory_behind": 0,
+      "thin_verified": true,
+      "overall": {
+        "n": 3464,
+        "median": 3.7373,
+        "p95": 9.3946,
+        "p99": 13.6223,
+        "max": 22.2831,
+        "mean": 4.4231
+      },
+      "select_ms": {
+        "n": 377,
+        "median": 0.0068,
+        "p95": 0.0147,
+        "p99": 0.0584,
+        "max": 0.5565,
+        "mean": 0.0096
+      },
+      "classes": {
+        "ff14": {
+          "n": 39,
+          "median": 4.374,
+          "p95": 13.6727,
+          "p99": 13.7132,
+          "max": 13.7132,
+          "mean": 4.8374
+        },
+        "holdout": {
+          "n": 1273,
+          "median": 4.603,
+          "p95": 10.8034,
+          "p99": 14.7155,
+          "max": 19.2158,
+          "mean": 5.3949
+        },
+        "tuned": {
+          "n": 576,
+          "median": 3.6365,
+          "p95": 7.5131,
+          "p99": 12.199,
+          "max": 15.3757,
+          "mean": 4.0537
+        },
+        "words": {
+          "n": 1576,
+          "median": 3.1953,
+          "p95": 7.4624,
+          "p99": 11.3788,
+          "max": 22.2831,
+          "mean": 3.7628
+        }
+      },
+      "positions": {
+        "1-4": {
+          "n": 1507,
+          "median": 2.6671,
+          "p95": 4.6852,
+          "p99": 8.3995,
+          "max": 22.2831,
+          "mean": 2.9232
+        },
+        "17+": {
+          "n": 226,
+          "median": 8.7999,
+          "p95": 15.0146,
+          "p99": 17.9171,
+          "max": 19.2158,
+          "mean": 9.3766
+        },
+        "5-8": {
+          "n": 1049,
+          "median": 4.4007,
+          "p95": 8.9534,
+          "p99": 12.7019,
+          "max": 17.2981,
+          "mean": 4.9284
+        },
+        "9-16": {
+          "n": 682,
+          "median": 4.8265,
+          "p95": 8.7983,
+          "p99": 12.5079,
+          "max": 13.7132,
+          "mean": 5.3185
+        }
+      },
+      "memory": {
+        "ready": {
+          "active_clients": 177119232,
+          "standby_clients": 0,
+          "owner": 0,
+          "host": 0,
+          "total": 177119232,
+          "per_active_client_mib": {
+            "n": 1,
+            "median": 168.9141,
+            "p95": 168.9141,
+            "p99": 168.9141,
+            "max": 168.9141,
+            "mean": 168.9141
+          }
+        },
+        "held": {
+          "active_clients": 179220480,
+          "standby_clients": 0,
+          "owner": 0,
+          "host": 0,
+          "total": 179220480,
+          "per_active_client_mib": {
+            "n": 1,
+            "median": 170.918,
+            "p95": 170.918,
+            "p99": 170.918,
+            "max": 170.918,
+            "mean": 170.918
+          }
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "clients": 1,
+      "standbys": 0,
+      "wall_ms": 6813.7441,
+      "served": 3465,
+      "fallbacks": 0,
+      "memory_behind": 0,
+      "thin_verified": true,
+      "overall": {
+        "n": 3464,
+        "median": 1.5099,
+        "p95": 5.2163,
+        "p99": 8.2238,
+        "max": 12.4486,
+        "mean": 1.9663
+      },
+      "select_ms": {
+        "n": 377,
+        "median": 0.0006,
+        "p95": 0.0015,
+        "p99": 0.0035,
+        "max": 0.17,
+        "mean": 0.0019
+      },
+      "classes": {
+        "ff14": {
+          "n": 39,
+          "median": 1.7944,
+          "p95": 3.7538,
+          "p99": 5.0035,
+          "max": 5.0035,
+          "mean": 1.9237
+        },
+        "holdout": {
+          "n": 1273,
+          "median": 2.0737,
+          "p95": 6.5483,
+          "p99": 10.0515,
+          "max": 12.4486,
+          "mean": 2.6135
+        },
+        "tuned": {
+          "n": 576,
+          "median": 1.6951,
+          "p95": 4.5049,
+          "p99": 6.4682,
+          "max": 10.4852,
+          "mean": 1.9712
+        },
+        "words": {
+          "n": 1576,
+          "median": 1.1008,
+          "p95": 3.9231,
+          "p99": 6.2644,
+          "max": 10.5397,
+          "mean": 1.4427
+        }
+      },
+      "positions": {
+        "1-4": {
+          "n": 1507,
+          "median": 0.7833,
+          "p95": 3.5974,
+          "p99": 6.1586,
+          "max": 10.5397,
+          "mean": 1.1661
+        },
+        "17+": {
+          "n": 226,
+          "median": 4.9315,
+          "p95": 10.5427,
+          "p99": 12.074,
+          "max": 12.4486,
+          "mean": 5.3987
+        },
+        "5-8": {
+          "n": 1049,
+          "median": 1.7363,
+          "p95": 4.3178,
+          "p99": 6.4682,
+          "max": 8.4662,
+          "mean": 2.0365
+        },
+        "9-16": {
+          "n": 682,
+          "median": 2.2057,
+          "p95": 4.8764,
+          "p99": 6.7063,
+          "max": 10.4852,
+          "mean": 2.489
+        }
+      },
+      "memory": {
+        "ready": {
+          "active_clients": 1826816,
+          "standby_clients": 0,
+          "owner": 1699840,
+          "host": 192176128,
+          "total": 195702784,
+          "per_active_client_mib": {
+            "n": 1,
+            "median": 1.7422,
+            "p95": 1.7422,
+            "p99": 1.7422,
+            "max": 1.7422,
+            "mean": 1.7422
+          }
+        },
+        "held": {
+          "active_clients": 2285568,
+          "standby_clients": 0,
+          "owner": 1699840,
+          "host": 197120000,
+          "total": 201105408,
+          "per_active_client_mib": {
+            "n": 1,
+            "median": 2.1797,
+            "p95": 2.1797,
+            "p99": 2.1797,
+            "max": 2.1797,
+            "mean": 2.1797
+          }
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "inproc",
+      "clients": 2,
+      "standbys": 0,
+      "wall_ms": 20885.0421,
+      "served": 0,
+      "fallbacks": 0,
+      "memory_behind": 0,
+      "thin_verified": true,
+      "overall": {
+        "n": 6928,
+        "median": 4.7201,
+        "p95": 13.3815,
+        "p99": 18.6594,
+        "max": 30.7489,
+        "mean": 5.8685
+      },
+      "select_ms": {
+        "n": 754,
+        "median": 0.0084,
+        "p95": 0.0223,
+        "p99": 0.1167,
+        "max": 1.7357,
+        "mean": 0.0156
+      },
+      "classes": {
+        "ff14": {
+          "n": 78,
+          "median": 11.4816,
+          "p95": 18.502,
+          "p99": 20.7079,
+          "max": 20.7079,
+          "mean": 10.7719
+        },
+        "holdout": {
+          "n": 2546,
+          "median": 5.541,
+          "p95": 13.5298,
+          "p99": 18.3597,
+          "max": 25.7818,
+          "mean": 6.4647
+        },
+        "tuned": {
+          "n": 1152,
+          "median": 4.1751,
+          "p95": 9.5706,
+          "p99": 12.3092,
+          "max": 17.3445,
+          "mean": 4.7344
+        },
+        "words": {
+          "n": 3152,
+          "median": 4.2625,
+          "p95": 13.8261,
+          "p99": 19.6808,
+          "max": 30.7489,
+          "mean": 5.6802
+        }
+      },
+      "positions": {
+        "1-4": {
+          "n": 3014,
+          "median": 3.0931,
+          "p95": 9.5,
+          "p99": 13.9693,
+          "max": 23.6224,
+          "mean": 4.0301
+        },
+        "17+": {
+          "n": 452,
+          "median": 10.5483,
+          "p95": 18.2838,
+          "p99": 21.6763,
+          "max": 25.7818,
+          "mean": 11.3521
+        },
+        "5-8": {
+          "n": 2098,
+          "median": 5.505,
+          "p95": 14.8867,
+          "p99": 21.5471,
+          "max": 30.7489,
+          "mean": 6.9281
+        },
+        "9-16": {
+          "n": 1364,
+          "median": 5.7814,
+          "p95": 11.6768,
+          "p99": 15.1956,
+          "max": 20.7079,
+          "mean": 6.4841
+        }
+      },
+      "memory": {
+        "ready": {
+          "active_clients": 354217984,
+          "standby_clients": 0,
+          "owner": 0,
+          "host": 0,
+          "total": 354217984,
+          "per_active_client_mib": {
+            "n": 2,
+            "median": 168.9043,
+            "p95": 168.9102,
+            "p99": 168.9102,
+            "max": 168.9102,
+            "mean": 168.9043
+          }
+        },
+        "held": {
+          "active_clients": 358420480,
+          "standby_clients": 0,
+          "owner": 0,
+          "host": 0,
+          "total": 358420480,
+          "per_active_client_mib": {
+            "n": 2,
+            "median": 170.9082,
+            "p95": 170.9141,
+            "p99": 170.9141,
+            "max": 170.9141,
+            "mean": 170.9082
+          }
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "clients": 2,
+      "standbys": 0,
+      "wall_ms": 11003.8036,
+      "served": 6930,
+      "fallbacks": 0,
+      "memory_behind": 0,
+      "thin_verified": true,
+      "overall": {
+        "n": 6928,
+        "median": 2.3755,
+        "p95": 8.8329,
+        "p99": 13.8282,
+        "max": 25.4733,
+        "mean": 3.175
+      },
+      "select_ms": {
+        "n": 754,
+        "median": 0.0008,
+        "p95": 0.0021,
+        "p99": 0.0556,
+        "max": 0.6876,
+        "mean": 0.0038
+      },
+      "classes": {
+        "ff14": {
+          "n": 78,
+          "median": 2.8597,
+          "p95": 6.9143,
+          "p99": 8.5366,
+          "max": 8.5366,
+          "mean": 2.9711
+        },
+        "holdout": {
+          "n": 2546,
+          "median": 3.4882,
+          "p95": 11.6307,
+          "p99": 16.8635,
+          "max": 25.4733,
+          "mean": 4.433
+        },
+        "tuned": {
+          "n": 1152,
+          "median": 2.7039,
+          "p95": 6.9163,
+          "p99": 9.9749,
+          "max": 13.4364,
+          "mean": 3.1655
+        },
+        "words": {
+          "n": 3152,
+          "median": 1.651,
+          "p95": 5.9918,
+          "p99": 9.2556,
+          "max": 14.4745,
+          "mean": 2.1674
+        }
+      },
+      "positions": {
+        "1-4": {
+          "n": 3014,
+          "median": 1.1839,
+          "p95": 5.8581,
+          "p99": 9.8624,
+          "max": 14.4745,
+          "mean": 1.8113
+        },
+        "17+": {
+          "n": 452,
+          "median": 8.6655,
+          "p95": 16.9422,
+          "p99": 23.4845,
+          "max": 25.4733,
+          "mean": 9.404
+        },
+        "5-8": {
+          "n": 2098,
+          "median": 2.7562,
+          "p95": 6.765,
+          "p99": 9.5572,
+          "max": 13.4364,
+          "mean": 3.2133
+        },
+        "9-16": {
+          "n": 1364,
+          "median": 3.6436,
+          "p95": 7.7143,
+          "p99": 11.4008,
+          "max": 18.4331,
+          "mean": 4.0651
+        }
+      },
+      "memory": {
+        "ready": {
+          "active_clients": 3653632,
+          "standby_clients": 0,
+          "owner": 1609728,
+          "host": 197062656,
+          "total": 202326016,
+          "per_active_client_mib": {
+            "n": 2,
+            "median": 1.7422,
+            "p95": 1.7422,
+            "p99": 1.7422,
+            "max": 1.7422,
+            "mean": 1.7422
+          }
+        },
+        "held": {
+          "active_clients": 4599808,
+          "standby_clients": 0,
+          "owner": 1609728,
+          "host": 206741504,
+          "total": 212951040,
+          "per_active_client_mib": {
+            "n": 2,
+            "median": 2.1934,
+            "p95": 2.2188,
+            "p99": 2.2188,
+            "max": 2.2188,
+            "mean": 2.1934
+          }
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "inproc",
+      "clients": 4,
+      "standbys": 0,
+      "wall_ms": 67058.9986,
+      "served": 0,
+      "fallbacks": 0,
+      "memory_behind": 0,
+      "thin_verified": true,
+      "overall": {
+        "n": 13856,
+        "median": 18.0399,
+        "p95": 34.5755,
+        "p99": 45.7067,
+        "max": 140.6563,
+        "mean": 19.1873
+      },
+      "select_ms": {
+        "n": 1508,
+        "median": 0.0163,
+        "p95": 0.0875,
+        "p99": 0.3951,
+        "max": 3.1187,
+        "mean": 0.0357
+      },
+      "classes": {
+        "ff14": {
+          "n": 156,
+          "median": 14.4886,
+          "p95": 35.4025,
+          "p99": 48.9358,
+          "max": 76.6328,
+          "mean": 17.1447
+        },
+        "holdout": {
+          "n": 5092,
+          "median": 20.6719,
+          "p95": 38.2086,
+          "p99": 50.3966,
+          "max": 140.6563,
+          "mean": 21.5818
+        },
+        "tuned": {
+          "n": 2304,
+          "median": 19.202,
+          "p95": 33.1814,
+          "p99": 42.9608,
+          "max": 89.7291,
+          "mean": 19.8497
+        },
+        "words": {
+          "n": 6304,
+          "median": 16.0156,
+          "p95": 30.1207,
+          "p99": 40.0935,
+          "max": 95.547,
+          "mean": 17.0617
+        }
+      },
+      "positions": {
+        "1-4": {
+          "n": 6028,
+          "median": 13.595,
+          "p95": 24.2522,
+          "p99": 33.9029,
+          "max": 68.1761,
+          "mean": 14.2106
+        },
+        "17+": {
+          "n": 904,
+          "median": 30.8193,
+          "p95": 47.9871,
+          "p99": 58.2219,
+          "max": 71.0176,
+          "mean": 31.6288
+        },
+        "5-8": {
+          "n": 4196,
+          "median": 20.6017,
+          "p95": 34.4697,
+          "p99": 44.1293,
+          "max": 95.547,
+          "mean": 21.3771
+        },
+        "9-16": {
+          "n": 2728,
+          "median": 21.8561,
+          "p95": 34.8943,
+          "p99": 44.5287,
+          "max": 140.6563,
+          "mean": 22.6933
+        }
+      },
+      "memory": {
+        "ready": {
+          "active_clients": 707969024,
+          "standby_clients": 0,
+          "owner": 0,
+          "host": 0,
+          "total": 707969024,
+          "per_active_client_mib": {
+            "n": 4,
+            "median": 168.8652,
+            "p95": 168.9023,
+            "p99": 168.9023,
+            "max": 168.9023,
+            "mean": 168.793
+          }
+        },
+        "held": {
+          "active_clients": 715456512,
+          "standby_clients": 0,
+          "owner": 0,
+          "host": 0,
+          "total": 715456512,
+          "per_active_client_mib": {
+            "n": 4,
+            "median": 170.7109,
+            "p95": 170.8203,
+            "p99": 170.8203,
+            "max": 170.8203,
+            "mean": 170.5781
+          }
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "clients": 4,
+      "standbys": 0,
+      "wall_ms": 11938.1165,
+      "served": 13860,
+      "fallbacks": 0,
+      "memory_behind": 0,
+      "thin_verified": true,
+      "overall": {
+        "n": 13856,
+        "median": 2.5669,
+        "p95": 9.663,
+        "p99": 15.0947,
+        "max": 31.6004,
+        "mean": 3.4275
+      },
+      "select_ms": {
+        "n": 1508,
+        "median": 0.0007,
+        "p95": 0.002,
+        "p99": 0.0928,
+        "max": 1.2054,
+        "mean": 0.005
+      },
+      "classes": {
+        "ff14": {
+          "n": 156,
+          "median": 3.2083,
+          "p95": 8.4889,
+          "p99": 12.004,
+          "max": 14.0454,
+          "mean": 3.7849
+        },
+        "holdout": {
+          "n": 5092,
+          "median": 3.6559,
+          "p95": 12.1275,
+          "p99": 17.5937,
+          "max": 31.6004,
+          "mean": 4.6571
+        },
+        "tuned": {
+          "n": 2304,
+          "median": 2.7675,
+          "p95": 7.8527,
+          "p99": 10.6567,
+          "max": 19.9501,
+          "mean": 3.304
+        },
+        "words": {
+          "n": 6304,
+          "median": 1.8146,
+          "p95": 6.9492,
+          "p99": 11.3742,
+          "max": 22.244,
+          "mean": 2.4707
+        }
+      },
+      "positions": {
+        "1-4": {
+          "n": 6028,
+          "median": 1.2821,
+          "p95": 7.0223,
+          "p99": 11.5851,
+          "max": 22.0164,
+          "mean": 2.0478
+        },
+        "17+": {
+          "n": 904,
+          "median": 8.5604,
+          "p95": 16.4134,
+          "p99": 21.0623,
+          "max": 31.6004,
+          "mean": 9.2465
+        },
+        "5-8": {
+          "n": 4196,
+          "median": 3.0135,
+          "p95": 7.85,
+          "p99": 11.6611,
+          "max": 29.1581,
+          "mean": 3.5584
+        },
+        "9-16": {
+          "n": 2728,
+          "median": 3.8387,
+          "p95": 8.5591,
+          "p99": 15.0295,
+          "max": 28.6924,
+          "mean": 4.3468
+        }
+      },
+      "memory": {
+        "ready": {
+          "active_clients": 7340032,
+          "standby_clients": 0,
+          "owner": 1609728,
+          "host": 206741504,
+          "total": 215691264,
+          "per_active_client_mib": {
+            "n": 4,
+            "median": 1.75,
+            "p95": 1.7539,
+            "p99": 1.7539,
+            "max": 1.7539,
+            "mean": 1.75
+          }
+        },
+        "held": {
+          "active_clients": 9146368,
+          "standby_clients": 0,
+          "owner": 1609728,
+          "host": 213360640,
+          "total": 224116736,
+          "per_active_client_mib": {
+            "n": 4,
+            "median": 2.1855,
+            "p95": 2.1953,
+            "p99": 2.1953,
+            "max": 2.1953,
+            "mean": 2.1807
+          }
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "inproc",
+      "clients": 8,
+      "standbys": 4,
+      "wall_ms": 117363.9032,
+      "served": 0,
+      "fallbacks": 0,
+      "memory_behind": 0,
+      "thin_verified": true,
+      "overall": {
+        "n": 27712,
+        "median": 29.5094,
+        "p95": 67.8,
+        "p99": 105.2866,
+        "max": 382.8968,
+        "mean": 33.5867
+      },
+      "select_ms": {
+        "n": 3016,
+        "median": 0.018,
+        "p95": 0.0956,
+        "p99": 0.5899,
+        "max": 5.271,
+        "mean": 0.0467
+      },
+      "classes": {
+        "ff14": {
+          "n": 312,
+          "median": 24.0187,
+          "p95": 51.5993,
+          "p99": 67.8517,
+          "max": 178.0502,
+          "mean": 25.7565
+        },
+        "holdout": {
+          "n": 10184,
+          "median": 32.5142,
+          "p95": 69.6164,
+          "p99": 104.3739,
+          "max": 269.9668,
+          "mean": 36.0454
+        },
+        "tuned": {
+          "n": 4608,
+          "median": 30.934,
+          "p95": 73.8175,
+          "p99": 117.7918,
+          "max": 234.2953,
+          "mean": 35.7994
+        },
+        "words": {
+          "n": 12608,
+          "median": 26.7095,
+          "p95": 64.0838,
+          "p99": 102.2176,
+          "max": 382.8968,
+          "mean": 30.9858
+        }
+      },
+      "positions": {
+        "1-4": {
+          "n": 12056,
+          "median": 22.7469,
+          "p95": 54.5542,
+          "p99": 86.9743,
+          "max": 382.8968,
+          "mean": 26.3577
+        },
+        "17+": {
+          "n": 1808,
+          "median": 47.4009,
+          "p95": 87.2302,
+          "p99": 125.7888,
+          "max": 176.7421,
+          "mean": 51.2259
+        },
+        "5-8": {
+          "n": 8392,
+          "median": 32.4405,
+          "p95": 72.5795,
+          "p99": 115.279,
+          "max": 249.0476,
+          "mean": 37.0382
+        },
+        "9-16": {
+          "n": 5456,
+          "median": 34.4097,
+          "p95": 70.5445,
+          "p99": 112.675,
+          "max": 269.9668,
+          "mean": 38.4065
+        }
+      },
+      "memory": {
+        "ready": {
+          "active_clients": 1415909376,
+          "standby_clients": 705683456,
+          "owner": 0,
+          "host": 0,
+          "total": 2121592832,
+          "per_active_client_mib": {
+            "n": 8,
+            "median": 168.9551,
+            "p95": 169.5664,
+            "p99": 169.5664,
+            "max": 169.5664,
+            "mean": 168.7896
+          }
+        },
+        "held": {
+          "active_clients": 1423429632,
+          "standby_clients": 705314816,
+          "owner": 0,
+          "host": 0,
+          "total": 2128744448,
+          "per_active_client_mib": {
+            "n": 8,
+            "median": 169.6738,
+            "p95": 170.1055,
+            "p99": 170.1055,
+            "max": 170.1055,
+            "mean": 169.686
+          }
+        }
+      }
+    },
+    {
+      "type": "keys",
+      "mode": "engine",
+      "clients": 8,
+      "standbys": 4,
+      "wall_ms": 16774.7981,
+      "served": 27720,
+      "fallbacks": 0,
+      "memory_behind": 0,
+      "thin_verified": true,
+      "overall": {
+        "n": 27712,
+        "median": 3.6066,
+        "p95": 12.8564,
+        "p99": 19.5887,
+        "max": 62.7567,
+        "mean": 4.7408
+      },
+      "select_ms": {
+        "n": 3016,
+        "median": 0.0008,
+        "p95": 0.0021,
+        "p99": 0.0928,
+        "max": 1.7234,
+        "mean": 0.0072
+      },
+      "classes": {
+        "ff14": {
+          "n": 312,
+          "median": 4.4024,
+          "p95": 12.3777,
+          "p99": 19.2625,
+          "max": 60.5059,
+          "mean": 5.4161
+        },
+        "holdout": {
+          "n": 10184,
+          "median": 4.992,
+          "p95": 15.8016,
+          "p99": 23.5615,
+          "max": 62.7567,
+          "mean": 6.2054
+        },
+        "tuned": {
+          "n": 4608,
+          "median": 3.9748,
+          "p95": 11.0429,
+          "p99": 15.7191,
+          "max": 40.2159,
+          "mean": 4.6756
+        },
+        "words": {
+          "n": 12608,
+          "median": 2.6682,
+          "p95": 10.0034,
+          "p99": 15.5808,
+          "max": 33.5803,
+          "mean": 3.5649
+        }
+      },
+      "positions": {
+        "1-4": {
+          "n": 12056,
+          "median": 1.922,
+          "p95": 9.2577,
+          "p99": 15.5747,
+          "max": 26.8585,
+          "mean": 2.8891
+        },
+        "17+": {
+          "n": 1808,
+          "median": 11.2276,
+          "p95": 23.645,
+          "p99": 36.0395,
+          "max": 62.7567,
+          "mean": 12.6289
+        },
+        "5-8": {
+          "n": 8392,
+          "median": 4.1784,
+          "p95": 10.8762,
+          "p99": 16.1672,
+          "max": 60.5059,
+          "mean": 4.9414
+        },
+        "9-16": {
+          "n": 5456,
+          "median": 5.2364,
+          "p95": 11.7514,
+          "p99": 17.2764,
+          "max": 51.0786,
+          "mean": 5.9099
+        }
+      },
+      "memory": {
+        "ready": {
+          "active_clients": 14651392,
+          "standby_clients": 5066752,
+          "owner": 1609728,
+          "host": 213360640,
+          "total": 234688512,
+          "per_active_client_mib": {
+            "n": 8,
+            "median": 1.7441,
+            "p95": 1.7578,
+            "p99": 1.7578,
+            "max": 1.7578,
+            "mean": 1.7466
+          }
+        },
+        "held": {
+          "active_clients": 18055168,
+          "standby_clients": 5066752,
+          "owner": 1609728,
+          "host": 225669120,
+          "total": 250400768,
+          "per_active_client_mib": {
+            "n": 8,
+            "median": 2.1543,
+            "p95": 2.2656,
+            "p99": 2.2656,
+            "max": 2.2656,
+            "mean": 2.1523
+          }
+        }
+      }
+    },
+    {
+      "type": "deep_page",
+      "result": {
+        "mode": "inproc",
+        "thin": false,
+        "fallbacks": 0,
+        "initial_ms": {
+          "n": 10,
+          "median": 5.196,
+          "p95": 13.0627,
+          "p99": 13.0627,
+          "max": 13.0627,
+          "mean": 6.9025
+        },
+        "expand_ms": {
+          "n": 20,
+          "median": 15.5674,
+          "p95": 85.6719,
+          "p99": 157.6273,
+          "max": 157.6273,
+          "mean": 30.8677
+        },
+        "page_step_ms": {
+          "n": 445,
+          "median": 0.0008,
+          "p95": 0.0017,
+          "p99": 34.9852,
+          "max": 157.6325,
+          "mean": 1.2205
+        },
+        "inputs": [
+          {
+            "reading": "shi",
+            "initial_count": 217,
+            "final_count": 217,
+            "pages": 31,
+            "expansions": 1,
+            "initial_ms": 3.6612,
+            "expand_total_ms": 13.4251,
+            "list_hash": 13670114203355115821
+          },
+          {
+            "reading": "yi",
+            "initial_count": 458,
+            "final_count": 458,
+            "pages": 66,
+            "expansions": 1,
+            "initial_ms": 3.9754,
+            "expand_total_ms": 22.1865,
+            "list_hash": 4958969116229327817
+          },
+          {
+            "reading": "ji",
+            "initial_count": 394,
+            "final_count": 394,
+            "pages": 57,
+            "expansions": 1,
+            "initial_ms": 3.37,
+            "expand_total_ms": 15.5594,
+            "list_hash": 9948342917984979959
+          },
+          {
+            "reading": "li",
+            "initial_count": 268,
+            "final_count": 268,
+            "pages": 39,
+            "expansions": 1,
+            "initial_ms": 5.4744,
+            "expand_total_ms": 10.9543,
+            "list_hash": 9898905696592018374
+          },
+          {
+            "reading": "zhi",
+            "initial_count": 305,
+            "final_count": 305,
+            "pages": 44,
+            "expansions": 1,
+            "initial_ms": 4.9176,
+            "expand_total_ms": 12.5495,
+            "list_hash": 5507656421202839267
+          },
+          {
+            "reading": "zhongguo",
+            "initial_count": 31,
+            "final_count": 202,
+            "pages": 29,
+            "expansions": 3,
+            "initial_ms": 9.2953,
+            "expand_total_ms": 125.4384,
+            "list_hash": 12286573835682480865
+          },
+          {
+            "reading": "wozaiditieshang",
+            "initial_count": 24,
+            "final_count": 180,
+            "pages": 26,
+            "expansions": 3,
+            "initial_ms": 8.7437,
+            "expand_total_ms": 228.0885,
+            "list_hash": 6587130398294488645
+          },
+          {
+            "reading": "xianzai",
+            "initial_count": 32,
+            "final_count": 698,
+            "pages": 100,
+            "expansions": 3,
+            "initial_ms": 12.053,
+            "expand_total_ms": 105.6918,
+            "list_hash": 7532148106404384189
+          },
+          {
+            "reading": "wenti",
+            "initial_count": 28,
+            "final_count": 214,
+            "pages": 31,
+            "expansions": 3,
+            "initial_ms": 13.0627,
+            "expand_total_ms": 30.8679,
+            "list_hash": 4742354247729286622
+          },
+          {
+            "reading": "keyi",
+            "initial_count": 33,
+            "final_count": 222,
+            "pages": 32,
+            "expansions": 3,
+            "initial_ms": 4.4718,
+            "expand_total_ms": 52.5932,
+            "list_hash": 15980189130939450419
+          }
+        ]
+      }
+    },
+    {
+      "type": "deep_page",
+      "result": {
+        "mode": "engine",
+        "thin": true,
+        "fallbacks": 0,
+        "initial_ms": {
+          "n": 10,
+          "median": 3.73,
+          "p95": 9.5085,
+          "p99": 9.5085,
+          "max": 9.5085,
+          "mean": 4.3616
+        },
+        "expand_ms": {
+          "n": 20,
+          "median": 12.1025,
+          "p95": 92.9966,
+          "p99": 171.3058,
+          "max": 171.3058,
+          "mean": 29.8406
+        },
+        "page_step_ms": {
+          "n": 445,
+          "median": 0.0007,
+          "p95": 0.0018,
+          "p99": 44.1606,
+          "max": 171.311,
+          "mean": 1.2834
+        },
+        "inputs": [
+          {
+            "reading": "shi",
+            "initial_count": 217,
+            "final_count": 217,
+            "pages": 31,
+            "expansions": 1,
+            "initial_ms": 2.1632,
+            "expand_total_ms": 4.1281,
+            "list_hash": 13670114203355115821
+          },
+          {
+            "reading": "yi",
+            "initial_count": 458,
+            "final_count": 458,
+            "pages": 66,
+            "expansions": 1,
+            "initial_ms": 9.5085,
+            "expand_total_ms": 7.7663,
+            "list_hash": 4958969116229327817
+          },
+          {
+            "reading": "ji",
+            "initial_count": 394,
+            "final_count": 394,
+            "pages": 57,
+            "expansions": 1,
+            "initial_ms": 8.6194,
+            "expand_total_ms": 4.4185,
+            "list_hash": 9948342917984979959
+          },
+          {
+            "reading": "li",
+            "initial_count": 268,
+            "final_count": 268,
+            "pages": 39,
+            "expansions": 1,
+            "initial_ms": 4.9568,
+            "expand_total_ms": 5.905,
+            "list_hash": 9898905696592018374
+          },
+          {
+            "reading": "zhi",
+            "initial_count": 305,
+            "final_count": 305,
+            "pages": 44,
+            "expansions": 1,
+            "initial_ms": 5.3905,
+            "expand_total_ms": 3.9162,
+            "list_hash": 5507656421202839267
+          },
+          {
+            "reading": "zhongguo",
+            "initial_count": 31,
+            "final_count": 202,
+            "pages": 29,
+            "expansions": 3,
+            "initial_ms": 3.378,
+            "expand_total_ms": 125.7889,
+            "list_hash": 12286573835682480865
+          },
+          {
+            "reading": "wozaiditieshang",
+            "initial_count": 24,
+            "final_count": 180,
+            "pages": 26,
+            "expansions": 3,
+            "initial_ms": 4.082,
+            "expand_total_ms": 241.2851,
+            "list_hash": 6587130398294488645
+          },
+          {
+            "reading": "xianzai",
+            "initial_count": 32,
+            "final_count": 698,
+            "pages": 100,
+            "expansions": 3,
+            "initial_ms": 3.2017,
+            "expand_total_ms": 136.5733,
+            "list_hash": 7532148106404384189
+          },
+          {
+            "reading": "wenti",
+            "initial_count": 28,
+            "final_count": 214,
+            "pages": 31,
+            "expansions": 3,
+            "initial_ms": 0.8373,
+            "expand_total_ms": 27.8516,
+            "list_hash": 4742354247729286622
+          },
+          {
+            "reading": "keyi",
+            "initial_count": 33,
+            "final_count": 222,
+            "pages": 32,
+            "expansions": 3,
+            "initial_ms": 1.4788,
+            "expand_total_ms": 39.1782,
+            "list_hash": 15980189130939450419
+          }
+        ]
+      }
+    },
+    {
+      "type": "large_personal",
+      "result": {
+        "mode": "inproc",
+        "thin": false,
+        "ready_ms": 3601.2738,
+        "fallbacks": 0,
+        "memory_behind": 0,
+        "steady_key_ms": {
+          "n": 432,
+          "median": 6.661,
+          "p95": 15.4627,
+          "p99": 19.2014,
+          "max": 23.2018,
+          "mean": 7.676
+        },
+        "learn_commit_ms": {
+          "n": 10,
+          "median": 2.4315,
+          "p95": 3.3574,
+          "p99": 3.3574,
+          "max": 3.3574,
+          "mean": 2.532
+        },
+        "post_learn_first_key_ms": {
+          "n": 10,
+          "median": 2.6253,
+          "p95": 3.6049,
+          "p99": 3.6049,
+          "max": 3.6049,
+          "mean": 2.7575
+        },
+        "mem_ready": {
+          "private": 184377344,
+          "working_set": 184922112,
+          "peak_working_set": 225906688,
+          "handles": 107
+        },
+        "mem_end": {
+          "private": 185192448,
+          "working_set": 185602048,
+          "peak_working_set": 225906688,
+          "handles": 107
+        }
+      },
+      "owner": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      },
+      "host": {
+        "private": 0,
+        "working_set": 0,
+        "peak_working_set": 0,
+        "handles": 0
+      }
+    },
+    {
+      "type": "large_personal",
+      "result": {
+        "mode": "engine",
+        "thin": true,
+        "ready_ms": 56.8487,
+        "fallbacks": 0,
+        "memory_behind": 0,
+        "steady_key_ms": {
+          "n": 432,
+          "median": 4.3877,
+          "p95": 9.4036,
+          "p99": 12.1453,
+          "max": 13.5296,
+          "mean": 4.7094
+        },
+        "learn_commit_ms": {
+          "n": 10,
+          "median": 3.8404,
+          "p95": 4.5601,
+          "p99": 4.5601,
+          "max": 4.5601,
+          "mean": 3.6312
+        },
+        "post_learn_first_key_ms": {
+          "n": 10,
+          "median": 22.8274,
+          "p95": 27.053,
+          "p99": 27.053,
+          "max": 27.053,
+          "mean": 22.9528
+        },
+        "mem_ready": {
+          "private": 7532544,
+          "working_set": 15409152,
+          "peak_working_set": 15409152,
+          "handles": 138
+        },
+        "mem_end": {
+          "private": 7819264,
+          "working_set": 14802944,
+          "peak_working_set": 15532032,
+          "handles": 138
+        }
+      },
+      "owner": {
+        "private": 1859584,
+        "working_set": 9441280,
+        "peak_working_set": 9498624,
+        "handles": 140
+      },
+      "host": {
+        "private": 227745792,
+        "working_set": 225980416,
+        "peak_working_set": 225996800,
+        "handles": 90
+      }
+    },
+    {
+      "type": "done"
+    }
+  ]
+}

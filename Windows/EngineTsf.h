@@ -108,7 +108,7 @@ public:
 struct Fetched {
     std::vector<Candidate> words;
     std::array<std::vector<Candidate>, 3> extraRounds;
-    bool complete = false, behind = false, morePages = false;
+    bool complete = false, behind = false, morePages = false, roundComplete = false;
     uint8_t maxRound = 0;
     std::string identity;
 };
@@ -202,7 +202,8 @@ public:
                 }
             }
             out.morePages = page.more;
-            if (later || !page.more) { out.complete = true; break; }
+            out.roundComplete = !page.more || (settings && page.words.size() < engine::QueryPageSize);
+            if (later || !page.more || (settings && page.words.size() < engine::QueryPageSize)) { out.complete = true; break; }
             if (pages >= MaxPages) break;
             paged_ = true;
             page = key(message(KeyAction::PageNext, 0), input, deadline);
@@ -228,6 +229,7 @@ public:
             else if (!round) out.words.push_back(std::move(word));
         }
         out.morePages = page.more;
+        out.roundComplete = !page.more || (settings && page.words.size() < engine::QueryPageSize);
         out.complete = true;
         return out;
     }
