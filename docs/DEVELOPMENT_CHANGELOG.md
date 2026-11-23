@@ -1,5 +1,9 @@
 # 开发变更记录
 
+## 2026-11-23 · alpha.36 试用包
+
+- 版本号升至 0.4.4-alpha.36，内容为 alpha.35 加候选窗渲染器热换代（RH-1～RH-5），外观不变，作为 RH-6 实机验证的 N 版。从干净提交 b9c37eb 重新构建并重建词库，全量 75 项 CTest 通过（1187.78 秒），生成 ZIP（73.6 MiB）与安装器（178.2 MiB），包内 DLL 与 Release 构建哈希一致、无 Python 文件。未签名，维护者自测。
+
 ## 2026-11-23 · RENDERER_HANDOFF（RH-1～RH-5）：候选窗渲染器热换代
 
 - 实现候选窗渲染器免重开热换代（[RENDERER_HANDOFF.md](RENDERER_HANDOFF.md) RH-1～RH-5，已验收提交、待实机）：

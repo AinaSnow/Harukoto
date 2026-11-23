@@ -1,5 +1,12 @@
 # 开发状态与接手入口
 
+## 2026-11-23 · alpha.36 试用包（RH-6 的 N 版）
+
+- 版本号升至 0.4.4-alpha.36（b9c37eb），内容为 alpha.35 加候选窗渲染器热换代 RH-1～RH-5（1801a2b）；候选窗外观与 alpha.35 相同。这是 RH-6 双版本中的 N 版（首个含换代逻辑的 DLL），N+1 需另做一处明显的界面差异后再打。
+- 从干净提交 b9c37eb 完整构建、复制 DLL 到 ime、重建词库，全量 75 项 CTest 在 PowerShell 全部通过（1187.78 秒）。
+- 生成 `Harukoto-0.4.4-alpha.36-windows-x64.zip`（73.6 MiB，SHA-256 `dfb3531a5b96b37d402a7b8e11ce97831616101a95a552356d0e6ec6b416b4d6`）和 `Harukoto-0.4.4-alpha.36-Setup.exe`（178.2 MiB，SHA-256 `f666cea323df84d7fce14bf72cdbaaa10d38e480d2e2d3618bbe4087e8f636bc`）。BUILD-INFO 记录源提交 `b9c37eb7238e9ca668331a4367ccbc1b45ee8e79`、不含未提交修改；包内 `MeowpuutTip.dll`（`3c499e91…`）与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.36`；包内 `MeowpuutGlassPreview.exe` 为 123 KiB（`a8c12f26…`）；包内没有 .py／.pyw。
+- 未签名，维护者自测，尚未打标签或发布，FRIEND_TESTING.md 未更新。安装后已打开的应用仍加载旧 DLL，需重开一次（过渡期）；换代效果待 N+1 包按 WINDOWS_VALIDATION.md 末尾清单实机验证。此条为打包后记录。
+
 ## 2026-11-23 · RENDERER_HANDOFF（RH-1～RH-5）：候选窗渲染器热换代（已验收提交，待实机；RH-6 待打包实机）
 
 - 设计见 [RENDERER_HANDOFF.md](RENDERER_HANDOFF.md)。目标：更新晴词后，已打开的应用无需重开即可切换至新版候选窗界面（仅改界面／样式／主题／布局时免重开；过渡期首次安装含本功能的版本后旧应用仍需重开一次）。未改 `Core/`、词库与候选排序逻辑。
