@@ -27,7 +27,7 @@ try {
     [IO.Compression.ZipFile]::CreateFromDirectory($stage, $payload, [IO.Compression.CompressionLevel]::Optimal, $false)
     $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
     $output = Join-Path $dist "Harukoto-$version-Setup.exe"
-    & $compiler /nologo /target:winexe /platform:x64 /out:$output /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "/resource:$payload,payload.zip" (Join-Path $PSScriptRoot 'Setup.cs')
+    & $compiler /nologo /target:winexe /platform:x64 /out:$output /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "/resource:$payload,payload.zip" (Join-Path $PSScriptRoot 'Setup.cs') (Join-Path $PSScriptRoot 'UpdateCheck.cs')
     if ($LASTEXITCODE -ne 0) { throw 'Setup build failed.' }
     $hash = (Get-FileHash -LiteralPath $output).Hash.ToLowerInvariant()
     "$hash  $(Split-Path $output -Leaf)" | Set-Content -LiteralPath (Join-Path $dist 'SETUP-SHA256SUMS.txt') -Encoding ascii

@@ -23,7 +23,7 @@ try {
         (Join-Path $windows 'CandidateTheme.cs') (Join-Path $windows 'CandidatePreview.cs') `
         (Join-Path $windows 'CandidateSettings.cs') (Join-Path $windows 'DictionaryLauncher.cs') `
         (Join-Path $windows 'DictionaryManager.cs') (Join-Path $windows 'ThemePackages.cs') `
-        (Join-Path $windows 'DictionaryCli.cs')
+        (Join-Path $windows 'DictionaryCli.cs') (Join-Path $windows 'UpdateCheck.cs') (Join-Path $windows 'UpdateNotice.cs')
     if ($LASTEXITCODE -ne 0) { throw 'Renderer build for live handoff test failed.' }
     & $Runner $exe
     if ($LASTEXITCODE -ne 0) { throw "Renderer handoff live test failed with exit code $LASTEXITCODE." }

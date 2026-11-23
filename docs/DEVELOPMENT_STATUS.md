@@ -1,5 +1,16 @@
 # 开发状态与接手入口
 
+## 2026-11-23 · UPD-01 检查更新（已验收提交，待实机）
+
+- 新增 `Windows/UpdateCheck.cs`（版本比较、GitHub Releases 响应解析、选项与登录项，无 WPF）与 `Windows/UpdateNotice.cs`（设置区块、`--check-update` 登录检查与新版提示窗）。“晴词候选窗设置”最下方加“检查更新”：显示当前版本，按钮在后台线程请求 `api.github.com/repos/AinaSnow/Harukoto/releases?per_page=20`（固定 User-Agent `Harukoto-UpdateCheck`，无 Cookie／凭据／输入内容／设备标识），取含预发布的最新非草稿版本；本机为预发布时比较全部，本机为正式版时只看正式版。有新版显示版本号与说明摘要，“打开发布页”只打开本仓库 releases/tag 页（其他地址退回 releases 列表）；不下载、不执行安装包。网络失败、限流（403＋剩余 0 或 429，给出重试时间）、非 200、JSON 异常、无可用版本各有中文提示。
+- “每天自动检查一次”默认关闭，存 `HKCU\Software\Meowpuut\Input\AutoUpdateCheck`；保存为开启时在 `HKCU\...\CurrentVersion\Run` 写 `HarukotoUpdateCheck` = `"<当前版本目录>\MeowpuutGlassPreview.exe" --check-update`，关闭时删除。位置选择理由：现有常驻进程只有候选窗渲染器（RH-6 换代中，不宜加入联网与弹窗）和引擎（C++、无界面，加 HTTPS 与 JSON 改动大），晴词无托盘；登录项启动的短命进程复用设置所在的 exe，开关关闭时不常驻、不开销，最小改动。登录检查：互斥单实例；先按 HKLM 注册的 TIP 路径找当前版本目录，若自己是旧版本目录则改写登录项并转交新 exe；IME 已注销则删除登录项；距上次检查不足 24 小时（`UpdateLastCheck`，时钟回拨视为到期）不查；等约 30 秒再请求；网络不通不计当天次数；只在有新版且该版本未提示过（`UpdateNotifiedVersion`）时弹窗。手动检查也记为当天已查。
+- 安装器（Setup.cs）首次安装（`AutoUpdateCheck` 不存在）时询问一次，默认按钮为“否”，答案写入 HKCU，开启时登记登录项；卸载时删除登录项（uninstall-ime.ps1 也删除）。ZIP 的 Install.cmd 不询问，保持关闭。
+- 本机版本：`UpdateCheck.CurrentVersion` 常量；`update_check` 测试校验它与 TextService.cpp 的 `service_version`、Setup.cs 的 `ProductVersion` 一致，打包改版本号时须同时改 `Windows/UpdateCheck.cs`。
+- 构建接入：build-preview.ps1、build-setup.ps1（加 UpdateCheck.cs）、tests/RendererHandoffLiveTests.ps1（编译清单加两个新文件，仅为编译通过）；GlassPreview.cs 的 Main 只加 `--check-update` 分支，未改渲染逻辑。
+- 验证：新 CTest `update_check`（假响应、假时钟、HKCU 临时键，不联网、不写 HKLM、不写真实 Run 键）通过；`cmake --build` Release 通过；`test-preview.ps1`（含设置窗口测试）、`candidate_payload`、`renderer_handoff_live` 通过；安装器源码单独编译通过；全量 76 项 CTest 在 PowerShell 全部通过（1048.22 秒）。
+- 验收复核：重新构建 Release，全量 76 项 CTest 在 PowerShell 全部通过（1008.60 秒）；用 UpdateCheck.cs 的真实 FetchFromGitHub 直连 GitHub 一次：按 alpha.36 判为已是最新，按 alpha.34 判为有新版 alpha.36（预发布）并给出发布页地址与说明摘要；Setup.cs＋UpdateCheck.cs 按 build-setup.ps1 的参数编译通过。
+- 未验证（待实机）：代理环境、设置页按钮与结果显示、登录时自动检查与新版弹窗、浏览器跳转、安装器首次询问与卸载清理。计划按 alpha.36 → alpha.37 实测。
+
 ## 2026-11-23 · alpha.36 发布
 
 - 在源提交 b9c37eb 上打标签 v0.4.4-alpha.36，推送 gitea 与 github，GitHub 预发布附 Setup.exe 与 ZIP（校验值见上一条打包记录与 [TRIAL.md](TRIAL.md)）。仅改文档，未重新构建或测试；换代与新候选窗仍待实机。
@@ -1104,7 +1115,8 @@
 | `Windows/install-ime.ps1`、`package-ime.ps1` | 版本目录安装、注册、设置入口与分发打包 |
 | `Windows/InstallSupport.ps1` | 可测试的注册恢复逻辑、版本文件 SHA-256 校验、引擎发行元数据写入／删除 |
 | `Windows/EngineRelease.h` | 读取 HKLM 中安装器批准的引擎路径与哈希（WIN-03 第 1 步），严格校验与 ACL 核对 |
-| `Windows/Setup.cs`、`build-setup.ps1` | 单文件 EXE 安装向导、内置官方 PS7、应用列表卸载入口 |
+| `Windows/Setup.cs`、`build-setup.ps1` | 单文件 EXE 安装向导、内置官方 PS7、应用列表卸载入口、首次安装询问自动检查更新 |
+| `Windows/UpdateCheck.cs`、`UpdateNotice.cs` | UPD-01 检查更新：版本比较与 GitHub 响应解析、选项与登录项；设置区块与 `--check-update` 登录检查 |
 | `Windows/uninstall-ime.ps1` | 移除机器注册和当前用户配置，保留词表、版本文件及缓存 |
 | `Windows/CandidateWindow.xaml` | 当前简洁候选外观；旧 GlassPreview.xaml 仅用于独立实验预览 |
 

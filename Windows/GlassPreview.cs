@@ -18,6 +18,8 @@ internal static class GlassPreview
     {
         if (args.Length == 1 && args[0] == "--settings")
             new Application().Run(CandidateSettings.Create());
+        else if (args.Length == 1 && args[0] == "--check-update")
+            UpdateNotice.RunScheduled();
         else if (args.Length == 1 && args[0] == "--dictionaries")
             new Application().Run(DictionaryLauncher.Create());
         else if (args.Length > 1 && args[0] == "--dictionaries")

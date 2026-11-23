@@ -41,7 +41,7 @@ internal static class CandidateSettings
         int font = savedLayout.Font, width = savedLayout.Width, fuzzyMask = 0;
         bool typoCorrection = true, englishPunctuation = false, punctuationHotkey = true;
         int shiftToggle = ShiftToggleOptions.Either;
-        bool fullWidthHotkey = false, standaloneEngine = true;
+        bool fullWidthHotkey = false, standaloneEngine = true, autoUpdate = false;
         try {
             using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Meowpuut\Input")) {
                 traditional.IsChecked = key != null && Convert.ToString(key.GetValue("TraditionalOutput", 0)) == "1";
@@ -52,6 +52,7 @@ internal static class CandidateSettings
                 shiftToggle = ShiftToggleOptions.Read(key);
                 fullWidthHotkey = FullWidthOptions.Read(key);
                 standaloneEngine = StandaloneEngineOptions.Read(key);
+                autoUpdate = UpdateCheckOptions.ReadAuto(key);
             }
         } catch { /* Keep usable defaults if preferences are unavailable. */ }
         body.Children.Add(traditional);
@@ -124,6 +125,8 @@ internal static class CandidateSettings
         var dictionaries = new Button { Content = "管理主题词库…", Padding = new Thickness(12,7,12,7), Margin = new Thickness(0,20,0,0), HorizontalAlignment = HorizontalAlignment.Left };
         dictionaries.Click += (s,e) => { var manager = DictionaryLauncher.Create(); manager.Owner = window; manager.Show(); };
         body.Children.Add(dictionaries);
+        body.Children.Add(new Border { Height = 24 });
+        var autoUpdateBox = UpdateNotice.AddSettingsSection(body, autoUpdate);
 
         var previewArea = new Grid(); Grid.SetColumn(previewArea, 1); columns.Children.Add(previewArea);
         previewArea.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -186,7 +189,7 @@ internal static class CandidateSettings
         theme.SelectionChanged += (s,e) => refresh(); colorMode.SelectionChanged += (s,e) => refresh();
         autoReading.Checked += (s,e) => refresh(); autoReading.Unchecked += (s,e) => refresh();
         applyPreset.Click += (s,e) => { setDraft(LayoutOptions.Preset(presets.SelectedIndex)); status.Text = "预设已应用到草稿，保存后生效。"; };
-        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。风格、颜色、简繁、模糊音、纠错、中英文切换、全角、标点、独立引擎与词库设置保持。"; };
+        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。风格、颜色、简繁、模糊音、纠错、中英文切换、全角、标点、独立引擎、检查更新与词库设置保持。"; };
         cancel.Click += (s,e) => window.Close();
         save.Click += (s,e) => {
             try {
@@ -206,6 +209,7 @@ internal static class CandidateSettings
                     ShiftToggleOptions.Write(input, shiftMode.SelectedIndex);
                     FullWidthOptions.Write(input, fullWidth.IsChecked == true);
                     StandaloneEngineOptions.Write(input, engine.IsChecked == true);
+                    UpdateNotice.Save(input, autoUpdateBox.IsChecked == true);
                 }
                 status.Text = "已保存，下次输入按键时生效。取消只丢弃此后未保存的调整。";
             } catch (Exception error) { status.Text = "保存失败：" + error.Message; }

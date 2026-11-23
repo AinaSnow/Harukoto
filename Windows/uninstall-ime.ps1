@@ -69,6 +69,8 @@ try {
     )) {
         if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut }
     }
+    # UPD-01: the sign-in update check entry exists only while automatic checking is on.
+    Remove-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'HarukotoUpdateCheck' -ErrorAction SilentlyContinue
     foreach ($name in 'Meowpuut','晴词 Harukoto') {
         $folder = Join-Path ([Environment]::GetFolderPath('Programs')) $name
         if ((Test-Path -LiteralPath $folder) -and !(Get-ChildItem -LiteralPath $folder -Force)) {

@@ -47,7 +47,10 @@ internal static class Setup
                 await Task.Run(() => {
                     Extract();
                     Run(uninstall ? "Uninstall.ps1" : "Install.ps1", uninstall ? "" : "-Prebuilt");
-                    if (uninstall) Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false);
+                    if (uninstall) {
+                        Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false);
+                        RemoveUpdateCheckStartup();
+                    }
                     else {
                         string launcher = Path.Combine(work, "HarukotoSetup.exe");
                         string current = Assembly.GetExecutingAssembly().Location;
@@ -62,6 +65,7 @@ internal static class Setup
                     }
                 });
                 status.Text = uninstall ? "卸载完成。个人数据及旧版本文件已保留。" : "安装完成！Win + 空格切换晴词。请彻底退出并重开应用（QQ 需从托盘退出）。";
+                if (!uninstall) AskUpdateCheck(form);
                 action.Text = "完成";
             } catch (Exception error) {
                 status.Text = "未完成，可查看日志后重试。";
@@ -83,6 +87,28 @@ internal static class Setup
             return;
         }
         Application.Run(form);
+    }
+    // UPD-01: on the first install, ask once whether to check for updates daily (default no).
+    private static void AskUpdateCheck(IWin32Window owner)
+    {
+        try {
+            using (var input = Registry.CurrentUser.CreateSubKey(UpdateCheckOptions.InputKeyPath)) {
+                if (UpdateCheckOptions.HasChoice(input)) return;
+                bool enabled = MessageBox.Show(owner,
+                    "是否每天自动检查一次晴词新版本？\n\n开启后每次登录 Windows 时检查（每天最多一次），只在有新版本时提示。检查只向 GitHub 请求晴词的发布信息，不发送输入内容、个人词库或设备标识；晴词不会自动下载或安装。\n\n以后可在“晴词候选窗设置”中随时更改。",
+                    "晴词安装", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes;
+                string exe = UpdateCheckOptions.InstalledExe();
+                if (enabled && (exe == null || !File.Exists(exe))) enabled = false;
+                UpdateCheckOptions.RecordChoice(input, enabled);
+                using (var run = Registry.CurrentUser.CreateSubKey(UpdateCheckOptions.RunKeyPath))
+                    UpdateCheckOptions.SetStartup(run, exe, enabled);
+            }
+        } catch (Exception) { /* The option stays off; it can be changed in settings. */ }
+    }
+    private static void RemoveUpdateCheckStartup()
+    {
+        try { using (var run = Registry.CurrentUser.OpenSubKey(UpdateCheckOptions.RunKeyPath, true)) if (run != null) UpdateCheckOptions.SetStartup(run, null, false); }
+        catch (Exception) { }
     }
     private static readonly object extractionLock = new object();
     private static void Extract()
