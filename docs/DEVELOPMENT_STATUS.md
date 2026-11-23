@@ -2,9 +2,9 @@
 
 ## 2026-11-23 · alpha.35 试用包
 
-- 版本号升至 0.4.4-alpha.35（8f9af5a），内容为 alpha.34 加 UI-04 候选窗风格重做与单行横排（3d05a53）、DICT-03 词库管理器去 Python（95b8442），以及候选窗每次更新只改一次宽度的防闪烁修复（8dc2134）。首次从 8f9af5a 打包（70 项 CTest 通过，1073.86 秒）后，维护者试用时发现宽度先拉大再缩回可能闪烁，修复后从干净提交 8dc2134 重新完整构建、复制 DLL、重建词库，全量 70 项 CTest 在 PowerShell 全部通过（1116.31 秒），重新打包；下列为重打后的文件，首次打包的文件作废。
-- 生成 `Harukoto-0.4.4-alpha.35-windows-x64.zip`（73.6 MiB，SHA-256 `f23db27729a126b411022e596e8b196dd9379db980cbb463f112c01ae6d97a73`）和 `Harukoto-0.4.4-alpha.35-Setup.exe`（178.1 MiB，SHA-256 `2f63b0775a0c55332b7bb2f8bbfbac73f3558be16a74b0c8bf1124cce617869d`）。BUILD-INFO 记录源提交 `8dc213438e09404d4eb01f4664647484a5523922`、不含未提交修改；包内 `MeowpuutTip.dll`（`c8fbd518…`）与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.35`；包内 `MeowpuutGlassPreview.exe` 与构建产物一致；包内没有 .py／.pyw；FF14 词库清单为 0.5.0。
-- 未签名，维护者自测，尚未打标签或发布，FRIEND_TESTING.md 未更新。试用发现已开应用（如 Claude 桌面版）仍加载 alpha.30 DLL，因此显示旧候选窗并有 alpha.31 已修复的闪烁，需重开应用；候选窗免重开更新另立设计（RENDERER_HANDOFF，未合入）。候选窗两种风格与深浅色、防闪烁效果、无 Python 环境下导入启用 FF14、个人词表热更新待实机。此条为打包后记录。
+- 版本号升至 0.4.4-alpha.35（8f9af5a），内容为 alpha.34 加 UI-04 候选窗风格重做与单行横排（3d05a53）、DICT-03 词库管理器去 Python（95b8442），以及候选窗每次更新只改一次宽度的防闪烁修复（8dc2134）和胶囊两端改为半圆（6e4252d，原 CornerRadius 999 被 WPF 按轴缩放成椭圆）。首次从 8f9af5a 打包（70 项 CTest 通过，1073.86 秒）后，维护者试用时发现宽度先拉大再缩回可能闪烁，修复后从 8dc2134 重打一次（70 项通过，1116.31 秒），试用又发现胶囊两端成椭圆，修复后从干净提交 6e4252d 再次完整构建、复制 DLL、重建词库，全量 70 项 CTest 在 PowerShell 全部通过（1081.87 秒）并重新打包；下列为最终文件，此前两次打包的文件作废。
+- 生成 `Harukoto-0.4.4-alpha.35-windows-x64.zip`（73.6 MiB，SHA-256 `a4d8b7df011ddc3598db6f2feab84e55d0cfa5d2a19cc6ade45e5e4437ad1b10`）和 `Harukoto-0.4.4-alpha.35-Setup.exe`（178.1 MiB，SHA-256 `74cfa8f883aaf8f4251484fe0ac04cd65de717161cace8327ba176649474e826`）。BUILD-INFO 记录源提交 `6e4252d9465e96553836c505e127953bb3756240`、不含未提交修改；包内 `MeowpuutTip.dll`（`c8fbd518…`）与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.35`；包内 `MeowpuutGlassPreview.exe` 与构建产物一致；包内没有 .py／.pyw；FF14 词库清单为 0.5.0。
+- 未签名，维护者自测，尚未打标签或发布，FRIEND_TESTING.md 未更新。试用发现已开应用（如 Claude 桌面版）仍加载 alpha.30 DLL，因此显示旧候选窗并有 alpha.31 已修复的闪烁，需重开应用；候选窗免重开更新另立设计（RENDERER_HANDOFF，未合入）。候选窗两种风格与深浅色、防闪烁效果、胶囊外形、无 Python 环境下导入启用 FF14、个人词表热更新待实机。此条为打包后记录。
 
 ## 2026-11-23 · DICT-03：词库管理器去 Python（95b8442，待实机）
 
