@@ -82,7 +82,7 @@ internal static class UpdateCheck
 {
     // Must equal service_version in TextService.cpp and Setup.ProductVersion;
     // UpdateCheckTests fails the build when a version bump misses this file.
-    internal const string CurrentVersion = "0.4.4-alpha.36";
+    internal const string CurrentVersion = "0.4.4-alpha.37";
     internal const string ReleasesPage = "https://github.com/AinaSnow/Harukoto/releases";
     internal const string ReleasesApi = "https://api.github.com/repos/AinaSnow/Harukoto/releases?per_page=20";
     private const int MaxBody = 2 * 1024 * 1024;
