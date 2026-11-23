@@ -1,6 +1,6 @@
 # 安装晴词 · Harukoto
 
-当前开发重点为 Windows x64。使用 Harukoto-0.4.4-alpha.35-Setup.exe，点击“安装 / 更新”，确认 Windows 管理员授权。完成后重新打开输入应用，按 Win + 空格选择“晴词 Harukoto”。
+当前开发重点为 Windows x64。使用 Harukoto-0.4.4-alpha.36-Setup.exe，点击“安装 / 更新”，确认 Windows 管理员授权。完成后重新打开输入应用，按 Win + 空格选择“晴词 Harukoto”。
 
 安装向导内置 PS7，无需先配置开发环境。安装器尚未签名；试用版及 SHA-256 发布在 [GitHub Releases](https://github.com/AinaSnow/Harukoto/releases)（安装说明见[朋友试用说明](FRIEND_TESTING.md)），本地构建产物位于 .build/windows/dist。构建、日志和故障排查见 [Windows README](../Windows/README.md)。
 

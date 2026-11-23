@@ -1,4 +1,4 @@
-# 晴词 · Harukoto 0.4.4-alpha.35 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.36 · Windows x64
 
 开发产物清理：使用 PowerShell 7 运行 `Windows/clean-build.ps1` 预览，添加 `-Apply` 执行。只清理脚本固定匹配的旧产物，保留最新两个 0.4.4-alpha 版本、最新 FF14 包、当前 MSVC／ime／tools 与源数据；未知文件保留。请在构建／打包结束后运行。
 
@@ -40,7 +40,7 @@ alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.35-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.36-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -99,7 +99,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.35
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.36
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。
@@ -210,4 +210,4 @@ alpha.34 在 alpha.33 基础上随附 FF14 词库 0.5.0：新增 NPC、怪物与
 
 alpha.35 在 alpha.34 基础上重做候选窗：提供“晴空 Fluent”（跟随系统强调色）和“晴空胶囊”（每个候选为淡色胶囊、当前项实心蓝）两种风格，颜色可跟随系统、浅色或深色；候选改为与系统输入法类似的单行横排，窗口随内容收窄，超过最大宽度（默认 860）才换行，原纵向列表已取消。词库管理器内置在晴词里（DICT-03），导入、启用 FF14 等主题词库和个人词表不再需要 Python。已保存过布局的用户保留原间距，可在设置中“恢复默认布局”换成新默认。真实应用中的效果尚待实机确认。
 
-开发中（下一个试用包起，RENDERER_HANDOFF RH-1～RH-5）：新增候选窗渲染器热换代。安装器在 `HKLM\SOFTWARE\Harukoto\RendererReleases` 记录受信任的渲染器路径、SHA-256 与载荷版本范围（卸载时清除）；接入层在空组字边界后台校验批准记录并切换至新版桌面渲染器，或在沙箱等每进程场景预启动新版并在空边界平滑退场旧进程，失败或版本不兼容时自动冷却并回退至自带目录渲染器与原生兜底窗。默认开启（`HKCU\Software\Meowpuut\Input` DWORD `rendererHandoff = 0` 仅作排障关闭开关，不能指定路径），`Diagnose.cmd` 新增 `Renderer` 行区分 DLL 版本与渲染器版本序号。**过渡期说明**：首次安装含本功能的版本后，此前已打开的应用仍需再重开一次以加载新版 DLL；从那以后，仅改候选窗界面样式的更新无需重开应用。实机验收见 [Windows 验收记录](../docs/WINDOWS_VALIDATION.md)，设计见 [RENDERER_HANDOFF.md](../docs/RENDERER_HANDOFF.md)。
+alpha.36 在 alpha.35 基础上新增候选窗渲染器热换代（RENDERER_HANDOFF RH-1～RH-5），候选窗外观与 alpha.35 相同。安装器在 `HKLM\SOFTWARE\Harukoto\RendererReleases` 记录受信任的渲染器路径、SHA-256 与载荷版本范围（卸载时清除）；接入层在空组字边界后台校验批准记录并切换至新版桌面渲染器，或在沙箱等每进程场景预启动新版并在空边界平滑退场旧进程，失败或版本不兼容时自动冷却并回退至自带目录渲染器与原生兜底窗。默认开启（`HKCU\Software\Meowpuut\Input` DWORD `rendererHandoff = 0` 仅作排障关闭开关，不能指定路径），`Diagnose.cmd` 新增 `Renderer` 行区分 DLL 版本与渲染器版本序号。**过渡期说明**：首次安装含本功能的版本后，此前已打开的应用仍需再重开一次以加载新版 DLL；从那以后，仅改候选窗界面样式的更新无需重开应用。实机验收见 [Windows 验收记录](../docs/WINDOWS_VALIDATION.md)，设计见 [RENDERER_HANDOFF.md](../docs/RENDERER_HANDOFF.md)。
