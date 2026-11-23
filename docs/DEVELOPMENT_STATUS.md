@@ -1,5 +1,13 @@
 # 开发状态与接手入口
 
+## 2026-11-23 · DICT-03：词库管理器去 Python（未提交、待实机）
+
+- 新增 `Windows/ThemePackages.cs`（主题包与个人词表逻辑，移植自 `scripts/japanese_packages.py`、`japanese_dictionary.py`：同一清单／词表规则、`CURRENT → <代次>/state.json + enabled.tsv` 快照、同一 `.lock` 字节锁）、`Windows/DictionaryManager.cs`（WPF 管理窗口：预览、导入、启用、关闭、回退、刷新、预览 FF14，外加个人词表导入／清空）、`Windows/DictionaryCli.cs`（`MeowpuutGlassPreview.exe --dictionaries <命令>`，ZIP 的 `Dictionaries.cmd <命令>` 等待并回传退出码）。`DictionaryLauncher.Create()` 签名不变，直接打开新窗口，不再选 python.exe；`GlassPreview.cs` 的 `Main` 只加一条命令行分发。
+- 打包：`package-ime.ps1`、`install-ime.ps1` 不再带 `dictionary-manager.pyw`、`manage-*.py`、`import-japanese-dictionary.py`、`scripts/*.py`，打包时发现 .py／.pyw 即报错；构建期 `manage-base-dictionary.py describe` 仍用本机 Python（不随包）。基础快照发布工具因此只在源码仓库可用。
+- 测试：新增 CTest `dictionary_manager`（`Windows/tests/DictionaryManagerTests.ps1/.cs`），移植 test_japanese_packages／test_japanese_dictionary／test_japanese_manager_gui 的场景，另测命令行、个人词表、窗口最小尺寸按钮不越界；C++ 读取器跟随新实现写出的每个快照；与 Python 参考实现逐字节比对 state.json、enabled.tsv 及词表编译结果（含 FF14 0.5.0 全量词表、BOM、全角分隔、增补平面汉字），并验证 Python 工具与新实现可交替修改同一存储。临时目录打包核对 ZIP 内无 .py／.pyw、`Install.ps1 -VerifyOnly` 通过。
+- 全量 CTest：CMake Release 构建后在 PowerShell 运行 70 项全部通过（1139.63 秒，dictionary_manager 28.78 秒）。注意：运行时工作区还有候选框会话（UI-04）的未提交改动。
+- 未验证（待实机）：未装 Python 的干净系统上从开始菜单／设置页打开窗口、导入并启用 FF14 0.5.0 后游戏内生效、个人词表导入与清空后的热更新、`Dictionaries.cmd` 在 cmd 窗口内的输出编码。已删除 `Windows/dictionary-manager.pyw`、`Windows/tests/test_japanese_manager_gui.py`（不在 CTest 中）及 `build-preview.ps1` 复制它们的一行；命令行 Python 工具与 `scripts/japanese_*.py` 保留供源码仓库使用与逐字节比对。
+
 ## 2026-11-23 · UI-04：候选窗风格重做与单行横排（待实机）
 
 - 新增 `Windows/CandidateTheme.cs`：“晴空 Fluent”（系统强调色淡底加竖条）和“晴空胶囊”（每个候选为淡色胶囊、当前候选实心蓝，按维护者选定的方向 3，不加角标和标签）两种风格，颜色跟随系统、浅色或深色，高对比沿用系统颜色。设置页新增“风格”“颜色”，去掉“排列方向”，宽度改称最大宽度。

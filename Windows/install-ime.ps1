@@ -59,7 +59,8 @@ if ($Signed) {
 if (!(Test-Path -LiteralPath $renderer -PathType Leaf)) {
     throw 'The glass renderer is missing from the installation files.'
 }
-$managerFiles = foreach ($name in 'dictionary-manager.pyw','japanese_packages.py','japanese_dictionary.py','ff14-manifest.json','ff14-words.txt','ff14-reviewed-source.json') {
+# DICT-03: the manager itself is part of the renderer; only the bundled FF14 package ships beside it.
+$managerFiles = foreach ($name in 'ff14-manifest.json','ff14-words.txt','ff14-reviewed-source.json') {
     $path = Join-Path (Split-Path $renderer) $name
     if (!(Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing dictionary manager file: $path" }
     $path

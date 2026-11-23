@@ -259,7 +259,7 @@ Explain.cmd --audit            检查个人词读音、个人词与词库重复�
 
 alpha.18 起支持主题词库热更新，alpha.19 起支持个人日语触发词表热更新，alpha.20 起支持基础中文／查询数据库／基础日语／活用表整包热更新。所有应用使用同一机制：修改后在实际输入时后台加载，当前这段保持原候选，之后的新一段使用新词库。第一段尚未变化时，完成或 Esc 取消后再输入。失败时提示“词库更新失败，沿用旧版”，修复词表后会重试。首次升级接入层及引擎代码更新仍需彻底退出并重开各输入应用。基础词库发布暂为命令行操作，见[快照与热更新指南](BASE_DICTIONARY_SNAPSHOTS.md)；直接覆盖安装目录文件不会触发该机制。
 
-个人词表使用 `python Windows/import-japanese-dictionary.py 你的词表.txt` 导入，整表替换之前的个人词条；需要恢复时重新导入自己保留的旧源文件。`python Windows/import-japanese-dictionary.py --clear` 清空个人触发词，不影响主题包。删除文件不会作为热更新的清空指令，以免意外丢失覆盖当前内存词表。词表格式见[日语输入说明](JAPANESE_INPUT_ROADMAP.md)。
+个人词表在“晴词主题词库”窗口点“导入个人词表…”导入（或 ZIP 根目录执行 `./Dictionaries.cmd personal 你的词表.txt`），整表替换之前的个人词条；需要恢复时重新导入自己保留的旧源文件。点“清空个人词表”（或 `./Dictionaries.cmd personal --clear`）清空个人触发词，不影响主题包。下一个试用包起这些操作不需要 Python；alpha.34 及更早版本请用 `python Windows/import-japanese-dictionary.py`。删除文件不会作为热更新的清空指令，以免意外丢失覆盖当前内存词表。词表格式见[日语输入说明](JAPANESE_INPUT_ROADMAP.md)。
 
 alpha.24 起：输入法会记住你选过的候选。同一串拼音下次再输入时，选过的排在最前；一段一段选出来的句子，下次会作为整句直接出现。选错一次不要紧，再选对一次就改回来。记录只保存在本机，查看、导出、清除和关闭的方法见[选词记忆](SELECTION_MEMORY.md)。
 
@@ -310,7 +310,7 @@ alpha.14 补充：预览可用 Tab 聚焦，也可点击后用方向键、1–7�
 - F6 没反应：先高亮支持活用的日语表记，确认顶部出现活用提示。
 - 更新后行为没变化：已打开的应用可能仍加载旧 DLL，关闭并重新打开应用再试。
 
-自定义词表格式与导入命令见[日语路线图](JAPANESE_INPUT_ROADMAP.md)。从开始菜单打开“晴词主题词库”，或在输入设置点击“管理主题词库”，可预览、导入、启停和回退多个主题包。需要 Python 3.10+ 及 tkinter，首次打开选择 python.exe。详见[主题词库管理](DICTIONARY_PACKAGES.md)。当前随附 57,672 条 [FF14 职业与物品术语](FF14_FULL_DICTIONARY.md)，点击“预览 FF14 词库”再导入、启用。功能进度及未验收项目见[开发状态](DEVELOPMENT_STATUS.md)。
+自定义词表格式与导入命令见[日语路线图](JAPANESE_INPUT_ROADMAP.md)。从开始菜单打开“晴词主题词库”，或在输入设置点击“管理主题词库”，可预览、导入、启停和回退多个主题包。下一个试用包起不需要 Python（alpha.34 及更早版本需要 Python 3.10+ 及 tkinter）。详见[主题词库管理](DICTIONARY_PACKAGES.md)。当前随附 57,672 条 [FF14 职业与物品术语](FF14_FULL_DICTIONARY.md)，点击“预览 FF14 词库”再导入、启用。功能进度及未验收项目见[开发状态](DEVELOPMENT_STATUS.md)。
 
 ## alpha.10 中文名称与升级检查
 

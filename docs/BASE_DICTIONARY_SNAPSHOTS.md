@@ -78,7 +78,7 @@ python -X utf8 Windows/manage-base-dictionary.py rollback --store $baseStore
 
 启动时先使用安装目录内的基础词库，之后按上述流程读取用户仓库；已发布的用户基础快照会覆盖安装包基础词库，因此后续升级安装包也应检查用户仓库版本。重启后遇到坏用户快照会继续用安装目录版本，内存旧版不是跨进程备份。通过运行时仓库更新无需替换宿主 DLL；引擎代码和 TSF 接入层更新仍需重开应用。
 
-MSVC 安装包／ZIP 附带 Windows/manage-base-dictionary.py、scripts/base_dictionary.py 和根目录的 harukoto_base_dictionary_check.exe。从解压目录执行时原生校验器路径改为 ./harukoto_base_dictionary_check.exe；工具没有图形入口。安装器不会自动发布或覆盖用户基础快照。
+MSVC 安装包／ZIP 根目录附带 harukoto_base_dictionary_check.exe。下一个试用包起（DICT-03）包内不再附带 Windows/manage-base-dictionary.py 与 scripts/base_dictionary.py，发布基础快照请在源码仓库执行上述命令；alpha.34 及更早的 ZIP 仍附带。工具没有图形入口。安装器不会自动发布或覆盖用户基础快照。
 
 ## 验证与下一步
 

@@ -20,6 +20,8 @@ internal static class GlassPreview
             new Application().Run(CandidateSettings.Create());
         else if (args.Length == 1 && args[0] == "--dictionaries")
             new Application().Run(DictionaryLauncher.Create());
+        else if (args.Length > 1 && args[0] == "--dictionaries")
+            Environment.Exit(DictionaryCli.Run(args));
         else if (args.Length == 2 && args[0] == "--ime")
             RunCandidateHost(args[1]);
         else

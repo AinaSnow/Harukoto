@@ -8,11 +8,8 @@ $references = 'WindowsBase', 'PresentationCore', 'PresentationFramework', 'UIAut
     ForEach-Object { '/reference:' + (Join-Path $wpf "$_.dll") }
 $layout = Join-Path $PSScriptRoot 'GlassPreview.xaml'
 $candidateLayout = Join-Path $PSScriptRoot 'CandidateWindow.xaml'
-& $compiler /nologo /target:winexe /out:$exe $references /reference:System.Xaml.dll /reference:System.Drawing.dll "/resource:$layout,GlassPreview.xaml" "/resource:$candidateLayout,CandidateWindow.xaml" (Join-Path $PSScriptRoot 'GlassPreview.cs') (Join-Path $PSScriptRoot 'GlassBackdrop.cs') (Join-Path $PSScriptRoot 'CandidateLayout.cs') (Join-Path $PSScriptRoot 'LayoutOptions.cs') (Join-Path $PSScriptRoot 'CandidateView.cs') (Join-Path $PSScriptRoot 'CandidateTheme.cs') (Join-Path $PSScriptRoot 'CandidatePreview.cs') (Join-Path $PSScriptRoot 'CandidateSettings.cs') (Join-Path $PSScriptRoot 'DictionaryLauncher.cs')
+& $compiler /nologo /target:winexe /out:$exe $references /reference:System.Xaml.dll /reference:System.Drawing.dll "/resource:$layout,GlassPreview.xaml" "/resource:$candidateLayout,CandidateWindow.xaml" (Join-Path $PSScriptRoot 'GlassPreview.cs') (Join-Path $PSScriptRoot 'GlassBackdrop.cs') (Join-Path $PSScriptRoot 'CandidateLayout.cs') (Join-Path $PSScriptRoot 'LayoutOptions.cs') (Join-Path $PSScriptRoot 'CandidateView.cs') (Join-Path $PSScriptRoot 'CandidateTheme.cs') (Join-Path $PSScriptRoot 'CandidatePreview.cs') (Join-Path $PSScriptRoot 'CandidateSettings.cs') (Join-Path $PSScriptRoot 'DictionaryLauncher.cs') (Join-Path $PSScriptRoot 'DictionaryManager.cs') (Join-Path $PSScriptRoot 'ThemePackages.cs') (Join-Path $PSScriptRoot 'DictionaryCli.cs')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-foreach ($source in (Join-Path $PSScriptRoot 'dictionary-manager.pyw'),(Join-Path $PSScriptRoot '../scripts/japanese_packages.py'),(Join-Path $PSScriptRoot '../scripts/japanese_dictionary.py')) {
-    Copy-Item -LiteralPath $source -Destination $output -Force
-}
 Write-Output (Resolve-Path $exe).Path
 $ff14 = Join-Path $PSScriptRoot '../Resources/DictionaryPackages/ff14/full'
 Copy-Item -LiteralPath (Join-Path $ff14 'manifest.json') -Destination (Join-Path $output 'ff14-manifest.json') -Force

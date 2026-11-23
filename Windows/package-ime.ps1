@@ -24,7 +24,8 @@ try {
         Copy-Item -LiteralPath (Join-Path $build "ime/$name") -Destination $payload
     }
     Copy-Item -LiteralPath (Join-Path $build 'MeowpuutGlassPreview.exe') -Destination $payload
-    foreach ($name in 'dictionary-manager.pyw','japanese_packages.py','japanese_dictionary.py','ff14-manifest.json','ff14-words.txt','ff14-reviewed-source.json') {
+    # DICT-03: the dictionary manager is built into MeowpuutGlassPreview.exe; only the bundled FF14 data ships beside it.
+    foreach ($name in 'ff14-manifest.json','ff14-words.txt','ff14-reviewed-source.json') {
         Copy-Item -LiteralPath (Join-Path $build $name) -Destination $payload
     }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Dictionaries.cmd') -Destination $stage
@@ -35,11 +36,9 @@ try {
     foreach ($name in 'PowerShellHost.ps1','InstallSupport.ps1','InputProfile.ps1','Settings.cmd','set-candidate-appearance.ps1','manage-selection-memory.ps1','LayoutOptions.cs','AppearanceCli.cs') {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $stage
     }
-    New-Item -ItemType Directory -Force (Join-Path $stage 'Windows'),(Join-Path $stage 'scripts'),(Join-Path $stage 'docs') | Out-Null
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'import-japanese-dictionary.py') -Destination (Join-Path $stage 'Windows')
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'manage-japanese-packages.py') -Destination (Join-Path $stage 'Windows')
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'manage-base-dictionary.py') -Destination (Join-Path $stage 'Windows')
-    Copy-Item -LiteralPath (Join-Path $root 'scripts/base_dictionary.py') -Destination (Join-Path $stage 'scripts')
+    # DICT-03: no Python tools in the package. The Python command-line tools
+    # (theme packages, personal list, base snapshots) run from a source checkout.
+    New-Item -ItemType Directory -Force (Join-Path $stage 'docs') | Out-Null
     if ($MSVC) {
         Copy-Item -LiteralPath (Join-Path $build 'msvc/Release/harukoto_base_dictionary_check.exe') -Destination $stage
         # DICT-02a: read-only candidate diagnostics, run through Explain.cmd.
@@ -54,12 +53,11 @@ try {
         Copy-Item -LiteralPath (Join-Path $build 'msvc/Release/harukoto_engine_diagnose.exe') -Destination $stage
         # WIN-03 step 6c: the version folder is itself a base snapshot, so the
         # engine can serve the installed files and report their generation.
+        # Build-time only: the manifest is written here, Python is not shipped.
         $python = (Get-Command python -ErrorAction Stop).Source
         & $python -X utf8 (Join-Path $PSScriptRoot 'manage-base-dictionary.py') describe $payload --version $Version | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Cannot describe the packaged base dictionary.' }
     }
-    Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_dictionary.py') -Destination (Join-Path $stage 'scripts')
-    Copy-Item -LiteralPath (Join-Path $root 'scripts/japanese_packages.py') -Destination (Join-Path $stage 'scripts')
     $example = Join-Path $stage 'Resources/DictionaryPackages/example'
     New-Item -ItemType Directory -Force $example | Out-Null
     Copy-Item -LiteralPath (Join-Path $root 'Resources/DictionaryPackages/example/manifest.json'),(Join-Path $root 'Resources/DictionaryPackages/example/words.txt') -Destination $example
@@ -120,6 +118,8 @@ try {
         '构建与打包前请使用同一工具链重新生成全部二进制。本包不代表已完成跨应用兼容性验收。'
     ) | Set-Content -LiteralPath (Join-Path $stage 'BUILD-INFO.md') -Encoding utf8
     & (Join-Path $stage 'Install.ps1') -Prebuilt -VerifyOnly | Out-Null
+    $pythonFiles = @(Get-ChildItem -LiteralPath $stage -Recurse -File | Where-Object { $_.Extension -in '.py','.pyw' })
+    if ($pythonFiles) { throw ('Python files must not be packaged: ' + ($pythonFiles.Name -join ', ')) }
     $zip = Join-Path $output "Harukoto-$Version-windows-x64.zip"
     Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
     $ff14Manifest = Get-Content -LiteralPath (Join-Path $ff14 'manifest.json') -Raw | ConvertFrom-Json

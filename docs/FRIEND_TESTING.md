@@ -36,8 +36,8 @@
 
 FF14 词库包含物品、地名、技能、副本、NPC、怪物、任务、坐骑、状态以及玩家常用简称（团辅、团本、幻卡、光呆等），默认不开。
 
-1. 先装 [Python 3.10 或更新版本](https://www.python.org/downloads/windows/)（安装时勾选 tcl/tk，即默认选项）。只有管理词库需要 Python，平时打字不需要。
-2. 开始菜单打开“晴词主题词库”，第一次会让你选择 python.exe。
+1. alpha.34 需要先装 [Python 3.10 或更新版本](https://www.python.org/downloads/windows/)（安装时勾选 tcl/tk，即默认选项）。只有管理词库需要 Python，平时打字不需要；下一个试用包起不再需要 Python。
+2. 开始菜单打开“晴词主题词库”（alpha.34 第一次会让你选择 python.exe）。
 3. 预览 FF14 词库 → 导入 → 启用，然后重新打开游戏。
 
 ## 这一版想请你重点试的

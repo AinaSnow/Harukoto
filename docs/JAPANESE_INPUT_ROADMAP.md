@@ -31,12 +31,14 @@
 エリンギ | chinese: 杏鲍菇 | pinyin: xingbaogu
 ```
 
-在仓库根目录执行：
+在“晴词主题词库”窗口点“导入个人词表…”，或在解压后的 ZIP 根目录执行（下一个试用包起，不需要 Python）：
 
 ```powershell
-python Windows/import-japanese-dictionary.py C:/path/to/words.txt --check
-python Windows/import-japanese-dictionary.py C:/path/to/words.txt
+./Dictionaries.cmd personal C:/path/to/words.txt --check
+./Dictionaries.cmd personal C:/path/to/words.txt
 ```
+
+源码仓库中也可执行 `python Windows/import-japanese-dictionary.py C:/path/to/words.txt`，结果相同。
 
 编译结果写入 `%LOCALAPPDATA%/Meowpuut/japanese-custom.tsv`，无需管理员权限。此入口会替换当前用户的一个自定义词表；需要多个主题独立启停和回退时，使用[主题包管理](DICTIONARY_PACKAGES.md)。两种入口可共存。校验失败时不会覆盖旧文件。alpha.19 起后台加载后在新组字时生效，首次安装新 DLL 或旧版应用仍需重开。`--clear` 显式发布空个人表，`--check` 可搭配它只校验操作不写文件。也可用 `--output` 导出到指定文件；导出到其他路径不会自动更新输入法。
 

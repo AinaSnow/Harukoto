@@ -1,5 +1,9 @@
 # 开发变更记录
 
+## 2026-11-23 · DICT-03：词库管理器去 Python
+
+- “晴词主题词库”管理窗口改为内置 C#/WPF，不再需要 Python 与 tkinter；功能与原 Python 窗口对等，并新增个人日语触发词表的导入与清空。`Dictionaries.cmd <命令>` 提供无 Python 的命令行（list／preview／import／enable／disable／rollback／personal）。读写格式、目录与热更新约定不变，与 Python 版逐字节一致。安装包不再携带任何 .py／.pyw。新 CTest dictionary_manager 通过；实机待下一个试用包。
+
 ## 2026-11-23 · UI-04：候选窗风格重做与单行横排
 
 - 候选窗新增“晴空 Fluent”和“晴空胶囊”两种可切换风格，颜色可跟随系统或固定深浅色；候选改为与系统输入法类似的单行横排，窗口随内容收窄，去掉纵向列表；默认间距收紧、最大宽度 860。风格单独存为 AppearanceV1。预览测试全部通过，待实机。

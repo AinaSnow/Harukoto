@@ -36,7 +36,7 @@ alpha.14 改善窄工作区宽高限制、重复适配和首次窗口 DPI 获取
 
 开发者入口：[中文质量与性能评测](../docs/CHINESE_EVALUATION.md)、[安装与旧进程诊断](../docs/WINDOWS_DIAGNOSIS.md)。这两项是当前源码工具，已有 alpha.11 安装包未包含诊断入口。
 
-alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md)：预览、独立启停、更新和回退。开始菜单“晴词主题词库”、设置页和 ZIP 的 Dictionaries.cmd 均可打开。管理窗口需要 Python 3.10+ 与 tkinter，日常输入不需要；当前附普通示例及 [FF14 首批词库](../docs/FF14_FULL_DICTIONARY.md)，含 57,672 条来源记录、113,463 组触发，默认关闭。
+alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md)：预览、独立启停、更新和回退。开始菜单“晴词主题词库”、设置页和 ZIP 的 Dictionaries.cmd 均可打开。下一个试用包起（DICT-03）管理窗口内置在 MeowpuutGlassPreview.exe，不需要 Python，ZIP 的 `Dictionaries.cmd <命令>` 是命令行；当前附普通示例及 [FF14 首批词库](../docs/FF14_FULL_DICTIONARY.md)，含 57,672 条来源记录、113,463 组触发，默认关闭。
 
 ## 直接下载安装
 
