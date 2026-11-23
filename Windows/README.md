@@ -1,4 +1,4 @@
-# 晴词 · Harukoto 0.4.4-alpha.33 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.34 · Windows x64
 
 开发产物清理：使用 PowerShell 7 运行 `Windows/clean-build.ps1` 预览，添加 `-Apply` 执行。只清理脚本固定匹配的旧产物，保留最新两个 0.4.4-alpha 版本、最新 FF14 包、当前 MSVC／ime／tools 与源数据；未知文件保留。请在构建／打包结束后运行。
 
@@ -40,7 +40,7 @@ alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.33-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.34-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -99,7 +99,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.33
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.34
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。
@@ -205,3 +205,5 @@ alpha.31 在 alpha.30 基础上修复开启独立引擎实验开关后每次按�
 alpha.32 在 alpha.31 基础上完成独立引擎第 7 步（WIN-03 7a～7d）：按发行序号隔离常驻 scope 并支持空组字边界无缝换代与旧所有者自动退场；失焦 15 秒／静置 180 秒空边界主动礼让释放连接槽，所有者与宿主均支持 8 槽满时按 LRU 回收空闲槽且被回收方零惩罚静默重连；协议升至 v2，引擎接管翻页扩展、选词／学习拆词与分段语境元数据；开启 `StandaloneEngine` 且满足条件的应用改为瘦客户端启动（以 35 字节占位词库替代启动期 ~185 MiB 本地词库加载，仅回退时懒加载兜底，Diagnose 标注“瘦客户端”）。注意：因协议由 v1 升至 v2，从 alpha.30／alpha.31 覆盖升级后，已打开的应用将提示“输入法已更新，请重开应用”，重开后即可切入新版瘦客户端；默认开关仍保持关闭。
 
 alpha.33 在 alpha.32 基础上完成独立引擎第 8 步（CN-02）：开启 `StandaloneEngine` 后，扩展候选首页只取第一轮结果，翻页时才按需扩展到下一轮，长句逐键不再每次跑满 3 轮扩展；实测 12 个应用同时输入时逐键中位约 3.6 ms、总内存约 239 MiB（进程内路径约 29.5 ms、2,030 MiB），见[延迟与内存对比](../docs/ENGINE_CN02.md)。协议仍为 v2，从 alpha.32 覆盖升级无需重开应用；默认开关仍保持关闭。
+
+alpha.34 在 alpha.33 基础上随附 FF14 词库 0.5.0：新增 NPC、怪物与 Boss、任务名、状态效果、特性、坐骑、情感动作、PvP 技能和职业，共 90,536 条记录；玩家简称与用语增至 71 条（如团辅、团本、幻卡、风脉、光呆、诗学、枪刃）。与常用词同音的触发已过滤，日常输入首选不变。FF14 词库需在“晴词主题词库”中导入 0.5.0 并启用后生效，安装器不会自动替换已启用的旧版。程序部分与 alpha.33 相同，独立引擎开关仍默认关闭。
