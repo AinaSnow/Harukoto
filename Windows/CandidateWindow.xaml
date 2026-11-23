@@ -3,16 +3,17 @@
         Title="晴词候选" Width="672" WindowStyle="None" ResizeMode="NoResize"
         AllowsTransparency="True" Background="Transparent" SizeToContent="Height"
         FontFamily="Microsoft YaHei UI, Yu Gothic UI">
-    <Border Padding="12" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
-            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}"
-            BorderThickness="1" CornerRadius="6">
+    <!-- UI-04: colours, corners and shadow are set per theme by CandidateTheme.ApplyChrome. -->
+    <Border x:Name="Surface" Padding="8" Margin="12,8,12,16" BorderThickness="1" CornerRadius="8"
+            Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}"
+            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
         <StackPanel>
-            <DockPanel x:Name="CompositionHeader" Margin="2,0,2,8">
-                <Border x:Name="PageChip" DockPanel.Dock="Right" Margin="12,0,0,0">
+            <DockPanel x:Name="CompositionHeader" Margin="8,0,8,4">
+                <Border x:Name="PageChip" DockPanel.Dock="Right" Margin="16,0,0,0" VerticalAlignment="Center">
                     <TextBlock x:Name="PageIndicator" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"
                                Foreground="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"/>
                 </Border>
-                <TextBlock x:Name="Preedit" FontSize="14" TextWrapping="Wrap"
+                <TextBlock x:Name="Preedit" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Center"
                            Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"/>
             </DockPanel>
             <WrapPanel x:Name="Candidates"/>

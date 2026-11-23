@@ -75,7 +75,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\Windows\build-preview.ps1
 
 ### 候选字号与排版
 
-候选按实际词宽排列，空间不足自动换行；长词和读音可在词块内部换行，不再强行压进一行。候选窗改为白底细边框，顶部显示组字状态，下方排列候选；选中项用浅蓝色标记，不再显示猫耳、猫爪或玻璃装饰。默认正文为 18 个 WPF 逻辑像素（接近原版缩放后的中文字号），窗口宽度为 672；高 DPI 下由系统缩放。
+候选与系统输入法一样单行横排，序号、词和读音同一行；窗口宽度随候选收窄，超过最大宽度才换行，长词可在词块内部换行。顶部显示组字和状态。UI-04 起提供“晴空 Fluent”和“晴空胶囊”两种风格，颜色可跟随系统、固定浅色或深色（设置页选择，保存在 `HKCU/Software/Meowpuut/CandidateWindow` 的 `AppearanceV1`）。默认正文为 18 个 WPF 逻辑像素，最大宽度 860；高 DPI 下由系统缩放。
 
 在仓库根目录可调整字号或窗口宽度，无需管理员权限，下次按键更新候选时生效：
 
@@ -85,7 +85,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\Windows\build-preview.ps1
 .\Windows\set-candidate-appearance.ps1 -Reset
 ```
 
-字号范围 14–32，宽度范围 480–1000；设置保存在当前用户的 `HKCU/Software/Meowpuut/CandidateWindow`。
+字号范围 14–32，最大宽度范围 480–1000；设置保存在当前用户的 `HKCU/Software/Meowpuut/CandidateWindow`。
 
 图形设置入口：构建后执行 `.\.build\windows\MeowpuutGlassPreview.exe --settings`，或在新安装包中双击 `Settings.cmd`。使用新安装脚本安装后，开始菜单会提供 `晴词候选窗设置`。点击保存后生效；打开设置本身不会改变当前字号。安装包根目录也包含 `set-candidate-appearance.ps1`。
 

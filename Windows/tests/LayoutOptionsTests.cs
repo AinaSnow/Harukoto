@@ -53,6 +53,26 @@ internal static class LayoutOptionsTests
             var cli = LayoutOptions.Decode(HarukotoAppearanceBridge.Update(path, 24, 800, false));
             Check(cli.Vertical && cli.Reading == 20 && cli.GapX == 5 && cli.Font == 24 && cli.Width == 800, "CLI lost extended layout fields");
             Check(HarukotoAppearanceBridge.Update(path, 0, 0, true) == new LayoutOptions().Encode(), "CLI reset");
+            // UI-04: theme and colour mode live in AppearanceV1, never in LayoutV1.
+            using (var key = Registry.CurrentUser.CreateSubKey(path + @"\Appearance")) {
+                LayoutOptions.Write(key, new LayoutOptions());
+                Check(key.GetValue("AppearanceV1") == null, "Default appearance must not be created");
+                LayoutOptions.Write(key, new LayoutOptions { Theme = 1, ColorMode = 2 });
+                var read = LayoutOptions.Read(key);
+                Check(read.Theme == 1 && read.ColorMode == 2 && (string)key.GetValue("LayoutV1") == new LayoutOptions().Encode(), "Appearance round trip kept LayoutV1 unchanged");
+                Check(LayoutOptions.Read(key).Copy().Theme == 1, "Copy keeps appearance");
+                HarukotoAppearanceBridge.Update(path + @"\Appearance", 22, 0, false);
+                Check(LayoutOptions.Read(key).Theme == 1 && LayoutOptions.Read(key).Font == 22, "CLI dropped appearance");
+                foreach (string invalid in new[] { "broken", "2;1;0", "1;2;0", "1;0;3", "1;1" }) {
+                    key.SetValue("AppearanceV1", invalid);
+                    var fallback = LayoutOptions.Read(key);
+                    Check(fallback.Theme == 0 && fallback.ColorMode == 0 && fallback.Font == 22, "Invalid appearance did not fall back");
+                }
+                key.SetValue("AppearanceV1", 1, RegistryValueKind.DWord);
+                Check(LayoutOptions.Read(key).Theme == 0, "Wrong appearance type");
+                var bounded = new LayoutOptions { Theme = 9, ColorMode = -3 }.Validated();
+                Check(bounded.Theme == 1 && bounded.ColorMode == 0, "Appearance bounds");
+            }
             // CN-03: fuzzy pinyin pairs, one DWORD bit mask; off unless saved.
             Check(FuzzyPinyinOptions.Pairs.Length == 11 && FuzzyPinyinOptions.All == 2047, "Eleven fuzzy pairs");
             Check(FuzzyPinyinOptions.Read(null) == 0, "Fuzzy default without key");

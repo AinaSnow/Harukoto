@@ -9,10 +9,10 @@ using Microsoft.Win32;
 internal static class CandidateLayout
 {
     internal static double FontSize = 18;
-    private static double width = 672;
+    private static double width = 860;
     internal static LayoutOptions Current = new LayoutOptions();
     internal static double ClampFont(double value) { return double.IsNaN(value) || double.IsInfinity(value) ? 18 : Math.Max(14, Math.Min(32, value)); }
-    internal static double ClampWidth(double value) { return double.IsNaN(value) || double.IsInfinity(value) ? 672 : Math.Max(480, Math.Min(1000, value)); }
+    internal static double ClampWidth(double value) { return double.IsNaN(value) || double.IsInfinity(value) ? 860 : Math.Max(480, Math.Min(1000, value)); }
     [StructLayout(LayoutKind.Sequential)] private struct PointI { internal int X, Y; }
     [StructLayout(LayoutKind.Sequential)] private struct RectI { internal int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { internal int Size; internal RectI Monitor, Work; internal uint Flags; }
@@ -46,7 +46,9 @@ internal static class CandidateLayout
     internal static void Apply(FrameworkElement root, Panel panel, LayoutOptions options, double width)
     {
         ((Border)root).Padding = new Thickness(options.Outer);
-        panel.Width = Math.Max(100, width - 2 * options.Outer - 2);
+        // The configured width is a maximum; CandidateView.Render narrows Width to the row.
+        panel.MaxWidth = Math.Max(100, width - 2 * options.Outer - 2);
+        panel.Width = panel.MaxWidth;
     }
 
     internal static void Show(Window window, Rect work, int x, int y)
@@ -56,6 +58,8 @@ internal static class CandidateLayout
         var point = transform.Transform(new Point(x, y));
         var content = (FrameworkElement)window.Content;
         FitToWorkArea(window, work.Size);
+        // The window includes the shadow margin; keep the visible surface at the anchor.
+        point.Offset(-content.Margin.Left, -content.Margin.Top);
         var location = Place(work, point, new Size(window.Width, content.DesiredSize.Height));
         window.Left = location.X; window.Top = location.Y;
         window.Show();
@@ -85,15 +89,18 @@ internal static class CandidateLayout
         var panel = (Panel)window.FindName("Candidates");
         var border = (Border)content;
         // Derive the unscaled canvas anew. Repeated fitting must not shrink it again.
-        double logicalWidth = panel.Width + border.Padding.Left + border.Padding.Right + border.BorderThickness.Left + border.BorderThickness.Right;
+        // LayoutTransform scales the surface but not its shadow margin.
+        double marginX = border.Margin.Left + border.Margin.Right, marginY = border.Margin.Top + border.Margin.Bottom;
+        double surfaceWidth = panel.Width + border.Padding.Left + border.Padding.Right + border.BorderThickness.Left + border.BorderThickness.Right;
+        double logicalWidth = surfaceWidth + marginX;
         window.Width = logicalWidth;
         content.LayoutTransform = Transform.Identity;
         content.Measure(new Size(logicalWidth, double.PositiveInfinity));
-        double height = content.DesiredSize.Height;
-        double factor = Math.Min(1, Math.Min(Math.Max(1, available.Width - 1) / logicalWidth, Math.Max(1, available.Height - 1) / Math.Max(1, height)));
+        double surfaceHeight = Math.Max(1, content.DesiredSize.Height - marginY);
+        double factor = Math.Min(1, Math.Min(Math.Max(1, available.Width - 1 - marginX) / surfaceWidth, Math.Max(1, available.Height - 1 - marginY) / surfaceHeight));
         if (factor < 1) {
             content.LayoutTransform = new ScaleTransform(factor, factor);
-            window.Width = logicalWidth * factor;
+            window.Width = surfaceWidth * factor + marginX;
             content.Measure(new Size(window.Width, double.PositiveInfinity));
         }
     }

@@ -146,8 +146,14 @@ internal static class FullWidthOptions
 internal sealed class LayoutOptions
 {
     internal const string KeyPath = @"Software\Meowpuut\CandidateWindow";
-    internal int Font = 18, Width = 672, Reading = 0, GapX = 8, GapY = 8, PaddingX = 10, PaddingY = 8, Outer = 12;
+    // Compact single-row defaults (UI-04). Width is the maximum; the window shrinks to its candidates.
+    internal int Font = 18, Width = 860, Reading = 0, GapX = 2, GapY = 2, PaddingX = 8, PaddingY = 4, Outer = 8;
+    // Kept only for LayoutV1 compatibility: candidates are always one horizontal row now.
     internal bool Vertical;
+    // UI-04 appearance, stored apart from LayoutV1 so older versions still read the layout:
+    // Theme 0 晴空 Fluent, 1 晴空胶囊; ColorMode 0 follow system, 1 light, 2 dark.
+    internal const int ThemeFluent = 0, ThemeCapsule = 1;
+    internal int Theme, ColorMode;
     internal LayoutOptions Copy() { return (LayoutOptions)MemberwiseClone(); }
     internal double ReadingSize { get { return Reading == 0 ? Math.Max(11, Font * 0.6) : Reading; } }
     private static int Clamp(int value, int min, int max) { return Math.Max(min, Math.Min(max, value)); }
@@ -157,7 +163,8 @@ internal sealed class LayoutOptions
         v.Font = Clamp(Font, 14, 32); v.Width = Clamp(Width, 480, 1000);
         v.Reading = Reading == 0 ? 0 : Clamp(Reading, 10, 24);
         v.GapX = Clamp(GapX, 0, 24); v.GapY = Clamp(GapY, 0, 24);
-        v.PaddingX = Clamp(PaddingX, 4, 24); v.PaddingY = Clamp(PaddingY, 4, 20); v.Outer = Clamp(Outer, 4, 24);
+        v.PaddingX = Clamp(PaddingX, 4, 24); v.PaddingY = Clamp(PaddingY, 2, 20); v.Outer = Clamp(Outer, 4, 24);
+        v.Theme = Clamp(Theme, 0, 1); v.ColorMode = Clamp(ColorMode, 0, 2);
         return v;
     }
     internal string Encode()
@@ -177,16 +184,37 @@ internal sealed class LayoutOptions
         if (n[0] != 1 || (n[9] != 0 && n[9] != 1)) return null;
         return new LayoutOptions { Font = n[1], Width = n[2], Reading = n[3], GapX = n[4], GapY = n[5], PaddingX = n[6], PaddingY = n[7], Outer = n[8], Vertical = n[9] == 1 }.Validated();
     }
+    internal string EncodeAppearance()
+    {
+        var v = Validated();
+        return "1;" + v.Theme.ToString(CultureInfo.InvariantCulture) + ";" + v.ColorMode.ToString(CultureInfo.InvariantCulture);
+    }
+    // Unknown or damaged appearance leaves the defaults (Fluent, follow system).
+    internal static bool DecodeAppearance(string text, LayoutOptions into)
+    {
+        if (text == null || text.Length > 64) return false;
+        var parts = text.Split(';'); var n = new int[3];
+        if (parts.Length != 3) return false;
+        for (int i = 0; i < n.Length; ++i)
+            if (!int.TryParse(parts[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out n[i])) return false;
+        if (n[0] != 1 || n[1] < 0 || n[1] > 1 || n[2] < 0 || n[2] > 2) return false;
+        into.Theme = n[1]; into.ColorMode = n[2];
+        return true;
+    }
     internal static LayoutOptions Read(RegistryKey key)
     {
         var v = new LayoutOptions();
         if (key == null) return v;
         var decoded = Decode(key.GetValue("LayoutV1") as string);
-        if (decoded != null) return decoded;
-        int number;
-        if (int.TryParse(Convert.ToString(key.GetValue("FontSize", 18)), out number)) v.Font = number;
-        if (int.TryParse(Convert.ToString(key.GetValue("Width", 672)), out number)) v.Width = number;
-        return v.Validated();
+        if (decoded != null) v = decoded;
+        else {
+            int number;
+            if (int.TryParse(Convert.ToString(key.GetValue("FontSize", 18)), out number)) v.Font = number;
+            if (int.TryParse(Convert.ToString(key.GetValue("Width", 860)), out number)) v.Width = number;
+            v = v.Validated();
+        }
+        DecodeAppearance(key.GetValue("AppearanceV1") as string, v);
+        return v;
     }
     internal static LayoutOptions Load()
     {
@@ -197,11 +225,16 @@ internal sealed class LayoutOptions
     {
         // No legacy mirrors: a failed write leaves the previous layout intact.
         key.SetValue("LayoutV1", options.Encode(), RegistryValueKind.String);
+        // Appearance is its own value; an unchanged or default appearance is not created.
+        string appearance = options.EncodeAppearance();
+        var stored = key.GetValue("AppearanceV1") as string;
+        if (stored == appearance || (stored == null && appearance == new LayoutOptions().EncodeAppearance())) return;
+        key.SetValue("AppearanceV1", appearance, RegistryValueKind.String);
     }
     internal static LayoutOptions Preset(int index)
     {
-        if (index == 0) return new LayoutOptions { GapX = 4, GapY = 4, PaddingX = 6, PaddingY = 4, Outer = 8 };
-        if (index == 2) return new LayoutOptions { GapX = 12, GapY = 12, PaddingX = 14, PaddingY = 12, Outer = 16 };
+        if (index == 0) return new LayoutOptions { GapX = 0, GapY = 0, PaddingX = 6, PaddingY = 2, Outer = 6 };
+        if (index == 2) return new LayoutOptions { GapX = 6, GapY = 6, PaddingX = 12, PaddingY = 8, Outer = 12 };
         return new LayoutOptions();
     }
     internal static void SavePreferences(RegistryKey input, RegistryKey layout, LayoutOptions options, bool traditional)

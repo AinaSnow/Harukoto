@@ -65,7 +65,8 @@ internal sealed class CandidatePreview
     {
         options = options.Validated();
         redraw = () => UpdateLayout(sample, options, expanded, traditional);
-        Root.Width = options.Width;
+        // Like the live window: the width is a maximum and the surface shrinks to its row.
+        Root.Width = double.NaN;
         CandidateLayout.Apply(Root, Panel, options, options.Width);
         var fields = Fields(sample, traditional);
         if (traditional) {

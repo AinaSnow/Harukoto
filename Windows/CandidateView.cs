@@ -2,18 +2,26 @@ using System;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 
-// Shared by the live host and isolated settings preview. No registry or IPC.
+// Shared by the live host and isolated settings preview. No registry or IPC
+// beyond reading the system colour settings in CandidateTheme.
+// UI-04: one compact horizontal row like the system IME. Each candidate is a
+// single line (number, word, reading); the strip shrinks to its row and only
+// wraps when the row is wider than the configured maximum width.
 internal static class CandidateView
 {
     internal static void Render(Panel strip, string[] fields, int highlighted,
                                          int mainIndex, bool expanded, LayoutOptions options)
     {
         options = options.Validated();
+        var palette = CandidateTheme.Resolve(options.Theme, options.ColorMode);
+        var header = CandidateTheme.ApplyChrome(strip, palette, options);
         double fontSize = options.Font;
-        double available = strip.Width;
-        const double minimum = 64;
+        // Apply() publishes the maximum as MaxWidth; callers that only set Width use it as the maximum.
+        double available = double.IsInfinity(strip.MaxWidth) ? strip.Width : strip.MaxWidth;
+        if (double.IsNaN(available) || available <= 0) available = 640;
         var indices = new System.Collections.Generic.List<int>();
         int reservedJapanese = -1;
         for (int index = 0; index < fields.Length - 3; index++)
@@ -33,69 +41,63 @@ internal static class CandidateView
         int count = indices.Count;
         var buttons = new Button[count];
         var preferred = new double[count];
-
-
-        bool contrast = SystemParameters.HighContrast;
-        var rose = new SolidColorBrush(Color.FromRgb(228, 238, 252));
-        rose.Freeze();
-        var rim = new SolidColorBrush(Color.FromRgb(138, 176, 227));
-        rim.Freeze();
+        var template = CandidateTheme.ItemTemplate(palette.ItemCorner);
+        double numberSize = Math.Max(11, Math.Round(fontSize * 0.68));
+        // Pills need a little room for their rounded ends and must not touch each other.
+        double paddingX = options.PaddingX + (palette.Capsule ? 2 : 0);
+        double gapX = palette.Capsule ? Math.Max(4, options.GapX) : options.GapX;
+        double gapY = palette.Capsule ? Math.Max(4, options.GapY) : options.GapY;
         strip.Children.Clear();
 
         for (int i = 0; i < count; i++)
         {
             int index = indices[i];
+            bool selected = index == highlighted;
+            bool japanese = IsJapanese(fields[index + 3]);
             string[] candidate = fields[index + 3].Split('\t');
-            var content = new DockPanel { Margin = new Thickness(options.PaddingX, options.PaddingY, options.PaddingX, options.PaddingY) };
-            content.Children.Add(new TextBlock
+            var text = new TextBlock
             {
-                Text = (index + 1).ToString(),
-                FontSize = 13,
-                Opacity = contrast || index == highlighted ? 1 : 0.72,
-                Margin = new Thickness(0, 0, 7, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            var words = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            if (IsJapanese(fields[index + 3]) && candidate.Length > 1 && candidate[1].Length > 0)
-                words.Children.Add(new TextBlock { Text = candidate[1], FontSize = options.ReadingSize, Opacity = contrast ? 1 : 0.85, Margin = new Thickness(0, 3, 0, 3),
-                                                   TextWrapping = TextWrapping.Wrap });
-            words.Children.Add(new TextBlock
-            {
-                Text = candidate[0],
-                FontSize = fontSize,
-                TextWrapping = TextWrapping.Wrap
-            });
-            if (!IsJapanese(fields[index + 3]) && candidate.Length > 1 && candidate[1].Length > 0)
-                words.Children.Add(new TextBlock { Text = candidate[1], FontSize = options.ReadingSize, Opacity = contrast ? 1 : 0.85, Margin = new Thickness(0, 3, 0, 3), TextWrapping = TextWrapping.Wrap });
-            content.Children.Add(words);
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(paddingX, options.PaddingY, paddingX, options.PaddingY)
+            };
+            text.Inlines.Add(new Run((index + 1).ToString()) { FontSize = numberSize, Foreground = selected ? palette.HighlightNumber : palette.Number });
+            text.Inlines.Add(new Run(" ") { FontSize = numberSize });
+            text.Inlines.Add(new Run(candidate[0]) { FontSize = fontSize, Foreground = selected ? palette.HighlightText : palette.Text });
+            if (candidate.Length > 1 && candidate[1].Length > 0)
+                text.Inlines.Add(new Run(" " + candidate[1]) { FontSize = options.ReadingSize, Foreground = selected ? palette.HighlightMuted : palette.Muted });
             var button = new Button
             {
-                Content = content,
-                Height = double.NaN, MinHeight = 44, Width = double.NaN,
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                Foreground = SystemColors.WindowTextBrush, Background = Brushes.Transparent, BorderBrush = Brushes.Transparent,
+                Content = text, Template = template,
+                Height = double.NaN, Width = double.NaN,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Foreground = palette.Text,
+                Background = selected ? palette.Highlight : palette.Idle,
+                BorderBrush = selected ? palette.Bar : Brushes.Transparent,
                 Focusable = false, Tag = index,
-                Margin = new Thickness(0, 0, options.GapX, options.GapY), VerticalAlignment = VerticalAlignment.Top
+                Margin = new Thickness(0, 0, gapX, gapY), VerticalAlignment = VerticalAlignment.Center
             };
-            if (contrast)
-                button.Foreground = index == highlighted ? SystemColors.HighlightTextBrush : SystemColors.WindowTextBrush;
-            if (index == highlighted)
-            {
-                button.Background = contrast ? (Brush)SystemColors.HighlightBrush : rose;
-                button.BorderBrush = contrast ? SystemColors.HighlightTextBrush : rim;
-            }
-            AutomationProperties.SetName(button, (index + 1) + " " + candidate[0] + (IsJapanese(fields[index + 3]) ? " 日语" : ""));
+            AutomationProperties.SetName(button, (index + 1) + " " + candidate[0] + (japanese ? " 日语" : ""));
             strip.Children.Add(button);
-            content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            double naturalWidth = content.DesiredSize.Width + 4;
-            preferred[i] = options.Vertical ? available - options.GapX : Math.Min(available - options.GapX, Math.Max(minimum, naturalWidth));
-
+            text.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            preferred[i] = Math.Min(available - gapX, Math.Ceiling(text.DesiredSize.Width) + 1);
             buttons[i] = button;
         }
 
-
+        double row = 0;
         for (int i = 0; i < count; i++)
+        {
             buttons[i].Width = preferred[i];
+            row += preferred[i] + gapX;
+        }
+        // Shrink to the single row (or the header, whichever is wider); wrap only past the maximum.
+        double needed = row;
+        if (header != null)
+        {
+            header.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            needed = Math.Max(needed, header.DesiredSize.Width);
+        }
+        strip.Width = Math.Min(available, Math.Max(120, Math.Ceiling(needed) + 1));
     }
 
     private static bool IsJapanese(string candidate)

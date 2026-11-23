@@ -37,7 +37,7 @@ class CandidateBoundaryTests
         int cases = 0;
         foreach (double scale in new[] { 1.0, 1.25, 1.5, 2.0 })
         foreach (Rect pixels in new[] { new Rect(0, 0, 1920, 1032), new Rect(-1920, -300, 1920, 1032), new Rect(1920, 40, 1280, 680), new Rect(-120, -40, 120, 160) })
-        foreach (bool vertical in new[] { false, true })
+        foreach (bool capsule in new[] { false, true })
         foreach (int sample in new[] { 1, 3, 5 })
         foreach (int font in new[] { 18, 32 }) {
             var matrix = new Matrix(1 / scale, 0, 0, 1 / scale, 0, 0);
@@ -47,7 +47,7 @@ class CandidateBoundaryTests
             var options = Activator.CreateInstance(optionsType, true);
             optionsType.GetField("Font", Flags).SetValue(options, font);
             optionsType.GetField("Width", Flags).SetValue(options, 1000);
-            optionsType.GetField("Vertical", Flags).SetValue(options, vertical);
+            optionsType.GetField("Theme", Flags).SetValue(options, capsule ? 1 : 0);
             if (font == 32) {
                 foreach (string name in new[] { "Reading", "Outer", "PaddingX", "GapX", "GapY" }) optionsType.GetField(name, Flags).SetValue(options, 24);
                 optionsType.GetField("PaddingY", Flags).SetValue(options, 20);
@@ -78,13 +78,13 @@ class CandidateBoundaryTests
                 Check(position.X >= -.05 && position.Y >= -.05 && (position.X + child.ActualWidth) * factor <= fittedWidth + .1 &&
                     (position.Y + child.ActualHeight) * factor <= fittedHeight + .1, "candidate clipped after fitting");
             }
-            if (vertical && sample == 5 && font == 18 && pixels.Left == 0) {
+            if (capsule && sample == 5 && font == 18 && pixels.Left == 0) {
                 var bitmap = new RenderTargetBitmap((int)Math.Ceiling(fittedWidth * scale), (int)Math.Ceiling(fittedHeight * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
                 bitmap.Render(root); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 using (var output = File.Create(Path.Combine(args[1], "boundary-" + (int)(scale * 100) + ".png"))) encoder.Save(output);
             }
             layout.GetMethod("FitToWorkArea", Flags).Invoke(null, new object[] { window, new Size(4000, 4000) });
-            Close(window.Width, panel.Width + 2 * (int)optionsType.GetField("Outer", Flags).GetValue(options) + 2, "large work area did not restore natural width");
+            Close(window.Width, panel.Width + 2 * (int)optionsType.GetField("Outer", Flags).GetValue(options) + 2 + root.Margin.Left + root.Margin.Right, "large work area did not restore natural width");
             ++cases;
         }
         Console.WriteLine("PASS: " + cases + " simulated scale/layout/work-area cases, six anchors each, repeated fit and large-area recovery, seven indices retained.");
