@@ -1,5 +1,9 @@
 # 开发变更记录
 
+## 2026-11-23 · alpha.35 试用包
+
+- 版本号升至 0.4.4-alpha.35，内容为 alpha.34 加候选窗风格重做与单行横排（UI-04）、内置词库管理器（DICT-03，不再需要 Python）。从干净提交 8f9af5a 构建并重建词库，全量 70 项 CTest 通过（1073.86 秒），生成 ZIP（73.6 MiB）与安装器（178.1 MiB），包内 DLL 与 Release 构建哈希一致、无 Python 文件。未签名，维护者自测。
+
 ## 2026-11-23 · DICT-03：词库管理器去 Python
 
 - “晴词主题词库”管理窗口改为内置 C#/WPF，不再需要 Python 与 tkinter；功能与原 Python 窗口对等，并新增个人日语触发词表的导入与清空。`Dictionaries.cmd <命令>` 提供无 Python 的命令行（list／preview／import／enable／disable／rollback／personal）。读写格式、目录与热更新约定不变，与 Python 版逐字节一致。安装包不再携带任何 .py／.pyw。新 CTest dictionary_manager 通过；实机待下一个试用包。

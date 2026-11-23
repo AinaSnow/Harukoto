@@ -1,6 +1,12 @@
 # 开发状态与接手入口
 
-## 2026-11-23 · DICT-03：词库管理器去 Python（未提交、待实机）
+## 2026-11-23 · alpha.35 试用包
+
+- 版本号升至 0.4.4-alpha.35（8f9af5a），内容为 alpha.34 加 UI-04 候选窗风格重做与单行横排（3d05a53）、DICT-03 词库管理器去 Python（95b8442）。从干净提交 8f9af5a 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库，全量 70 项 CTest 在 PowerShell 全部通过（1073.86 秒）。
+- 生成 `Harukoto-0.4.4-alpha.35-windows-x64.zip`（73.6 MiB，SHA-256 `d585fd424cc2365d443a33702171c7bb88f963213c6b12808565832ef3067f0c`）和 `Harukoto-0.4.4-alpha.35-Setup.exe`（178.1 MiB，SHA-256 `f1ee1a7cfe47b98cdfa999585cdc95816273ba7fdb42d1a701d7ade1ce7b9360`）。BUILD-INFO 记录源提交 `8f9af5adb3552d3b1db18b32a8650d04c34233bc`、不含未提交修改；包内 `MeowpuutTip.dll`（`c8fbd518…`）与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.35`；包内 `MeowpuutGlassPreview.exe` 与构建产物一致；包内没有 .py／.pyw；FF14 词库清单为 0.5.0。
+- 未签名，维护者自测，尚未打标签或发布，FRIEND_TESTING.md 未更新。候选窗两种风格与深浅色、无 Python 环境下导入启用 FF14、个人词表热更新待实机。此条为打包后记录。
+
+## 2026-11-23 · DICT-03：词库管理器去 Python（95b8442，待实机）
 
 - 新增 `Windows/ThemePackages.cs`（主题包与个人词表逻辑，移植自 `scripts/japanese_packages.py`、`japanese_dictionary.py`：同一清单／词表规则、`CURRENT → <代次>/state.json + enabled.tsv` 快照、同一 `.lock` 字节锁）、`Windows/DictionaryManager.cs`（WPF 管理窗口：预览、导入、启用、关闭、回退、刷新、预览 FF14，外加个人词表导入／清空）、`Windows/DictionaryCli.cs`（`MeowpuutGlassPreview.exe --dictionaries <命令>`，ZIP 的 `Dictionaries.cmd <命令>` 等待并回传退出码）。`DictionaryLauncher.Create()` 签名不变，直接打开新窗口，不再选 python.exe；`GlassPreview.cs` 的 `Main` 只加一条命令行分发。
 - 打包：`package-ime.ps1`、`install-ime.ps1` 不再带 `dictionary-manager.pyw`、`manage-*.py`、`import-japanese-dictionary.py`、`scripts/*.py`，打包时发现 .py／.pyw 即报错；构建期 `manage-base-dictionary.py describe` 仍用本机 Python（不随包）。基础快照发布工具因此只在源码仓库可用。
