@@ -1,4 +1,4 @@
-# 晴词 · Harukoto 0.4.4-alpha.34 · Windows x64
+# 晴词 · Harukoto 0.4.4-alpha.35 · Windows x64
 
 开发产物清理：使用 PowerShell 7 运行 `Windows/clean-build.ps1` 预览，添加 `-Apply` 执行。只清理脚本固定匹配的旧产物，保留最新两个 0.4.4-alpha 版本、最新 FF14 包、当前 MSVC／ime／tools 与源数据；未知文件保留。请在构建／打包结束后运行。
 
@@ -40,7 +40,7 @@ alpha.9 提供[主题包图形与命令行管理](../docs/DICTIONARY_PACKAGES.md
 
 ## 直接下载安装
 
-本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.34-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
+本维护分支提供单文件安装向导 `Harukoto-0.4.4-alpha.35-Setup.exe`。双击后点击“安装 / 更新”，在 Windows UAC 中确认。内置官方 PowerShell 7.6.9，不需要先配置 PS7，也不修改系统默认 PowerShell。安装后可从 Windows“已安装的应用”找到“晴词 Harukoto 输入法”卸载。当前包尚未签名，尚未发布 Gitea Release。
 
 卸载移除机器注册、当前用户语言列表条目及快捷方式，保留个人词表、外观设置、旧版本文件和安装缓存。其他 Windows 账户的语言列表需由对应账户清理。安装缓存位于 `%LOCALAPPDATA%/Meowpuut/Setup`，其中保存卸载入口，安装期间不要手动删除。
 
@@ -99,7 +99,7 @@ python -m unittest discover -s Windows/tests -p test_japanese_dictionary.py
 .\Windows\tests\InstallSupportTests.ps1
 .\Windows\test-preview.ps1
 .\Windows\install-ime.ps1 -VerifyOnly
-.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.34
+.\Windows\package-ime.ps1 -MSVC -Version 0.4.4-alpha.35
 ```
 
 `test-preview.ps1` 检查不同字号和宽度下的候选布局，并在 `.build/windows` 输出候选窗及设置页图片。打包脚本保留许可证，附带词表导入工具、设置入口、源提交和工作区状态；ZIP 和 SHA-256 位于 `.build/windows/dist`。LLVM-MinGW 构建应使用 `package-ime.ps1 -Compiler <编译器路径>` 打包。`-VerifyOnly` 只验证文件存在，不修改输入法注册。
@@ -207,3 +207,5 @@ alpha.32 在 alpha.31 基础上完成独立引擎第 7 步（WIN-03 7a～7d）�
 alpha.33 在 alpha.32 基础上完成独立引擎第 8 步（CN-02）：开启 `StandaloneEngine` 后，扩展候选首页只取第一轮结果，翻页时才按需扩展到下一轮，长句逐键不再每次跑满 3 轮扩展；实测 12 个应用同时输入时逐键中位约 3.6 ms、总内存约 239 MiB（进程内路径约 29.5 ms、2,030 MiB），见[延迟与内存对比](../docs/ENGINE_CN02.md)。协议仍为 v2，从 alpha.32 覆盖升级无需重开应用；默认开关仍保持关闭。
 
 alpha.34 在 alpha.33 基础上随附 FF14 词库 0.5.0：新增 NPC、怪物与 Boss、任务名、状态效果、特性、坐骑、情感动作、PvP 技能和职业，共 90,536 条记录；玩家简称与用语增至 71 条（如团辅、团本、幻卡、风脉、光呆、诗学、枪刃）。与常用词同音的触发已过滤，日常输入首选不变。FF14 词库需在“晴词主题词库”中导入 0.5.0 并启用后生效，安装器不会自动替换已启用的旧版。独立引擎改为**默认开启**：各应用共用一个后台引擎，词库只加载一份，多开应用时省内存、打字更快；引擎不可用时自动改用应用内输入，管理员或沙箱应用始终应用内输入。可在设置窗口“独立引擎”中关闭（写入 HKCU\Software\Meowpuut\Input DWORD `StandaloneEngine`=0）。之前手动设过 0 的保持关闭。
+
+alpha.35 在 alpha.34 基础上重做候选窗：提供“晴空 Fluent”（跟随系统强调色）和“晴空胶囊”（每个候选为淡色胶囊、当前项实心蓝）两种风格，颜色可跟随系统、浅色或深色；候选改为与系统输入法类似的单行横排，窗口随内容收窄，超过最大宽度（默认 860）才换行，原纵向列表已取消。词库管理器内置在晴词里（DICT-03），导入、启用 FF14 等主题词库和个人词表不再需要 Python。已保存过布局的用户保留原间距，可在设置中“恢复默认布局”换成新默认。真实应用中的效果尚待实机确认。
