@@ -131,6 +131,11 @@ def audit_readings(records, lexicon, existing):
 
 
 COLLISION_WEIGHT = 3000
+# FF14-04 技能／副本；FF14-05 起所有新表（build-ff14-full.py 的 COLLISION_SHEETS）。
+COLLISION_PREFIXES = ('action-', 'contentfindercondition-', 'classjob-', 'pvpaction-', 'trait-', 'status-', 'mount-',
+                      'companion-', 'ornament-', 'emote-', 'quest-', 'enpcresident-', 'bnpcname-')
+AUDIT_PREFIXES = ('item-', 'placename-') + COLLISION_PREFIXES
+ABBREVIATIONS = OUT / 'player-abbreviations.tsv'
 
 
 def common_collisions(audit, coverage, native_pinyin):
@@ -138,7 +143,7 @@ def common_collisions(audit, coverage, native_pinyin):
     含已丢弃的触发（dropped_triggers），重跑结果稳定。"""
     keys = collections.defaultdict(list)
     for r in list(audit) + coverage['exclusions']:
-        if not r['id'].startswith(('action-', 'contentfindercondition-')): continue
+        if not r['id'].startswith(COLLISION_PREFIXES): continue
         for group in (r.get('triggers', {}), r.get('dropped_triggers', {})):
             for values in group.values():
                 for k in values: keys[k].append(r['zh_cn'])
@@ -217,11 +222,30 @@ def checklist(rows, limit=50):
              f'{limit} 组需要人工确认的多音字。确认后在 DataSources/FF14/reading-overrides.tsv 加 status=reviewed 行（可用 id=* 作用于同名记录），重建词库。',
              '', '| # | 上下文 | 字 | 自动 | 可读 | 记录数 | 原因 | 例 |', '| ---: | --- | --- | --- | --- | ---: | --- | --- |']
     for n, ((context, char, auto, options), g) in enumerate(ranked[:limit], 1):
-        examples = '、'.join(sorted(set(g['names']), key=len)[:3])
+        examples = '、'.join(sorted(set(g['names']), key=lambda x: (len(x), x))[:3])
         lines.append(f'| {n} | {context} | {char} | {auto} | {options} | {g["records"]} | {g["why"]} | {examples} |')
     lines.append('')
     lines.append(f'共 {len(groups)} 组上下文、{sum(len(r["_review"]) for r in rows)} 个位置待复核；完整列表见 DataSources/FF14/reading-audit.tsv。')
+    lines.extend(abbreviation_checklist())
     return '\n'.join(lines) + '\n', len(groups)
+
+
+def abbreviation_checklist(path=ABBREVIATIONS):
+    """FF14-05：说明以“FF14-05”开头的简称／用语行（代理整理）列给维护者逐条复核。"""
+    with path.open(encoding='utf-8', newline='') as stream:
+        rows = list(csv.DictReader((line for line in stream if not line.startswith('#')), delimiter='	'))
+    rows = [r for r in rows if r['note'].startswith('FF14-05')]
+    if not rows: return []
+    lines = ['', '## FF14-05 新增玩家简称与用语（维护者已复核）', '',
+             '由代理整理，维护者 2026-11-23 复核通过，并改为收录诗学（诗学神典石）与枪刃（绝枪战士）。'
+             '需要改动直接编辑 DataSources/FF14/player-abbreviations.tsv 后重建。',
+             '', '| # | 简称 | 触发 | 日服说法 | 假名 | 指代 | 说明 | 状态 |', '| ---: | --- | --- | --- | --- | --- | --- | --- |']
+    for n, r in enumerate(rows, 1):
+        note = r['note'][len('FF14-05'):].lstrip('：: ')
+        lines.append(f'| {n} | {r["abbr"]} | {r["pinyin"]} | {r["ja"]} | {r["kana"]} | {r["target"]} | {note} | {r["status"]} |')
+    lines.append('')
+    lines.append(f'共 {len(rows)} 行（收录 {sum(r["status"] == "curated" for r in rows)}，只记录不收录 {sum(r["status"] == "excluded" for r in rows)}）。')
+    return lines
 
 
 def main():
@@ -237,7 +261,7 @@ def main():
     for r in audit:
         if r['id'].startswith('item-'): aligned[r['zh_cn']].append(r['id'])
     # FF14-04: 技能、副本名同样用自动拼音，纳入审计。
-    records = [r for r in audit if r['id'].startswith(('item-', 'placename-', 'action-', 'contentfindercondition-'))
+    records = [r for r in audit if r['id'].startswith(AUDIT_PREFIXES)
                and r.get('reading_source') != 'curated-0.2.0']
     wanted = {r['zh_cn'][i:j] for r in records for i in range(len(r['zh_cn']))
               for j in range(i + 2, min(len(r['zh_cn']), i + 8) + 1)}

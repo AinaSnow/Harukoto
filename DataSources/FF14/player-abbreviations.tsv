@@ -1,4 +1,4 @@
-# FF14 玩家简称（人工维护，curated，非游戏数据）。FF14-04 起由 build-ff14-full.py 读入，记录 ID 为 abbr-<pinyin>。
+# FF14 玩家简称与用语（人工维护，curated，非游戏数据）。FF14-04 起由 build-ff14-full.py 读入，记录 ID 为 abbr-<pinyin>。FF14-05 新增行的 note 以“FF14-05”开头，列入 docs/FF14_READING_REVIEW.md 复核小节。
 # 列：abbr 国服玩家简称（作为主题中文词）；pinyin 触发（无声调全拼，至少 4 个字母）；ja 日服玩家对应说法（日文候选）；kana 平假名读音，- 表示仅输出表记；target 指代的正式名称或含义；note 说明；status curated=收录、excluded=只记录不收录的决定。
 # 只收常用、无冒犯的说法；纯字母简称和与日常高频词同读音／同字的简称不收（见 excluded 行与 docs/FF14_FULL_DICTIONARY.md）。
 abbr	pinyin	ja	kana	target	note	status
@@ -77,3 +77,46 @@ T	-	-	-	坦克	单字母，触发至少 2 个字母且会抢占常用输入	excl
 仇恨	-	-	-	仇恨（日：敵視）	与日常词同字	excluded
 亲信	-	-	-	亲信战友（日：フェイス）	与日常词同字	excluded
 开荒	-	-	-	首次攻略	日服没有确定的对应说法	excluded
+团辅	tuanfu	シナジー	しなじー	团队增益技能（团辅）	FF14-05：战斗用语	curated
+单刷	danshua	ソロ	そろ	单人攻略副本	FF14-05：玩法用语	curated
+团本	tuanben	レイド	れいど	大型任务（8 人或 24 人）	FF14-05：副本类别；基础词库已有“团本”（3000），探查确认首选不变	curated
+4人本	sirenben	インスタンスダンジョン	いんすたんすだんじょん	4 人迷宫副本	FF14-05：副本类别；日服常简称 ID	curated
+A怪	aguai	Aモブ	-	A 级危命怪物	FF14-05：狩猎用语	curated
+B怪	bguai	Bモブ	-	B 级危命怪物	FF14-05：狩猎用语	curated
+部队房	buduifang	FCハウス	-	部队房屋	FF14-05：住宅用语	curated
+个人房	gerenfang	個人宅	こじんたく	个人房屋	FF14-05：住宅用语	curated
+幻卡	huanka	トリプルトライアド	とりぷるとらいあど	九宫幻卡	FF14-05：玩法简称；换卡（1362）低于阈值	curated
+赛鸟	sainiao	チョコボレース	ちょこぼれーす	陆行鸟竞赛	FF14-05：金碟玩法	curated
+风脉	fengmai	風脈	ふうみゃく	风脉泉（解锁飞行）	FF14-05：系统简称	curated
+回归者	huiguizhe	復帰者	ふっきしゃ	回归玩家（回归者标识）	FF14-05：社交用语	curated
+光呆	guangdai	ヒカセン	ひかせん	光之战士（玩家自称，戏称）	FF14-05：社交用语；光带（2404）低于阈值	curated
+钐镰	shanlian	リーパー	りーぱー	钐镰客	FF14-05：职业简称	curated
+绘灵	huiling	ピクトマンサー	ぴくとまんさー	绘灵法师	FF14-05：职业简称；日服常简称ピクト；灰领（2546）低于阈值	curated
+拉怪	laguai	まとめ	まとめ	迷宫中聚集多组怪物一起打	FF14-05：战斗用语；日文侧待复核（まとめ狩り）	curated
+猫娘	maoniang	ミコッテ	みこって	猫魅族（女性）	FF14-05：种族昵称；日服说法为种族名，待复核	curated
+兔娘	tuniang	ヴィエラ	ゔぃえら	维埃拉族（女性）	FF14-05：种族昵称；日服说法为种族名，待复核	curated
+灭团	-	-	-	全队阵亡（日：全滅）	FF14-05：基础词库已有同字词（3000），且团灭已收录	excluded
+招募板	-	-	-	队员招募（日：パーティ募集）	FF14-05：基础词库已有同字词（6200）	excluded
+萌新	-	-	-	新手（日：初心者）	FF14-05：基础词库已有同字词（3000）	excluded
+枪刃	qiangren	ガンブレ	がんぶれ	绝枪战士	FF14-05：职业简称；维护者确认收录，qiangren 与“强忍”（3807）同读音，探查确认常用词首选	curated
+蛮神	-	-	-	蛮神（日：蛮神）	FF14-05：manshen 与“满身”（4084）同读音	excluded
+古武	-	-	-	古代武器（日：レリック）	FF14-05：guwu 与“鼓舞”（4828）同读音	excluded
+诗学	shixue	詩学	しがく	诗学神典石	FF14-05：货币简称；维护者确认收录，shixue 与“史学”同读音，探查确认常用词首选	curated
+散人	-	-	-	非固定队玩家	FF14-05：sanren 与“三人”（4258）同读音	excluded
+踩塔	-	-	-	踩塔机制（日：塔踏み）	FF14-05：caita 与“踩踏”（3076）同读音	excluded
+团减	-	-	-	团队减伤（日：全体軽減）	FF14-05：日服说法不确定	excluded
+部队	-	-	-	部队（日：FC）	FF14-05：与日常词同字（6598）	excluded
+雇员	-	-	-	雇员（日：リテイナー）	FF14-05：与日常词同字（3851）	excluded
+导师	-	-	-	新人导师（日：メンター）	FF14-05：daoshi 与“倒是”同读音、与日常词同字	excluded
+满级	-	-	-	等级上限（日：カンスト）	FF14-05：与日常词同字	excluded
+老板	-	-	-	代打的雇主（网络用语）	FF14-05：与日常词同字（5873）	excluded
+带新	-	-	-	带新手打本	FF14-05：daixin 与“歹心／带薪”同读音，日服无固定对应	excluded
+摸了	-	-	-	偷懒（网络用语）	FF14-05：日服无对应说法；mole 与“抹了”同读音	excluded
+咕了	-	-	-	爽约（网络用语）	FF14-05：日服无对应说法	excluded
+鸽了	-	-	-	爽约（网络用语）	FF14-05：日服无对应说法；gele 与“割了”同读音	excluded
+下班	-	-	-	结束游戏（网络用语）	FF14-05：与日常词同字（4505）	excluded
+毕业	-	-	-	装备毕业	FF14-05：与日常词同字（6088）	excluded
+消化	-	-	-	已通关内容的重复周回（日：消化）	FF14-05：与日常词同字（5093）	excluded
+豆芽	-	-	-	新手（日：若葉）	FF14-05：与日常词同字，douya 与“陡崖”同读音	excluded
+主T	-	-	-	主坦克	FF14-05：含字母，zhut 是常用拼音前缀；中文用“主坦”	excluded
+换T	-	-	-	换坦（日：タンクスイッチ）	FF14-05：含字母，huant 是常用拼音前缀	excluded
