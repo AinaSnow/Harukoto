@@ -1,5 +1,9 @@
 # 开发变更记录
 
+## 2026-11-23 · alpha.37 试用版
+
+- 版本号升至 0.4.4-alpha.37，内容为 alpha.36 加 UPD-01 检查更新；从干净提交 d616a49 打包，全量 76 项 CTest 通过，GitHub 预发布。TRIAL.md、RELEASE_NOTES 更新到 alpha.37。
+
 ## 2026-11-23 · UPD-01 检查更新（待验收提交）
 
 - 设置窗口新增“检查更新”（显示当前版本、检查结果、新版说明与“打开发布页”）和“每天自动检查一次”（默认关闭，登录时检查、每天最多一次、只在有新版时提示）；安装器首次安装询问一次。只请求 GitHub Releases 公开列表，不下载、不执行安装包。新增 `Windows/UpdateCheck.cs`、`Windows/UpdateNotice.cs`、测试 `update_check`。待实机。

@@ -1,5 +1,12 @@
 # 开发状态与接手入口
 
+## 2026-11-23 · alpha.37 试用版（UPD-01 检查更新；RH-6 的 N+1 版）
+
+- 版本号升至 0.4.4-alpha.37（d616a49，含 UPD-01 936fc71）。从干净提交 d616a49 构建、复制 DLL 到 ime、重建词库，全量 76 项 CTest 在 PowerShell 全部通过（1020.34 秒），再生成安装器。
+- `Harukoto-0.4.4-alpha.37-Setup.exe`（178.2 MiB，SHA-256 `f72372263611e42cc95a4a8e1c20bd329d4f1a08d777155089b68b0418dc7ed4`）与 `Harukoto-0.4.4-alpha.37-windows-x64.zip`（73.6 MiB，SHA-256 `8810d3f779284a5e6a5ccd19ffd84c7c15051300d769b915a0519c33faa7053a`）。BUILD-INFO 源提交 d616a49、包含未提交修改 False；包内 MeowpuutTip.dll（`03defcd6…`）与 msvc/Release 一致且含版本 0.4.4-alpha.37；包内无 .py／.pyw。
+- 标签 v0.4.4-alpha.37 打在 d616a49，推送 gitea 与 github，GitHub 预发布附两个文件；alpha.36 发布说明去掉“离线”说法。
+- 本版是 RH-6 的 N+1 版：候选窗外观与 alpha.36 相同（未另做界面差异），换代只能从 Diagnose.cmd 的 Renderer 行确认。未签名；检查更新界面、登录检查、安装器询问与换代效果均待实机。
+
 ## 2026-11-23 · UPD-01 检查更新（已验收提交，待实机）
 
 - 新增 `Windows/UpdateCheck.cs`（版本比较、GitHub Releases 响应解析、选项与登录项，无 WPF）与 `Windows/UpdateNotice.cs`（设置区块、`--check-update` 登录检查与新版提示窗）。“晴词候选窗设置”最下方加“检查更新”：显示当前版本，按钮在后台线程请求 `api.github.com/repos/AinaSnow/Harukoto/releases?per_page=20`（固定 User-Agent `Harukoto-UpdateCheck`，无 Cookie／凭据／输入内容／设备标识），取含预发布的最新非草稿版本；本机为预发布时比较全部，本机为正式版时只看正式版。有新版显示版本号与说明摘要，“打开发布页”只打开本仓库 releases/tag 页（其他地址退回 releases 列表）；不下载、不执行安装包。网络失败、限流（403＋剩余 0 或 429，给出重试时间）、非 200、JSON 异常、无可用版本各有中文提示。
