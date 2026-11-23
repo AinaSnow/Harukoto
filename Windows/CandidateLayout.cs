@@ -37,9 +37,11 @@ internal static class CandidateLayout
             work = DeviceWorkArea(new Rect(info.Work.Left, info.Work.Top, info.Work.Right - info.Work.Left, info.Work.Bottom - info.Work.Top), transform);
         // Retain a readable logical canvas even on an unusually narrow work area;
         // FitToWorkArea scales the entire result, including the header.
-        window.Width = Math.Max(480, Math.Min(width, work.Width));
+        // Only compute the maximum here: resizing the visible window to the maximum and
+        // back on every key would flash. FitToWorkArea sets the final width once.
+        double maximum = Math.Max(480, Math.Min(width, work.Width));
         ((FrameworkElement)window.Content).LayoutTransform = Transform.Identity;
-        Apply((FrameworkElement)window.Content, panel, Current, window.Width);
+        Apply((FrameworkElement)window.Content, panel, Current, maximum);
         return work;
     }
 
@@ -61,7 +63,8 @@ internal static class CandidateLayout
         // The window includes the shadow margin; keep the visible surface at the anchor.
         point.Offset(-content.Margin.Left, -content.Margin.Top);
         var location = Place(work, point, new Size(window.Width, content.DesiredSize.Height));
-        window.Left = location.X; window.Top = location.Y;
+        if (window.Left != location.X) window.Left = location.X;
+        if (window.Top != location.Y) window.Top = location.Y;
         window.Show();
     }
 
@@ -93,15 +96,17 @@ internal static class CandidateLayout
         double marginX = border.Margin.Left + border.Margin.Right, marginY = border.Margin.Top + border.Margin.Bottom;
         double surfaceWidth = panel.Width + border.Padding.Left + border.Padding.Right + border.BorderThickness.Left + border.BorderThickness.Right;
         double logicalWidth = surfaceWidth + marginX;
-        window.Width = logicalWidth;
         content.LayoutTransform = Transform.Identity;
         content.Measure(new Size(logicalWidth, double.PositiveInfinity));
         double surfaceHeight = Math.Max(1, content.DesiredSize.Height - marginY);
         double factor = Math.Min(1, Math.Min(Math.Max(1, available.Width - 1 - marginX) / surfaceWidth, Math.Max(1, available.Height - 1 - marginY) / surfaceHeight));
+        double finalWidth = logicalWidth;
         if (factor < 1) {
             content.LayoutTransform = new ScaleTransform(factor, factor);
-            window.Width = surfaceWidth * factor + marginX;
-            content.Measure(new Size(window.Width, double.PositiveInfinity));
+            finalWidth = surfaceWidth * factor + marginX;
+            content.Measure(new Size(finalWidth, double.PositiveInfinity));
         }
+        // One width change per update; skip it when nothing changed.
+        if (window.Width != finalWidth) window.Width = finalWidth;
     }
 }
