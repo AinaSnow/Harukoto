@@ -2,8 +2,8 @@
 
 ## 2026-11-23 · alpha.34 试用包
 
-- 版本号升至 0.4.4-alpha.34（8ef9caf），内容为 alpha.33 加 FF14 词库 0.5.0（`a02f727`）与独立引擎默认开启（`0dff873`）。从干净提交 0dff873 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库，全量 69 项 CTest 在 PowerShell 全部通过（956.78 秒）。
-- 生成 `Harukoto-0.4.4-alpha.34-windows-x64.zip`（73.6 MiB，SHA-256 `02d2628b0617ddb1e442702cd55bed5f2f555a65b6ad174e9dc5836d789fb83e`）和 `Harukoto-0.4.4-alpha.34-Setup.exe`（178.1 MiB，SHA-256 `53cfdf780db38ef5417df3e895e41c6338b224d137caf16ea539e2894d556aef`）。BUILD-INFO 记录源提交 `0dff87353f6d3297a7bee9211bd325f6f63d14dd`、不含未提交修改；包内 `MeowpuutTip.dll`（`32fd6999…`）与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.34`；包内 FF14 词库清单为 0.5.0。
+- 版本号升至 0.4.4-alpha.34（ffa609f），内容为 alpha.33 加 FF14 词库 0.5.0（`b7ebd2a`）与独立引擎默认开启（`8414d83`）。从干净提交 8414d83 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库，全量 69 项 CTest 在 PowerShell 全部通过（956.78 秒）。
+- 生成 `Harukoto-0.4.4-alpha.34-windows-x64.zip`（73.6 MiB，SHA-256 `02d2628b0617ddb1e442702cd55bed5f2f555a65b6ad174e9dc5836d789fb83e`）和 `Harukoto-0.4.4-alpha.34-Setup.exe`（178.1 MiB，SHA-256 `53cfdf780db38ef5417df3e895e41c6338b224d137caf16ea539e2894d556aef`）。BUILD-INFO 记录源提交 `8414d837e716f8292124fd48789bf89f1be426ab`、不含未提交修改；包内 `MeowpuutTip.dll`（`32fd6999…`）与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.34`；包内 FF14 词库清单为 0.5.0。
 - 未签名，作为朋友试用包分发，试用说明见 [FRIEND_TESTING.md](FRIEND_TESTING.md)。默认开启状态下的 VAL-01 实机清单、FF14 0.5.0 游戏内抽查待试用反馈。此条为打包后记录。
 
 ## 2026-11-23 · WIN-03：独立引擎改为默认开启
@@ -22,13 +22,13 @@
 
 ## 2026-11-23 · alpha.33 试用包
 
-- 版本号升至 0.4.4-alpha.33（0d5bafe），内容为 alpha.32 加 WIN-03 第 8 步（`8c2cfab`：CN-02 延迟与内存基准、扩展候选首页按轮次懒扩展）；独立引擎开关 `StandaloneEngine` 仍默认关闭，协议仍为 v2。从干净提交 0d5bafe 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库，全量 69 项 CTest 在 PowerShell 全部通过（842.13 秒）。
-- 生成 `Harukoto-0.4.4-alpha.33-windows-x64.zip`（68.4 MiB，SHA-256 `cdba6ed4b4f7fb07784c570e372581efb98b5f0e81baf841045997cde0bbf2a1`）和 `Harukoto-0.4.4-alpha.33-Setup.exe`（173.0 MiB，SHA-256 `4a8b3c23920b00d8c473274195c64f7e88bb683fdc8472ce153644f7386b34fb`）。BUILD-INFO 记录源提交 `0d5bafe9242c0831969dc21b61497c4876a733cc`、不含未提交修改；包内 `MeowpuutTip.dll`（`a46676b6…`）与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.33`；FF14 词库仍为 0.4.0。
+- 版本号升至 0.4.4-alpha.33（88259c4），内容为 alpha.32 加 WIN-03 第 8 步（`556e124`：CN-02 延迟与内存基准、扩展候选首页按轮次懒扩展）；独立引擎开关 `StandaloneEngine` 仍默认关闭，协议仍为 v2。从干净提交 88259c4 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库，全量 69 项 CTest 在 PowerShell 全部通过（842.13 秒）。
+- 生成 `Harukoto-0.4.4-alpha.33-windows-x64.zip`（68.4 MiB，SHA-256 `cdba6ed4b4f7fb07784c570e372581efb98b5f0e81baf841045997cde0bbf2a1`）和 `Harukoto-0.4.4-alpha.33-Setup.exe`（173.0 MiB，SHA-256 `4a8b3c23920b00d8c473274195c64f7e88bb683fdc8472ce153644f7386b34fb`）。BUILD-INFO 记录源提交 `88259c41664d17613298d619ba16475690bb377b`、不含未提交修改；包内 `MeowpuutTip.dll`（`a46676b6…`）与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.33`；FF14 词库仍为 0.4.0。
 - 开启开关下的 VAL-01 实机清单、多应用内存与首页懒扩展的实际体感待安装后验证。此条为打包后记录。
 
 ## 2026-11-23 · WIN-03 第 8 步（CN-02）：真实延迟与内存对比、首页按轮次懒扩展优化与评估报告
 
-- 前置：`0.4.4-alpha.32` 试用包已打包并记录（`a734927` + `2a881ac`）。本批由维护者在普通权限 PowerShell 跑全量 69 项 CTest 与 `resident` 基准通过，验收方重新构建（DLL 与 `ime/` 哈希一致）并复核调优集评测与 `win037cd` 除耗时／内存／哈希外相同后提交；未打包、未实机。完整方法、数据与评估见[CN-02 延迟与内存对比](ENGINE_CN02.md)。
+- 前置：`0.4.4-alpha.32` 试用包已打包并记录（`cda4aaf` + `31950c0`）。本批由维护者在普通权限 PowerShell 跑全量 69 项 CTest 与 `resident` 基准通过，验收方重新构建（DLL 与 `ime/` 哈希一致）并复核调优集评测与 `win037cd` 除耗时／内存／哈希外相同后提交；未打包、未实机。完整方法、数据与评估见[CN-02 延迟与内存对比](ENGINE_CN02.md)。
 - 基准工具与 CTest：
   - 新增 `Windows/tests/EngineCn02Benchmark.cpp`（目标 `harukoto_engine_cn02_benchmark`）、`scripts/benchmark-cn02.py`、`Windows/tests/test_engine_cn02_benchmark.py` 及第 69 项 CTest `engine_cn02_benchmark`（`Windows/CMakeLists.txt`）。
   - 直接驱动生产 `TextService`（`Service`）在独立子进程中对比「进程内」vs「独立引擎瘦客户端」，支持 `--mode resident`（真实 Explorer 启动所有者＋HKCU 测试键）与 `--mode direct`（直连 8 线程 `harukoto_engine_host.exe`），完整覆盖启动、1/2/4/8 并发＋4 待机（12 应用）总内存与逐键／选词延迟、10 词深页翻页一致性、5,000 词大个人表与学习落盘重载。
@@ -46,13 +46,13 @@
 
 ## 2026-11-23 · alpha.32 试用包
 
-- 版本号升至 0.4.4-alpha.32（a734927），内容为 alpha.31 加 WIN-03 第 7 步全部 7a～7d（`4304264` + `714aa5e`：按发行序号版本化换代与旧所有者自退、失焦 15 秒／静置 180 秒礼让与 8 槽空闲 LRU 回收、协议 v2 引擎元查询与按需翻页扩展、接入层瘦客户端去启动期基础词库与懒加载兜底）；实验性独立引擎开关 `StandaloneEngine` 仍默认关闭。从干净提交 a734927 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；全量 68 项 CTest 已于前序提交 `714aa5e` 在普通权限 PowerShell 全部通过，升版后受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（8.33 秒），`test-setup.ps1` 解包、内置 PS7 预检与界面渲染通过。
-- 生成 `Harukoto-0.4.4-alpha.32-windows-x64.zip`（68.4 MiB，SHA-256 `1e0043130bbad1cfe2876b536d07ff3b5174109a6ab483c8f755f04ee9ba7ec1`）和 `Harukoto-0.4.4-alpha.32-Setup.exe`（173.0 MiB，SHA-256 `0175030d048bcde9db249ddfdd2bae4571eea78a3f667ea577f4a5863847d441`）。BUILD-INFO.md 记录源提交 `a73492750851af386388d52b770761db18b5921b`、不含未提交修改；包内 `MeowpuutTip.dll`（`a32f0841…`）、`harukoto_engine_host.exe`、`harukoto_engine_owner.exe`、`harukoto_engine_diagnose.exe`、`harukoto_base_dictionary_check.exe`、`harukoto_candidate_explain.exe` 与 `msvc/Release` 哈希完全一致，DLL 内版本为 `0.4.4-alpha.32`；payload 内 `base-dictionary.json`（generation `200ca0be…`）原生快照校验通过；FF14 词库清单为 0.4.0。
+- 版本号升至 0.4.4-alpha.32（cda4aaf），内容为 alpha.31 加 WIN-03 第 7 步全部 7a～7d（`5081799` + `5eb6cdf`：按发行序号版本化换代与旧所有者自退、失焦 15 秒／静置 180 秒礼让与 8 槽空闲 LRU 回收、协议 v2 引擎元查询与按需翻页扩展、接入层瘦客户端去启动期基础词库与懒加载兜底）；实验性独立引擎开关 `StandaloneEngine` 仍默认关闭。从干净提交 cda4aaf 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；全量 68 项 CTest 已于前序提交 `5eb6cdf` 在普通权限 PowerShell 全部通过，升版后受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（8.33 秒），`test-setup.ps1` 解包、内置 PS7 预检与界面渲染通过。
+- 生成 `Harukoto-0.4.4-alpha.32-windows-x64.zip`（68.4 MiB，SHA-256 `1e0043130bbad1cfe2876b536d07ff3b5174109a6ab483c8f755f04ee9ba7ec1`）和 `Harukoto-0.4.4-alpha.32-Setup.exe`（173.0 MiB，SHA-256 `0175030d048bcde9db249ddfdd2bae4571eea78a3f667ea577f4a5863847d441`）。BUILD-INFO.md 记录源提交 `cda4aaff47093fc00808188e0b8ba85fdebe8e2b`、不含未提交修改；包内 `MeowpuutTip.dll`（`a32f0841…`）、`harukoto_engine_host.exe`、`harukoto_engine_owner.exe`、`harukoto_engine_diagnose.exe`、`harukoto_base_dictionary_check.exe`、`harukoto_candidate_explain.exe` 与 `msvc/Release` 哈希完全一致，DLL 内版本为 `0.4.4-alpha.32`；payload 内 `base-dictionary.json`（generation `200ca0be…`）原生快照校验通过；FF14 词库清单为 0.4.0。
 - 实机多应用瘦客户端内存、冷启动建连首键体感与从 alpha.30／alpha.31（协议 v1）升级至协议 v2 的不兼容提示与重开恢复待安装后实机验证。此条为打包后记录。
 
 ## 2026-11-22 · WIN-03 第 7c／7d 步：引擎接管扩展与选词元数据、接入层瘦客户端与按需兜底
 
-- 前置：7a／7b 已由维护者在普通权限 Medium-IL PowerShell 验收并提交（`4304264`）。本批已由维护者在普通权限 PowerShell 跑全量 68 项 CTest 通过，验收方重新构建（DLL 与 `ime/` 哈希一致）并复核调优集、独立集评测与 `win03pre7` 除耗时／内存／哈希外相同后提交；未打包、未实机。设计细节见[换代与去词库设计](ENGINE_CUTOVER.md)第 5、6 节。
+- 前置：7a／7b 已由维护者在普通权限 Medium-IL PowerShell 验收并提交（`5081799`）。本批已由维护者在普通权限 PowerShell 跑全量 68 项 CTest 通过，验收方重新构建（DLL 与 `ime/` 哈希一致）并复核调优集、独立集评测与 `win03pre7` 除耗时／内存／哈希外相同后提交；未打包、未实机。设计细节见[换代与去词库设计](ENGINE_CUTOVER.md)第 5、6 节。
 - 7c（协议 v2 与引擎接管扩展／选词／学习元数据）：
   - `Core/MeowpuutCore.h`、`Core/MeowpuutCore.cpp` 仅新增两个只读 C API（不改动任何既有签名）：`mpn_decompose_words`（按词拆解供选词学习与忘记）与 `mpn_advance_context`（单字繁化并推进分段语境）。
   - `Windows/EngineProtocol.h`、`Windows/InstallSupport.ps1` 将协议升至 `ProtocolVersion = 2`（`$script:HarukotoEngineProtocol = 2`），保证跨版本升级时旧 v1 接入层触发 7a 的 `ProtocolMismatch` 保护与重开提示而不静默混用。
@@ -93,7 +93,7 @@
 
 ## 2026-11-22 · WIN-03 第 7a 步：按版本分 scope 无缝换代、旧所有者优雅退场与协议不兼容提示
 
-- 前置：`alpha.31` 试用包已提交（`ba44d2e`）。本批未提交、未打包、未实机。设计与 7a～7d 拆分见[换代与去词库设计](ENGINE_CUTOVER.md)。
+- 前置：`alpha.31` 试用包已提交（`eca5cdb`）。本批未提交、未打包、未实机。设计与 7a～7d 拆分见[换代与去词库设计](ENGINE_CUTOVER.md)。
 - 发行评估与版本化 scope：
   - `Windows/EngineRelease.h` 新增 `Compatibility`（`None`/`Match`/`ProtocolMismatch`）、`Evaluation` 与 `release::evaluate()`，以全局最高 `sequence`（并列返回 `None`）判定同协议可切换还是跨协议／未知新格式（`unsupported > 0`）不兼容。
   - `Windows/EngineResident.h` 新增 `releaseScope(sequence, prefix = DefaultScope)`（`harukoto-s<seq>`）、干净退出码 `Exit::Superseded = 7`、`EnsureOptions::versionedScope`（对生产 `DefaultScope` 自动开启）与 `EnsureOutcome::sequence`；`EngineDiagnose.cpp` 支持 `"superseded"`／`"已换代退出"` 并在未显式传 `--scope` 时优先探查最新有记录的版本化 scope。
@@ -115,13 +115,13 @@
 
 ## 2026-11-22 · alpha.31 试用包
 
-- 版本号升至 0.4.4-alpha.31（5ade5f8），内容为 alpha.30 加独立引擎异步候选防闪烁修复（1cd4877）与 alpha.30 实机留证；实验性独立引擎开关 `StandaloneEngine` 仍默认关闭。从干净提交 5ade5f8 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（8.77 秒），`test-setup.ps1` 解包、内置 PS7 预检与界面渲染通过。
-- 生成 Harukoto-0.4.4-alpha.31-windows-x64.zip（68.3 MiB，SHA-256 e6c8889737fadcb87f8ca5bd673cd922dd7d00abcc9775e82ada901414508d97）和 Harukoto-0.4.4-alpha.31-Setup.exe（172.9 MiB，SHA-256 b654174c20fdad54492a3cb209b110357c02903dc0992454ebcbf77b254f1ee1）。BUILD-INFO.md 记录源提交 5ade5f893ad402d0e3eb80696969e2461281df6a、不含未提交修改；包内 `MeowpuutTip.dll` 及引擎与诊断程序与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.31`；payload 内 `base-dictionary.json`（generation a4c80a85…）原生快照校验通过；FF14 词库清单为 0.4.0。
+- 版本号升至 0.4.4-alpha.31（e30347c），内容为 alpha.30 加独立引擎异步候选防闪烁修复（fc0f8b1）与 alpha.30 实机留证；实验性独立引擎开关 `StandaloneEngine` 仍默认关闭。从干净提交 e30347c 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（8.77 秒），`test-setup.ps1` 解包、内置 PS7 预检与界面渲染通过。
+- 生成 Harukoto-0.4.4-alpha.31-windows-x64.zip（68.3 MiB，SHA-256 e6c8889737fadcb87f8ca5bd673cd922dd7d00abcc9775e82ada901414508d97）和 Harukoto-0.4.4-alpha.31-Setup.exe（172.9 MiB，SHA-256 b654174c20fdad54492a3cb209b110357c02903dc0992454ebcbf77b254f1ee1）。BUILD-INFO.md 记录源提交 e30347cea65c8ee9c503f291c6fa9776668a6be4、不含未提交修改；包内 `MeowpuutTip.dll` 及引擎与诊断程序与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.31`；payload 内 `base-dictionary.json`（generation a4c80a85…）原生快照校验通过；FF14 词库清单为 0.4.0。
 - 防闪烁修复待安装后实机复验。此条为打包后记录。
 
 ## 2026-11-22 · alpha.30 独立引擎实机首测与异步候选防闪烁修复
 
-- 实机首测（alpha.30，提交 `c971673`）：真实提权安装成功写入 `HKLM\SOFTWARE\Harukoto\EngineReleases`（`sequence 1`）；开启 `StandaloneEngine=1` 后：
+- 实机首测（alpha.30，提交 `6c5ee5b`）：真实提权安装成功写入 `HKLM\SOFTWARE\Harukoto\EngineReleases`（`sequence 1`）；开启 `StandaloneEngine=1` 后：
   - 记事本（`Notepad`）：引擎提供 52 次、回退 2 次（含杀宿主恢复）、原因 `none`、学习记录未追上 0 次；
   - FF14（`ffxiv_dx11`）：`CandidateUi：应用自绘（UI-less）`、`UiElements：3 次（应用自绘 3 次、失败 0 次）`、`Compositions：3 次（失败 0 次）`、`Engine：独立引擎（19 次、回退 0 次）`；
   - 崩溃恢复与主题 0.4.0：结束 `harukoto_engine_host.exe` 后所有者自动拉起新宿主（`宿主重启 1 次`）且记事本无缝恢复；FF14 0.4.0（117,507 组）已启用并同步采用。
@@ -131,13 +131,13 @@
 
 ## 2026-11-22 · alpha.30 试用包
 
-- 版本号升至 0.4.4-alpha.30（c971673），内容为 alpha.29 加阶段二独立引擎 WIN-03 第 1～6d 步（9320496 至 3033f7d）与第 7 步前置优化（26fd1e8）；实验性独立引擎开关 `StandaloneEngine` 默认关闭，关闭时打字路径与 alpha.29 完全一致。从干净提交 c971673 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；26fd1e8 上普通权限 PowerShell 全量 68 项 CTest 一次全部通过（762.83 秒），c971673 升版本号后受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（7.66 秒），`test-setup.ps1` 安装器解包、内置 PS7 预检与界面渲染通过。
-- 生成 Harukoto-0.4.4-alpha.30-windows-x64.zip（68.3 MiB，SHA-256 196551344ffab072d2a2e079166d6986719d7d4aa3a2cc6700a98e91b8e4c47f）和 Harukoto-0.4.4-alpha.30-Setup.exe（172.9 MiB，SHA-256 94f8670680b4fb1dedc7f3ba93171af59503d68c130328bce5fbb1fda8685b78）。BUILD-INFO.md 记录源提交 c971673d68eef3f084b64f3fe3343c896856c825、不含未提交修改；包内 `MeowpuutTip.dll`、`harukoto_engine_host.exe`、`harukoto_engine_owner.exe`、`harukoto_engine_diagnose.exe`、`harukoto_candidate_explain.exe` 与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.30`；payload 内 `base-dictionary.json`（generation 4414fd82…）原生快照校验通过；FF14 词库清单为 0.4.0。
+- 版本号升至 0.4.4-alpha.30（6c5ee5b），内容为 alpha.29 加阶段二独立引擎 WIN-03 第 1～6d 步（9320496 至 42aadcc）与第 7 步前置优化（cc5317a）；实验性独立引擎开关 `StandaloneEngine` 默认关闭，关闭时打字路径与 alpha.29 完全一致。从干净提交 6c5ee5b 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库；cc5317a 上普通权限 PowerShell 全量 68 项 CTest 一次全部通过（762.83 秒），6c5ee5b 升版本号后受影响的 6 项 CTest（焦点、开关开启焦点、重载、运行时诊断、安装诊断、发行元数据安装）复跑全部通过（7.66 秒），`test-setup.ps1` 安装器解包、内置 PS7 预检与界面渲染通过。
+- 生成 Harukoto-0.4.4-alpha.30-windows-x64.zip（68.3 MiB，SHA-256 196551344ffab072d2a2e079166d6986719d7d4aa3a2cc6700a98e91b8e4c47f）和 Harukoto-0.4.4-alpha.30-Setup.exe（172.9 MiB，SHA-256 94f8670680b4fb1dedc7f3ba93171af59503d68c130328bce5fbb1fda8685b78）。BUILD-INFO.md 记录源提交 6c5ee5b59bc69a440db98dc7869f9926a6c54dfb、不含未提交修改；包内 `MeowpuutTip.dll`、`harukoto_engine_host.exe`、`harukoto_engine_owner.exe`、`harukoto_engine_diagnose.exe`、`harukoto_candidate_explain.exe` 与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.30`；payload 内 `base-dictionary.json`（generation 4414fd82…）原生快照校验通过；FF14 词库清单为 0.4.0。
 - 安装器不替换已启用的主题包（如需 FF14 0.4.0 需在“晴词主题词库”手动导入并启用）。本机未安装，未发布，安装包未签名；实机摸底待维护者按 `docs/WINDOWS_VALIDATION.md` 末尾“独立引擎开关实机清单”与 VAL-01 执行。此条为打包后记录。
 
 ## 2026-11-22 · WIN-03 第 7 步前置：单次解码、单次跳转请求、SQLite 连接池与热更新基础词库复用
 
-- 前置：6d 已提交（3033f7d）。本批未提交、未打包、未实机。设计与结果见[接入 TSF](ENGINE_TSF.md)第 13 节。
+- 前置：6d 已提交（42aadcc）。本批未提交、未打包、未实机。设计与结果见[接入 TSF](ENGINE_TSF.md)第 13 节。
 - 单次解码：核心新增 C API `mpn_set_input`（`Core/MeowpuutCore.h/.cpp`，既有签名不变），一次性校验整串读音并只做一次 `session->refresh()`；`EngineWindows.h` 与 `EngineCore.h` 替换掉逐字节 `mpn_key` 循环（消除宿主侧 O(N²) 重放）。`EngineCoreTests` 补与逐字 `mpn_key` 逐项等价及非法串不破坏原会话断言。
 - 单次跳转请求：协议 `KeyAction` 新增 `Set = 6`（`EngineMessages.h`、`EngineServer.h`，既有 5 种动作线格式逐字节不变），服务端收到 `Set` 直接替换读音并将页码归零；`EngineTsf.h` `Driver::fetch()` 在非单键增删／未翻页刷新时只发 1 条 `KeyAction::Set`，不再 `Cancel` 后逐字发 N 次 IPC（消除快打在途覆盖、部分选词后的 O(N³) 重放）。`EngineMessagesTests`、`EngineServerTests` 补编解码与切换测试，`EngineTsfTests` `behaviour` 补快打跳过多键与部分选词后精确 1 次 exchange 断言。
 - SQLite 连接池：`WindowsDictionary` 内置带锁 `WordEvidence` 连接池（上限 16，声明于 `base_` 之后，析构先关全部 SQLite 连接再释放 `StableFile` 守卫），消除每键 `LoadLibraryExW("winsqlite3.dll")`、`sqlite3_open_v2`、`PRAGMA table_info`、`sqlite3_prepare_v2` 与 `FreeLibrary`。
@@ -154,7 +154,7 @@
 
 ## 2026-11-22 · WIN-03 第 6d 步：同段学习、引擎侧热更新与开关开启下的功能测试
 
-- 前置：6c 已提交（ddb05d3）。本批未提交、未打包、未实机。设计与结果见[接入 TSF](ENGINE_TSF.md)第 12 节。
+- 前置：6c 已提交（3100c4b）。本批未提交、未打包、未实机。设计与结果见[接入 TSF](ENGINE_TSF.md)第 12 节。
 - 同段学习：删除 `learned_segment` 门槛；`QuerySettings::remembered`（接入层 recall，最多 8 条）取代整词记忆摘要；选词前的词频摘要（`engineChosenWords`）；`MemoryMirror` 保留最近 4 个状态；开关开启时每段写出学习日志。对照 8 个场景的打字前缀与剩余段共 31,056 个列表全部由引擎提供，不一致 0。
 - 热更新：候选页带数据身份；`ServerConnection::setDictionary`、`Host::offer`；宿主 `--base-store` 与每秒检查的加载线程（完整校验、失败保留旧数据、启动时损坏快照回到版本目录）；`EngineProcess`／所有者接受 `--base-store`；接入层每秒至多一次向身份不同的引擎重问。layout 阶段：发布后宿主跟随、5/5 由引擎提供；损坏发布两侧都拒绝、5/5；常驻路径 5/5。
 - 功能测试：`ServiceFocusTests` 在开关强制开启、连真实宿主时照常通过（新 CTest `tsf_focus_engine_on`）；因内联小词库身份不同，列表都来自进程内。

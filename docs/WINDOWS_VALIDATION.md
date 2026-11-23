@@ -186,7 +186,7 @@ FF14（或其他游戏，UI-less）
 - Diagnose.cmd 中“常驻引擎”一行与各实例 Engine 行的原文。
 - 明显的延迟、卡顿或候选窗闪烁出现在哪个应用。
 
-### alpha.30 实机摸底观察（2026-11-22，c971673，Setup SHA-256 `94f86706…`）
+### alpha.30 实机摸底观察（2026-11-22，6c5ee5b，Setup SHA-256 `94f86706…`）
 
 - 准备与安装：提权安装日志记录 `Engine release approved: 815032885CDD...1E2D09A315A0, sequence 1.`，`HKLM\SOFTWARE\Harukoto\EngineReleases` 写入成功；`Diagnose.cmd` 检查 350 个进程，已加载的 5 个进程（`explorer`、`ffxiv_dx11`、`Notepad`、`steamwebhelper`、`XIVLauncher`）DLL 均与注册版本 `0.4.4-alpha.30` 一致。
 - 开启 `StandaloneEngine=1` 后实机留证（`Diagnose.cmd`）：

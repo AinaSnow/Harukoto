@@ -17,3 +17,7 @@ Android/.cxx/
 Android/build/
 Android/Generated/
 Android/local.properties
+
+# Local agent instructions (kept out of the public repository)
+AGENTS.md
+CLAUDE.md

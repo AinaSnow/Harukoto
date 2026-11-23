@@ -2,7 +2,7 @@
 
 修一个常用字的排序，和写一个新功能一样有价值。
 
-本维护分支优先推进 Windows。开始前查看[开发状态](docs/DEVELOPMENT_STATUS.md)和[开发变更记录](docs/DEVELOPMENT_CHANGELOG.md)，在 [Gitea](https://git.hare.fun/NemophilaHare/input) 的 issue／PR 中写明认领范围。每次功能提交同步更新进度、使用说明和验证结果；区分源码完成、本机验证与发布安装。Windows 构建／测试命令见 [Windows/README.md](Windows/README.md)，脚本使用 PowerShell 7。
+本维护分支优先推进 Windows。开始前查看[开发状态](docs/DEVELOPMENT_STATUS.md)和[开发变更记录](docs/DEVELOPMENT_CHANGELOG.md)，在 [GitHub](https://github.com/AinaSnow/Harukoto) 或 [Gitea](https://git.hare.fun/NemophilaHare/input) 的 issue／PR 中写明认领范围；开发边界与约定见 [docs/AI_DEVELOPMENT_GUIDE.md](docs/AI_DEVELOPMENT_GUIDE.md)。每次功能提交同步更新进度、使用说明和验证结果；区分源码完成、本机验证与发布安装。Windows 构建／测试命令见 [Windows/README.md](Windows/README.md)，脚本使用 PowerShell 7。
 
 反馈输入问题时请包含：
 
