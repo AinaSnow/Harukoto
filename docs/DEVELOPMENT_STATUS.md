@@ -1,5 +1,11 @@
 # 开发状态与接手入口
 
+## 2026-11-23 · alpha.34 试用包
+
+- 版本号升至 0.4.4-alpha.34（8ef9caf），内容为 alpha.33 加 FF14 词库 0.5.0（`a02f727`）与独立引擎默认开启（`0dff873`）。从干净提交 0dff873 完整 MSVC Release 构建、复制 DLL 到 ime 目录并重新生成词库，全量 69 项 CTest 在 PowerShell 全部通过（956.78 秒）。
+- 生成 `Harukoto-0.4.4-alpha.34-windows-x64.zip`（73.6 MiB，SHA-256 `02d2628b0617ddb1e442702cd55bed5f2f555a65b6ad174e9dc5836d789fb83e`）和 `Harukoto-0.4.4-alpha.34-Setup.exe`（178.1 MiB，SHA-256 `53cfdf780db38ef5417df3e895e41c6338b224d137caf16ea539e2894d556aef`）。BUILD-INFO 记录源提交 `0dff87353f6d3297a7bee9211bd325f6f63d14dd`、不含未提交修改；包内 `MeowpuutTip.dll`（`32fd6999…`）与 `msvc/Release` 哈希一致，DLL 内版本为 `0.4.4-alpha.34`；包内 FF14 词库清单为 0.5.0。
+- 未签名，作为朋友试用包分发，试用说明见 [FRIEND_TESTING.md](FRIEND_TESTING.md)。默认开启状态下的 VAL-01 实机清单、FF14 0.5.0 游戏内抽查待试用反馈。此条为打包后记录。
+
 ## 2026-11-23 · WIN-03：独立引擎改为默认开启
 
 - 维护者决定自 alpha.34 起默认开启独立引擎（原条件中开启状态下的 VAL-01 实机清单改为随 alpha.34 试用执行）。
