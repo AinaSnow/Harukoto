@@ -1,4 +1,4 @@
-#requires -Version 7.0
+﻿#requires -Version 7.0
 param([switch]$Json)
 
 $ErrorActionPreference = 'Stop'
@@ -46,7 +46,7 @@ foreach ($process in Get-Process) {
 }
 # WIN-08: whether the TIP is in the user's input list, the default input
 # method override, and the game-related settings. Read-only.
-$inputSettings = [ordered]@{ InLanguageList = '无法确认'; DefaultOverride = '无法确认'; InlineComposition = '默认（0 自动）'; ShiftToggle = '默认（1 左右均可）'; StandaloneEngine = '开启（默认）' }
+$inputSettings = [ordered]@{ InLanguageList = '无法确认'; DefaultOverride = '无法确认'; InlineComposition = '默认（0 自动）'; ShiftToggle = '默认（1 左右均可）'; StandaloneEngine = '开启（默认）'; RendererHandoff = '开启（默认）' }
 try {
     $tips = @(Get-WinUserLanguageList -ErrorAction Stop | ForEach-Object { $_.InputMethodTips })
     $inputSettings.InLanguageList = if ($tips | Where-Object { $_ -like '*961C0ADA-4DC6-488F-9563-4FC144EFAE27*' }) { '是' } else { '否（请在语言设置中添加晴词）' }
@@ -63,6 +63,7 @@ try {
     if ($null -ne $inputKey.ShiftToggle) { $inputSettings.ShiftToggle = "$($inputKey.ShiftToggle)" }
     # WIN-03 step 6: the experimental standalone engine switch (DWORD, 0 or absent: off).
     if ($inputKey.StandaloneEngine -is [int]) { $inputSettings.StandaloneEngine = if ($inputKey.StandaloneEngine -ne 0) { '开启' } else { '关闭（设置中已关闭）' } }
+    if ($inputKey.rendererHandoff -is [int]) { $inputSettings.RendererHandoff = if ($inputKey.rendererHandoff -ne 0) { '开启' } else { '关闭（已禁用换代）' } }
 } catch {}
 # WIN-03 step 6c: the resident engine's self-reported state (read only, no input content).
 $resident = [pscustomobject]@{ Status = '未随本工具提供引擎诊断程序' }
@@ -105,7 +106,7 @@ Write-Output "已检查 $checked 个进程，$unknown 个无法确认。"
 Write-Output ('基础词库发布：' + $basePublication.Status + ' ' + $basePublication.Generation)
 foreach ($match in $matches) {
     Write-Output ("运行时 [$($match.Name) / $($match.Id)]：" + $match.Runtime.Status)
-    $match.Runtime.Instances | Format-List ThreadId,SlotId,ServiceVersion,BaseSource,BaseVersion,BaseGeneration,ThemeGeneration,PendingBaseGeneration,Phase,LastApplyFailed,Publication,ObservationAgeSeconds,InputMode,CandidateUi,Engine,
+    $match.Runtime.Instances | Format-List ThreadId,SlotId,ServiceVersion,BaseSource,BaseVersion,BaseGeneration,ThemeGeneration,PendingBaseGeneration,Phase,LastApplyFailed,Publication,ObservationAgeSeconds,InputMode,CandidateUi,Engine,Renderer,
         @{n='OpenClose';e={if ($_.GameInput) {"应用改动 $($_.GameInput.OpenCloseChanges) 次，其中关闭 $($_.GameInput.HostCloses) 次"}}},
         @{n='UiElements';e={if ($_.GameInput) {"$($_.GameInput.UiElements) 次，应用自绘 $($_.GameInput.UiElementsHostDrawn) 次，失败 $($_.GameInput.UiElementFailures) 次"}}},
         @{n='Compositions';e={if ($_.GameInput) {"$($_.GameInput.Compositions) 次，失败 $($_.GameInput.CompositionFailures) 次，被应用结束 $($_.GameInput.CompositionsTerminated) 次"}}}
@@ -115,6 +116,7 @@ Write-Output ('  语言列表含晴词：' + $report.InputSettings.InLanguageLis
 Write-Output ('  默认输入法覆盖：' + $report.InputSettings.DefaultOverride)
 Write-Output ('  InlineComposition：' + $report.InputSettings.InlineComposition + '；ShiftToggle：' + $report.InputSettings.ShiftToggle)
 Write-Output ('独立引擎开关（WIN-03）：' + $report.InputSettings.StandaloneEngine)
+Write-Output ('候选窗渲染器换代（RH）：' + $report.InputSettings.RendererHandoff)
 Write-Output ('常驻引擎：' + $report.ResidentEngine.Status)
 Write-Output '  每个应用实际由谁提供候选、回退原因见上方各实例的 Engine 一行。'
 Write-Output ('主题词库：' + $report.Dictionaries.Status)

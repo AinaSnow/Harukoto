@@ -1,4 +1,4 @@
-param([switch]$Unregister, [switch]$VerifyOnly)
+﻿param([switch]$Unregister, [switch]$VerifyOnly)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'PowerShellHost.ps1')
 . (Join-Path $PSScriptRoot 'InputProfile.ps1')
@@ -34,11 +34,15 @@ try {
                 }
                 Write-Host 'Machine registration removed. Version files retained for apps that still hold the DLL.'
             }
-            # Version files stay on disk, but no engine remains approved.
+            # Version files stay on disk, but no engine or renderer remains approved.
             try {
                 Unpublish-HarukotoEngineRelease
                 Write-Host 'Engine release metadata removed.'
             } catch { Write-Warning "Engine release metadata could not be removed: $_" }
+            try {
+                Unpublish-HarukotoRendererRelease
+                Write-Host 'Renderer release metadata removed.'
+            } catch { Write-Warning "Renderer release metadata could not be removed: $_" }
             # WIN-03 step 4: nothing can start a new owner now (no approved
             # release); stop the running ones, in every session.
             try {

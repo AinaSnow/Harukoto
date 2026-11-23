@@ -1212,6 +1212,7 @@ static std::vector<std::string> corpus(const std::filesystem::path &path) {
 static int run(int argc, wchar_t **argv);
 int wmain(int argc, wchar_t **argv) {
     tsf_engine::standaloneEngineDefault = false; // Never reach the installed engine unless a test asks.
+    renderer_handoff::rendererHandoffDefault = false; // Never probe HKLM renderer releases unless a test asks.
     try { return run(argc, argv); }
     catch (const engine::pipe::Error &error) { std::cerr << "pipe failure=" << static_cast<int>(error.reason) << " win32=" << error.code << std::endl; }
     catch (const std::exception &error) { std::cerr << "exception: " << error.what() << std::endl; }

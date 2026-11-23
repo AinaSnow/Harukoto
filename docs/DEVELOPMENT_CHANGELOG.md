@@ -1,5 +1,14 @@
 # 开发变更记录
 
+## 2026-11-23 · RENDERER_HANDOFF（RH-1～RH-5）：候选窗渲染器热换代
+
+- 实现候选窗渲染器免重开热换代（[RENDERER_HANDOFF.md](RENDERER_HANDOFF.md) RH-1～RH-5，已验收提交、待实机）：
+  - 提取候选窗 `WM_COPYDATA` v1 载荷规范与纯函数解析器（`CandidatePayload.cs`），预留 `0x4D500000 + N` 版本标签并兼容同版本末尾追加字段；修复 `GlassPreview.cs` 命名接收窗创建早于 XAML/Hook 初始化的启动竞态。
+  - 新增独立可信键 `HKLM\SOFTWARE\Harukoto\RendererReleases`（`RendererRelease.h` 复用 `EngineRelease.h` 读取与 ACL 规则），安装器注册成功后原子写入并清理旧项（最多保留 4 条），卸载时清除；C#/C++/安装脚本三处载荷版本常量由测试锁住。
+  - 新增换代状态机与 Win32 后台校验宿主（`RendererHandoff.h`）并接入 `TextService.cpp`：空边界后台按 `(sequence, 文件 ID)` 校验 SHA-256，普通应用无缝切到安装器启动的新版桌面渲染器，沙箱等每进程应用预启动新版 standby（空载荷就绪探针确认）并在空边界平滑退场旧进程；失败、超时、连续 3 次拒收、版本不兼容或 `HKCU rendererHandoff=0` 时自动冷却并回退至自带目录渲染器与原生兜底窗。
+  - `RuntimeStatus` 升至 v2（2048 字节槽位，`RuntimeStatusReader.cs` 兼容读取 v1 旧进程），`Diagnose.cmd` 新增 `Renderer` 行（来源、载荷版本、版本序号、换代与失败次数）及换代开关状态；更新用户指南（含过渡期说明）与实机清单。
+  - `test-preview.ps1`、`InstallSupportTests.ps1`、临时目录打包预检与全部 5 项新增 RH CTest（含实进程双目录换代与回退 `renderer_handoff_live`）通过；隔离桌面下全量 CTest 73/75 通过，余下 2 项 Explorer 窗口枚举测试经维护者在常规交互桌面复跑全量 75 项全部通过后验收提交；RH-6 双版本打包与实机待办。
+
 ## 2026-11-23 · alpha.35 试用包
 
 - 版本号升至 0.4.4-alpha.35，内容为 alpha.34 加候选窗风格重做与单行横排（UI-04）、内置词库管理器（DICT-03，不再需要 Python）。另含候选窗每次更新只改一次宽度的防闪烁修复与胶囊两端改为半圆。从干净提交 6e4252d 重新构建并重建词库，全量 70 项 CTest 通过（1081.87 秒），生成 ZIP（73.6 MiB）与安装器（178.1 MiB），包内 DLL 与 Release 构建哈希一致、无 Python 文件。未签名，维护者自测。

@@ -1383,6 +1383,7 @@ std::vector<int> parseInts(const std::wstring &csv) {
 
 int wmain(int argc, wchar_t **argv) {
     tsf_engine::standaloneEngineDefault = false; // Never reach the installed engine unless a test asks.
+    renderer_handoff::rendererHandoffDefault = false; // Never probe HKLM renderer releases unless a test asks.
     std::cout << std::unitbuf;
     try {
         if (argc >= 2) {

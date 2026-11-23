@@ -21,3 +21,8 @@ $boundaryTest = Join-Path $output 'CandidateBoundaryTests.exe'
 if ($LASTEXITCODE -ne 0) { throw 'Boundary test build failed.' }
 & $boundaryTest (Join-Path $output 'MeowpuutGlassPreview.exe') $output
 if ($LASTEXITCODE -ne 0) { throw 'Boundary tests failed.' }
+$payloadTest = Join-Path $output 'CandidatePayloadTests.exe'
+& $compiler /nologo /target:exe /out:$payloadTest (Join-Path $PSScriptRoot 'CandidatePayload.cs') (Join-Path $PSScriptRoot 'tests/CandidatePayloadTests.cs')
+if ($LASTEXITCODE -ne 0) { throw 'Payload test build failed.' }
+& $payloadTest
+if ($LASTEXITCODE -ne 0) { throw 'Payload tests failed.' }

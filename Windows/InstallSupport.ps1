@@ -205,6 +205,107 @@ function Unpublish-HarukotoEngineRelease {
     }
 }
 
+# RH-2: approved candidate-window renderers, see docs/RENDERER_HANDOFF.md.
+# Separate from EngineReleases so older DLLs do not reject extra lines in that
+# key. Same HKLM ACL, atomic REG_MULTI_SZ per version, and sequence rollback.
+$script:HarukotoRendererReleaseKey = 'HKLM:\SOFTWARE\Harukoto\RendererReleases'
+$script:HarukotoRendererReleaseFormat = 'format=harukoto-renderer-release/1'
+# Must match CandidatePayload.MinVersion / MaxVersion and cover RendererRelease.h PayloadVersion.
+$script:HarukotoRendererPayloadMin = 1
+$script:HarukotoRendererPayloadMax = 1
+$script:HarukotoRendererReleaseSddl = $script:HarukotoEngineReleaseSddl
+$script:HarukotoRendererName = 'MeowpuutGlassPreview.exe'
+
+function New-HarukotoRendererRelease {
+    param(
+        [Parameter(Mandatory)][string]$Id,
+        [Parameter(Mandatory)][long]$Sequence,
+        [Parameter(Mandatory)][int]$PayloadMin,
+        [Parameter(Mandatory)][int]$PayloadMax,
+        [Parameter(Mandatory)][string]$Renderer,
+        [Parameter(Mandatory)][string]$RendererSha256
+    )
+    return [string[]]@(
+        $script:HarukotoRendererReleaseFormat,
+        "id=$Id",
+        "sequence=$Sequence",
+        "payload=$PayloadMin-$PayloadMax",
+        "renderer=$Renderer",
+        "renderer-sha256=$RendererSha256"
+    )
+}
+
+function Publish-HarukotoRendererRelease {
+    param(
+        [Parameter(Mandatory)][string]$VersionDirectory,
+        [Parameter(Mandatory)][string]$Id,
+        [string]$KeyPath = $script:HarukotoRendererReleaseKey,
+        [string]$Sddl = $script:HarukotoRendererReleaseSddl,
+        [int]$PayloadMin = $script:HarukotoRendererPayloadMin,
+        [int]$PayloadMax = $script:HarukotoRendererPayloadMax,
+        [ValidateRange(1, 8)][int]$Limit = 4
+    )
+    if (!(Test-HarukotoEngineReleaseId $Id)) { throw "Invalid renderer release id: $Id" }
+    if ($PayloadMin -lt 1 -or $PayloadMax -gt 65535 -or $PayloadMin -gt $PayloadMax) { throw "Invalid renderer payload range: $PayloadMin-$PayloadMax" }
+    $folder = [IO.Path]::GetFullPath($VersionDirectory).TrimEnd('\')
+    if ((Split-Path $folder -Leaf) -cne $Id) { throw 'The renderer release id must name its version directory.' }
+    if ($folder -notmatch '^[A-Za-z]:\\[^\\]') { throw "Renderer must be on a local drive path: $folder" }
+    if ((Get-Item -LiteralPath $folder -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing a redirected renderer directory.' }
+    $rendererPath = Join-Path $folder $script:HarukotoRendererName
+    if (!(Test-Path -LiteralPath $rendererPath -PathType Leaf)) { throw "Missing renderer program: $rendererPath" }
+    $file = [pscustomobject]@{ Path = $rendererPath; Sha256 = (Get-FileHash -LiteralPath $rendererPath -Algorithm SHA256).Hash.ToLowerInvariant() }
+    if (!(Test-Path -LiteralPath $KeyPath)) {
+        $parent = Split-Path $KeyPath
+        if (!(Test-Path -LiteralPath $parent)) {
+            New-Item -Path $parent -Force | Out-Null
+            Set-HarukotoEngineReleaseSecurity -Path $parent -Sddl $Sddl
+        }
+        New-Item -Path $KeyPath | Out-Null
+    }
+    Set-HarukotoEngineReleaseSecurity -Path (Split-Path $KeyPath) -Sddl $Sddl
+    Set-HarukotoEngineReleaseSecurity -Path $KeyPath -Sddl $Sddl
+    $key = Get-Item -LiteralPath $KeyPath
+    $existing = @(foreach ($name in $key.GetValueNames()) {
+        $lines = $null
+        if ($key.GetValueKind($name) -eq [Microsoft.Win32.RegistryValueKind]::MultiString) { $lines = [string[]]$key.GetValue($name) }
+        $sequence = Get-HarukotoEngineReleaseField $lines 'sequence'
+        [pscustomobject]@{
+            Name = $name
+            Sequence = if ($sequence -cmatch '^[1-9][0-9]{0,15}$') { [long]$sequence } else { 0L }
+            Renderer = Get-HarukotoEngineReleaseField $lines 'renderer'
+        }
+    })
+    $next = 1L
+    foreach ($entry in $existing) { if ($entry.Sequence -ge $next) { $next = $entry.Sequence + 1 } }
+    $lines = New-HarukotoRendererRelease -Id $Id -Sequence $next -PayloadMin $PayloadMin -PayloadMax $PayloadMax -Renderer $file.Path -RendererSha256 $file.Sha256
+    if ((($lines -join "`0").Length + 2) * 2 -gt 8192) { throw 'Renderer release entry exceeds the 8 KiB reader limit.' }
+    New-ItemProperty -LiteralPath $KeyPath -Name $Id -PropertyType MultiString -Value $lines -Force | Out-Null
+    $key = Get-Item -LiteralPath $KeyPath
+    if ($key.GetValueKind($Id) -ne [Microsoft.Win32.RegistryValueKind]::MultiString -or
+        (([string[]]$key.GetValue($Id)) -join "`n") -cne ($lines -join "`n")) {
+        throw 'Renderer release entry could not be verified after writing.'
+    }
+    $kept = [Collections.Generic.List[object]]::new()
+    foreach ($entry in $existing) {
+        if ($entry.Name -ceq $Id) { continue }
+        if ($entry.Sequence -gt 0 -and $entry.Renderer -and (Test-Path -LiteralPath $entry.Renderer -PathType Leaf)) { $kept.Add($entry) }
+        else { Remove-ItemProperty -LiteralPath $KeyPath -Name $entry.Name }
+    }
+    $sorted = @($kept | Sort-Object Sequence -Descending)
+    for ($i = $Limit - 1; $i -lt $sorted.Count; $i++) { Remove-ItemProperty -LiteralPath $KeyPath -Name $sorted[$i].Name }
+    return [pscustomobject]@{ Id = $Id; Sequence = $next; PayloadMin = $PayloadMin; PayloadMax = $PayloadMax; Renderer = $file }
+}
+
+function Unpublish-HarukotoRendererRelease {
+    param([string]$KeyPath = $script:HarukotoRendererReleaseKey)
+    if (Test-Path -LiteralPath $KeyPath) { Remove-Item -LiteralPath $KeyPath -Recurse }
+    $parent = Split-Path $KeyPath
+    if ((Test-Path -LiteralPath $parent)) {
+        $item = Get-Item -LiteralPath $parent
+        if ($item.SubKeyCount -eq 0 -and $item.ValueCount -eq 0) { Remove-Item -LiteralPath $parent }
+    }
+}
+
 # WIN-03 step 4 (docs/ENGINE_LIFECYCLE.md): stop resident engine owners whose
 # program lives under $Root before files go away. Owners in this session get
 # WM_CLOSE on their hidden window (graceful: the host is stopped first);

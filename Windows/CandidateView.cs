@@ -27,7 +27,7 @@ internal static class CandidateView
         for (int index = 0; index < fields.Length - 3; index++)
         {
             if (index == mainIndex) continue;
-            if (!expanded && IsJapanese(fields[index + 3]) && !fields[index + 3].EndsWith("\tja-direct", StringComparison.Ordinal)) {
+            if (!expanded && IsJapanese(fields[index + 3]) && !IsDirectJapanese(fields[index + 3])) {
                 if (reservedJapanese < 0 || index == highlighted) reservedJapanese = index;
             } else {
                 indices.Add(index);
@@ -103,9 +103,21 @@ internal static class CandidateView
         strip.Width = Math.Min(available, Math.Max(120, Math.Ceiling(needed) + 1));
     }
 
+    private static string CandidateKind(string candidate)
+    {
+        string[] parts = candidate.Split('\t');
+        return parts.Length > 2 ? parts[2] : "";
+    }
+
     private static bool IsJapanese(string candidate)
     {
-        return candidate.EndsWith("\tja", StringComparison.Ordinal) || candidate.EndsWith("\tja-direct", StringComparison.Ordinal);
+        string kind = CandidateKind(candidate);
+        return kind == "ja" || kind == "ja-direct";
+    }
+
+    private static bool IsDirectJapanese(string candidate)
+    {
+        return CandidateKind(candidate) == "ja-direct";
     }
 
 }

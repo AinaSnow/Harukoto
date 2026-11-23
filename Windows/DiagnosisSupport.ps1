@@ -87,6 +87,20 @@ function Convert-HarukotoRuntimeRecord {
         if ($value.ContainsKey('engine_local_lexicon') -and !$value.engine_local_lexicon) { $engine += '，瘦客户端' }
         if ($value.ContainsKey('engine_incompatible') -and $value.engine_incompatible) { $engine += '，协议不兼容，请重开应用' }
     }
+    # RH-4, absent in older services: which candidate renderer is active, its
+    # approved release sequence, payload version, handoff and failure counts.
+    $renderer = $null
+    if ($value.ContainsKey('renderer_source')) {
+        $sources = @{own='自带目录'; desktop='桌面渲染器'; approved='已批准新版（每进程）'}
+        if (!$sources.ContainsKey($value.renderer_source)) { throw '无效渲染器来源字段' }
+        foreach ($key in 'renderer_sequence','renderer_handoffs','renderer_failures') {
+            if (($value[$key] -isnot [long] -and $value[$key] -isnot [int]) -or $value[$key] -lt 0) { throw '无效渲染器计数' }
+        }
+        if (($value.renderer_payload -isnot [long] -and $value.renderer_payload -isnot [int]) -or $value.renderer_payload -lt 1) { throw '无效渲染器载荷版本' }
+        $renderer = "$($sources[$value.renderer_source])；载荷 v$($value.renderer_payload)"
+        if ($value.renderer_sequence -gt 0) { $renderer += "，版本序号 $($value.renderer_sequence)" }
+        $renderer += "，换代 $($value.renderer_handoffs) 次，失败 $($value.renderer_failures) 次"
+    }
     $relation = if (!$PublishedGeneration) { '无可比较的发布指针' }
         elseif ($value.base_generation -ceq $PublishedGeneration) { '已采用发布版本' }
         else { '尚未采用当前发布版本' }
@@ -102,6 +116,7 @@ function Convert-HarukotoRuntimeRecord {
         CandidateUi=$(if ($game) {$game.CandidateUi} else {'未报告（旧版）'})
         GameInput=$game
         Engine=$(if ($engine) {$engine} else {'未报告（旧版）'})
+        Renderer=$(if ($renderer) {$renderer} else {'未报告（旧版）'})
     }
 }
 

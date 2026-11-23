@@ -127,23 +127,60 @@ public:
     EngineDeployment(const EngineDeployment &)=delete;
     EngineDeployment &operator=(const EngineDeployment &)=delete;
     const std::filesystem::path &path() const { return path_; }
+    const std::wstring &nativePath() const { return native_; }
+    const FILE_ID_INFO &fileId() const { return id_; }
     const std::string &digest() const { return digest_; }
     bool sameFile(const EngineDeployment &other) const { return equal(id_,other.id_); }
+    static bool sameFileId(const FILE_ID_INFO &a, const FILE_ID_INFO &b) { return equal(a,b); }
+    // Lightweight identity probe without holding pin handles or hashing.
+    static bool probeFileIdentity(const std::filesystem::path &path, std::wstring &nativeOut, FILE_ID_INFO &idOut) {
+        if (!path.is_absolute() || path.native().find(L'\0')!=std::wstring::npos) return false;
+        pipe::Handle handle(CreateFileW(path.c_str(),FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,
+            FILE_FLAG_OPEN_REPARSE_POINT,nullptr));
+        if (!handle) return false;
+        BY_HANDLE_FILE_INFORMATION info{};
+        if (!GetFileInformationByHandle(handle.get(),&info)) return false;
+        if (GetFileType(handle.get())!=FILE_TYPE_DISK || (info.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT))) return false;
+        FILE_ID_INFO id{};
+        if (!GetFileInformationByHandleEx(handle.get(),FileIdInfo,&id,sizeof(id))) return false;
+        std::wstring native(32768,L'\0');
+        const auto size=GetFinalPathNameByHandleW(handle.get(),native.data(),static_cast<DWORD>(native.size()),FILE_NAME_NORMALIZED | VOLUME_NAME_NT);
+        if (!size || size>=native.size()) return false;
+        native.resize(size);
+        nativeOut=std::move(native);
+        idOut=id;
+        return true;
+    }
+    // Non-throwing image identity check against an already-verified native path
+    // and file ID. Only examines the caller's retained process handle.
+    static bool verifyImage(HANDLE process, const std::wstring &expectedNative, const FILE_ID_INFO &expectedId, DWORD *errorOut = nullptr) {
+        auto fail=[&](DWORD error) { if (errorOut) *errorOut=error; return false; };
+        try {
+            pipe::processIdentityOnly();
+            const auto alive=WaitForSingleObject(process,0);
+            if (alive!=WAIT_TIMEOUT) return fail(alive==WAIT_FAILED ? GetLastError() : ERROR_PROCESS_ABORTED);
+            std::wstring actual(32768,L'\0'); DWORD size=static_cast<DWORD>(actual.size());
+            if (!QueryFullProcessImageNameW(process,PROCESS_NAME_NATIVE,actual.data(),&size)) return fail(GetLastError());
+            actual.resize(size);
+            if (CompareStringOrdinal(actual.data(),static_cast<int>(actual.size()),expectedNative.data(),static_cast<int>(expectedNative.size()),TRUE)!=CSTR_EQUAL) return fail(ERROR_INVALID_IMAGE_HASH);
+            size=32768; actual.resize(size);
+            if (!QueryFullProcessImageNameW(process,0,actual.data(),&size)) return fail(GetLastError());
+            actual.resize(size); auto loaded=open(actual);
+            if (!equal(expectedId,fileId(loaded.get()))) return fail(ERROR_INVALID_IMAGE_HASH);
+            if (WaitForSingleObject(process,0)!=WAIT_TIMEOUT) return fail(ERROR_PROCESS_ABORTED);
+            return true;
+        } catch (const pipe::Error &error) {
+            return fail(error.code);
+        } catch (...) {
+            return fail(ERROR_INVALID_IMAGE_HASH);
+        }
+    }
     // Only examine the caller's retained real process object. This API never
     // takes a PID, duplicates capabilities, attaches or reconstructs trust.
     void verify(HANDLE process) const {
-        pipe::processIdentityOnly();
-        const auto alive=WaitForSingleObject(process,0);
-        if (alive!=WAIT_TIMEOUT) reject(alive==WAIT_FAILED ? GetLastError() : ERROR_PROCESS_ABORTED);
-        std::wstring actual(32768,L'\0'); DWORD size=static_cast<DWORD>(actual.size());
-        if (!QueryFullProcessImageNameW(process,PROCESS_NAME_NATIVE,actual.data(),&size)) reject(GetLastError());
-        actual.resize(size);
-        if (CompareStringOrdinal(actual.data(),static_cast<int>(actual.size()),native_.data(),static_cast<int>(native_.size()),TRUE)!=CSTR_EQUAL) reject();
-        size=32768; actual.resize(size);
-        if (!QueryFullProcessImageNameW(process,0,actual.data(),&size)) reject(GetLastError());
-        actual.resize(size); auto loaded=open(actual);
-        if (!equal(id_,fileId(loaded.get()))) reject();
-        if (WaitForSingleObject(process,0)!=WAIT_TIMEOUT) reject(ERROR_PROCESS_ABORTED);
+        DWORD error=ERROR_INVALID_IMAGE_HASH;
+        if (!verifyImage(process,native_,id_,&error)) reject(error);
     }
 };
 } // namespace harukoto::engine

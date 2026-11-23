@@ -41,6 +41,21 @@ foreach ($bad in @(@{engine_path='remote'}, @{engine_served=-1}, @{engine_reason
     try { Convert-HarukotoRuntimeRecord ($broken | ConvertTo-Json -Compress) $null | Out-Null } catch { $rejected = $true }
     if (!$rejected) { throw "Invalid engine field accepted: $($bad.Keys)" }
 }
+# RH-4 renderer handoff fields: optional, validated when present.
+Assert-Equal $game.Renderer '未报告（旧版）'
+$recordRh = [ordered]@{} + $record7a + [ordered]@{renderer_source='own'; renderer_sequence=0; renderer_payload=1; renderer_handoffs=0; renderer_failures=0}
+Assert-Equal (Convert-HarukotoRuntimeRecord ($recordRh | ConvertTo-Json -Compress) $null).Renderer '自带目录；载荷 v1，换代 0 次，失败 0 次'
+$recordRh2 = [ordered]@{} + $record7a + [ordered]@{renderer_source='desktop'; renderer_sequence=3; renderer_payload=1; renderer_handoffs=2; renderer_failures=1}
+Assert-Equal (Convert-HarukotoRuntimeRecord ($recordRh2 | ConvertTo-Json -Compress) $null).Renderer '桌面渲染器；载荷 v1，版本序号 3，换代 2 次，失败 1 次'
+$recordRh3 = [ordered]@{} + $record7a + [ordered]@{renderer_source='approved'; renderer_sequence=4; renderer_payload=1; renderer_handoffs=1; renderer_failures=0}
+Assert-Equal (Convert-HarukotoRuntimeRecord ($recordRh3 | ConvertTo-Json -Compress) $null).Renderer '已批准新版（每进程）；载荷 v1，版本序号 4，换代 1 次，失败 0 次'
+foreach ($bad in @(@{renderer_source='remote'}, @{renderer_sequence=-1}, @{renderer_payload=0}, @{renderer_handoffs='one'}, @{renderer_failures=-1})) {
+    $broken = [ordered]@{} + $recordRh2
+    foreach ($key in $bad.Keys) { $broken[$key] = $bad[$key] }
+    $rejected = $false
+    try { Convert-HarukotoRuntimeRecord ($broken | ConvertTo-Json -Compress) $null | Out-Null } catch { $rejected = $true }
+    if (!$rejected) { throw "Invalid renderer field accepted: $($bad.Keys)" }
+}
 # WIN-03 step 6c: the resident engine record from harukoto_engine_diagnose --resident --json.
 Assert-Equal (Convert-HarukotoResidentRecord '{"format":1,"scope":"resident_engine","trusted_discovery":false,"present":false}').Present $false
 $resident = Convert-HarukotoResidentRecord '{"format":1,"scope":"resident_engine","trusted_discovery":false,"present":true,"owner_pid":42,"alive":true,"start_reason":"demand","state":"ready","uptime_ms":5,"clients":2,"host_pid":43,"host_restarts":0,"last_exit":"none","last_exit_pid":0,"last_exit_age_ms":null,"recent_on_demand_starts":1,"breaker_tripped":false}'

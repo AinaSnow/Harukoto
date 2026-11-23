@@ -1,4 +1,4 @@
-param([switch]$Register, [switch]$Signed, [switch]$Prebuilt, [switch]$VerifyOnly)
+﻿param([switch]$Register, [switch]$Signed, [switch]$Prebuilt, [switch]$VerifyOnly)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'PowerShellHost.ps1')
@@ -141,6 +141,14 @@ if ($Register) {
         Write-Warning 'Only one engine program is present; engine release metadata unchanged.'
     } else {
         Write-Host 'No engine programs in this package; engine release metadata unchanged.'
+    }
+    # RH-2: approve this version's candidate renderer so already-open apps can
+    # hand off to it without restarting (docs/RENDERER_HANDOFF.md).
+    try {
+        $rendererRelease = Publish-HarukotoRendererRelease -VersionDirectory $install -Id $version
+        Write-Host "Renderer release approved: $($rendererRelease.Id), sequence $($rendererRelease.Sequence)."
+    } catch {
+        Write-Warning "Renderer release metadata was not updated; applications will keep using their own renderer. $_"
     }
     return
 }

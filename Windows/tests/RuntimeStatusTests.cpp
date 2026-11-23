@@ -5,9 +5,17 @@
 #include <vector>
 
 static std::string fields(const std::string &phase, char base) {
-    return "\"service_version\":\"0.4.4-alpha.21\",\"base_version\":\"1.0.0\",\"base_generation\":\"" +
-        std::string(64, base) + "\",\"theme_generation\":\"\",\"pending_base_generation\":\"\",\"phase\":\"" +
-        phase + "\",\"last_apply_failed\":false";
+    return "\"service_version\":\"0.4.4-alpha.35\",\"base_version\":\"1.0.0\",\"base_generation\":\"" +
+        std::string(64, base) + "\",\"theme_generation\":\"" + std::string(32, 'f') +
+        "\",\"pending_base_generation\":\"" + std::string(64, 'c') + "\",\"phase\":\"" +
+        phase + "\",\"last_apply_failed\":false"
+        ",\"input_mode\":\"chinese\",\"open_close_changes\":1,\"host_closes\":0,\"candidate_ui\":\"own\""
+        ",\"ui_elements\":2,\"ui_elements_host_drawn\":0,\"ui_element_failures\":0"
+        ",\"compositions\":2,\"composition_failures\":0,\"compositions_terminated\":0"
+        ",\"engine_path\":\"engine\",\"engine_served\":123,\"engine_fallbacks\":4,\"engine_reason\":\"unrepresentable\""
+        ",\"engine_memory_behind\":0,\"engine_sequence\":9,\"engine_cutovers\":1,\"engine_cutover_failures\":0"
+        ",\"engine_incompatible\":false,\"engine_yields\":2,\"engine_reclaimed\":1,\"engine_local_lexicon\":false"
+        ",\"renderer_source\":\"desktop\",\"renderer_sequence\":5,\"renderer_payload\":1,\"renderer_handoffs\":2,\"renderer_failures\":0";
 }
 int main() {
     RuntimeStatus first, second;

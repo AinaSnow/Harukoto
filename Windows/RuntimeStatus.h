@@ -7,8 +7,8 @@
 // window titles, document paths or personal dictionary contents are recorded.
 // Mapping lifetime follows service instances; no files/registry writes per key.
 class RuntimeStatus {
-    struct Slot { volatile LONG owner; volatile LONG sequence; char json[1016]; };
-    static_assert(sizeof(Slot) == 1024, "runtime protocol layout");
+    struct Slot { volatile LONG owner; volatile LONG sequence; char json[2040]; };
+    static_assert(sizeof(Slot) == 2048, "runtime protocol layout");
     static constexpr unsigned capacity = 64;
     HANDLE mapping = nullptr;
     Slot *slots = nullptr, *slot = nullptr;
@@ -31,7 +31,7 @@ public:
             FILETIME created{}, exited{}, kernel{}, user{};
             if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user)) return false;
             const auto stamp = (static_cast<unsigned long long>(created.dwHighDateTime) << 32) | created.dwLowDateTime;
-            const auto name = L"Local\\Harukoto.Runtime.v1." + std::to_wstring(GetCurrentProcessId()) + L"." + std::to_wstring(stamp);
+            const auto name = L"Local\\Harukoto.Runtime.v2." + std::to_wstring(GetCurrentProcessId()) + L"." + std::to_wstring(stamp);
             mapping = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, capacity * sizeof(Slot), name.c_str());
             if (!mapping) return false;
             slots = static_cast<Slot *>(MapViewOfFile(mapping, FILE_MAP_WRITE, 0, 0, capacity * sizeof(Slot)));

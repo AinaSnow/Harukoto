@@ -261,21 +261,23 @@ inline bool protectedDirectory(const std::filesystem::path &directory) {
     return true;
 }
 
-inline Snapshot read(const Source &source=Source{}) {
-    Snapshot snapshot;
-    auto fail=[&](Status status, DWORD error) { snapshot.status=status; snapshot.error=error; snapshot.entries.clear(); return snapshot; };
-    if (source.subkey.empty() || source.subkey.size()>512 || source.subkey.find(L'\0')!=std::wstring::npos) return fail(Status::Invalid,ERROR_INVALID_PARAMETER);
-    detail::Key key;
-    auto opened=RegOpenKeyExW(source.root,source.subkey.c_str(),0,KEY_QUERY_VALUE | READ_CONTROL | KEY_WOW64_64KEY,&key.value);
+namespace detail {
+template<class HandleEntry>
+inline Status readMultiValues(HKEY root, const std::wstring &subkey, bool requireProtected,
+        DWORD &errorOut, size_t &rejectedOut, size_t &unsupportedOut, HandleEntry &&handleEntry) {
+    auto fail=[&](Status status, DWORD error) { errorOut=error; return status; };
+    if (subkey.empty() || subkey.size()>512 || subkey.find(L'\0')!=std::wstring::npos) return fail(Status::Invalid,ERROR_INVALID_PARAMETER);
+    Key key;
+    const auto opened=RegOpenKeyExW(root,subkey.c_str(),0,KEY_QUERY_VALUE | READ_CONTROL | KEY_WOW64_64KEY,&key.value);
     if (opened==ERROR_FILE_NOT_FOUND || opened==ERROR_PATH_NOT_FOUND) return fail(Status::Missing,opened);
     if (opened!=ERROR_SUCCESS) return fail(Status::Invalid,opened);
-    if (source.requireProtected) {
+    if (requireProtected) {
         if (!protectedHandle(key.value,SE_REGISTRY_KEY,Object::RegistryKey)) return fail(Status::Unprotected,ERROR_ACCESS_DENIED);
         // Whoever can write an ancestor could delete and recreate this key.
-        for (size_t end=source.subkey.find(L'\\');end!=std::wstring::npos;end=source.subkey.find(L'\\',end+1)) {
-            detail::Key ancestor;
-            const auto prefix=source.subkey.substr(0,end);
-            const auto status=RegOpenKeyExW(source.root,prefix.c_str(),0,READ_CONTROL | KEY_WOW64_64KEY,&ancestor.value);
+        for (size_t end=subkey.find(L'\\');end!=std::wstring::npos;end=subkey.find(L'\\',end+1)) {
+            Key ancestor;
+            const auto prefix=subkey.substr(0,end);
+            const auto status=RegOpenKeyExW(root,prefix.c_str(),0,READ_CONTROL | KEY_WOW64_64KEY,&ancestor.value);
             if (status!=ERROR_SUCCESS) return fail(Status::Unprotected,status);
             if (!protectedHandle(ancestor.value,SE_REGISTRY_KEY,Object::RegistryKey)) return fail(Status::Unprotected,ERROR_ACCESS_DENIED);
         }
@@ -285,24 +287,38 @@ inline Snapshot read(const Source &source=Source{}) {
     if (info!=ERROR_SUCCESS) return fail(Status::Invalid,info);
     if (values>MaxEntries) return fail(Status::Invalid,ERROR_TOO_MANY_NAMES);
     for (DWORD index=0;index<values;++index) {
-        std::wstring name(MaxIdLength+2,L'\0');
-        DWORD nameSize=static_cast<DWORD>(name.size()), type=0;
+        std::wstring valueName(MaxIdLength+2,L'\0');
+        DWORD nameSize=static_cast<DWORD>(valueName.size()), type=0;
         std::vector<BYTE> data(MaxValueBytes+2);
         DWORD dataSize=static_cast<DWORD>(data.size());
-        const auto status=RegEnumValueW(key.value,index,name.data(),&nameSize,nullptr,&type,data.data(),&dataSize);
+        const auto status=RegEnumValueW(key.value,index,valueName.data(),&nameSize,nullptr,&type,data.data(),&dataSize);
         if (status==ERROR_NO_MORE_ITEMS) break;
-        if (status==ERROR_MORE_DATA) { ++snapshot.rejected; continue; }
+        if (status==ERROR_MORE_DATA) { ++rejectedOut; continue; }
         if (status!=ERROR_SUCCESS) return fail(Status::Invalid,status);
-        name.resize(nameSize); data.resize(dataSize);
-        std::vector<std::wstring> lines; Entry entry;
-        if (type!=REG_MULTI_SZ || !splitMulti(data,lines)) { ++snapshot.rejected; continue; }
-        const auto result=parse(name,lines,entry);
-        if (result==Parse::Unsupported) { ++snapshot.unsupported; continue; }
-        if (result!=Parse::Ok) { ++snapshot.rejected; continue; }
-        if (source.requireProtected && !protectedDirectory(entry.host.parent_path())) { ++snapshot.rejected; continue; }
-        snapshot.entries.push_back(std::move(entry));
+        valueName.resize(nameSize); data.resize(dataSize);
+        std::vector<std::wstring> lines;
+        if (type!=REG_MULTI_SZ || !splitMulti(data,lines)) { ++rejectedOut; continue; }
+        const auto result=handleEntry(valueName,lines);
+        if (result==Parse::Unsupported) { ++unsupportedOut; continue; }
+        if (result!=Parse::Ok) { ++rejectedOut; continue; }
     }
-    snapshot.status=Status::Ready;
+    return Status::Ready;
+}
+} // namespace detail
+
+inline Snapshot read(const Source &source=Source{}) {
+    Snapshot snapshot;
+    snapshot.status=detail::readMultiValues(source.root,source.subkey,source.requireProtected,
+        snapshot.error,snapshot.rejected,snapshot.unsupported,
+        [&](const std::wstring &name, const std::vector<std::wstring> &lines) {
+            Entry entry;
+            const auto result=parse(name,lines,entry);
+            if (result!=Parse::Ok) return result;
+            if (source.requireProtected && !protectedDirectory(entry.host.parent_path())) return Parse::Invalid;
+            snapshot.entries.push_back(std::move(entry));
+            return Parse::Ok;
+        });
+    if (snapshot.status!=Status::Ready) snapshot.entries.clear();
     return snapshot;
 }
 

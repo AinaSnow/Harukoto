@@ -30,7 +30,9 @@
 #include <string>
 #include "WordEvidence.h"
 #include "EngineTsfResident.h"
+#include "RendererHandoff.h"
 namespace tsf_engine = harukoto::tsf_engine;
+namespace renderer_handoff = harukoto::renderer::handoff;
 
 namespace {
 const CLSID serviceId = {0x961c0ada,0x4dc6,0x488f,{0x95,0x63,0x4f,0xc1,0x44,0xef,0xae,0x27}};
@@ -450,7 +452,7 @@ public:
         if (SUCCEEDED(result)) result = events->AdviseSink(IID_ITfThreadFocusSink,
             static_cast<ITfThreadFocusSink *>(this), &focusCookie);
         if (FAILED(result)) Deactivate();
-        else { runtimeStatus.open(); reportRuntimeStatus(); attachMode(manager); }
+        else { runtimeStatus.open(); pollRendererHandoff(GetTickCount64()); reportRuntimeStatus(); attachMode(manager); }
         return result;
     }
 
@@ -484,17 +486,17 @@ public:
             if (focus != TF_INVALID_COOKIE) source->UnadviseSink(focus);
             source->Release();
         }
-        if (lastForeground) sendGlass({});
+        if (rendererReady && rendererHost.lastForeground()) sendGlass({});
         if (keys) {
             auto *manager = keys;
             keys = nullptr;
             manager->UnadviseKeyEventSink(client);
             manager->Release();
         }
-        if (renderer) {
-            if (HWND target = rendererWindow()) PostMessageW(target, WM_CLOSE, 0, 0);
-            CloseHandle(renderer);
-            renderer = nullptr;
+        if (rendererReady) {
+            rendererHandoff.shutdown();
+            rendererHost.reset({}, {}, harukoto::renderer::release::PayloadVersion, false);
+            rendererReady = false;
         }
         if (popup) {
             DestroyWindow(popup);
@@ -878,7 +880,9 @@ public:
                 updatePopup();
                 syncComposition();
             }
-            pollEngineUpgrade(GetTickCount64(), engineClient.standby() != nullptr);
+            const auto boundaryNow = GetTickCount64();
+            pollEngineUpgrade(boundaryNow, engineClient.standby() != nullptr);
+            pollRendererHandoff(boundaryNow);
             armEngineIdleTimer();
             reportRuntimeStatus();
         } catch (...) {
@@ -1119,7 +1123,11 @@ private:
         Service *service = hintOwner;
         if (!service || service->hintTimer != id) return;
         service->hintTimer = 0;
-        if (service->session && !*mpn_input(service->session)) service->hideCandidates();
+        if (service->session && !*mpn_input(service->session)) {
+            service->hideCandidates();
+            service->pollRendererHandoff();
+            service->reportRuntimeStatus();
+        }
     }
     void showModeHint() {
         if (!keys || !session || *mpn_input(session)) return;
@@ -1405,6 +1413,7 @@ private:
         const bool changed = themeReload && themeReload->poll(dictionaryBoundary(), japaneseWords,
             [this](auto &next, auto &retired) { return adoptBase(next, retired); }, now);
         pollEngineUpgrade(now);
+        pollRendererHandoff(now);
         reportRuntimeStatus();
         return changed;
     }
@@ -1425,7 +1434,8 @@ private:
                 + ",\"ui_elements_host_drawn\":" + count(game.elementsHostDrawn) + ",\"ui_element_failures\":" + count(game.elementFailures)
                 + ",\"compositions\":" + count(game.compositions) + ",\"composition_failures\":" + count(game.compositionFailures)
                 + ",\"compositions_terminated\":" + count(game.compositionsTerminated)
-                + engineClient.diagnosticFields());
+                + engineClient.diagnosticFields()
+                + rendererHandoff.diagnosticFields());
         } catch (...) {}
     }
     bool switchContext(ITfContext *context) {
@@ -1783,8 +1793,10 @@ private:
             updatePopup();     // Our window, or the host's UI element (UI-less).
             syncComposition(); // WIN-08: as after a key.
         }
+        const auto now = GetTickCount64();
         if (engineClient.standby() && dictionaryBoundary() && !engineClient.pending())
-            pollEngineUpgrade(GetTickCount64(), true);
+            pollEngineUpgrade(now, true);
+        pollRendererHandoff(now);
         armEngineIdleTimer();
         reportRuntimeStatus();
     }
@@ -2150,59 +2162,40 @@ private:
         if (session) mpn_set_personal(session, wordBonuses.get());
     }
 
-    HWND rendererWindow() const {
-        if (!renderer) return nullptr;
-        HWND window = FindWindowW(nullptr, rendererName.c_str());
-        DWORD pid = 0;
-        if (window) GetWindowThreadProcessId(window, &pid);
-        return pid && pid == GetProcessId(renderer) ? window : nullptr;
+    void ensureRendererInitialized() {
+        if (rendererReady) return;
+        const auto folder = installFolder.empty()
+            ? std::filesystem::path(modulePath()).parent_path() : installFolder;
+        const auto id = std::to_wstring(GetCurrentProcessId()) + L"-"
+            + std::to_wstring(reinterpret_cast<uintptr_t>(this));
+        rendererHost.reset(folder / L"MeowpuutGlassPreview.exe",
+            rendererSourceOverride.value_or(harukoto::renderer::release::Source{}),
+            harukoto::renderer::release::PayloadVersion, false);
+        rendererHandoff.configure(rendererHost.ops(), id, harukoto::renderer::release::PayloadVersion);
+        rendererReady = true;
     }
 
-    HWND desktopRendererWindow() const {
-        HWND window = FindWindowW(nullptr, L"MeowpuutCandidates-desktop");
-        DWORD pid = 0;
-        if (window) GetWindowThreadProcessId(window, &pid);
-        if (!pid) return nullptr;
-        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-        if (!process) return nullptr;
-        wchar_t image[32768];
-        DWORD length = ARRAYSIZE(image);
-        const BOOL found = QueryFullProcessImageNameW(process, 0, image, &length);
-        CloseHandle(process);
-        const auto expected = std::filesystem::path(modulePath()).parent_path() / L"MeowpuutGlassPreview.exe";
-        return found && lstrcmpiW(image, expected.c_str()) == 0 ? window : nullptr;
+    bool rendererHandoffEnabled() const {
+        if (rendererSwitchOverride.has_value()) return *rendererSwitchOverride;
+        return renderer_handoff::readRendererHandoff(preferenceRoot);
+    }
+
+    bool rendererBoundary() const {
+        return dictionaryBoundary() && !engineClient.pending() && !engineDeferred && rendererHandoff.lastSentEmpty();
+    }
+
+    void pollRendererHandoff(ULONGLONG now = GetTickCount64()) {
+        if (destroying) return;
+        ensureRendererInitialized();
+        rendererHandoff.onBoundary(now, rendererBoundary(), rendererHandoffEnabled());
     }
 
     bool sendGlass(const std::wstring &text) {
         if (text.size() >= 4096) return false;
-        HWND target = desktopRendererWindow();
-        if (!target && !text.empty() && (!renderer || WaitForSingleObject(renderer, 0) == WAIT_OBJECT_0)) {
-            if (renderer) CloseHandle(renderer);
-            renderer = nullptr;
-            const auto id = std::to_wstring(GetCurrentProcessId()) + L"-"
-                + std::to_wstring(reinterpret_cast<uintptr_t>(this));
-            rendererName = L"MeowpuutCandidates-" + id;
-            auto path = std::filesystem::path(modulePath()).parent_path() / L"MeowpuutGlassPreview.exe";
-            auto command = L"\"" + path.wstring() + L"\" --ime " + id;
-            STARTUPINFOW startup{};
-            startup.cb = sizeof(startup);
-            PROCESS_INFORMATION process{};
-            if (CreateProcessW(path.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr,
-                               nullptr, &startup, &process)) {
-                renderer = process.hProcess;
-                CloseHandle(process.hThread);
-            }
-        }
-
-        if (!target) target = rendererWindow();
-        if (!target) return false;
-        if (!text.empty()) lastForeground = GetForegroundWindow();
-        COPYDATASTRUCT packet{0x4D50, static_cast<DWORD>((text.size() + 1) * sizeof(wchar_t)),
-                              const_cast<wchar_t *>(text.c_str())};
-        DWORD_PTR accepted = 0;
-        return SendMessageTimeoutW(target, WM_COPYDATA, reinterpret_cast<WPARAM>(lastForeground),
-                                   reinterpret_cast<LPARAM>(&packet), SMTO_ABORTIFHUNG | SMTO_BLOCK, 35,
-                                   &accepted) && accepted;
+        if (text.empty() && !rendererReady) return false;
+        ensureRendererInitialized();
+        if (text.empty() && !rendererHost.lastForeground() && !rendererHandoff.hasCurrent()) return false;
+        return rendererHandoff.send(text, GetTickCount64(), rendererBoundary(), rendererHandoffEnabled());
     }
 
     static LRESULT CALLBACK candidateWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -2645,9 +2638,11 @@ private:
     WNDPROC originalPopupProc = nullptr;
     std::vector<size_t> popupIndices;
     int popupRowHeight = 16;
-    HWND lastForeground = nullptr;
-    HANDLE renderer = nullptr;
-    std::wstring rendererName;
+    renderer_handoff::LiveHost rendererHost;
+    renderer_handoff::Machine rendererHandoff;
+    bool rendererReady = false;
+    std::optional<harukoto::renderer::release::Source> rendererSourceOverride;
+    std::optional<bool> rendererSwitchOverride;
     // WIN-08: the open/close rule, the candidate element (with what the host
     // was last told), the inline reading and counters for Diagnose.
     OpenCloseRule openRule;

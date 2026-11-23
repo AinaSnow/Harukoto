@@ -69,7 +69,6 @@ internal static class GlassPreview
             Height = 1
         };
         using (owner)
-        using (var receiver = new HwndSource(receiverParameters))
         {
             Window window;
             using (var layout = typeof(GlassPreview).Assembly.GetManifestResourceStream("CandidateWindow.xaml"))
@@ -87,7 +86,6 @@ internal static class GlassPreview
                 const int transparentNoActivate = 0x08000020;
                 SetWindowLong(handle, extendedStyle, GetWindowLong(handle, extendedStyle) | transparentNoActivate);
             };
-            ChangeWindowMessageFilterEx(receiver.Handle, 0x004A, 1, IntPtr.Zero);
             var strip = CandidateLayout.Create(window);
             var header = (FrameworkElement)window.FindName("CompositionHeader");
             var pageChip = (Border)window.FindName("PageChip");
@@ -96,80 +94,76 @@ internal static class GlassPreview
             Geometry paw = null;
             // The plain candidate window remains visible in screen sharing.
 
-            IntPtr foreground = IntPtr.Zero;
-            receiver.AddHook(delegate(IntPtr hwnd, int message, IntPtr sender, IntPtr data, ref bool handled)
+            // Create the named WM_COPYDATA receiver only after XAML and layout
+            // are initialized so FindWindow callers do not race startup.
+            using (var receiver = new HwndSource(receiverParameters))
             {
-                if (message == 0x0010)
+                ChangeWindowMessageFilterEx(receiver.Handle, 0x004A, 1, IntPtr.Zero);
+                IntPtr foreground = IntPtr.Zero;
+                receiver.AddHook(delegate(IntPtr hwnd, int message, IntPtr sender, IntPtr data, ref bool handled)
                 {
-                    handled = true;
-                    app.Dispatcher.BeginInvoke(new Action(app.Shutdown));
-                    return IntPtr.Zero;
-                }
-                const int copyDataMessage = 0x004A;
-                if (message != copyDataMessage)
-                    return IntPtr.Zero;
-                var packet = (CopyData)Marshal.PtrToStructure(data, typeof(CopyData));
-                if (packet.Tag.ToInt64() != 0x4D50 || packet.Bytes < 2 || packet.Bytes > 8192 || packet.Bytes % 2 != 0)
-                    return IntPtr.Zero;
+                    if (message == 0x0010)
+                    {
+                        handled = true;
+                        app.Dispatcher.BeginInvoke(new Action(app.Shutdown));
+                        return IntPtr.Zero;
+                    }
+                    const int copyDataMessage = 0x004A;
+                    if (message != copyDataMessage)
+                        return IntPtr.Zero;
+                    var packet = (CopyData)Marshal.PtrToStructure(data, typeof(CopyData));
+                    long tag = packet.Tag.ToInt64();
+                    if (!CandidatePayload.ValidPacket(tag, packet.Bytes))
+                        return IntPtr.Zero;
 
-                string text = Marshal.PtrToStringUni(packet.Text, packet.Bytes / 2 - 1);
-                handled = true;
-                if (text.Length == 0)
-                {
+                    string text = Marshal.PtrToStringUni(packet.Text, packet.Bytes / 2 - 1);
+                    handled = true;
+                    CandidatePayload parsed;
+                    if (!CandidatePayload.TryParse(tag, text, out parsed))
+                        return IntPtr.Zero;
+                    if (parsed.Hide)
+                    {
+                        app.Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            if (sender == foreground)
+                                window.Hide();
+                        }));
+                        return new IntPtr(1);
+                    }
+
+                    if (sender != GetForegroundWindow())
+                        return IntPtr.Zero;
+
                     app.Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        if (sender == foreground)
-                            window.Hide();
+                        if (sender != GetForegroundWindow())
+                            return;
+                        foreground = sender;
+                        preedit.Text = parsed.Preedit;
+                        header.Visibility = Visibility.Visible;
+                        pageIndicator.Text = parsed.PageIndicator;
+                        pageChip.Visibility = pageIndicator.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+                        var work = CandidateLayout.Prepare(window, strip, parsed.X, parsed.Y);
+                        UpdateCandidates(strip, parsed.RenderFields, parsed.Highlighted, -1, parsed.Expanded, paw);
+
+                        CandidateLayout.Show(window, work, parsed.X, parsed.Y);
                     }));
                     return new IntPtr(1);
-                }
-
-                string[] fields = text.Split('\n');
-                int x, y;
-                if (fields.Length < 3 || fields.Length > 10 || !int.TryParse(fields[0], out x)
-                    || !int.TryParse(fields[1], out y) || sender != GetForegroundWindow())
-                    return IntPtr.Zero;
-
-                app.Dispatcher.BeginInvoke(new Action(() =>
+                });
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+                timer.Tick += (sender, args) =>
                 {
-                    if (sender != GetForegroundWindow())
-                        return;
-                    foreground = sender;
-                    string[] state = fields[2].Split('\t');
-                    int highlighted;
-                    if (state.Length < 2 || !int.TryParse(state[1], out highlighted))
-                        highlighted = 0;
-                    preedit.Text = state[0];
-                    header.Visibility = Visibility.Visible;
-                    pageIndicator.Text = state.Length > 2 ? state[2] : "";
-                    bool conjugating = state.Length > 3 && state[3] == "2";
-                    bool expanded = conjugating || (state.Length > 3 && state[3] == "1");
-                    int japaneseCount = 0;
-                    for (int i = 3; i < fields.Length; i++)
-                        if (IsJapanese(fields[i]) && !fields[i].EndsWith("\tja-direct", StringComparison.Ordinal)) japaneseCount++;
-                    if (!conjugating && (expanded || japaneseCount > 1))
-                        pageIndicator.Text += (pageIndicator.Text.Length > 0 ? "   ·   " : "") + (expanded ? "F4 收起" : "F4 展开");
-                    pageChip.Visibility = pageIndicator.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-                    var work = CandidateLayout.Prepare(window, strip, x, y);
-                    UpdateCandidates(strip, fields, highlighted, -1, expanded, paw);
-
-                    CandidateLayout.Show(window, work, x, y);
-                }));
-                return new IntPtr(1);
-            });
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-            timer.Tick += (sender, args) =>
-            {
-                if (owner != null && owner.HasExited)
-                {
-                    timer.Stop();
-                    app.Shutdown();
-                }
-                else if (window.IsVisible && GetForegroundWindow() != foreground)
-                    window.Hide();
-            };
-            timer.Start();
-            app.Run();
+                    if (owner != null && owner.HasExited)
+                    {
+                        timer.Stop();
+                        app.Shutdown();
+                    }
+                    else if (window.IsVisible && GetForegroundWindow() != foreground)
+                        window.Hide();
+                };
+                timer.Start();
+                app.Run();
+            }
         }
     }
 

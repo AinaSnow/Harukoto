@@ -1,24 +1,25 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Text;
 using System.Threading;
 
 public static class HarukotoRuntimeStatusReader {
-    // A missing mapping is intentionally distinct from an empty live mapping.
-    public static string[] Read(int processId, long creationFileTime) {
-        string name = "Local\\Harukoto.Runtime.v1." + processId + "." + creationFileTime;
+    private static string[] ReadVersion(string prefix, int slotBytes, int processId, long creationFileTime) {
+        string name = prefix + processId + "." + creationFileTime;
         using (var map = MemoryMappedFile.OpenExisting(name, MemoryMappedFileRights.Read))
-        using (var view = map.CreateViewAccessor(0, 65536, MemoryMappedFileAccess.Read)) {
+        using (var view = map.CreateViewAccessor(0, 64L * slotBytes, MemoryMappedFileAccess.Read)) {
             var results = new List<string>();
+            int jsonBytes = slotBytes - 8;
             for (int index = 0; index < 64; ++index) {
-                long offset = index * 1024;
+                long offset = (long)index * slotBytes;
                 for (int attempt = 0; attempt < 3; ++attempt) {
                     int owner = view.ReadInt32(offset);
                     if (owner == 0) break;
                     int sequence = view.ReadInt32(offset + 4);
                     if (owner < 0 || (sequence & 1) != 0) continue;
-                    var bytes = new byte[1016];
+                    var bytes = new byte[jsonBytes];
                     view.ReadArray(offset + 8, bytes, 0, bytes.Length);
                     Thread.MemoryBarrier();
                     if (sequence != view.ReadInt32(offset + 4) || owner != view.ReadInt32(offset)) continue;
@@ -29,6 +30,17 @@ public static class HarukotoRuntimeStatusReader {
                 }
             }
             return results.ToArray();
+        }
+    }
+
+    // Read v2 (2048-byte slots, RH-4+) first, falling back to v1 (1024-byte
+    // slots) so Diagnose still inspects already-open older DLL processes.
+    // A missing mapping is intentionally distinct from an empty live mapping.
+    public static string[] Read(int processId, long creationFileTime) {
+        try {
+            return ReadVersion("Local\\Harukoto.Runtime.v2.", 2048, processId, creationFileTime);
+        } catch (FileNotFoundException) {
+            return ReadVersion("Local\\Harukoto.Runtime.v1.", 1024, processId, creationFileTime);
         }
     }
 }

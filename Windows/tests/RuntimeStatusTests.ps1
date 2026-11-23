@@ -1,4 +1,4 @@
-#requires -Version 7.0
+﻿#requires -Version 7.0
 param([Parameter(Mandatory)][string]$Writer)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../DiagnosisSupport.ps1')
@@ -21,6 +21,7 @@ try {
     Check ($status.Instances.Count -eq 2) 'Missing live slots'
     $first = @($status.Instances | Where-Object BaseGeneration -eq ('a' * 64))[0]
     Check ($first.Publication -eq '已采用发布版本') 'Published generation comparison failed'
+    Check ($first.Renderer -eq '桌面渲染器；载荷 v1，版本序号 5，换代 2 次，失败 0 次') "Renderer field mismatch: $($first.Renderer)"
     Check (@($status.Instances | Where-Object Publication -eq '尚未采用当前发布版本').Count -eq 1) 'Pending generation reported as active'
     Send-Command 'close'
     Check ((Read-Status).Instances.Count -eq 1) 'Closed instance still reported'
