@@ -167,7 +167,7 @@ CN-01a（完成）→ CN-01d（完成）→ CN-08（完成）→ CN-06a（完成
 | WIN-01 | 安装升级矩阵 | 全新安装、覆盖升级、同版本重装、UAC 取消、注册失败恢复、卸载；在可恢复的测试系统执行；诊断工具补开始菜单入口 |
 | WIN-02 | 跨应用完整验收 | 记事本、浏览器、VS Code、QQ、FF14、远程串流；选词、翻页、焦点、组字恢复、长词 |
 | UI-03（实机部分） | 布局边界 | 实际 100%／125%／150%／200% 缩放、两屏不同 DPI、远程显示、高对比 |
-| DICT-03（95b8442 已提交，随 alpha.35 打包，待实机） | 主题词库管理去 Python | 2026-11-23：管理窗口与命令行改为内置 C#/WPF（ThemePackages.cs、DictionaryManager.cs、DictionaryCli.cs），新增个人词表导入／清空；包内不再带 .py／.pyw，逐字节兼容由 CTest dictionary_manager 核对。待：未装 Python 的干净系统实机、安装器可选启用 FF14。原始说明：现在“晴词主题词库”管理窗口（dictionary-manager.pyw 与 manage-japanese-packages.py）需要用户自装 Python 3.10+ 与 tkinter，朋友试用时 FF14 词库因此难以启用。改为不依赖 Python：用安装包已有的 .NET Framework／WPF（与候选窗设置同一技术）重写预览、导入、启停、更新与回退，读写格式与现有主题快照逐字节兼容；命令行管理同样提供无 Python 版本。验收：未装 Python 的干净系统上能导入并启用 FF14 0.5.0，现有 Python 测试的场景在新实现上逐项通过，旧快照可直接读取；之后安装器可选“同时启用 FF14 词库” |
+| DICT-03（95b8442 已提交，随 alpha.35 打包，待实机） | 主题词库管理去 Python | 2026-11-23：管理窗口与命令行改为内置 C#/WPF（ThemePackages.cs、DictionaryManager.cs、DictionaryCli.cs），新增个人词表导入／清空；包内不再带 .py／.pyw，逐字节兼容由 CTest dictionary_manager 核对。待：未装 Python 的干净系统实机、安装器可选启用 FF14。原始说明：现在“晴词主题词库”管理窗口（dictionary-manager.pyw 与 manage-japanese-packages.py）需要用户自装 Python 3.10+ 与 tkinter，试用时 FF14 词库因此难以启用。改为不依赖 Python：用安装包已有的 .NET Framework／WPF（与候选窗设置同一技术）重写预览、导入、启停、更新与回退，读写格式与现有主题快照逐字节兼容；命令行管理同样提供无 Python 版本。验收：未装 Python 的干净系统上能导入并启用 FF14 0.5.0，现有 Python 测试的场景在新实现上逐项通过，旧快照可直接读取；之后安装器可选“同时启用 FF14 词库” |
 | RELEASE-01 | 发行收尾 | 发布说明、兼容范围、校验和、制品；明确 Python 依赖（DICT-03 完成后普通用户不再需要）；签名在证书条件具备后进行。发布渠道：GitHub Releases（AinaSnow/Harukoto），首个试用版 v0.4.4-alpha.34 已发布 |
 
 ## 阶段四：日语能力扩展
