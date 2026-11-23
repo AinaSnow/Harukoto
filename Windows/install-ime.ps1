@@ -122,8 +122,8 @@ if ($Register) {
     # WIN-03 step 1: approve this version's engine programs only after the new
     # input service is registered. A failed registration returned above and
     # left the previous approvals untouched. Since step 6c the input service
-    # starts the approved engine only when the user turns on StandaloneEngine
-    # (default off). A failure here only warns: the switch then stays on the
+    # starts the approved engine unless the user turns StandaloneEngine off
+    # (default on since alpha.34). A failure here only warns: the switch then stays on the
     # in-process path (docs/ENGINE_TSF.md).
     $enginePrograms = @(foreach ($name in $script:HarukotoEngineHostName, $script:HarukotoEngineOwnerName) {
         $engineProgram = Join-Path $install $name

@@ -1,5 +1,12 @@
 # 开发状态与接手入口
 
+## 2026-11-23 · WIN-03：独立引擎改为默认开启
+
+- 维护者决定自 alpha.34 起默认开启独立引擎（原条件中开启状态下的 VAL-01 实机清单改为随 alpha.34 试用执行）。
+- 改动：`Windows/EngineTsf.h` 的 `readStandaloneEngine` 改为 DWORD 0 关闭、其他 DWORD 开启、缺失或类型不符取 `standaloneEngineDefault`（产品为开）；`Windows/LayoutOptions.cs` 新增 `StandaloneEngineOptions`（与纠错开关同语义，保存默认值不写入），`Windows/CandidateSettings.cs` 设置窗口新增“独立引擎 → 多个应用共用一个输入引擎”；`Windows/diagnose-ime.ps1` 显示“开启（默认）／开启／关闭（设置中已关闭）”；`install-ime.ps1` 注释与 USER_GUIDE、Windows/README 同步。之前手动写过 0 的用户保持关闭。
+- 测试：直接驱动 `TextService` 的四个测试程序（EngineTsfTests、ServiceFocusTests、ServiceReloadTests、EngineCn02Benchmark）在入口把默认值设为关闭，避免连到本机已安装的引擎，需要引擎的用例照旧显式开启；EngineTsfTests 补默认开／关与类型不符的断言，LayoutOptionsTests 补设置读写断言。构建通过，相关 7 项 CTest 与 test-preview.ps1 通过；全量 CTest 随 alpha.34 打包运行。
+- 未验证：默认开启状态下的真实应用（记事本、QQ、FF14）体感、首次登录建连、跨版本升级换代与多应用内存，待 alpha.34 实机。
+
 ## 2026-11-23 · FF14-05：FF14 词库 0.5.0（NPC、任务、状态等十张表与玩家用语）
 
 - 范围：`scripts/build-ff14-full.py`（0.5.0、新表、ADDED_PINS_05、同名去重、撞音过滤扩到所有新表、Title 记为不可用）、`scripts/audit-ff14-readings.py`（审计与冲突表扩到新表；复核清单例子排序改为确定性；新增“FF14-05 新增玩家简称与用语”复核小节）、`DataSources/FF14/*.tsv`、`Resources/DictionaryPackages/ff14/full`、`Windows/tests/test_japanese_ff14_full.py`、`test_japanese_manager_gui.py`、文档。未改 Core/ 与 TextService.cpp。

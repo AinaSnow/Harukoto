@@ -104,6 +104,25 @@ internal static class ShiftToggleOptions
 }
 
 // CN-07 batch 7: Shift+Space toggles full-width output only when the DWORD
+// WIN-03: StandaloneEngine under Software\Meowpuut\Input. On unless it is the
+// DWORD 0 (default on since alpha.34), matching tsf_engine::readStandaloneEngine.
+internal static class StandaloneEngineOptions
+{
+    internal const string ValueName = "StandaloneEngine";
+    internal static bool Read(RegistryKey input)
+    {
+        if (input == null) return true;
+        var value = input.GetValue(ValueName);
+        return !(value is int) || (int)value != 0;
+    }
+    // Leaves an unchanged value alone, so saving other settings never creates it.
+    internal static void Write(RegistryKey input, bool enabled)
+    {
+        if (Read(input) == enabled && (input.GetValue(ValueName) is int || enabled)) return;
+        input.SetValue(ValueName, enabled ? 1 : 0, RegistryValueKind.DWord);
+    }
+}
+
 // FullWidthHotkey under Software\Meowpuut\Input is 1. Off by default (games
 // use Shift+Space); switching it off also ends full-width output.
 internal static class FullWidthOptions

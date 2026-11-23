@@ -82,6 +82,17 @@ internal static class LayoutOptionsTests
                 input.SetValue(TypoCorrectionOptions.ValueName, "0");
                 Check(TypoCorrectionOptions.Read(input), "Wrong typo registry type means on");
             }
+            // WIN-03: the standalone engine is on unless saved as DWORD 0 (default on since alpha.34).
+            Check(StandaloneEngineOptions.Read(null), "Standalone engine default without key");
+            using (var input = Registry.CurrentUser.CreateSubKey(path + @"\EngineInput")) {
+                Check(StandaloneEngineOptions.Read(input), "Standalone engine default on");
+                StandaloneEngineOptions.Write(input, true);
+                Check(input.GetValue(StandaloneEngineOptions.ValueName) == null, "Saving the engine default must not create the value");
+                StandaloneEngineOptions.Write(input, false);
+                Check(input.GetValueKind(StandaloneEngineOptions.ValueName) == RegistryValueKind.DWord && !StandaloneEngineOptions.Read(input), "Standalone engine off persisted as DWORD");
+                StandaloneEngineOptions.Write(input, true);
+                Check((int)input.GetValue(StandaloneEngineOptions.ValueName) == 1 && StandaloneEngineOptions.Read(input), "Standalone engine switched back on");
+            }
             // CN-07: Chinese punctuation and the Ctrl+. hotkey unless saved otherwise.
             Check(!PunctuationOptions.ReadEnglish(null) && PunctuationOptions.ReadHotkey(null), "Punctuation defaults without key");
             using (var input = Registry.CurrentUser.CreateSubKey(path + @"\PunctuationInput")) {

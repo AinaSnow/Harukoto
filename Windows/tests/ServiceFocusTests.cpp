@@ -1814,6 +1814,7 @@ struct EngineOn {
 };
 
 int wmain(int argc, wchar_t **argv) {
+    tsf_engine::standaloneEngineDefault = false; // Never reach the installed engine unless a test asks.
     assert(argc == 2 || argc == 4);
     std::unique_ptr<EngineOn> engineOn;
     if (argc == 4) engineOn = std::make_unique<EngineOn>(argv[2], argv[3]); // <host.exe> <snapshot>

@@ -141,11 +141,16 @@ struct EngineTsfTest {
         assert(RegCreateKeyExW(HKEY_CURRENT_USER, path.c_str(), 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &key, nullptr) == ERROR_SUCCESS);
         HKEY input = nullptr;
         assert(RegCreateKeyExW(key, L"Software\\Meowpuut\\Input", 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &input, nullptr) == ERROR_SUCCESS);
+        // Absent or of another type: the default (on in the product, off in tests).
         assert(!tsf_engine::readStandaloneEngine(key));
+        tsf_engine::standaloneEngineDefault = true;
+        assert(tsf_engine::readStandaloneEngine(key));
         DWORD one = 1, zero = 0;
         assert(RegSetValueExW(input, L"StandaloneEngine", 0, REG_DWORD, reinterpret_cast<const BYTE *>(&zero), sizeof(zero)) == ERROR_SUCCESS);
         assert(!tsf_engine::readStandaloneEngine(key));
-        assert(RegSetValueExW(input, L"StandaloneEngine", 0, REG_SZ, reinterpret_cast<const BYTE *>(L"1"), 4) == ERROR_SUCCESS);
+        assert(RegSetValueExW(input, L"StandaloneEngine", 0, REG_SZ, reinterpret_cast<const BYTE *>(L"0"), 4) == ERROR_SUCCESS);
+        assert(tsf_engine::readStandaloneEngine(key));
+        tsf_engine::standaloneEngineDefault = false;
         assert(!tsf_engine::readStandaloneEngine(key));
         assert(RegSetValueExW(input, L"StandaloneEngine", 0, REG_DWORD, reinterpret_cast<const BYTE *>(&one), sizeof(one)) == ERROR_SUCCESS);
         assert(tsf_engine::readStandaloneEngine(key));
@@ -1206,6 +1211,7 @@ static std::vector<std::string> corpus(const std::filesystem::path &path) {
 // steps <base> <themes> <personal> <memory-a-folder> <memory-b-folder>
 static int run(int argc, wchar_t **argv);
 int wmain(int argc, wchar_t **argv) {
+    tsf_engine::standaloneEngineDefault = false; // Never reach the installed engine unless a test asks.
     try { return run(argc, argv); }
     catch (const engine::pipe::Error &error) { std::cerr << "pipe failure=" << static_cast<int>(error.reason) << " win32=" << error.code << std::endl; }
     catch (const std::exception &error) { std::cerr << "exception: " << error.what() << std::endl; }

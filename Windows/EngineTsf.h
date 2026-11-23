@@ -37,13 +37,17 @@ constexpr uint64_t DeadlineMs = 1000;
 constexpr unsigned StickyFailures = 3;
 constexpr uint64_t StickyMs = 10 * 60 * 1000;
 
-// HKCU\Software\Meowpuut\Input DWORD StandaloneEngine: on only when it is a
-// DWORD other than 0. Absent, unreadable or of another type: off (default).
+// HKCU\Software\Meowpuut\Input DWORD StandaloneEngine: DWORD 0 turns the
+// engine off, any other DWORD turns it on. Absent, unreadable or of another
+// type: standaloneEngineDefault (on since alpha.34). Test programs that drive
+// TextService without choosing set the default off so they never reach the
+// engine installed on the machine.
+inline bool standaloneEngineDefault = true;
 inline bool readStandaloneEngine(HKEY root = HKEY_CURRENT_USER) {
     DWORD value = 0, bytes = sizeof(value);
     const auto result = RegGetValueW(root, L"Software\\Meowpuut\\Input", L"StandaloneEngine",
         RRF_RT_REG_DWORD, nullptr, &value, &bytes);
-    return result == ERROR_SUCCESS && value != 0;
+    return result == ERROR_SUCCESS ? value != 0 : standaloneEngineDefault;
 }
 
 struct Timeout : std::runtime_error { Timeout() : std::runtime_error("engine deadline") {} };

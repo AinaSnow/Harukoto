@@ -41,7 +41,7 @@ internal static class CandidateSettings
         int font = savedLayout.Font, width = savedLayout.Width, fuzzyMask = 0;
         bool typoCorrection = true, englishPunctuation = false, punctuationHotkey = true;
         int shiftToggle = ShiftToggleOptions.Either;
-        bool fullWidthHotkey = false;
+        bool fullWidthHotkey = false, standaloneEngine = true;
         try {
             using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Meowpuut\Input")) {
                 traditional.IsChecked = key != null && Convert.ToString(key.GetValue("TraditionalOutput", 0)) == "1";
@@ -51,6 +51,7 @@ internal static class CandidateSettings
                 punctuationHotkey = PunctuationOptions.ReadHotkey(key);
                 shiftToggle = ShiftToggleOptions.Read(key);
                 fullWidthHotkey = FullWidthOptions.Read(key);
+                standaloneEngine = StandaloneEngineOptions.Read(key);
             }
         } catch { /* Keep usable defaults if preferences are unavailable. */ }
         body.Children.Add(traditional);
@@ -83,6 +84,10 @@ internal static class CandidateSettings
         var hotkey = new CheckBox { Name = "PunctuationHotkey", Content = "Ctrl+. 切换中英文标点", IsChecked = punctuationHotkey, Margin = new Thickness(0,0,0,8) };
         body.Children.Add(english); body.Children.Add(hotkey);
         body.Children.Add(new TextBlock { Text = "中文标点下 , . ; [ ] \\ 输出 ，。；「」、，Shift 加符号键输出 ！：“”（）《》——……？￥ 等；/ 始终输出 /。英文标点下全部按原样输出。若 Ctrl+. 与其他软件的快捷键冲突，可关闭快捷键。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,24) });
+        body.Children.Add(new TextBlock { Text = "独立引擎", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0,0,0,8) });
+        var engine = new CheckBox { Name = "StandaloneEngine", Content = "多个应用共用一个输入引擎", IsChecked = standaloneEngine, Margin = new Thickness(0,0,0,8) };
+        body.Children.Add(engine);
+        body.Children.Add(new TextBlock { Text = "开启后词库只在一个后台引擎里加载一份，各应用不再各自加载，同时开多个应用时省内存、打字更快。引擎不可用时自动改用应用内输入，已打的字不会丢。管理员权限或沙箱中的应用始终使用应用内输入。默认开启；关闭后对之后打开的应用生效，已打开的应用在下一次输入时切换。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,24) });
         Func<int> fuzzyDraft = () => {
             int mask = 0;
             for (int i = 0; i < fuzzyBoxes.Length; ++i) if (fuzzyBoxes[i].IsChecked == true) mask |= 1 << i;
@@ -172,7 +177,7 @@ internal static class CandidateSettings
         direction.SelectionChanged += (s,e) => refresh();
         autoReading.Checked += (s,e) => refresh(); autoReading.Unchecked += (s,e) => refresh();
         applyPreset.Click += (s,e) => { setDraft(LayoutOptions.Preset(presets.SelectedIndex)); status.Text = "预设已应用到草稿，保存后生效。"; };
-        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。简繁、模糊音、纠错、中英文切换、全角、标点与词库设置保持。"; };
+        reset.Click += (s,e) => { setDraft(new LayoutOptions()); status.Text = "已恢复默认布局，点击保存后生效。简繁、模糊音、纠错、中英文切换、全角、标点、独立引擎与词库设置保持。"; };
         cancel.Click += (s,e) => window.Close();
         save.Click += (s,e) => {
             try {
@@ -191,6 +196,7 @@ internal static class CandidateSettings
                     PunctuationOptions.WriteHotkey(input, hotkey.IsChecked == true);
                     ShiftToggleOptions.Write(input, shiftMode.SelectedIndex);
                     FullWidthOptions.Write(input, fullWidth.IsChecked == true);
+                    StandaloneEngineOptions.Write(input, engine.IsChecked == true);
                 }
                 status.Text = "已保存，下次输入按键时生效。取消只丢弃此后未保存的调整。";
             } catch (Exception error) { status.Text = "保存失败：" + error.Message; }
