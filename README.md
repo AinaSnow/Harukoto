@@ -4,7 +4,7 @@ Windows 中文拼音输入法，带日语辅助输入和游戏主题词库（FF1
 
 独立维护自 [Meowpuut](https://github.com/Krysta1ll/Meowpuut)，保留上游版权与 MIT 授权；晴词不代表原上游的官方发行。
 
-**[下载试用版](https://github.com/AinaSnow/Harukoto/releases)** · [试用说明](docs/TRIAL.md) · [使用指南](docs/USER_GUIDE.md) · [发布说明](docs/RELEASE_NOTES.md)
+**[下载试用版](https://github.com/AinaSnow/Harukoto/releases)** · [项目主页](https://ainasnow.github.io/Harukoto-Site/) · [试用说明](docs/TRIAL.md) · [使用指南](docs/USER_GUIDE.md) · [发布说明](docs/RELEASE_NOTES.md)
 
 ## 功能
 
