@@ -41,7 +41,6 @@ internal static class CandidateView
         int count = indices.Count;
         var buttons = new Button[count];
         var preferred = new double[count];
-        var template = CandidateTheme.ItemTemplate(palette.ItemCorner);
         double numberSize = Math.Max(11, Math.Round(fontSize * 0.68));
         // Pills need a little room for their rounded ends and must not touch each other.
         double paddingX = options.PaddingX + (palette.Capsule ? 2 : 0);
@@ -68,7 +67,7 @@ internal static class CandidateView
                 text.Inlines.Add(new Run(" " + candidate[1]) { FontSize = options.ReadingSize, Foreground = selected ? palette.HighlightMuted : palette.Muted });
             var button = new Button
             {
-                Content = text, Template = template,
+                Content = text,
                 Height = double.NaN, Width = double.NaN,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 Foreground = palette.Text,
@@ -80,6 +79,10 @@ internal static class CandidateView
             AutomationProperties.SetName(button, (index + 1) + " " + candidate[0] + (japanese ? " 日语" : ""));
             strip.Children.Add(button);
             text.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            // WPF scales an oversized CornerRadius per axis, which turns a "pill" into an
+            // ellipse. A true pill uses half of the single-line item height.
+            double corner = palette.ItemCorner >= 999 ? Math.Round(text.DesiredSize.Height / 2, 1) : palette.ItemCorner;
+            button.Template = CandidateTheme.ItemTemplate(corner);
             preferred[i] = Math.Min(available - gapX, Math.Ceiling(text.DesiredSize.Width) + 1);
             buttons[i] = button;
         }
